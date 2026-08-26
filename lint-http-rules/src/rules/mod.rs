@@ -551,12 +551,9 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         &client_patch_method_content_type_match::ClientPatchMethodContentTypeMatch,
         QueryType::ByResource,
     ),
+    (&cache_coherence::CacheCoherence, QueryType::ByResource),
     (
-        &semantic_cache_coherence::SemanticCacheCoherence,
-        QueryType::ByResource,
-    ),
-    (
-        &semantic_head_response_headers_match_get::SemanticHeadResponseHeadersMatchGet,
+        &head_response_headers_match_get::HeadResponseHeadersMatchGet,
         QueryType::ByResource,
     ),
     (

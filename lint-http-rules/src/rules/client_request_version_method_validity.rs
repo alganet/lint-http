@@ -11,7 +11,7 @@ use crate::rules::Rule;
 /// Four methods qualify, and they do not qualify equally. GET, HEAD and DELETE
 /// each close their section with the same SHOULD NOT and the same `unless`
 /// clause; CONNECT is defined as a message that has no content at all. TRACE
-/// belongs to the same family and is *not* checked here — `semantic_trace_method_echo`
+/// belongs to the same family and is *not* checked here — `trace_method_echo`
 /// already reports § 9.3.8's MUST NOT, and two rules reporting one sentence is
 /// one rule too many.
 ///
@@ -31,7 +31,7 @@ pub struct ClientRequestVersionMethodValidity;
 //
 // So `Transfer-Encoding: chunked` is not evidence of content. What that leaves
 // is § 6.4's octet stream, measured once for every rule that asks this
-// question — `semantic_trace_method_echo` asks it of the same paragraph family.
+// question — `trace_method_echo` asks it of the same paragraph family.
 fn request_carries_content(req: &crate::http_transaction::RequestInfo) -> bool {
     crate::helpers::headers::content_evidence(&req.headers, req.body_length).is_some()
 }
@@ -78,7 +78,7 @@ impl Rule for ClientRequestVersionMethodValidity {
         // One section per method, because the strength differs and the message
         // has to say which one it is. GET, HEAD and DELETE carry a SHOULD NOT
         // with an `unless`; CONNECT is a declaration about the message.
-        // TRACE's MUST NOT is `semantic_trace_method_echo`'s.
+        // TRACE's MUST NOT is `trace_method_echo`'s.
         let sentence = match method {
             // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
             "GET" => "§ 9.3.1 says a client SHOULD NOT generate content in a GET request",
@@ -123,7 +123,7 @@ impl Rule for ClientRequestVersionMethodValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a request that carries content under a method whose definition gives content no meaning there. RFC 9110 says it about GET (§9.3.1), HEAD (§9.3.2) and DELETE (§9.3.5) in three identical paragraphs: content in such a request \"has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack\". CONNECT (§9.3.6) is stated differently and reported differently — see below.\n\n**A SHOULD NOT with a condition this rule cannot check.** The GET/HEAD/DELETE sentences end \"unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported\". An agreement reached out of band leaves no trace in the message, so a request under such an agreement is reported like any other. The exemption is not simply ignored, though: the next sentence in each of those three paragraphs says \"An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain\" — and a request this tool observed at a proxy has, by construction, an intermediary in its chain.\n\n**CONNECT is a different kind of finding.** §9.3.6 states \"A CONNECT request message does not have content.\" — a definition, not a modal a sender disobeys. So the report is that the message contradicts its own method's definition. It is also the one method judged on its header section alone: §9.3.6 says \"The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use\", so a per-transaction octet count carries no version-independent claim that those octets are content — and where the CONNECT succeeded they are the tunnel's own traffic.\n\n**Content, not framing.** Each of the three paragraphs opens \"Although request message framing is independent of the method used\", so a `Transfer-Encoding` is not by itself content: a chunked request whose first chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured, its octet count is what decides; otherwise the request's own `Content-Length` is.\n\n**Not checked here.** TRACE's §9.3.8 MUST NOT is `semantic_trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it — that is `semantic_options_method_capabilities`'s finding, not this rule's. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id."
+        "Reports a request that carries content under a method whose definition gives content no meaning there. RFC 9110 says it about GET (§9.3.1), HEAD (§9.3.2) and DELETE (§9.3.5) in three identical paragraphs: content in such a request \"has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack\". CONNECT (§9.3.6) is stated differently and reported differently — see below.\n\n**A SHOULD NOT with a condition this rule cannot check.** The GET/HEAD/DELETE sentences end \"unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported\". An agreement reached out of band leaves no trace in the message, so a request under such an agreement is reported like any other. The exemption is not simply ignored, though: the next sentence in each of those three paragraphs says \"An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain\" — and a request this tool observed at a proxy has, by construction, an intermediary in its chain.\n\n**CONNECT is a different kind of finding.** §9.3.6 states \"A CONNECT request message does not have content.\" — a definition, not a modal a sender disobeys. So the report is that the message contradicts its own method's definition. It is also the one method judged on its header section alone: §9.3.6 says \"The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use\", so a per-transaction octet count carries no version-independent claim that those octets are content — and where the CONNECT succeeded they are the tunnel's own traffic.\n\n**Content, not framing.** Each of the three paragraphs opens \"Although request message framing is independent of the method used\", so a `Transfer-Encoding` is not by itself content: a chunked request whose first chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured, its octet count is what decides; otherwise the request's own `Content-Length` is.\n\n**Not checked here.** TRACE's §9.3.8 MUST NOT is `trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it — that is `options_method_capabilities`'s finding, not this rule's. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -240,7 +240,7 @@ mod tests {
     #[case("POST", vec![("content-length", "1")], Some(1), false)]
     #[case("PUT", vec![("transfer-encoding", "chunked")], Some(9), false)]
     #[case("OPTIONS", vec![("content-length", "5")], Some(5), false)]
-    // TRACE is `semantic_trace_method_echo`'s, across all three signals.
+    // TRACE is `trace_method_echo`'s, across all three signals.
     #[case("TRACE", vec![("content-length", "1")], Some(1), false)]
     fn method_body_cases(
         #[case] method: &str,

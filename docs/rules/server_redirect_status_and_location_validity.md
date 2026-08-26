@@ -14,7 +14,7 @@ RFC 9110 §10.2.2 gives the `Location` header field a referent twice — the pri
 
 **The whole 3xx class is exempt, not a list of redirect codes.** The licensing sentence names `3xx (Redirection)` responses, so `304 Not Modified`, the deprecated `305 Use Proxy`, the reserved `306`, and any 3xx that is not registered at all are all exempt. §15.4 says a user agent MAY follow a provided `Location` *"even if the specific status code is not understood"*, and §15 requires a client to treat an unrecognized status as the `x00` of its class — so an unregistered 3xx is a `300` to every conforming recipient and carries the same relationship to the field. §15.4.5's `SHOULD NOT` on a 304 is about representation metadata (§8); `Location` is a response context field (§10.2) and is not reached by it.
 
-**Only presence is read.** Whether the value is a usable `URI-reference`, whether it is empty, and whether the response sent several `Location` field lines are `server_location_header_uri_valid`'s questions. A `301` or `302` that carries *no* `Location` is `server_response_location_on_redirect`'s. Whether a `201` ought to carry one is `semantic_post_creates_resource`'s, because the sentence that asks for it (§9.3.3) is about `POST`.
+**Only presence is read.** Whether the value is a usable `URI-reference`, whether it is empty, and whether the response sent several `Location` field lines are `server_location_header_uri_valid`'s questions. A `301` or `302` that carries *no* `Location` is `server_response_location_on_redirect`'s. Whether a `201` ought to carry one is `post_creates_resource`'s, because the sentence that asks for it (§9.3.3) is about `POST`.
 
 ## Specifications
 

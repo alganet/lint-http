@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# Semantic Cache Coherence
+# Cache Coherence
 
 ## Description
 
@@ -34,7 +34,7 @@ responses are skipped since they do not convey a new representation.
 ## Configuration
 
 ```toml
-[rules.semantic_cache_coherence]
+[rules.cache_coherence]
 enabled = true
 severity = "warn"
 ```

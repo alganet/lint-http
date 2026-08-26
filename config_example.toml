@@ -324,7 +324,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.semantic_patch_partial_update]
+[rules.patch_partial_update]
 enabled = true
 severity = "warn"
 
@@ -372,24 +372,24 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.semantic_status_code_semantics]
+[rules.status_code_semantics]
 enabled = true
 severity = "warn"
 
-[rules.semantic_post_creates_resource]
+[rules.post_creates_resource]
 enabled = true
 severity = "warn"
 
-[rules.semantic_head_response_headers_match_get]
+[rules.head_response_headers_match_get]
 enabled = true
 severity = "warn"
 headers = ["etag", "content-type", "content-length"]
 
-[rules.semantic_trace_method_echo]
+[rules.trace_method_echo]
 enabled = true
 severity = "warn"
 
-[rules.semantic_options_method_capabilities]
+[rules.options_method_capabilities]
 enabled = true
 severity = "warn"
 
@@ -500,7 +500,7 @@ severity = "error"
 enabled = true
 severity = "warn"
 
-[rules.semantic_origin_matching_for_cors]
+[rules.origin_matching_for_cors]
 enabled = true
 severity = "warn"
 
@@ -893,7 +893,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.semantic_cache_coherence]
+[rules.cache_coherence]
 enabled = true
 severity = "warn"
 

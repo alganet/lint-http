@@ -170,11 +170,11 @@ fn content_length_finding(
     })
 }
 
-pub struct SemanticHeadResponseHeadersMatchGet;
+pub struct HeadResponseHeadersMatchGet;
 
-impl Rule for SemanticHeadResponseHeadersMatchGet {
+impl Rule for HeadResponseHeadersMatchGet {
     fn id(&self) -> &'static str {
-        "semantic_head_response_headers_match_get"
+        "head_response_headers_match_get"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -440,7 +440,7 @@ impl Rule for SemanticHeadResponseHeadersMatchGet {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &SemanticHeadResponseHeadersMatchGet;
+static REGISTRATION: &dyn crate::rules::Rule = &HeadResponseHeadersMatchGet;
 
 #[cfg(test)]
 mod tests {
@@ -449,8 +449,8 @@ mod tests {
 
     #[test]
     fn id_and_scope() {
-        let r = SemanticHeadResponseHeadersMatchGet;
-        assert_eq!(r.id(), "semantic_head_response_headers_match_get");
+        let r = HeadResponseHeadersMatchGet;
+        assert_eq!(r.id(), "head_response_headers_match_get");
         assert_eq!(r.scope(), crate::rules::RuleScope::Server);
     }
 
@@ -469,7 +469,7 @@ mod tests {
     fn make_cfg_with_headers(headers: Vec<&str>) -> crate::config::Config {
         let mut cfg = crate::config::Config::default();
         cfg.rules.insert(
-            "semantic_head_response_headers_match_get".into(),
+            "head_response_headers_match_get".into(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
@@ -491,7 +491,7 @@ mod tests {
 
     #[test]
     fn matching_get_and_head_ok() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[
             ("etag", "\"v1\""),
             ("content-type", "text/plain"),
@@ -515,7 +515,7 @@ mod tests {
 
     #[test]
     fn missing_header_on_head_reports_violation() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("etag", "\"v1\"")]);
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn extra_header_on_head_reports_violation() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[]);
         let mut head = make_head_with_headers(&[("x-foo", "bar")]);
         head.request.uri = prev.request.uri.clone();
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn content_length_mismatch_reports_violation() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("content-length", "10")]);
         let mut head = make_head_with_headers(&[("content-length", "5")]);
         head.request.uri = prev.request.uri.clone();
@@ -566,7 +566,7 @@ mod tests {
 
     #[test]
     fn content_length_missing_on_head_is_allowed() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("content-length", "10")]);
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
@@ -581,7 +581,7 @@ mod tests {
 
     #[test]
     fn vary_missing_on_head_is_allowed() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("vary", "accept-encoding")]);
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
@@ -604,7 +604,7 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = get.request.uri.clone();
 
-        let v = SemanticHeadResponseHeadersMatchGet.check_transaction(
+        let v = HeadResponseHeadersMatchGet.check_transaction(
             &head,
             // newest first
             &crate::transaction_history::TransactionHistory::from_transactions(vec![
@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     fn no_previous_does_nothing() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let head = make_head_with_headers(&[("etag", "\"v1\"")]);
         let v = rule.check_transaction(
             &head,
@@ -630,7 +630,7 @@ mod tests {
 
     #[test]
     fn previous_with_different_uri_ignored() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("etag", "\"v1\"")]);
         let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);
         // different URIs
@@ -646,7 +646,7 @@ mod tests {
 
     #[test]
     fn previous_not_get_ignored() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let mut prev = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         prev.request.method = "POST".to_string();
         let mut head = make_head_with_headers(&[]);
@@ -672,7 +672,7 @@ mod tests {
 
     #[test]
     fn header_name_case_insensitive_is_accepted() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("ETAG", "\"v1\"")]);
         let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);
         head.request.uri = prev.request.uri.clone();
@@ -688,7 +688,7 @@ mod tests {
     #[test]
     fn parse_config_requires_headers_array() {
         let cfg = crate::config::Config::default();
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let res = rule.validate(&cfg);
         assert!(res.is_err());
     }
@@ -696,10 +696,10 @@ mod tests {
     #[test]
     fn parse_config_rejects_empty_headers_array() {
         let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "semantic_head_response_headers_match_get",
+            "head_response_headers_match_get",
         ]);
         cfg.rules.insert(
-            "semantic_head_response_headers_match_get".into(),
+            "head_response_headers_match_get".into(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
@@ -709,7 +709,7 @@ mod tests {
             }),
         );
 
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let res = rule.validate(&cfg);
         assert!(res.is_err());
     }
@@ -717,10 +717,10 @@ mod tests {
     #[test]
     fn parse_config_rejects_non_string_headers_item() {
         let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "semantic_head_response_headers_match_get",
+            "head_response_headers_match_get",
         ]);
         cfg.rules.insert(
-            "semantic_head_response_headers_match_get".into(),
+            "head_response_headers_match_get".into(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
@@ -733,7 +733,7 @@ mod tests {
             }),
         );
 
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let res = rule.validate(&cfg);
         assert!(res.is_err());
     }
@@ -741,10 +741,10 @@ mod tests {
     #[test]
     fn parse_config_lowercases_headers_items() -> anyhow::Result<()> {
         let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "semantic_head_response_headers_match_get",
+            "head_response_headers_match_get",
         ]);
         cfg.rules.insert(
-            "semantic_head_response_headers_match_get".into(),
+            "head_response_headers_match_get".into(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
@@ -757,7 +757,7 @@ mod tests {
             }),
         );
 
-        let parsed = parse_headers_config(&cfg, "semantic_head_response_headers_match_get")?;
+        let parsed = parse_headers_config(&cfg, "head_response_headers_match_get")?;
         assert!(parsed.headers.contains(&"etag".to_string()));
         Ok(())
     }
@@ -774,7 +774,7 @@ mod tests {
     ) -> Option<Violation> {
         let mut head = head.clone();
         head.request.uri = prev.request.uri.clone();
-        SemanticHeadResponseHeadersMatchGet.check_transaction(
+        HeadResponseHeadersMatchGet.check_transaction(
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(headers),
@@ -945,7 +945,7 @@ mod tests {
 
     #[test]
     fn head_has_unchecked_header_is_ignored() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[]);
         let mut head = make_head_with_headers(&[("x-foo", "bar")]);
         head.request.uri = prev.request.uri.clone();
@@ -961,7 +961,7 @@ mod tests {
 
     #[test]
     fn transfer_encoding_on_head_allowed_when_prev_missing() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[]);
         let mut head = make_head_with_headers(&[("transfer-encoding", "chunked")]);
         head.request.uri = prev.request.uri.clone();
@@ -976,7 +976,7 @@ mod tests {
 
     #[test]
     fn transfer_encoding_missing_on_head_is_allowed() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("transfer-encoding", "chunked")]);
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
@@ -991,7 +991,7 @@ mod tests {
 
     #[test]
     fn content_length_prev_invalid_is_ignored() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("content-length", "abc")]);
         let mut head = make_head_with_headers(&[("content-length", "5")]);
         head.request.uri = prev.request.uri.clone();
@@ -1006,7 +1006,7 @@ mod tests {
 
     #[test]
     fn vary_order_different_but_same_members_ok() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("vary", "Accept-Encoding, Accept")]);
         let mut head = make_head_with_headers(&[("vary", "accept, accept-encoding")]);
         head.request.uri = prev.request.uri.clone();
@@ -1021,7 +1021,7 @@ mod tests {
 
     #[test]
     fn vary_different_members_reports_violation() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("vary", "a, b")]);
         let mut head = make_head_with_headers(&[("vary", "a, c")]);
         head.request.uri = prev.request.uri.clone();
@@ -1043,7 +1043,7 @@ mod tests {
     /// value read one `char` per octet, so %xA0 arrives as itself.
     #[test]
     fn vary_members_differing_by_one_obs_text_octet_report() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let mut prev = make_prev_with_headers(&[]);
         prev.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_octet_pairs(&[("vary", b"a, b\xA0".as_slice())]);
@@ -1063,7 +1063,7 @@ mod tests {
 
     #[test]
     fn previous_response_missing_is_ignored() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let mut prev = crate::test_helpers::make_test_transaction();
         prev.request.method = "GET".to_string();
         prev.response = None;
@@ -1081,7 +1081,7 @@ mod tests {
 
     #[test]
     fn multiple_headers_mismatch_reports_violation() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("etag", "\"v1\""), ("content-type", "text/plain")]);
         let mut head = make_head_with_headers(&[("etag", "\"v1\""), ("content-type", "text/html")]);
         head.request.uri = prev.request.uri.clone();
@@ -1097,7 +1097,7 @@ mod tests {
 
     #[test]
     fn accept_encoding_order_mismatch_reports_violation() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("accept-encoding", "gzip, deflate")]);
         let mut head = make_head_with_headers(&[("accept-encoding", "deflate, gzip")]);
         head.request.uri = prev.request.uri.clone();
@@ -1112,12 +1112,12 @@ mod tests {
 
     #[test]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "semantic_head_response_headers_match_get",
+            "head_response_headers_match_get",
         ]);
         full_cfg.rules.insert(
-            "semantic_head_response_headers_match_get".into(),
+            "head_response_headers_match_get".into(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
@@ -1138,10 +1138,10 @@ mod tests {
     #[test]
     fn parse_config_rejects_headers_not_array() {
         let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "semantic_head_response_headers_match_get",
+            "head_response_headers_match_get",
         ]);
         cfg.rules.insert(
-            "semantic_head_response_headers_match_get".into(),
+            "head_response_headers_match_get".into(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));
@@ -1151,27 +1151,27 @@ mod tests {
             }),
         );
 
-        let res = parse_headers_config(&cfg, "semantic_head_response_headers_match_get");
+        let res = parse_headers_config(&cfg, "head_response_headers_match_get");
         assert!(res.is_err());
     }
 
     #[test]
     fn parse_config_rejects_non_table_rule_cfg() {
         let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "semantic_head_response_headers_match_get",
+            "head_response_headers_match_get",
         ]);
         cfg.rules.insert(
-            "semantic_head_response_headers_match_get".into(),
+            "head_response_headers_match_get".into(),
             toml::Value::String("not a table".into()),
         );
 
-        let res = parse_headers_config(&cfg, "semantic_head_response_headers_match_get");
+        let res = parse_headers_config(&cfg, "head_response_headers_match_get");
         assert!(res.is_err());
     }
 
     #[test]
     fn head_missing_response_is_ignored() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("etag", "\"v1\"")]);
         // create a HEAD transaction without a response
         let mut head = crate::test_helpers::make_test_transaction();
@@ -1189,7 +1189,7 @@ mod tests {
 
     #[test]
     fn multiple_content_length_values_in_prev_are_ignored() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[("content-length", "10"), ("content-length", "20")]);
         let mut head = make_head_with_headers(&[("content-length", "10")]);
         head.request.uri = prev.request.uri.clone();
@@ -1205,7 +1205,7 @@ mod tests {
 
     #[test]
     fn configured_header_missing_in_both_is_ignored() {
-        let rule = SemanticHeadResponseHeadersMatchGet;
+        let rule = HeadResponseHeadersMatchGet;
         let prev = make_prev_with_headers(&[]);
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
@@ -1254,7 +1254,7 @@ mod tests {
         }
 
         let mut saw_a_finding = false;
-        for ex in SemanticHeadResponseHeadersMatchGet.examples() {
+        for ex in HeadResponseHeadersMatchGet.examples() {
             let blocks: Vec<&str> = ex.snippet.split("\n\n").collect();
             let [get_req, get_resp, head_req, head_resp] = blocks.as_slice() else {
                 panic!("not two exchanges: {:?}", ex.snippet);
@@ -1290,7 +1290,7 @@ mod tests {
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
         cfg.rules.insert(
-            "semantic_head_response_headers_match_get".into(),
+            "head_response_headers_match_get".into(),
             toml::Value::Table({
                 let mut t = toml::map::Map::new();
                 t.insert("enabled".into(), toml::Value::Boolean(true));

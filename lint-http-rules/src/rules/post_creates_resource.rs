@@ -5,11 +5,11 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-pub struct SemanticPostCreatesResource;
+pub struct PostCreatesResource;
 
-impl Rule for SemanticPostCreatesResource {
+impl Rule for PostCreatesResource {
     fn id(&self) -> &'static str {
-        "semantic_post_creates_resource"
+        "post_creates_resource"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -162,7 +162,7 @@ impl Rule for SemanticPostCreatesResource {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &SemanticPostCreatesResource;
+static REGISTRATION: &dyn crate::rules::Rule = &PostCreatesResource;
 
 #[cfg(test)]
 mod tests {
@@ -180,7 +180,7 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        let rule = SemanticPostCreatesResource;
+        let rule = PostCreatesResource;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         rule.check_transaction(
             tx,
@@ -191,8 +191,8 @@ mod tests {
 
     #[test]
     fn id_and_scope() {
-        let r = SemanticPostCreatesResource;
-        assert_eq!(r.id(), "semantic_post_creates_resource");
+        let r = PostCreatesResource;
+        assert_eq!(r.id(), "post_creates_resource");
         assert_eq!(r.scope(), crate::rules::RuleScope::Server);
     }
 
@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "semantic_post_creates_resource");
+        crate::test_helpers::enable_rule(&mut cfg, "post_creates_resource");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
     }

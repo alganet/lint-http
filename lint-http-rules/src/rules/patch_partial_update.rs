@@ -14,11 +14,11 @@ use crate::rules::Rule;
 /// for patch formats; RFC 5789's own examples use `application/example` and `text/example`,
 /// and which formats a server accepts is discovered from `Accept-Patch`
 /// (`client_patch_method_content_type_match`).
-pub struct SemanticPatchPartialUpdate;
+pub struct PatchPartialUpdate;
 
-impl Rule for SemanticPatchPartialUpdate {
+impl Rule for PatchPartialUpdate {
     fn id(&self) -> &'static str {
-        "semantic_patch_partial_update"
+        "patch_partial_update"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -186,7 +186,7 @@ impl Rule for SemanticPatchPartialUpdate {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &SemanticPatchPartialUpdate;
+static REGISTRATION: &dyn crate::rules::Rule = &PatchPartialUpdate;
 
 #[cfg(test)]
 mod tests {
@@ -219,7 +219,7 @@ mod tests {
         #[case] headers: Vec<(&str, &str)>,
         #[case] expect_violation: bool,
     ) {
-        let rule = SemanticPatchPartialUpdate;
+        let rule = PatchPartialUpdate;
         let tx = make_tx_with_req(headers);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let v = rule.check_transaction(
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn non_utf8_content_type_counts_as_present() {
         use hyper::header::HeaderValue;
-        let rule = SemanticPatchPartialUpdate;
+        let rule = PatchPartialUpdate;
         let mut tx = make_tx_with_req(vec![("content-length", "1")]);
         // The field is on the wire; its octets are not visible ASCII.
         // `message_content_type_well_formed` owns what is wrong with it.
@@ -263,7 +263,7 @@ mod tests {
     /// the captured octet count is the only evidence there is.
     #[test]
     fn captured_content_without_framing_fields_is_reported() {
-        let rule = SemanticPatchPartialUpdate;
+        let rule = PatchPartialUpdate;
         let mut tx = make_tx_with_req(vec![]);
         tx.request.body_length = Some(5);
         tx.request_body = Some(Bytes::from("hello"));
@@ -282,7 +282,7 @@ mod tests {
     /// disagreement is `message_request_body_length_accuracy`'s finding.
     #[test]
     fn captured_zero_length_outranks_a_declared_length() {
-        let rule = SemanticPatchPartialUpdate;
+        let rule = PatchPartialUpdate;
         let mut tx = make_tx_with_req(vec![("content-length", "5")]);
         tx.request.body_length = Some(0);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
@@ -298,7 +298,7 @@ mod tests {
     /// method with no defined semantics, so RFC 5789 § 2 does not measure it.
     #[test]
     fn lowercase_patch_is_not_patch() {
-        let rule = SemanticPatchPartialUpdate;
+        let rule = PatchPartialUpdate;
         let mut tx = make_tx_with_req(vec![("content-length", "5")]);
         tx.request.method = "patch".into();
         tx.request.body_length = Some(5);
@@ -316,7 +316,7 @@ mod tests {
     /// no content, and § 8.3's SHOULD is about a message that contains some.
     #[test]
     fn chunked_request_with_no_content_is_not_reported() {
-        let rule = SemanticPatchPartialUpdate;
+        let rule = PatchPartialUpdate;
         let mut tx = make_tx_with_req(vec![("transfer-encoding", "chunked")]);
         tx.request.body_length = Some(0);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
@@ -334,7 +334,7 @@ mod tests {
     /// where the proxy rejected an over-limit body, a length.
     #[test]
     fn declared_length_without_a_capture_is_reported() {
-        let rule = SemanticPatchPartialUpdate;
+        let rule = PatchPartialUpdate;
         let tx = make_tx_with_req(vec![("content-length", "10")]);
         assert!(tx.request.body_length.is_none());
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "semantic_patch_partial_update");
+        crate::test_helpers::enable_rule(&mut cfg, "patch_partial_update");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
@@ -359,11 +359,9 @@ mod tests {
     fn validate_rules_with_invalid_config() {
         // missing severity should fail validation
         let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "semantic_patch_partial_update");
+        crate::test_helpers::enable_rule(&mut cfg, "patch_partial_update");
         // remove severity field from table
-        if let Some(toml::Value::Table(ref mut table)) =
-            cfg.rules.get_mut("semantic_patch_partial_update")
-        {
+        if let Some(toml::Value::Table(ref mut table)) = cfg.rules.get_mut("patch_partial_update") {
             table.remove("severity");
         }
 

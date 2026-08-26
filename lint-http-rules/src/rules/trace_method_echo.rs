@@ -19,7 +19,7 @@ use crate::rules::Rule;
 /// changes from RFC 7231 by name. The checks that rested on it are gone rather
 /// than softened: a TRACE response in some other media type is a server taking
 /// another way, not a server disobeying anything.
-pub struct SemanticTraceMethodEcho;
+pub struct TraceMethodEcho;
 
 /// The request fields § 9.3.8's example names, each with the sentence that says
 /// the field is where that data travels.
@@ -51,9 +51,9 @@ fn carries_a_value(headers: &hyper::HeaderMap, name: &str) -> bool {
         .any(|v| v.as_bytes().iter().any(|b| !matches!(b, b' ' | b'\t')))
 }
 
-impl Rule for SemanticTraceMethodEcho {
+impl Rule for TraceMethodEcho {
     fn id(&self) -> &'static str {
-        "semantic_trace_method_echo"
+        "trace_method_echo"
     }
 
     /// Both sentences this rule enforces are requirements on the client, and a
@@ -196,7 +196,7 @@ impl Rule for SemanticTraceMethodEcho {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &SemanticTraceMethodEcho;
+static REGISTRATION: &dyn crate::rules::Rule = &TraceMethodEcho;
 
 #[cfg(test)]
 mod tests {
@@ -218,7 +218,7 @@ mod tests {
     }
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        let rule = SemanticTraceMethodEcho;
+        let rule = TraceMethodEcho;
         rule.check_transaction(
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -228,8 +228,8 @@ mod tests {
 
     #[test]
     fn id_and_scope() {
-        let r = SemanticTraceMethodEcho;
-        assert_eq!(r.id(), "semantic_trace_method_echo");
+        let r = TraceMethodEcho;
+        assert_eq!(r.id(), "trace_method_echo");
         assert_eq!(r.scope(), crate::rules::RuleScope::Client);
     }
 
@@ -399,7 +399,7 @@ mod tests {
     #[test]
     fn published_examples_are_judged_by_this_rule() {
         use crate::rules::{Compliance, Rule as _};
-        let rule = SemanticTraceMethodEcho;
+        let rule = TraceMethodEcho;
 
         for ex in rule.examples() {
             let mut lines = ex.snippet.lines();
@@ -442,9 +442,7 @@ mod tests {
 
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "semantic_trace_method_echo",
-        ]);
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["trace_method_echo"]);
         crate::rules::validate_rules(&cfg)?;
         Ok(())
     }

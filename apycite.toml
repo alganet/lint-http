@@ -80,7 +80,7 @@ baseline = "specs/ratchet.txt"
 # does not implement it: the origin arrives as a caller-supplied string and the
 # query is a URI prefix filter, so no part of `scheme + host + port` is ever
 # parsed or compared. Real origin matching lives in
-# `rules/semantic_origin_matching_for_cors.rs`, and is cited there.
+# `rules/origin_matching_for_cors.rs`, and is cited there.
 exclude = [
     "lint-http-rules/src/rules/mod.rs",
     "lint-http-rules/src/helpers/mod.rs",

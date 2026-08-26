@@ -45,7 +45,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_access_control_allow_credentials_when_origin.rs
       line: 87
-    - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
+    - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
       line: 91
   - label: message_access_control_allow_origin_valid
     section: § 3.3.3
@@ -53,7 +53,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_access_control_allow_origin_valid.rs
       line: 40
-    - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
+    - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
       line: 62
   - label: message_cross_origin_resource_policy_valid
     section: § 3.7
@@ -85,11 +85,11 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
       line: 94
-  - label: semantic_origin_matching_for_cors
+  - label: origin_matching_for_cors
     section: § 4.10
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
+    - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
       line: 111
   - label: server_x_content_type_options
     section: § 3.6
@@ -1901,7 +1901,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
       line: 210
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 98
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 252
@@ -1935,43 +1935,43 @@ sources:
       line: 171
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 231
-  - label: semantic_options_method_capabilities
+  - label: options_method_capabilities
     section: § 3.1
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 51
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 298
-  - label: semantic_patch_partial_update
+  - label: patch_partial_update
     section: § 2
     snippet: Note that entity-headers contained in the request apply only to the contained patch document and MUST NOT be applied to the resource being modified.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 33
-  - label: semantic_patch_partial_update (2)
+  - label: patch_partial_update (2)
     section: § 2
     snippet: Servers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 97
-  - label: semantic_patch_partial_update (3)
+  - label: patch_partial_update (3)
     section: § 2
     snippet: The PATCH method requests that a set of changes described in the request entity be applied to the resource identified by the Request-URI.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 51
-  - label: semantic_patch_partial_update (4)
+  - label: patch_partial_update (4)
     section: § 2
     snippet: The set of changes is represented in a format called a "patch document" identified by a media type.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 96
-  - label: semantic_patch_partial_update (5)
+  - label: patch_partial_update (5)
     section: § 2
     snippet: Therefore, there is no single default patch document format that implementations are required to support.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 84
   - label: server_patch_accept_patch_header
     section: § 2.2
@@ -2111,12 +2111,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_domain_validity.rs
       line: 65
-  - label: semantic_trace_method_echo
-    section: § 4.2.1
-    snippet: The user agent sends stored cookies to the origin server in the Cookie header.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 36
   - label: stateful_cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
@@ -2147,6 +2141,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
       line: 89
+  - label: trace_method_echo
+    section: § 4.2.1
+    snippet: The user agent sends stored cookies to the origin server in the Cookie header.
+    cited_by:
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 36
 - label: RFC 6266
   url: https://www.rfc-editor.org/rfc/rfc6266.txt
   type: text/plain
@@ -4446,6 +4446,30 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9110.txt
   type: text/plain
   fragments:
+  - label: cache_coherence
+    section: § 15.4.5
+    snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 42
+  - label: cache_coherence (2)
+    section: § 6.6.1
+    snippet: The "Date" header field represents the date and time at which the message was originated
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 67
+    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
+      line: 45
+    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
+      line: 64
+  - label: cache_coherence (3)
+    section: § 8.8.2
+    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 54
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 33
   - label: client_accept_encoding_present
     section: § 12.5.3
     snippet: 'Accept-Encoding = #( codings [ weight ] )'
@@ -4560,7 +4584,7 @@ sources:
       line: 95
     - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
       line: 31
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 48
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 23
@@ -4830,6 +4854,8 @@ sources:
       line: 171
     - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
       line: 75
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 208
     - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
       line: 74
     - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
@@ -4838,16 +4864,12 @@ sources:
       line: 203
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 186
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 208
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 84
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 50
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 31
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 78
     - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
       line: 70
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
@@ -4860,6 +4882,8 @@ sources:
       line: 47
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 81
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 78
   - label: client_proxy_connection_discouraged
     section: § 7.6.1
     snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
@@ -5180,6 +5204,108 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/client_user_agent_present.rs
       line: 23
+  - label: head_response_headers_match_get
+    section: § 12.5.5
+    snippet: A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 315
+  - label: head_response_headers_match_get (2)
+    section: § 12.5.5
+    snippet: To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 322
+  - label: head_response_headers_match_get (3)
+    section: § 15
+    snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 236
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 36
+  - label: head_response_headers_match_get (4)
+    section: § 15.3.1
+    snippet: The content sent in a 200 response depends on the request method.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 161
+  - label: head_response_headers_match_get (5)
+    section: § 5.1
+    snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 54
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 316
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 56
+    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
+      line: 214
+  - label: head_response_headers_match_get (6)
+    section: § 8.6
+    snippet: A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 128
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 55
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 81
+  - label: head_response_headers_match_get (7)
+    section: § 8.8
+    snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 98
+  - label: head_response_headers_match_get (8)
+    section: § 8.8.1
+    snippet: A "strong validator" is representation metadata that changes value whenever a change occurs to the representation data that would be observable in the content of a 200 (OK) response to GET.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 99
+  - label: head_response_headers_match_get (9)
+    section: § 8.8.2
+    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified, as determined at the conclusion of handling the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 100
+  - label: head_response_headers_match_get (10)
+    section: § 9.2.1
+    snippet: Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 97
+  - label: head_response_headers_match_get (11)
+    section: § 9.3.2
+    snippet: However, a server MAY omit header fields for which a value is determined only while generating the content.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 75
+  - label: head_response_headers_match_get (12)
+    section: § 9.3.2
+    snippet: Such a response to GET might contain Content-Length and Vary fields, for example, that are not generated within a HEAD response.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 76
+  - label: head_response_headers_match_get (13)
+    section: § 9.3.2
+    snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 207
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 74
+    - file: lint-http-rules/src/rules/server_content_type_present.rs
+      line: 52
+  - label: head_response_headers_match_get (14)
+    section: § 9.3.2
+    snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 202
+    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
+      line: 67
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -5266,9 +5392,9 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 42
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 129
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 172
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (2)
     section: § 11.7.2
@@ -5378,7 +5504,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 61
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 49
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 166
@@ -5404,10 +5530,10 @@ sources:
       line: 145
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 54
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 16
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 278
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 16
   - label: lint-http-rules/src/helpers/accept_ranges.rs (5)
     section: § 5.6.1.2
     snippet: In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production
@@ -5588,10 +5714,10 @@ sources:
       line: 234
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
       line: 305
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 46
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
       line: 330
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 46
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -5672,10 +5798,10 @@ sources:
       line: 215
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 25
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 21
     - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
       line: 77
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 21
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).
@@ -6146,7 +6272,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 119
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 142
   - label: lint-http-rules/src/helpers/headers.rs (33)
     section: § 6.5
@@ -6178,9 +6304,9 @@ sources:
       line: 95
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 56
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 44
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 68
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 125
@@ -6650,7 +6776,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 67
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 43
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 123
@@ -6662,7 +6788,7 @@ sources:
       line: 33
     - file: lint-http-rules/src/rules/message_context_fields_direction.rs
       line: 46
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 46
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 187
@@ -7079,16 +7205,6 @@ sources:
     - file: lint-http-rules/src/rules/message_context_fields_direction.rs
       line: 49
   - label: message_date_and_time_headers_consistency
-    section: § 6.6.1
-    snippet: The "Date" header field represents the date and time at which the message was originated
-    cited_by:
-    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
-      line: 45
-    - file: lint-http-rules/src/rules/message_date_and_time_headers_consistency.rs
-      line: 64
-    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
-      line: 67
-  - label: message_date_and_time_headers_consistency (2)
     section: § 8.8.2.1
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
     cited_by:
@@ -7139,18 +7255,6 @@ sources:
     - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
       line: 191
   - label: message_extension_headers_registered (4)
-    section: § 5.1
-    snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
-    cited_by:
-    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 56
-    - file: lint-http-rules/src/rules/message_extension_headers_registered.rs
-      line: 214
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 54
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 316
-  - label: message_extension_headers_registered (5)
     section: § 5.1
     snippet: Other recipients SHOULD ignore unrecognized header and trailer fields
     cited_by:
@@ -7462,7 +7566,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_problem_details_structure.rs
       line: 88
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 99
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 108
@@ -7662,28 +7766,10 @@ sources:
       line: 143
   - label: message_response_body_length_accuracy (2)
     section: § 8.6
-    snippet: A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 55
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 128
-    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 81
-  - label: message_response_body_length_accuracy (3)
-    section: § 8.6
     snippet: As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect.
     cited_by:
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 134
-  - label: message_response_body_length_accuracy (4)
-    section: § 9.3.2
-    snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
-      line: 67
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 202
   - label: message_retry_after_date_or_delay
     section: § 10.2.3
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
@@ -7772,14 +7858,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
       line: 32
-  - label: message_singleton_fields_not_repeated (7)
-    section: § 8.8.2
-    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
-    cited_by:
-    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
-      line: 33
-    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
-      line: 54
   - label: message_te_header_constraints
     section: § 10.1.4
     snippet: A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
@@ -7830,7 +7908,7 @@ sources:
       line: 205
     - file: lint-http-rules/src/rules/message_trailer_headers_valid.rs
       line: 98
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 61
   - label: message_trailer_fields_validity (2)
     section: § 6.5.1
@@ -8034,155 +8112,77 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_www_authenticate_challenge_syntax.rs
       line: 34
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 66
-  - label: semantic_cache_coherence
-    section: § 15.4.5
-    snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
-      line: 42
-  - label: semantic_head_response_headers_match_get
-    section: § 12.5.5
-    snippet: A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 315
-  - label: semantic_head_response_headers_match_get (2)
-    section: § 12.5.5
-    snippet: To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 322
-  - label: semantic_head_response_headers_match_get (3)
-    section: § 15
-    snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 236
-    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 36
-  - label: semantic_head_response_headers_match_get (4)
-    section: § 15.3.1
-    snippet: The content sent in a 200 response depends on the request method.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 161
-  - label: semantic_head_response_headers_match_get (5)
-    section: § 8.8
-    snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 98
-  - label: semantic_head_response_headers_match_get (6)
-    section: § 8.8.1
-    snippet: A "strong validator" is representation metadata that changes value whenever a change occurs to the representation data that would be observable in the content of a 200 (OK) response to GET.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 99
-  - label: semantic_head_response_headers_match_get (7)
-    section: § 8.8.2
-    snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified, as determined at the conclusion of handling the request.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 100
-  - label: semantic_head_response_headers_match_get (8)
-    section: § 9.2.1
-    snippet: Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 97
-  - label: semantic_head_response_headers_match_get (9)
-    section: § 9.3.2
-    snippet: However, a server MAY omit header fields for which a value is determined only while generating the content.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 75
-  - label: semantic_head_response_headers_match_get (10)
-    section: § 9.3.2
-    snippet: Such a response to GET might contain Content-Length and Vary fields, for example, that are not generated within a HEAD response.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 76
-  - label: semantic_head_response_headers_match_get (11)
-    section: § 9.3.2
-    snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 207
-    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 74
-    - file: lint-http-rules/src/rules/server_content_type_present.rs
-      line: 52
-  - label: semantic_options_method_capabilities
+  - label: options_method_capabilities
     section: § 10.2.1
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 145
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 92
-  - label: semantic_options_method_capabilities (2)
+  - label: options_method_capabilities (2)
     section: § 15.3
     snippet: The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 136
-  - label: semantic_options_method_capabilities (3)
+  - label: options_method_capabilities (3)
     section: § 9.3.7
     snippet: A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 65
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 98
-  - label: semantic_options_method_capabilities (4)
+  - label: options_method_capabilities (4)
     section: § 9.3.7
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 42
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 146
-  - label: semantic_options_method_capabilities (5)
+  - label: options_method_capabilities (5)
     section: § 9.3.7
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 129
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 300
-  - label: semantic_options_method_capabilities (6)
+  - label: options_method_capabilities (6)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 130
-  - label: semantic_options_method_capabilities (7)
+  - label: options_method_capabilities (7)
     section: § 9.3.7
     snippet: The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_options_method_capabilities.rs
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 83
-  - label: semantic_patch_partial_update
+  - label: patch_partial_update
     section: § 12.3
     snippet: Similarly, Section 3.1 of [RFC5789] defines the "Accept-Patch" response header field, which allows discovery of which content types are accepted in PATCH requests.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 85
-  - label: semantic_patch_partial_update (2)
+  - label: patch_partial_update (2)
     section: § 8.3
     snippet: A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_patch_partial_update.rs
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 64
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 101
-  - label: semantic_post_creates_resource
+  - label: post_creates_resource
     section: § 10.2.2
     snippet: For 201 (Created) responses, the Location value refers to the primary resource created by the request.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 76
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 33
@@ -8190,17 +8190,17 @@ sources:
       line: 28
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 88
-  - label: semantic_post_creates_resource (2)
+  - label: post_creates_resource (2)
     section: § 15.3.2
     snippet: The 201 (Created) status code indicates that the request has been fulfilled and has resulted in one or more new resources being created.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 50
-  - label: semantic_post_creates_resource (3)
+  - label: post_creates_resource (3)
     section: § 15.3.2
     snippet: The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 62
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 34
@@ -8208,130 +8208,18 @@ sources:
       line: 27
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 89
-  - label: semantic_post_creates_resource (4)
+  - label: post_creates_resource (4)
     section: § 9.3.3
     snippet: An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable)).
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 39
-  - label: semantic_post_creates_resource (5)
+  - label: post_creates_resource (5)
     section: § 9.3.3
     snippet: If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created (Section 10.2.2) and a representation that describes the status of the request while referring to the new resource(s).
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 75
-  - label: semantic_status_code_semantics
-    section: § 11.6.1
-    snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 80
-  - label: semantic_status_code_semantics (2)
-    section: § 11.6.1
-    snippet: A server MAY generate a WWW-Authenticate header field in other response messages to indicate that supplying credentials (or different credentials) might affect the response.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 120
-  - label: semantic_status_code_semantics (3)
-    section: § 11.6.1
-    snippet: Furthermore, the header field itself can occur multiple times.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 25
-  - label: semantic_status_code_semantics (4)
-    section: § 11.7.1
-    snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 68
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 131
-  - label: semantic_status_code_semantics (5)
-    section: § 11.7.1
-    snippet: Note that the parsing considerations for WWW-Authenticate apply to this header field as well; see Section 11.6.1 for details.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 30
-  - label: semantic_status_code_semantics (6)
-    section: § 11.7.1
-    snippet: The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 67
-  - label: semantic_status_code_semantics (7)
-    section: § 15.5.2
-    snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 72
-    - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
-      line: 30
-  - label: semantic_status_code_semantics (8)
-    section: § 15.5.2
-    snippet: The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 81
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 101
-  - label: semantic_status_code_semantics (9)
-    section: § 15.5.8
-    snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 122
-  - label: semantic_status_code_semantics (10)
-    section: § 15.5.8
-    snippet: The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 130
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 147
-  - label: semantic_status_code_semantics (11)
-    section: § A
-    snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 146
-  - label: semantic_status_code_semantics (12)
-    section: § A
-    snippet: WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_status_code_semantics.rs
-      line: 100
-  - label: semantic_trace_method_echo
-    section: § 11.6.2
-    snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 32
-  - label: semantic_trace_method_echo (2)
-    section: § 11.7.2
-    snippet: Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 34
-  - label: semantic_trace_method_echo (3)
-    section: § 9.3.8
-    snippet: A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 103
-  - label: semantic_trace_method_echo (4)
-    section: § 9.3.8
-    snippet: A client MUST NOT send content in a TRACE request.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 61
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 87
-  - label: semantic_trace_method_echo (5)
-    section: § 9.3.8
-    snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_trace_method_echo.rs
-      line: 30
   - label: server_200_vs_204_body_consistency
     section: § 15.3.1
     snippet: Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length.
@@ -8842,6 +8730,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
       line: 57
+  - label: stateful_authentication_failure_loop (2)
+    section: § 15.5.2
+    snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
+      line: 30
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 72
   - label: stateful_cache_validation_chain
     section: § 13.1.2
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
@@ -8964,10 +8860,120 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 56
+  - label: status_code_semantics
+    section: § 11.6.1
+    snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 80
+  - label: status_code_semantics (2)
+    section: § 11.6.1
+    snippet: A server MAY generate a WWW-Authenticate header field in other response messages to indicate that supplying credentials (or different credentials) might affect the response.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 120
+  - label: status_code_semantics (3)
+    section: § 11.6.1
+    snippet: Furthermore, the header field itself can occur multiple times.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 25
+  - label: status_code_semantics (4)
+    section: § 11.7.1
+    snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 68
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 131
+  - label: status_code_semantics (5)
+    section: § 11.7.1
+    snippet: Note that the parsing considerations for WWW-Authenticate apply to this header field as well; see Section 11.6.1 for details.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 30
+  - label: status_code_semantics (6)
+    section: § 11.7.1
+    snippet: The "Proxy-Authenticate" header field consists of at least one challenge that indicates the authentication scheme(s) and parameters applicable to the proxy for this request.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 67
+  - label: status_code_semantics (7)
+    section: § 15.5.2
+    snippet: The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 81
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 101
+  - label: status_code_semantics (8)
+    section: § 15.5.8
+    snippet: The 407 (Proxy Authentication Required) status code is similar to 401 (Unauthorized), but it indicates that the client needs to authenticate itself in order to use a proxy for this request.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 122
+  - label: status_code_semantics (9)
+    section: § 15.5.8
+    snippet: The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 130
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 147
+  - label: status_code_semantics (10)
+    section: § A
+    snippet: Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 146
+  - label: status_code_semantics (11)
+    section: § A
+    snippet: WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]
+    cited_by:
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 100
+  - label: trace_method_echo
+    section: § 11.6.2
+    snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested.
+    cited_by:
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 32
+  - label: trace_method_echo (2)
+    section: § 11.7.2
+    snippet: Its value consists of credentials containing the authentication information of the client for the proxy and/or realm of the resource being requested.
+    cited_by:
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 34
+  - label: trace_method_echo (3)
+    section: § 9.3.8
+    snippet: A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.
+    cited_by:
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 103
+  - label: trace_method_echo (4)
+    section: § 9.3.8
+    snippet: A client MUST NOT send content in a TRACE request.
+    cited_by:
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 61
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 87
+  - label: trace_method_echo (5)
+    section: § 9.3.8
+    snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.
+    cited_by:
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 30
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.txt
   type: text/plain
   fragments:
+  - label: cache_coherence
+    section: § 4.2.4
+    snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_coherence.rs
+      line: 106
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
@@ -9156,12 +9162,6 @@ sources:
       line: 46
     - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
       line: 75
-  - label: semantic_cache_coherence
-    section: § 4.2.4
-    snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_cache_coherence.rs
-      line: 106
   - label: server_cache_control_present
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
@@ -9492,6 +9492,22 @@ sources:
       line: 154
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 100
+  - label: head_response_headers_match_get
+    section: § 6.1
+    snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 267
+  - label: head_response_headers_match_get (2)
+    section: § 6.1
+    snippet: Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 266
+    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
+      line: 214
+    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
+      line: 173
   - label: HTTP-version
     section: § 2.3
     snippet: HTTP-version  = HTTP-name "/" DIGIT "." DIGIT
@@ -9574,7 +9590,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 384
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 86
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 223
@@ -9861,38 +9877,22 @@ sources:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 131
   - label: message_transfer_encoding_chunked_final (3)
-    section: § 6.1
-    snippet: Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
-      line: 214
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 266
-    - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
-      line: 173
-  - label: message_transfer_encoding_chunked_final (4)
     section: § 9.6
     snippet: A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 151
-  - label: message_transfer_encoding_chunked_final (5)
+  - label: message_transfer_encoding_chunked_final (4)
     section: § 9.6
     snippet: The "close" connection option is defined as a signal that the sender will close this connection after completion of the response.
     cited_by:
     - file: lint-http-rules/src/rules/message_transfer_encoding_chunked_final.rs
       line: 85
-  - label: semantic_head_response_headers_match_get
-    section: § 6.1
-    snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
-    cited_by:
-    - file: lint-http-rules/src/rules/semantic_head_response_headers_match_get.rs
-      line: 267
-  - label: semantic_post_creates_resource
+  - label: post_creates_resource
     section: § 3.3
     snippet: Otherwise, the target URI's combined path and query component is the request-target.
     cited_by:
-    - file: lint-http-rules/src/rules/semantic_post_creates_resource.rs
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 87
   - label: server_no_body_for_1xx_204_304
     section: § 6.1

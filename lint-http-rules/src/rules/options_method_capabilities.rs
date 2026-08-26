@@ -20,7 +20,7 @@ use crate::rules::Rule;
 /// `Accept-Patch` and no `Allow` — RFC 5789 § 3.1's advice, in an OPTIONS
 /// response, which is where that document asks for it — was reported for
 /// obeying the sentence.
-pub struct SemanticOptionsMethodCapabilities;
+pub struct OptionsMethodCapabilities;
 
 /// The response fields the specifications name as advertising an optional
 /// feature implemented by the server and applicable to the target resource.
@@ -52,9 +52,9 @@ const ADVERTISED_CAPABILITIES: [(&str, &str, bool); 3] = [
     ("accept-patch", "Accept-Patch", false),
 ];
 
-impl Rule for SemanticOptionsMethodCapabilities {
+impl Rule for OptionsMethodCapabilities {
     fn id(&self) -> &'static str {
-        "semantic_options_method_capabilities"
+        "options_method_capabilities"
     }
 
     /// § 9.3.7 addresses both ends: the content requirement is on the client and
@@ -264,7 +264,7 @@ impl Rule for SemanticOptionsMethodCapabilities {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &SemanticOptionsMethodCapabilities;
+static REGISTRATION: &dyn crate::rules::Rule = &OptionsMethodCapabilities;
 
 #[cfg(test)]
 mod tests {
@@ -299,7 +299,7 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        let rule = SemanticOptionsMethodCapabilities;
+        let rule = OptionsMethodCapabilities;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         rule.check_transaction(
             tx,
@@ -501,8 +501,8 @@ mod tests {
 
     #[test]
     fn id_and_scope() {
-        let rule = SemanticOptionsMethodCapabilities;
-        assert_eq!(rule.id(), "semantic_options_method_capabilities");
+        let rule = OptionsMethodCapabilities;
+        assert_eq!(rule.id(), "options_method_capabilities");
         assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
     }
 
@@ -523,7 +523,7 @@ mod tests {
         }
 
         let mut saw_a_finding = false;
-        for ex in SemanticOptionsMethodCapabilities.examples() {
+        for ex in OptionsMethodCapabilities.examples() {
             let blocks: Vec<&str> = ex.snippet.split("\n\n").collect();
             let (request, body, response) = match blocks.as_slice() {
                 [request, response] => (*request, None, *response),
@@ -578,7 +578,7 @@ mod tests {
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "semantic_options_method_capabilities");
+        crate::test_helpers::enable_rule(&mut cfg, "options_method_capabilities");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
     }
