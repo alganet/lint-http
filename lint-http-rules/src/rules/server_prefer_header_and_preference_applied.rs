@@ -9,7 +9,7 @@ use crate::helpers::headers::{
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-pub struct ClientPreferHeaderAndPreferenceApplied;
+pub struct ServerPreferHeaderAndPreferenceApplied;
 
 /// Why applying `name` changes what a cache would hand the next client — for the
 /// four preferences RFC 7240 defines, and for no other name.
@@ -88,9 +88,9 @@ fn vary_nominates_prefer(response_headers: &hyper::HeaderMap) -> bool {
     crate::helpers::headers::vary_nomination(response_headers).nominates("prefer")
 }
 
-impl Rule for ClientPreferHeaderAndPreferenceApplied {
+impl Rule for ServerPreferHeaderAndPreferenceApplied {
     fn id(&self) -> &'static str {
-        "client_prefer_header_and_preference_applied"
+        "server_prefer_header_and_preference_applied"
     }
 
     /// The evidence is a field the server wrote and the finding is a field it
@@ -306,7 +306,7 @@ impl Rule for ClientPreferHeaderAndPreferenceApplied {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &ClientPreferHeaderAndPreferenceApplied;
+static REGISTRATION: &dyn crate::rules::Rule = &ServerPreferHeaderAndPreferenceApplied;
 
 #[cfg(test)]
 mod tests {
@@ -320,7 +320,7 @@ mod tests {
         req: &[(&str, &[u8])],
         resp: &[(&str, &[u8])],
     ) -> Option<crate::lint::Violation> {
-        let rule = ClientPreferHeaderAndPreferenceApplied;
+        let rule = ServerPreferHeaderAndPreferenceApplied;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.request.method = method.to_string();
@@ -514,15 +514,15 @@ mod tests {
 
     #[test]
     fn rule_id_and_scope() {
-        let rule = ClientPreferHeaderAndPreferenceApplied;
-        assert_eq!(rule.id(), "client_prefer_header_and_preference_applied");
+        let rule = ServerPreferHeaderAndPreferenceApplied;
+        assert_eq!(rule.id(), "server_prefer_header_and_preference_applied");
         assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
     }
 
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "client_prefer_header_and_preference_applied");
+        crate::test_helpers::enable_rule(&mut cfg, "server_prefer_header_and_preference_applied");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
     }

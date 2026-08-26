@@ -977,7 +977,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.client_prefer_header_and_preference_applied]
+[rules.server_prefer_header_and_preference_applied]
 enabled = true
 severity = "warn"
 

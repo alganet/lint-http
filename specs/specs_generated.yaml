@@ -3185,92 +3185,6 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc7240.txt
   type: text/plain
   fragments:
-  - label: client_prefer_header_and_preference_applied
-    section: § 2
-    snippet: Alternatively, the server MAY include a Vary header with the special value "*"
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 86
-  - label: client_prefer_header_and_preference_applied (2)
-    section: § 2
-    snippet: For both preference token names and parameter names, comparison is case insensitive while values are case sensitive regardless of whether token or quoted-string values are used.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 36
-    - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
-      line: 220
-    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 221
-  - label: client_prefer_header_and_preference_applied (3)
-    section: § 2
-    snippet: If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 29
-  - label: Preference-Applied grammar
-    section: § 3
-    snippet: Preference-Applied = "Preference-Applied" ":" 1#applied-pref
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 148
-    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 144
-  - label: client_prefer_header_and_preference_applied (4)
-    section: § 3
-    snippet: The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 102
-    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 112
-    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 239
-  - label: client_prefer_header_and_preference_applied (5)
-    section: § 3
-    snippet: applied-pref = token [ BWS "=" BWS word ]
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 160
-    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
-      line: 192
-  - label: client_prefer_header_and_preference_applied (6)
-    section: § 4.1
-    snippet: the server can honor the "respond-async" preference by returning a 202 (Accepted) response.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 52
-  - label: client_prefer_header_and_preference_applied (7)
-    section: § 4.2
-    snippet: The "return=minimal" preference, on the other hand, indicates that the client wishes the server to return only a minimal response to a successful request.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 46
-  - label: client_prefer_header_and_preference_applied (8)
-    section: § 4.2
-    snippet: The "return=representation" preference indicates that the client prefers that the server include an entity representing the current state of the resource in the response to a successful request.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 45
-  - label: client_prefer_header_and_preference_applied (9)
-    section: § 4.3
-    snippet: the server, or proxy, can choose to utilize an asynchronous processing model by returning -- for example -- a 202 (Accepted) response.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 58
-  - label: client_prefer_header_and_preference_applied (10)
-    section: § 4.4
-    snippet: a decision must be made to either reject the request with an appropriate "4xx" error response or go ahead with processing.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 64
-  - label: client_prefer_header_and_preference_applied (11)
-    section: § 5.1
-    snippet: 'Value: (An enumeration or description of possible values for the'
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 30
-    - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
-      line: 24
   - label: message_prefer_header_valid
     section: § 2
     snippet: '*( OWS ";" [ OWS parameter ] )'
@@ -3309,13 +3223,23 @@ sources:
       line: 226
   - label: message_prefer_header_valid (6)
     section: § 2
+    snippet: For both preference token names and parameter names, comparison is case insensitive while values are case sensitive regardless of whether token or quoted-string values are used.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
+      line: 220
+    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
+      line: 221
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 36
+  - label: message_prefer_header_valid (7)
+    section: § 2
     snippet: If any preference is specified more than once, only the first instance is to be considered.
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 287
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 89
-  - label: message_prefer_header_valid (7)
+  - label: message_prefer_header_valid (8)
     section: § 2
     snippet: If multiple Prefer header fields are used, it is equivalent to a single Prefer header field with the comma-separated concatenation of all of the tokens.
     cited_by:
@@ -3323,84 +3247,160 @@ sources:
       line: 129
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 41
-  - label: message_prefer_header_valid (8)
+  - label: message_prefer_header_valid (9)
     section: § 2
     snippet: Prefer     = "Prefer" ":" 1#preference
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 137
-  - label: message_prefer_header_valid (9)
+  - label: message_prefer_header_valid (10)
     section: § 2
     snippet: The Prefer request header field is used to indicate that particular server behaviors are preferred by the client but are not required for successful completion of the request.
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 98
-  - label: message_prefer_header_valid (10)
+  - label: message_prefer_header_valid (11)
     section: § 2
     snippet: To avoid any possible ambiguity, individual preference tokens SHOULD NOT appear multiple times within a single request.
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 286
-  - label: message_prefer_header_valid (11)
+  - label: message_prefer_header_valid (12)
     section: § 2
     snippet: parameter  = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 248
-  - label: message_prefer_header_valid (12)
+  - label: message_prefer_header_valid (13)
     section: § 2
     snippet: preference = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 182
-  - label: message_prefer_header_valid (13)
+  - label: message_prefer_header_valid (14)
     section: § 4
     snippet: The following subsections define an initial set of preferences.
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 23
-  - label: message_prefer_header_valid (14)
+  - label: message_prefer_header_valid (15)
     section: § 4.1
     snippet: respond-async = "respond-async"
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 31
-  - label: message_prefer_header_valid (15)
+  - label: message_prefer_header_valid (16)
     section: § 4.2
     snippet: The "return=minimal" and "return=representation" preferences are mutually exclusive directives.
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 288
-  - label: message_prefer_header_valid (16)
+  - label: message_prefer_header_valid (17)
     section: § 4.2
     snippet: return = "return" BWS "=" BWS ("representation" / "minimal")
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 38
-  - label: message_prefer_header_valid (17)
+  - label: message_prefer_header_valid (18)
     section: § 4.3
     snippet: wait = "wait" BWS "=" BWS delta-seconds
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 42
-  - label: message_prefer_header_valid (18)
+  - label: message_prefer_header_valid (19)
     section: § 4.4
     snippet: The "handling=strict" and "handling=lenient" preferences are mutually exclusive directives.
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 289
-  - label: message_prefer_header_valid (19)
+  - label: message_prefer_header_valid (20)
     section: § 4.4
     snippet: handling = "handling" BWS "=" BWS ("strict" / "lenient")
     cited_by:
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 40
+  - label: message_prefer_header_valid (21)
+    section: § 5.1
+    snippet: 'Value: (An enumeration or description of possible values for the'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
+      line: 24
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 30
+  - label: Preference-Applied grammar
+    section: § 3
+    snippet: Preference-Applied = "Preference-Applied" ":" 1#applied-pref
+    cited_by:
+    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
+      line: 144
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 148
   - label: message_preference_applied_header_valid
+    section: § 3
+    snippet: The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
+      line: 112
+    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
+      line: 239
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 102
+  - label: message_preference_applied_header_valid (2)
     section: § 3
     snippet: The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included.
     cited_by:
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 184
+  - label: message_preference_applied_header_valid (3)
+    section: § 3
+    snippet: applied-pref = token [ BWS "=" BWS word ]
+    cited_by:
+    - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
+      line: 192
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 160
+  - label: server_prefer_header_and_preference_applied
+    section: § 2
+    snippet: Alternatively, the server MAY include a Vary header with the special value "*"
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 86
+  - label: server_prefer_header_and_preference_applied (2)
+    section: § 2
+    snippet: If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 29
+  - label: server_prefer_header_and_preference_applied (3)
+    section: § 4.1
+    snippet: the server can honor the "respond-async" preference by returning a 202 (Accepted) response.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 52
+  - label: server_prefer_header_and_preference_applied (4)
+    section: § 4.2
+    snippet: The "return=minimal" preference, on the other hand, indicates that the client wishes the server to return only a minimal response to a successful request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 46
+  - label: server_prefer_header_and_preference_applied (5)
+    section: § 4.2
+    snippet: The "return=representation" preference indicates that the client prefers that the server include an entity representing the current state of the resource in the response to a successful request.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 45
+  - label: server_prefer_header_and_preference_applied (6)
+    section: § 4.3
+    snippet: the server, or proxy, can choose to utilize an asynchronous processing model by returning -- for example -- a 202 (Accepted) response.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 58
+  - label: server_prefer_header_and_preference_applied (7)
+    section: § 4.4
+    snippet: a decision must be made to either reject the request with an appropriate "4xx" error response or go ahead with processing.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 64
 - label: RFC 7301
   url: https://www.rfc-editor.org/rfc/rfc7301.txt
   type: text/plain
@@ -4773,24 +4773,6 @@ sources:
       line: 47
     - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
       line: 81
-  - label: client_prefer_header_and_preference_applied
-    section: § 9.1
-    snippet: The method token is case-sensitive
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 131
-  - label: client_prefer_header_and_preference_applied (2)
-    section: § 9.2.3
-    snippet: This specification defines caching semantics for GET, HEAD, and POST, although the overwhelming majority of cache implementations only support GET and HEAD.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 129
-  - label: client_prefer_header_and_preference_applied (3)
-    section: § 9.3.3
-    snippet: Responses to POST requests are only cacheable when they include explicit freshness information
-    cited_by:
-    - file: lint-http-rules/src/rules/client_prefer_header_and_preference_applied.rs
-      line: 130
   - label: client_proxy_connection_discouraged
     section: § 7.6.1
     snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
@@ -8513,6 +8495,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 254
+  - label: server_prefer_header_and_preference_applied
+    section: § 9.1
+    snippet: The method token is case-sensitive
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 131
+  - label: server_prefer_header_and_preference_applied (2)
+    section: § 9.2.3
+    snippet: This specification defines caching semantics for GET, HEAD, and POST, although the overwhelming majority of cache implementations only support GET and HEAD.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 129
+  - label: server_prefer_header_and_preference_applied (3)
+    section: § 9.3.3
+    snippet: Responses to POST requests are only cacheable when they include explicit freshness information
+    cited_by:
+    - file: lint-http-rules/src/rules/server_prefer_header_and_preference_applied.rs
+      line: 130
   - label: server_redirect_status_and_location_validity
     section: § 10.2.2
     snippet: For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request.
