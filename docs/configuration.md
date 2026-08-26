@@ -142,7 +142,7 @@ h3_upstream_enabled = false                       # Master switch. Default: fals
 h3_upstream_authorities = ["origin.example:443"]  # Origins always tried over H3 (pre-seeds discovery)
 h3_upstream_denylist = ["legacy.example:443"]     # Origins that must never use H3
 h3_upstream_trust_alt_svc = true                  # Learn H3 endpoints from origin Alt-Svc headers. Default: true
-h3_upstream_bind = "0.0.0.0:0"                    # UDP bind address for the H3 client. Default: "0.0.0.0:0"
+h3_upstream_bind = "[::]:0"                       # UDP bind address for the H3 client. Default: "[::]:0" (dual-stack)
 h3_upstream_extra_ca_certs = []                   # Extra CA PEM files to trust for origin H3 endpoint certs
 h3_upstream_connect_timeout_ms = 5000             # Connect + QUIC handshake budget. Default: 5000
 h3_upstream_response_timeout_ms = 30000           # Response-head (first byte) budget. Default: 30000
@@ -155,7 +155,7 @@ h3_upstream_pool_max = 256                        # Max pooled H3 connections (o
 - **h3_upstream_authorities**: Origin authorities (`host:port`) always attempted over HTTP/3. This pre-seeds selection — the *first* request to an origin cannot have learned `Alt-Svc` yet, so without an allowlist entry HTTP/3 is inherently second-connection-onward. The port is optional and defaults to `443`, and matching is case-insensitive, so `example.com` and `example.com:443` are equivalent.
 - **h3_upstream_denylist**: Origin authorities that must **never** use HTTP/3, overriding both the allowlist and `Alt-Svc` discovery. Same `host[:port]` normalization as the allowlist.
 - **h3_upstream_trust_alt_svc**: When `true` (default), an origin's `Alt-Svc: h3=...` response header adds an HTTP/3 route for that origin at runtime (honoring `ma`/`clear`). A discovered endpoint is only *used* once its certificate validates **for the origin authority** (RFC 7838 §2.1 / RFC 9114 §3.3) — a mismatched cert fails the handshake and the proxy falls back. Set `false` to route HTTP/3 solely from `h3_upstream_authorities`.
-- **h3_upstream_bind**: The local UDP socket the HTTP/3 client binds. Default `"0.0.0.0:0"` (any interface, ephemeral port).
+- **h3_upstream_bind**: The local UDP socket the HTTP/3 client binds. Default `"[::]:0"` — the IPv6 wildcard on an ephemeral port, which quinn makes dual-stack (it clears `only_v6` and maps an IPv4 peer to a v4-mapped address), so origins of either family are reachable. Pinning this to an IPv4 address makes IPv6-only origins unreachable over HTTP/3 — they fall back to HTTP/1.1/HTTP/2. Hosts without IPv6 fall back to the IPv4 wildcard automatically.
 - **h3_upstream_extra_ca_certs**: Extra CA PEM files (private CAs) to trust when validating origin HTTP/3 endpoint certificates, layered on top of the system roots. Useful for an internal origin under test.
 - **h3_upstream_connect_timeout_ms**: How long to wait for the QUIC connect + handshake before treating the attempt as failed and falling back to HTTP/1.1/HTTP/2 (default: 5000).
 - **h3_upstream_response_timeout_ms**: How long to wait for the origin's **response head** (first byte) once the request has been sent (default: 30000). This is origin think-time, bounded separately from — and far more generously than — the connect timeout so a slow-but-healthy origin is not dropped. An idempotent, bodyless request that hits this timeout is retried on HTTP/1.1/HTTP/2 (RFC 9110 §9.2.2); anything else returns `502`.
