@@ -16,6 +16,8 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod gendocs;
+
 #[derive(Parser, Debug)]
 #[command(name = "xtask", about = "Repository maintenance tasks for lint-http")]
 struct Cli {
@@ -32,8 +34,22 @@ enum Command {
 #[derive(clap::Args, Debug)]
 struct GendocsArgs {
     /// Output directory; `rules.md` and `rules/<id>.md` are written under it.
-    #[arg(long, default_value = "docs")]
-    out: PathBuf,
+    /// Defaults to `docs/` at the workspace root.
+    #[arg(long)]
+    out: Option<PathBuf>,
+}
+
+/// Where the docs go when `--out` is not given: the workspace root's `docs/`,
+/// not `./docs`.
+///
+/// The alias passes `--package`, so `cargo xtask gendocs` runs from any
+/// subdirectory — and the drift gate's failure message tells people to run
+/// exactly that. A relative default would let the suggested fix write 194 files
+/// into `lint-http-rules/docs/` and leave the gate red, which is a bad way to
+/// find out what your working directory was. The inputs are already anchored to
+/// the repo root; the output now agrees with them.
+fn resolve_out(out: Option<PathBuf>) -> PathBuf {
+    out.unwrap_or_else(|| gendocs::repo_root().join("docs"))
 }
 
 /// The whole tool, minus argument parsing, so the work is reachable from a test
@@ -41,8 +57,9 @@ struct GendocsArgs {
 fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Command::Gendocs(args) => {
-            lint_http_rules::gendocs::write_all(&args.out)?;
-            eprintln!("Wrote rule docs to {}", args.out.display());
+            let out = resolve_out(args.out);
+            gendocs::write_all(&out)?;
+            eprintln!("Wrote rule docs to {}", out.display());
             Ok(())
         }
     }
@@ -91,18 +108,23 @@ mod tests {
             .any(|r| r.id() == "quic_transport_parameters_valid"));
     }
 
+    /// The default is absolute, and it is the tree the drift gate reads — not
+    /// `./docs`, which is only the same thing when you happen to be standing at
+    /// the workspace root.
     #[test]
-    fn cli_gendocs_defaults_out_to_docs() {
+    fn out_defaults_to_the_workspace_docs_tree() {
         let cli = Cli::parse_from(["xtask", "gendocs"]);
         let Command::Gendocs(args) = cli.command;
-        assert_eq!(args.out, PathBuf::from("docs"));
+        let out = resolve_out(args.out);
+        assert!(out.is_absolute());
+        assert_eq!(out, gendocs::repo_root().join("docs"));
     }
 
     #[test]
     fn cli_gendocs_parses_out() {
         let cli = Cli::parse_from(["xtask", "gendocs", "--out", "/tmp/docs-out"]);
         let Command::Gendocs(args) = cli.command;
-        assert_eq!(args.out, PathBuf::from("/tmp/docs-out"));
+        assert_eq!(resolve_out(args.out), PathBuf::from("/tmp/docs-out"));
     }
 
     #[test]

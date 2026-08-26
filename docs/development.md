@@ -176,6 +176,11 @@ The `docs_match_generated` test diffs the checked-in tree against freshly
 rendered output, so a rule whose metadata changed without a regeneration fails
 CI. The index places the rule by its `scope()`, so there is no link to add.
 
+That test lives in `xtask` alongside the generator, so `cargo test -p
+lint-http-rules` will not run it: a targeted run can come back green on a rule
+whose docs are stale. `just test` and a bare `cargo test` are workspace-wide and
+do run it, as does CI.
+
 ### 6. Configurable Rules Guidelines
 
 - Do not use hardcoded defaults in rule implementations. If a rule requires configuration, it should require an explicit TOML table under `[rules.<rule_id>]` and parse its numeric/string values from that table.

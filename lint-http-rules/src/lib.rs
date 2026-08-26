@@ -20,7 +20,6 @@ pub use lint_http_core::{
 };
 
 pub mod engine;
-pub mod gendocs;
 pub mod helpers;
 pub mod lint_protocol;
 pub mod queries;
