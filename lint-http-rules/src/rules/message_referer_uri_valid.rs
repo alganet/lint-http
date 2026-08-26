@@ -137,7 +137,7 @@ impl Rule for MessageRefererUriValid {
             // finding names the sentence without claiming it was broken.
             //
             // `location_header_uri_valid` and
-            // `message_content_location_and_uri_consistency` reach the same
+            // `content_location_and_uri_consistent` reach the same
             // answer on their fields for the first reason alone; recorded here so
             // that a later harmonising commit does not upgrade one of the three.
             //

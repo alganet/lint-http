@@ -35,7 +35,7 @@ impl Rule for MessageMultipartBoundarySyntax {
         // no line can be dismissed as the one nobody reads. A multipart type
         // with no boundary is unusable whichever line the recipient picks.
         //
-        // That there is more than one line is `message_content_type_well_formed`'s
+        // That there is more than one line is `content_type_valid`'s
         // finding; this rule says only what it owns.
         let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
             for hv in headers.get_all("content-type").iter() {
@@ -73,7 +73,7 @@ impl Rule for MessageMultipartBoundarySyntax {
     }
 
     fn description(&self) -> &'static str {
-        "Check that a `Content-Type` naming a `multipart/*` media type carries a `boundary` parameter, and that the parameter's value is one RFC 2046 §5.1.1 allows: 1 to 70 characters drawn from `bchars` — letters, digits, `'`, `(`, `)`, `+`, `_`, `,`, `-`, `.`, `/`, `:`, `=`, `?` and space — and not ending in a space. A quoted value is judged after unescaping, since the quoted and unquoted forms name the same value.\n\n**RFC 9110 §8.3.3 is why a MIME rule applies to HTTP at all:** it adopts §5.1.1 wholesale for every multipart type and says the boundary parameter is part of the media type value. The two multipart types HTTP itself deals in run in opposite directions — `multipart/form-data` in requests, `multipart/byteranges` in 206 responses — which is why both are checked.\n\n**Quoting is often not optional.** Seven characters `bchars` permits (`(`, `)`, `,`, `/`, `:`, `=`, `?`) and space are not `tchar`, so a boundary using any of them can only be transmitted inside a quoted-string; unquoted, it is reported as an invalid token character. RFC 2046 warns implementors of exactly this.\n\n**Scope:** this rule reports only on the boundary parameter. A `Content-Type` that does not parse as a `media-type`, and the presence of more than one `Content-Type` field line, are both `message_content_type_well_formed`'s findings. Every `Content-Type` line in the header section of each message is read, since recipients differ over which one they act on; trailers are not read, as a `Content-Type` there is a framing question rather than a boundary one.\n\n**What is not checked:** this is a header rule, so the rest of RFC 2046 §5.1.1 — that the delimiter must not appear inside the encapsulated material, and that nested multipart entities must use different boundaries — is outside it. Whether the declared boundary actually delimits the body is `message_multipart_content_type_and_body_consistency`'s question. A conforming boundary also says nothing about message length: RFC 9110 §8.3.3 is explicit that HTTP framing does not use the boundary.\n\n**Quoting that never closes is declined, not guessed at.** After a stray `\"` no separator can be trusted, so `multipart/mixed; foo=\"unterminated; boundary=abc` is not reported as missing a boundary — whether that text is a parameter is precisely what the broken quoting makes unknowable, and the malformed value is `message_content_type_well_formed`'s finding. This applies only to the *absence* claim: a boundary the scan did find is still judged, so `boundary=\"unfinished` is reported as the malformed quoted-string it is.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `boundary= abc` is accepted. It never causes a false report, only a missed one — and the missed report belongs to `message_content_type_well_formed`, which is lenient in the same place."
+        "Check that a `Content-Type` naming a `multipart/*` media type carries a `boundary` parameter, and that the parameter's value is one RFC 2046 §5.1.1 allows: 1 to 70 characters drawn from `bchars` — letters, digits, `'`, `(`, `)`, `+`, `_`, `,`, `-`, `.`, `/`, `:`, `=`, `?` and space — and not ending in a space. A quoted value is judged after unescaping, since the quoted and unquoted forms name the same value.\n\n**RFC 9110 §8.3.3 is why a MIME rule applies to HTTP at all:** it adopts §5.1.1 wholesale for every multipart type and says the boundary parameter is part of the media type value. The two multipart types HTTP itself deals in run in opposite directions — `multipart/form-data` in requests, `multipart/byteranges` in 206 responses — which is why both are checked.\n\n**Quoting is often not optional.** Seven characters `bchars` permits (`(`, `)`, `,`, `/`, `:`, `=`, `?`) and space are not `tchar`, so a boundary using any of them can only be transmitted inside a quoted-string; unquoted, it is reported as an invalid token character. RFC 2046 warns implementors of exactly this.\n\n**Scope:** this rule reports only on the boundary parameter. A `Content-Type` that does not parse as a `media-type`, and the presence of more than one `Content-Type` field line, are both `content_type_valid`'s findings. Every `Content-Type` line in the header section of each message is read, since recipients differ over which one they act on; trailers are not read, as a `Content-Type` there is a framing question rather than a boundary one.\n\n**What is not checked:** this is a header rule, so the rest of RFC 2046 §5.1.1 — that the delimiter must not appear inside the encapsulated material, and that nested multipart entities must use different boundaries — is outside it. Whether the declared boundary actually delimits the body is `message_multipart_content_type_and_body_consistency`'s question. A conforming boundary also says nothing about message length: RFC 9110 §8.3.3 is explicit that HTTP framing does not use the boundary.\n\n**Quoting that never closes is declined, not guessed at.** After a stray `\"` no separator can be trusted, so `multipart/mixed; foo=\"unterminated; boundary=abc` is not reported as missing a boundary — whether that text is a parameter is precisely what the broken quoting makes unknowable, and the malformed value is `content_type_valid`'s finding. This applies only to the *absence* claim: a boundary the scan did find is still judged, so `boundary=\"unfinished` is reported as the malformed quoted-string it is.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `boundary= abc` is accepted. It never causes a false report, only a missed one — and the missed report belongs to `content_type_valid`, which is lenient in the same place."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -163,7 +163,7 @@ fn check_multipart_boundary(
     config: &crate::rules::RuleConfig,
 ) -> Option<Violation> {
     // A value that is not a media-type at all has no type to compare and no
-    // parameters to read. Saying so is `message_content_type_well_formed`'s
+    // parameters to read. Saying so is `content_type_valid`'s
     // finding, not this one's; the `media-type` grammar is the helper's.
     let parsed = match crate::helpers::headers::parse_media_type(val) {
         Ok(p) => p,
@@ -205,7 +205,7 @@ fn check_multipart_boundary(
             // are `helpers::headers::parameters`'s. A segment with no "=" is not
             // a parameter — `parameter` has both halves and the "=" is not
             // optional — but that it is malformed is
-            // `message_content_type_well_formed`'s finding; this rule only needs
+            // `content_type_valid`'s finding; this rule only needs
             // to know it is not the boundary, so it is skipped here.
             for parameter in crate::helpers::headers::parameters(params) {
                 let Ok(parameter) = parameter else { continue };
@@ -379,7 +379,7 @@ fn check_multipart_boundary(
         // claim the value cannot support: `foo="unterminated; boundary=abc`
         // plainly carries the text, and whether it is a parameter is exactly
         // what the broken quoting makes unknowable. An unreadable parameter
-        // list is `message_content_type_well_formed`'s finding.
+        // list is `content_type_valid`'s finding.
         if !found && !unreadable {
             return Some(Violation {
                 rule: MessageMultipartBoundarySyntax.id().into(),
@@ -428,11 +428,11 @@ mod tests {
         let siblings: [(&str, &dyn Rule); 3] = [
             (
                 "well-formed",
-                &crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed,
+                &crate::rules::content_type_valid::ContentTypeValid,
             ),
             (
                 "charset allowlist",
-                &crate::rules::message_charset_iana_registered::MessageCharsetIanaRegistered,
+                &crate::rules::charset_registered::CharsetRegistered,
             ),
             (
                 "suffix",

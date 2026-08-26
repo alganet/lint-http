@@ -33,7 +33,7 @@ Scope: responses only — §3.1 defines `Accept-Patch` as a response header, and
 - [RFC 9110 §8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1): `media-type`, transcribed once in `helpers::headers` and shared with the Content-Type rule. It is where RFC 5789 §3.1's pointer at `[RFC2616], Section 3.7` resolves today; the obsolete name stays byte-exact inside the quote because it is the RFC's own wording
 - [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): The list construct expanded, and the worked example naming the values a `1#` production rejects for holding no non-empty member. §5.6.1.1 is the sender's half — the empty-member finding
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): The method token is case-sensitive, which is why `PATCH` and `OPTIONS` are compared exactly and a `patch` request draws nothing from this rule
-- [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): `Allow` — the value read to decide whether the OPTIONS response's resource supports PATCH. Its own grammar is `message_allow_header_method_tokens`'s
+- [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): `Allow` — the value read to decide whether the OPTIONS response's resource supports PATCH. Its own grammar is `allow_header_method_tokens_valid`'s
 
 ## Configuration
 

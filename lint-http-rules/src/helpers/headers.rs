@@ -134,7 +134,7 @@ pub fn content_evidence(headers: &HeaderMap, body_length: Option<u64>) -> Option
 /// The sender's own claim about how much content it enclosed, where that claim
 /// parses.
 ///
-/// A value that does not parse leaves no number and `message_content_length`
+/// A value that does not parse leaves no number and `content_length_valid`
 /// reports it; a declared length that disagrees with the captured octets is
 /// `message_request_body_length_accuracy`'s finding.
 // cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
@@ -287,7 +287,7 @@ pub fn as_written_octets(s: &str) -> Option<Vec<u8>> {
 /// to the one before it is defined *within* a field section.
 ///
 /// The label is `&'static str` rather than an enum for the same reason
-/// `message_header_field_names_token` passes one -- a finding says which
+/// `header_field_names_token_valid` passes one -- a finding says which
 /// section it came from and nothing else turns on the distinction.
 ///
 /// cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
@@ -976,7 +976,7 @@ pub static PROHIBITED_TRAILER_FIELDS: &[&str] = &[
     // The cleanest member of this list: § 6.5.1 asks whether the field's own
     // definition permits the usage, and this field's definition answers by name.
     // The same sentence forbids it in a response, which is
-    // `message_early_data_header_safe_method`'s finding — a response *trailer* is
+    // `early_data_header_safe_method`'s finding — a response *trailer* is
     // both, and is reported here.
     // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
     "early-data",
@@ -1630,7 +1630,7 @@ pub fn shown_in_finding(s: &str) -> String {
 /// **Not for a field counted across two sections.** The recombining clause is
 /// § 5.2's, and § 5.2 is *within a section*; § 5.3's MUST NOT is about the whole
 /// message and says so (*"whether in the headers or trailers"*). A rule counting
-/// both sections at once — `message_content_disposition_token_valid` does — is
+/// both sections at once — `content_disposition_token_valid` does — is
 /// answering § 5.3 correctly and cannot honestly say what § 5.2 recombines,
 /// which is why it says something else instead.
 ///
@@ -1954,7 +1954,7 @@ pub fn validate_ext_value(val: &str) -> Result<(), String> {
 /// so there the `*` is the **whole field value** and never a member of the list.
 /// Accepting it here put it in both places at once, and every caller answered
 /// that the same way: three of the five excluded `*` on the line before calling
-/// (`message_etag_syntax` with a finding of its own, `range_request_and_caching`
+/// (`etag_syntax` with a finding of its own, `range_request_and_caching`
 /// with a `return`), and the two that did not were the two the `*` was
 /// ostensibly for — where it made `If-None-Match: "abc", *` a conforming list.
 /// **A tolerance that every honest caller has to undo is not a tolerance.**
@@ -2323,7 +2323,7 @@ pub fn extract_multipart_boundary(val: &str) -> Option<String> {
     // function's `None` rather than a finding.
     for parameter in parameters(params) {
         // A malformed segment names no boundary, and reporting is not this
-        // function's job: `message_content_type_well_formed` reads the same
+        // function's job: `content_type_valid` reads the same
         // value through `media_type_parts_defect` and says so there.
         let Ok(parameter) = parameter else { continue };
 

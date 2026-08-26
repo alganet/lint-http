@@ -91,7 +91,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
         let config = parse_allowed_config(cfg, self.id()).ok()?;
         let check_media = |hdr_name: &str, val: &str| -> Option<Violation> {
             // A value that is not a media-type has no subtype to inspect, and
-            // saying so is `message_content_type_well_formed`'s finding. The
+            // saying so is `content_type_valid`'s finding. The
             // `media-type` grammar is the helper's.
             let parsed = match crate::helpers::headers::parse_media_type(val) {
                 Ok(p) => p,
@@ -111,7 +111,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
             // neither half is empty — so a subtype full of characters no subtype
             // may contain still arrives here. Judging its *suffix* would name the
             // wrong defect and would say it twice, since
-            // `message_content_type_well_formed` already reports the subtype. A
+            // `content_type_valid` already reports the subtype. A
             // suffix question only arises once there is a well-formed name to
             // hang it on.
             //
@@ -258,7 +258,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax — as is one that is *only* a suffix (`application/+json`), which has no base name for the suffix to qualify.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `message_content_type_well_formed`'s findings; whether the full media type is one you allow is `message_content_type_iana_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice."
+        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax — as is one that is *only* a suffix (`application/+json`), which has no base name for the suffix to qualify.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `content_type_valid`'s findings; whether the full media type is one you allow is `content_type_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -295,7 +295,7 @@ impl Rule for MessageMediaTypeSuffixValidity {
         &[
             // One message per example. These were two blocks of stacked
             // `Content-Type:` lines meaning "any of these" — a reading
-            // `message_content_type_well_formed` now contradicts, since two
+            // `content_type_valid` now contradicts, since two
             // Content-Type lines in one message are themselves a defect.
             Example {
                 compliance: Compliance::Compliant,
@@ -357,11 +357,26 @@ mod tests {
         let cfg: crate::config::Config =
             toml::from_str(&toml_src).expect("config_example.toml must parse");
         let siblings: [(&str, &dyn Rule); 5] = [
-            ("well-formed", &crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed),
-            ("media-type allowlist", &crate::rules::message_content_type_iana_registered::MessageContentTypeIanaRegistered),
-            ("charset presence", &crate::rules::charset_present::CharsetPresent),
-            ("nosniff", &crate::rules::x_content_type_options_present::XContentTypeOptionsPresent),
-            ("header-name allowlist", &crate::rules::message_extension_headers_registered::MessageExtensionHeadersRegistered),
+            (
+                "well-formed",
+                &crate::rules::content_type_valid::ContentTypeValid,
+            ),
+            (
+                "media-type allowlist",
+                &crate::rules::content_type_registered::ContentTypeRegistered,
+            ),
+            (
+                "charset presence",
+                &crate::rules::charset_present::CharsetPresent,
+            ),
+            (
+                "nosniff",
+                &crate::rules::x_content_type_options_present::XContentTypeOptionsPresent,
+            ),
+            (
+                "header-name allowlist",
+                &crate::rules::extension_headers_registered::ExtensionHeadersRegistered,
+            ),
         ];
 
         for ex in rule.examples() {
@@ -429,7 +444,7 @@ mod tests {
     }
 
     #[rstest]
-    // A subtype that is not a well-formed name is `message_content_type_well_formed`'s
+    // A subtype that is not a well-formed name is `content_type_valid`'s
     // finding, not a suffix question. Before the token gate these were reported
     // here as bad *suffixes*, naming the wrong defect and saying it twice.
     #[case(b"application/ld+json\xe4", false)]
@@ -475,16 +490,13 @@ mod tests {
         if !expect && String::from_utf8_lossy(raw).contains(char::REPLACEMENT_CHARACTER)
             || raw.contains(&0xc2)
         {
-            let sib_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-                "message_content_type_well_formed",
-            ]);
-            let other =
-                crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed
-                    .check_transaction(
-                        &tx,
-                        &crate::transaction_history::TransactionHistory::empty(),
-                        &sib_cfg,
-                    );
+            let sib_cfg =
+                crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_valid"]);
+            let other = crate::rules::content_type_valid::ContentTypeValid.check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &sib_cfg,
+            );
             assert!(other.is_some(), "unreported by both rules");
         }
     }

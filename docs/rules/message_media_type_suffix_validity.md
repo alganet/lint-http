@@ -12,7 +12,7 @@ Flags media types — in `Content-Type` on either side of a transaction, or in a
 
 **It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is "registered" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.
 
-**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `message_content_type_well_formed`'s findings; whether the full media type is one you allow is `message_content_type_iana_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice.
+**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `content_type_valid`'s findings; whether the full media type is one you allow is `content_type_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice.
 
 ## Specifications
 

@@ -9,7 +9,7 @@
 //! — and underneath them sits RFC 1035's *preferred name syntax*, which any
 //! reader holding an Internet domain name asks. The second is
 //! [`preferred_name_syntax_defect`], and its callers are not all cookie rules:
-//! `message_from_header_email_syntax` reaches it through RFC 5322 § 3.4.1,
+//! `from_header_email_syntax` reaches it through RFC 5322 § 3.4.1,
 //! which hands the `dot-atom` form of an `addr-spec`'s domain to RFC 1034,
 //! RFC 1035 and RFC 1123 by name.
 

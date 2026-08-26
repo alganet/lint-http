@@ -227,8 +227,8 @@ mod tests {
 
     /// The range is RFC 9110 § 15's and holds for every version, which is why this
     /// rule has no version gate — and why the two pseudo-header rules that used to
-    /// make the same check no longer do. `message_http2_pseudo_headers_validity`
-    /// made it on every transaction, HTTP/1.1 included; `message_http3_pseudo_headers_validity`
+    /// make the same check no longer do. `http2_pseudo_headers_valid`
+    /// made it on every transaction, HTTP/1.1 included; `http3_pseudo_headers_valid`
     /// made it behind an HTTP/3 gate. Both now decline, so these are the only
     /// reports left.
     #[rstest]

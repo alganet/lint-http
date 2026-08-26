@@ -537,8 +537,8 @@ fn validate_keepalive_param(member: &str, max_timeout_seconds: u64) -> Result<()
 /// That decision, and the two measurements behind it, is
 /// [`token_or_quoted_string`]'s -- **written out seven times in this tree until
 /// P2 gave it a home**, here and in `message_pragma_token_valid`,
-/// `message_cache_control_token_valid`,
-/// `message_accept_header_media_type_syntax`,
+/// `cache_control_token_valid`,
+/// `accept_header_media_type_syntax`,
 /// `alt_svc_header_syntax::check_parameter`,
 /// `server_timing_header_syntax::check_param` and privately inside
 /// [`parse_token_bws_word`]. What could not be shared and is not shared is the

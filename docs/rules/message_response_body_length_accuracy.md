@@ -14,10 +14,10 @@ Checks that a response's `Content-Length` matches the number of body octets actu
 
 - *Item 1* — a response to `HEAD`, and any `1xx`, `204` or `304`, ends at the blank line "regardless of the header fields present". Its `Content-Length` describes a body that was deliberately not sent: §8.6 requires, in a MUST, that a HEAD response's value equal what a `GET` would have returned, and a 304's equal what a `200` would have. Comparing either against zero captured octets reports a conforming response, so these are not measured here. Whether the value matches what a GET *would* have returned needs two transactions; `head_response_headers_match_get` has them. What item 1 *does* say about these is checkable and is checked: there must be no body at all, so a `204` that answered with content is reported for the body's existence rather than for any mismatch. Nothing else looks — the rule covering these statuses reads the header fields that advertise a body, not the body.
 - *Item 2* — a `2xx` to `CONNECT` becomes a tunnel, and a client "MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message".
-- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `message_content_length_vs_transfer_encoding` reports it.
+- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.
 - *Item 8* — a response with no declared length is close-delimited; there is nothing to compare.
 
-**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `message_content_length` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.
+**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.
 
 **What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed.
 

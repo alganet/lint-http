@@ -1,0 +1,287 @@
+// SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+//
+// SPDX-License-Identifier: ISC
+
+use crate::lint::Violation;
+use crate::rules::Rule;
+
+pub struct BasicAuthBase64Valid;
+
+impl Rule for BasicAuthBase64Valid {
+    fn id(&self) -> &'static str {
+        "basic_auth_base64_valid"
+    }
+
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Client
+    }
+
+    fn check_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        cfg: &crate::config::Config,
+    ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        for hv in tx.request.headers.get_all("authorization").iter() {
+            match hv.to_str() {
+                Ok(s) => {
+                    // Scheme names match case-insensitively.
+                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                    let mut parts = s.splitn(2, char::is_whitespace);
+                    let scheme = parts.next().unwrap_or("").trim();
+                    if scheme.eq_ignore_ascii_case("Basic") {
+                        let creds = parts.next().unwrap_or("").trim();
+                        if creds.is_empty() {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: config.severity,
+                                message: "Basic Authorization missing credentials".into(),
+                            });
+                        }
+                        // The rule's own claim: the credential the client sends encodes a
+                        // user-id and password. How that value is built and checked — the
+                        // Base64 alphabet, the ":" separator, control characters — is owned
+                        // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
+                        // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
+                        if let Err(msg) = crate::helpers::auth::validate_basic_credentials(creds) {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: config.severity,
+                                message: format!("Invalid Basic credentials: {} (RFC 7617)", msg),
+                            });
+                        }
+                    }
+                }
+                Err(_) => {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Authorization header contains non-UTF8 value".into(),
+                    })
+                }
+            }
+        }
+        None
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 7617",
+                section: Some("2"),
+                url: "https://www.rfc-editor.org/rfc/rfc7617.html#section-2",
+                note: "The Basic authentication scheme and the `user-pass` encoding (Base64)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 4648",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc4648.html#section-4",
+                note: "Base64 encoding used for `token68`",
+            },
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic not-base64",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic YWJj",
+            },
+        ]
+    }
+}
+
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &BasicAuthBase64Valid;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine;
+    use hyper::header::HeaderValue;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case(Some("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="), false)]
+    #[case(Some("Basic not-base64"), true)]
+    #[case(Some("Basic YWJj"), true)] // 'abc' -> missing colon
+    #[case(Some("Bearer abc"), false)]
+    #[case(None, false)]
+    fn check_basic_cases(
+        #[case] header: Option<&str>,
+        #[case] expect_violation: bool,
+    ) -> anyhow::Result<()> {
+        let rule = BasicAuthBase64Valid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        if let Some(h) = header {
+            tx.request
+                .headers
+                .append("authorization", HeaderValue::from_str(h)?);
+        }
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        if expect_violation {
+            assert!(v.is_some(), "expected violation for header '{:?}'", header);
+        } else {
+            assert!(
+                v.is_none(),
+                "unexpected violation for header '{:?}': {:?}",
+                header,
+                v
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn basic_with_ctl_in_password_reports_violation() {
+        let creds = b"user:\x01pass";
+        let enc = base64::engine::general_purpose::STANDARD.encode(creds);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            HeaderValue::from_str(&format!("Basic {}", enc)).unwrap(),
+        );
+        let rule = BasicAuthBase64Valid;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("control"));
+    }
+
+    #[test]
+    fn multiple_auth_headers_one_invalid_is_violation() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            HeaderValue::from_static("Bearer goodtoken"),
+        );
+        tx.request.headers.append(
+            "authorization",
+            HeaderValue::from_static("Basic not-base64"),
+        );
+        let rule = BasicAuthBase64Valid;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn missing_credentials_reports_violation() {
+        let mut tx1 = crate::test_helpers::make_test_transaction();
+        tx1.request
+            .headers
+            .append("authorization", HeaderValue::from_static("Basic"));
+        let rule = BasicAuthBase64Valid;
+        let v1 = rule.check_transaction(
+            &tx1,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v1.is_some());
+        assert!(v1.unwrap().message.contains("missing credentials"));
+
+        let mut tx2 = crate::test_helpers::make_test_transaction();
+        tx2.request
+            .headers
+            .append("authorization", HeaderValue::from_static("Basic "));
+        let v2 = rule.check_transaction(
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v2.is_some());
+        assert!(v2.unwrap().message.contains("missing credentials"));
+    }
+
+    #[test]
+    fn non_utf8_authorization_reports_violation() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            HeaderValue::from_bytes(b"Basic \xff").unwrap(),
+        );
+        let rule = BasicAuthBase64Valid;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("non-UTF8"));
+    }
+
+    #[test]
+    fn basic_lowercase_scheme_is_accepted() {
+        // scheme is case-insensitive
+        let creds = b"Aladdin:open sesame";
+        let enc = base64::engine::general_purpose::STANDARD.encode(creds);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            HeaderValue::from_str(&format!("basic {}", enc)).unwrap(),
+        );
+        let rule = BasicAuthBase64Valid;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn basic_empty_password_allowed() {
+        // 'user:' should be allowed (empty password)
+        let creds = b"user:";
+        let enc = base64::engine::general_purpose::STANDARD.encode(creds);
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            HeaderValue::from_str(&format!("Basic {}", enc)).unwrap(),
+        );
+        let rule = BasicAuthBase64Valid;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn validate_rules_with_valid_config() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        crate::test_helpers::enable_rule(&mut cfg, "basic_auth_base64_valid");
+        crate::rules::validate_rules(&cfg)?;
+        Ok(())
+    }
+}

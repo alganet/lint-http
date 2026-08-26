@@ -1,0 +1,368 @@
+// SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+//
+// SPDX-License-Identifier: ISC
+
+use crate::lint::Violation;
+use crate::rules::Rule;
+
+pub struct CrossOriginOpenerPolicyValid;
+
+impl Rule for CrossOriginOpenerPolicyValid {
+    fn id(&self) -> &'static str {
+        "cross_origin_opener_policy_valid"
+    }
+
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
+    }
+
+    fn check_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        cfg: &crate::config::Config,
+    ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // COOP is a response-only header per spec; ignore requests
+        let resp = if let Some(resp) = &tx.response {
+            resp
+        } else {
+            return None;
+        };
+        let headers = &resp.headers;
+
+        let count = headers.get_all("cross-origin-opener-policy").iter().count();
+        if count == 0 {
+            return None;
+        }
+
+        if count > 1 {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: "Multiple Cross-Origin-Opener-Policy header fields present".into(),
+            });
+        }
+
+        let val =
+            match crate::helpers::headers::get_header_str(headers, "cross-origin-opener-policy") {
+                Some(v) => v.trim(),
+                None => return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message:
+                        "Cross-Origin-Opener-Policy header contains non-ASCII or control characters"
+                            .into(),
+                }),
+            };
+
+        // Must not be a comma-separated list
+        if crate::helpers::headers::list_members(val).count() != 1 {
+            return Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message: "Cross-Origin-Opener-Policy must be a single value".into(),
+            });
+        }
+
+        // Acceptable values: same-origin, same-origin-allow-popups, unsafe-none (case-insensitive)
+        // `noopener-allow-popups` was added to the opener policy values and was missing
+        // here — a valid, deployable header this rule used to reject. `same-origin-plus-COEP`
+        // is deliberately absent: the parsing algorithm produces it only from the `same-origin`
+        // token combined with a compatible COEP, never from a token of its own, so a response
+        // literally carrying `same-origin-plus-COEP` *is* wrong. The header value is a single
+        // structured-field item (token), which is also why the list check above applies.
+        // cite(HTML § 7.1.3.1): "Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list."
+        if val.eq_ignore_ascii_case("same-origin")
+            || val.eq_ignore_ascii_case("same-origin-allow-popups")
+            || val.eq_ignore_ascii_case("noopener-allow-popups")
+            || val.eq_ignore_ascii_case("unsafe-none")
+        {
+            return None;
+        }
+
+        Some(Violation {
+            rule: self.id().into(),
+            severity: config.severity,
+            message: format!(
+                "Cross-Origin-Opener-Policy contains unsupported value: '{}'",
+                val
+            ),
+        })
+    }
+
+    fn title(&self) -> Option<&'static str> {
+        Some("Cross-Origin-Opener-Policy Value")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, **`noopener-allow-popups`**, or **`unsafe-none`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `same-origin-plus-COEP` is an opener policy value, but the HTML Standard states it cannot be set directly through this header — it results from combining `same-origin` with a compatible `Cross-Origin-Embedder-Policy` — so a response carrying it is flagged. This header is response-only; the rule applies to server responses (RuleScope::Server)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            crate::rules::SpecRef {
+                spec: "MDN Cross-Origin-Opener-Policy",
+                section: None,
+                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy",
+                note: "Cross-Origin-Opener-Policy",
+            },
+            crate::rules::SpecRef {
+                spec: "HTML",
+                section: Some("7.1.3.1"),
+                url: "https://html.spec.whatwg.org/multipage/browsers.html#the-coop-headers",
+                note: "The `Cross-Origin-Opener-Policy` header is parsed as a single structured-field item (token); `same-origin-plus-COEP` is derived from `same-origin` + a compatible COEP, never set directly",
+            },
+            crate::rules::SpecRef {
+                spec: "HTML",
+                section: None,
+                url: "https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies",
+                note: "“Cross-origin opener policies” — the possible opener policy values and their meanings",
+            },
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(response)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(case-insensitive, whitespace tolerated)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy:  SAME-ORIGIN-ALLOW-POPUPS  ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unsupported value)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: other",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(comma-separated list)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin, unsafe-none",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(multiple header fields)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin\nCross-Origin-Opener-Policy: unsafe-none",
+            },
+        ]
+    }
+}
+
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &CrossOriginOpenerPolicyValid;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    use crate::test_helpers::make_test_transaction;
+
+    #[rstest]
+    #[case(Some("same-origin"), false)]
+    #[case(Some("same-origin-allow-popups"), false)]
+    #[case(Some("noopener-allow-popups"), false)]
+    #[case(Some("unsafe-none"), false)]
+    #[case(Some(" SAME-ORIGIN "), false)]
+    // invalid
+    #[case(Some(""), true)]
+    #[case(Some("other"), true)]
+    // A real opener policy value, but not one this header can carry: it results from
+    // combining `same-origin` with a COEP header, and cannot be set directly.
+    #[case(Some("same-origin-plus-COEP"), true)]
+    #[case(Some("same-origin, unsafe-none"), true)]
+    fn check_values(#[case] val: Option<&str>, #[case] expect_violation: bool) {
+        let rule = CrossOriginOpenerPolicyValid;
+        let mut tx = make_test_transaction();
+        if let Some(v) = val {
+            tx = crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("cross-origin-opener-policy", v)],
+            );
+        }
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        if expect_violation {
+            assert!(v.is_some(), "expected violation for '{:?}', got none", val);
+        } else {
+            assert!(
+                v.is_none(),
+                "did not expect violation for '{:?}': got {:?}",
+                val,
+                v
+            );
+        }
+    }
+
+    #[test]
+    fn no_response_no_violation() {
+        let rule = CrossOriginOpenerPolicyValid;
+        let tx = make_test_transaction();
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn multiple_headers_violation() {
+        use crate::test_helpers::make_headers_from_pairs;
+        use hyper::header::HeaderValue;
+
+        let rule = CrossOriginOpenerPolicyValid;
+        let mut tx = make_test_transaction();
+        let mut hdrs = make_headers_from_pairs(&[("cross-origin-opener-policy", "same-origin")]);
+        hdrs.append(
+            "cross-origin-opener-policy",
+            HeaderValue::from_static("unsafe-none"),
+        );
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hdrs,
+            body_length: None,
+            trailers: None,
+        });
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        assert!(v
+            .unwrap()
+            .message
+            .contains("Multiple Cross-Origin-Opener-Policy"));
+    }
+
+    #[test]
+    fn non_utf8_is_violation() {
+        use crate::test_helpers::make_headers_from_pairs;
+        use hyper::header::HeaderValue;
+
+        let rule = CrossOriginOpenerPolicyValid;
+        let mut tx = make_test_transaction();
+        let mut hdrs = make_headers_from_pairs(&[("cross-origin-opener-policy", "same-origin")]);
+        hdrs.insert(
+            "cross-origin-opener-policy",
+            HeaderValue::from_bytes(&[0xff]).unwrap(),
+        );
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hdrs,
+
+            body_length: None,
+            trailers: None,
+        });
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        assert!(v.unwrap().message.contains("non-ASCII"));
+    }
+
+    #[test]
+    fn scope_is_server() {
+        let rule = CrossOriginOpenerPolicyValid;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
+
+    #[test]
+    fn validate_rules_with_valid_config() -> anyhow::Result<()> {
+        let rule = CrossOriginOpenerPolicyValid;
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert("severity".to_string(), toml::Value::String("warn".into()));
+        cfg.rules.insert(
+            "cross_origin_opener_policy_valid".into(),
+            toml::Value::Table(table),
+        );
+
+        rule.validate(&cfg)?;
+        Ok(())
+    }
+
+    #[test]
+    fn trailing_whitespace_is_accepted() {
+        let rule = CrossOriginOpenerPolicyValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("cross-origin-opener-policy", "same-origin ")],
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn unsupported_value_reports_value() {
+        let rule = CrossOriginOpenerPolicyValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("cross-origin-opener-policy", "other")],
+        );
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .unwrap();
+        assert!(v.message.contains("unsupported value"));
+        assert!(v.message.contains("other"));
+    }
+
+    #[test]
+    fn comma_list_reports_single_value_message() {
+        let rule = CrossOriginOpenerPolicyValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("cross-origin-opener-policy", "same-origin, unsafe-none")],
+        );
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .unwrap();
+        assert!(v.message.contains("single value"));
+    }
+
+    #[test]
+    fn allow_popups_trailing_whitespace_accepted() {
+        let rule = CrossOriginOpenerPolicyValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("cross-origin-opener-policy", " same-origin-allow-popups ")],
+        );
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+    }
+}

@@ -18,7 +18,7 @@ Reports a `PATCH` request that carries content without a `Content-Type` naming t
 
 **Content, not framing.** The condition is that the message *contains content*, so the captured octet count decides it; a `Transfer-Encoding` is how octets were delimited, not evidence that there were any, and a chunked request whose only chunk is the terminator carries none. Only where nothing was captured does the rule fall back to the sender's declared `Content-Length`.
 
-**The method is compared exactly**, because RFC 9110 §9.1 says the method token is case-sensitive: a request whose method is `patch` is not a `PATCH` request, and `request_method_token_valid` is the rule that reports the spelling. A `Content-Type` whose octets are not visible ASCII counts as present here; `message_content_type_well_formed` reports what is wrong with it.
+**The method is compared exactly**, because RFC 9110 §9.1 says the method token is case-sensitive: a request whose method is `patch` is not a `PATCH` request, and `request_method_token_valid` is the rule that reports the spelling. A `Content-Type` whose octets are not visible ASCII counts as present here; `content_type_valid` reports what is wrong with it.
 
 ## Specifications
 

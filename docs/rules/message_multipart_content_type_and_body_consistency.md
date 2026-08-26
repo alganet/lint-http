@@ -22,7 +22,7 @@ When a `Content-Type` declares a `multipart/*` media type, the body it describes
 
 **Cost:** a conforming body settles the question in its first two lines and the scan stops there. A body that never carries the delimiter is walked in full, which is inherent — the answer is only known at the end — and is bounded by `max_body_bytes`.
 
-**Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `message_content_type_well_formed`'s finding. Whether the boundary *value* is syntactically legal is `message_multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored.
+**Scope:** every `Content-Type` field line in each message is read, since recipients differ over which one they act on; that there is more than one is `content_type_valid`'s finding. Whether the boundary *value* is syntactically legal is `message_multipart_boundary_syntax`'s. A body captured only as a prefix is skipped entirely — the terminating delimiter sits at a body's end, so a truncated capture would always look like it is missing one. Nothing before the first delimiter line or after the last is examined, which §5.1.1 requires: the preamble and epilogue are to be ignored.
 
 ## Specifications
 

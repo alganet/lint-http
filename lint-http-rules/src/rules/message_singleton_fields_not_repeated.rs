@@ -241,7 +241,7 @@ static REGISTRATION: &dyn crate::rules::Rule = &MessageSingletonFieldsNotRepeate
 /// about the message and says so — *"whether in the headers or trailers"* —
 /// and its second clause forbids appending a line where one already exists,
 /// which is exactly what a line in each section is. This is the
-/// `message_content_disposition_token_valid` shape, not
+/// `content_disposition_token_valid` shape, not
 /// [`crate::helpers::headers::singleton_field_preamble`]'s: the preamble's
 /// recombining clause is § 5.2's, § 5.2 recombines *within* a section, and a
 /// rule counting both sections cannot honestly say what § 5.2 recombines.

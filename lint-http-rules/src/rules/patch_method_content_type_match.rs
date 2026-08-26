@@ -29,7 +29,7 @@ pub struct PatchMethodContentTypeMatch;
 /// It matters in both directions. On the advertisement side a tidied member
 /// would suppress a finding; on the request side a malformed value would be
 /// compared and reported as unadvertised, which is
-/// `message_content_type_well_formed`'s finding and not this rule's. An asterisk
+/// `content_type_valid`'s finding and not this rule's. An asterisk
 /// survives, `*` being a `tchar`; what that means for this field is decided at
 /// the comparison.
 ///
@@ -133,7 +133,7 @@ impl Rule for PatchMethodContentTypeMatch {
         //
         // A singleton field, so its lines are not joined: more than one and the
         // media type the peer acts on is not the one the message states, which
-        // makes the comparison meaningless. `message_content_type_well_formed`
+        // makes the comparison meaningless. `content_type_valid`
         // reports the duplication.
         //
         // cite(RFC 9110 § 8.3): "Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list."
@@ -149,7 +149,7 @@ impl Rule for PatchMethodContentTypeMatch {
         // rule can compare may legitimately arrive with a byte `to_str` refuses,
         // and refusing the whole value would lose the type and subtype with it.
         // Whether those two are tokens is `normalized_media_type`'s question; a
-        // value that answers no is `message_content_type_well_formed`'s finding,
+        // value that answers no is `content_type_valid`'s finding,
         // and a `PATCH` carrying content with no field at all is
         // `patch_partial_update`'s.
         //
@@ -225,7 +225,7 @@ impl Rule for PatchMethodContentTypeMatch {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a `PATCH` request whose `Content-Type` names a patch document format that no `Accept-Patch` for this resource has mentioned.\n\n**Why the advertisement is the only evidence.** RFC 5789 defines no default patch document format, no registry of them and no naming convention, so nothing in a lone `PATCH` says whether its media type is one a server takes — `patch_partial_update` requires the field and does not judge its value for exactly that reason. RFC 9110 §12.3 names where the answer lives: `Accept-Patch` \"allows discovery of which content types are accepted in PATCH requests\", and preferences a server sends in a response are \"request content negotiation\" because they \"intend to influence selection of an appropriate content for subsequent requests to that resource\".\n\n**What makes an unlisted type a finding.** RFC 5789 places no requirement on the client: §3.1 says the presence of a format \"indicates that that specific format is allowed\", and §2.2 gives the server a `415 (Unsupported Media Type)` for one it does not support. The sentence that closes the list is RFC 9110 §12.4.3's — \"[i]f no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable\" — which reaches this field through §12.3. So the report is that the exchange contradicts itself: the client sent a format the server had already said it does not accept. It is not a disobeyed MUST or SHOULD, and there is none to disobey.\n\n**There is no wildcard.** `Accept-Patch` is `1#media-type`. The asterisk forms are `Accept`'s `media-range` (RFC 9110 §12.5.1), a different production in a different field, and §12.4.3 makes wildcards a feature a field has only \"where indicated\". A server writing `Accept-Patch: */*` or `application/*` has therefore advertised a media type spelled with an asterisk; the finding says so when it happens, rather than treating it as permission.\n\n**Which advertisement counts.** The most recent response *for this resource* that carried the field, whichever method drew it — §3.1 makes the field's presence \"in response to any method\" an indication about the resource, so an `OPTIONS` exchange several requests back still counts.\n\n**What is not judged here.** The advertisement's syntax: members that do not parse as a media type are skipped, and a field with no parseable member leaves the rule unable to answer, so it declines. `accept_patch_header_valid` is the rule that reports a malformed `Accept-Patch`, on a response to any method — including the `OPTIONS` response §3.1 asks for it in, which nothing validated until that rule was audited. On the request side, more than one `Content-Type` line makes the comparison meaningless, because recipients differ over which member wins (§8.3); a value that is not a media type, and an absent one, are `message_content_type_well_formed`'s and `patch_partial_update`'s findings. Parameters are not compared: whether one is significant depends on the media type's registration (§8.3.1), so `text/example` and `text/example;charset=utf-8` are treated as the same format."
+        "Reports a `PATCH` request whose `Content-Type` names a patch document format that no `Accept-Patch` for this resource has mentioned.\n\n**Why the advertisement is the only evidence.** RFC 5789 defines no default patch document format, no registry of them and no naming convention, so nothing in a lone `PATCH` says whether its media type is one a server takes — `patch_partial_update` requires the field and does not judge its value for exactly that reason. RFC 9110 §12.3 names where the answer lives: `Accept-Patch` \"allows discovery of which content types are accepted in PATCH requests\", and preferences a server sends in a response are \"request content negotiation\" because they \"intend to influence selection of an appropriate content for subsequent requests to that resource\".\n\n**What makes an unlisted type a finding.** RFC 5789 places no requirement on the client: §3.1 says the presence of a format \"indicates that that specific format is allowed\", and §2.2 gives the server a `415 (Unsupported Media Type)` for one it does not support. The sentence that closes the list is RFC 9110 §12.4.3's — \"[i]f no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable\" — which reaches this field through §12.3. So the report is that the exchange contradicts itself: the client sent a format the server had already said it does not accept. It is not a disobeyed MUST or SHOULD, and there is none to disobey.\n\n**There is no wildcard.** `Accept-Patch` is `1#media-type`. The asterisk forms are `Accept`'s `media-range` (RFC 9110 §12.5.1), a different production in a different field, and §12.4.3 makes wildcards a feature a field has only \"where indicated\". A server writing `Accept-Patch: */*` or `application/*` has therefore advertised a media type spelled with an asterisk; the finding says so when it happens, rather than treating it as permission.\n\n**Which advertisement counts.** The most recent response *for this resource* that carried the field, whichever method drew it — §3.1 makes the field's presence \"in response to any method\" an indication about the resource, so an `OPTIONS` exchange several requests back still counts.\n\n**What is not judged here.** The advertisement's syntax: members that do not parse as a media type are skipped, and a field with no parseable member leaves the rule unable to answer, so it declines. `accept_patch_header_valid` is the rule that reports a malformed `Accept-Patch`, on a response to any method — including the `OPTIONS` response §3.1 asks for it in, which nothing validated until that rule was audited. On the request side, more than one `Content-Type` line makes the comparison meaningless, because recipients differ over which member wins (§8.3); a value that is not a media type, and an absent one, are `content_type_valid`'s and `patch_partial_update`'s findings. Parameters are not compared: whether one is significant depends on the media type's registration (§8.3.1), so `text/example` and `text/example;charset=utf-8` are treated as the same format."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -474,7 +474,7 @@ mod tests {
 
     /// § 8.3: with two field lines the media type the peer acts on is not the one
     /// the message states, so there is nothing to compare — even when the first
-    /// line matches. `message_content_type_well_formed` reports the duplication,
+    /// line matches. `content_type_valid` reports the duplication,
     /// which this asserts by calling it.
     #[test]
     fn a_duplicated_content_type_is_not_compared_and_is_reported_next_door() {
@@ -485,8 +485,7 @@ mod tests {
         )
         .is_none());
 
-        let neighbour =
-            crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed;
+        let neighbour = crate::rules::content_type_valid::ContentTypeValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[neighbour.id()]);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = "PATCH".into();
@@ -575,7 +574,7 @@ mod tests {
 
     /// The same grammar in the other direction: a request value `parse_media_type`
     /// splits but no production admits is not compared, because reporting it as
-    /// unadvertised would double with `message_content_type_well_formed`.
+    /// unadvertised would double with `content_type_valid`.
     #[test]
     fn a_request_value_no_production_admits_is_not_compared() {
         assert!(judge("PATCH", &[b"text/pla in"], &[b"application/example"]).is_none());

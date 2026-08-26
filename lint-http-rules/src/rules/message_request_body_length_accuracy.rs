@@ -28,7 +28,7 @@ impl Rule for MessageRequestBodyLengthAccuracy {
         // This rule used to transcribe the whole `Content-Length` grammar
         // inline -- `1*DIGIT`, the u128 ceiling, the multiple-values-differ
         // check, the non-UTF8 branch -- and emit findings for each, with
-        // message strings byte-identical to `message_content_length`'s. That
+        // message strings byte-identical to `content_length_valid`'s. That
         // rule owns the field's syntax, on both sides, and delegates to
         // `validate_content_length`. So every malformed value here produced two
         // identical findings for one defect.
@@ -42,7 +42,7 @@ impl Rule for MessageRequestBodyLengthAccuracy {
         //
         // Nothing is re-quoted here on purpose. A syntax error means there is
         // no number to compare a body against, so this rule declines and
-        // `message_content_length` makes the report.
+        // `content_length_valid` makes the report.
         // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
         let declared = crate::helpers::headers::validate_content_length(&req.headers).ok()??;
 
@@ -62,14 +62,14 @@ impl Rule for MessageRequestBodyLengthAccuracy {
         // three-octet chunked body was reported as an inaccurate length, when
         // the length was never the operative one. The message is certainly
         // suspect -- § 6.3 calls it a possible smuggling attempt -- and
-        // `message_content_length_vs_transfer_encoding` is the rule that says
+        // `content_length_vs_transfer_encoding` is the rule that says
         // so. This one has nothing left to measure.
         //
         // Presence is all that matters here, not what the field contains: the
         // overriding is unconditional on the transfer coding being valid or
         // even parseable. § 6.2 states the condition from the other end, and
         // makes sending both a MUST NOT in its own right -- which is
-        // `message_content_length_vs_transfer_encoding`'s finding, not this
+        // `content_length_vs_transfer_encoding`'s finding, not this
         // rule's.
         // cite(RFC 9112 § 6.2): "When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content."
         // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
@@ -118,7 +118,7 @@ impl Rule for MessageRequestBodyLengthAccuracy {
     }
 
     fn description(&self) -> &'static str {
-        "Checks that a request's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that number the framing — \"the Content-Length field value provides the framing information necessary for determining where the data (and message) ends\" — and §6.3 says a recipient that does not receive that many octets \"MUST consider the message to be incomplete and close the connection\". A mismatch is that message.\n\n**Only when there is no `Transfer-Encoding`.** §6.3 licenses the comparison in exactly those terms: \"If a valid Content-Length header field is present *without Transfer-Encoding*, its decimal value defines the expected message body length in octets.\" When both fields are present the Transfer-Encoding overrides, and the declared length is a number the specification says to disregard — so this rule stays silent. Sending both is its own MUST NOT (§6.2) and `message_content_length_vs_transfer_encoding` reports it.\n\n**Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `message_content_length` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.\n\n**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed."
+        "Checks that a request's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that number the framing — \"the Content-Length field value provides the framing information necessary for determining where the data (and message) ends\" — and §6.3 says a recipient that does not receive that many octets \"MUST consider the message to be incomplete and close the connection\". A mismatch is that message.\n\n**Only when there is no `Transfer-Encoding`.** §6.3 licenses the comparison in exactly those terms: \"If a valid Content-Length header field is present *without Transfer-Encoding*, its decimal value defines the expected message body length in octets.\" When both fields are present the Transfer-Encoding overrides, and the declared length is a number the specification says to disregard — so this rule stays silent. Sending both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n\n**Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.\n\n**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -139,7 +139,7 @@ impl Rule for MessageRequestBodyLengthAccuracy {
                 spec: "RFC 9110",
                 section: Some("8.6"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "Where the field and its `1*DIGIT` grammar are actually defined — the syntax itself is `message_content_length`'s subject, not this rule's",
+                note: "Where the field and its `1*DIGIT` grammar are actually defined — the syntax itself is `content_length_valid`'s subject, not this rule's",
             },
         ]
     }
@@ -168,7 +168,7 @@ impl Rule for MessageRequestBodyLengthAccuracy {
                 snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 10\n\nabc",
             },
             // The published `Content-Length: abc` example was labelled
-            // "(invalid Content-Length)" and is `message_content_length`'s
+            // "(invalid Content-Length)" and is `content_length_valid`'s
             // finding, not this rule's -- it is gone rather than relabelled,
             // because this rule reports nothing for it.
         ]
@@ -346,7 +346,7 @@ mod tests {
     /// finding is a comparison between the two.
     ///
     /// One of the three used to be `Content-Length: abc`, labelled "(invalid
-    /// Content-Length)". That is `message_content_length`'s finding, and this
+    /// Content-Length)". That is `content_length_valid`'s finding, and this
     /// rule now reports nothing for it, so it is gone rather than relabelled.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
@@ -404,7 +404,7 @@ mod tests {
     /// bearing on a body -- applies only *without* Transfer-Encoding. With one
     /// present, the Transfer-Encoding overrides and the number this rule
     /// compares is one the specification says to disregard. The message is
-    /// still suspect, and `message_content_length_vs_transfer_encoding` is the
+    /// still suspect, and `content_length_vs_transfer_encoding` is the
     /// rule that says so.
     #[rstest]
     #[case("chunked")]
@@ -432,7 +432,7 @@ mod tests {
     }
 
     /// A malformed value leaves no number to compare a body against, so this
-    /// rule declines and `message_content_length` -- which owns the field's
+    /// rule declines and `content_length_valid` -- which owns the field's
     /// syntax on both sides and reports these with the same message strings --
     /// makes the report. These five used to be duplicated here.
     #[rstest]

@@ -47,7 +47,7 @@ impl Rule for ProxyConnectionDiscouraged {
         // The test is *"not one of the two that forbid it"* rather than *"is
         // HTTP/1.x"*, so a version deriving from no production falls through and
         // is measured: the field is on the wire either way, and the advice does
-        // not turn on which digit the sender wrote. `message_http_version_syntax_valid`
+        // not turn on which digit the sender wrote. `http_version_syntax`
         // is what reports the version itself. This is the same gate the sibling
         // rules use, and the same answer for the same reason.
         //

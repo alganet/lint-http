@@ -122,7 +122,7 @@ impl Rule for LocationHeaderUriValid {
             // in any case. What is left is the operator's reading — a sender that
             // writes `Location:` with nothing after it means to name a resource
             // and named the one already in hand — so the finding says so in the
-            // message rather than claiming a violation. `message_content_location_and_uri_consistency`
+            // message rather than claiming a violation. `content_location_and_uri_consistent`
             // reaches the same answer for the same reason on the sibling field.
             //
             // cite(RFC 3986 § 4.4): "The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier."
