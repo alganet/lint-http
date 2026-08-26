@@ -223,7 +223,8 @@ mod tests {
     fn request_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = PragmaTokenValid;
         let tx = make_req(value);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -254,7 +255,8 @@ mod tests {
     fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = PragmaTokenValid;
         let tx = make_resp(value);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -281,7 +283,8 @@ mod tests {
     fn trailing_comma_reports_violation() {
         let rule = PragmaTokenValid;
         let tx = make_req("no-cache,");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -293,7 +296,8 @@ mod tests {
     fn directive_name_invalid_char_reports_violation() {
         let rule = PragmaTokenValid;
         let tx = make_req("n@me=1");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -305,7 +309,8 @@ mod tests {
     fn token_value_invalid_char_reports_violation() {
         let rule = PragmaTokenValid;
         let tx = make_req("foo=ba@d");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -317,7 +322,8 @@ mod tests {
     fn quoted_value_unterminated_reports_violation() {
         let rule = PragmaTokenValid;
         let tx = make_req("foo=\"unterminated");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -329,7 +335,8 @@ mod tests {
     fn empty_directive_value_is_accepted() {
         let rule = PragmaTokenValid;
         let tx = make_req("foo=");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -341,7 +348,8 @@ mod tests {
     fn list_with_invalid_middle_member_reports_violation() {
         let rule = PragmaTokenValid;
         let tx = make_req("no-cache, bad@name=1, max-age=0");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -358,7 +366,8 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("pragma", bad);
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -371,7 +380,8 @@ mod tests {
     fn quoted_string_with_extra_chars_reports_violation() {
         let rule = PragmaTokenValid;
         let tx = make_req("foo=\"bar\"x");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -394,7 +404,8 @@ mod tests {
             body_length: None,
             trailers: None,
         });
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -407,7 +418,8 @@ mod tests {
     fn empty_directive_value_in_response_is_accepted() {
         let rule = PragmaTokenValid;
         let tx = make_resp("foo=");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -422,7 +434,8 @@ mod tests {
             ("pragma", "no-cache"),
             ("pragma", "foo=bar"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

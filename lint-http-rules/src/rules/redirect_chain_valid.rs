@@ -380,7 +380,8 @@ mod tests {
 
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = RedirectChainValid;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -586,15 +587,15 @@ mod tests {
         let tx = exchange("/a", Some("example.com"), 301, locations);
         let owner = crate::rules::location_header_uri_valid::LocationHeaderUriValid;
         assert!(
-            owner
-                .check_transaction(
-                    &tx,
-                    &crate::transaction_history::TransactionHistory::empty(),
-                    &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                        "location_header_uri_valid",
-                    ]),
-                )
-                .is_some(),
+            crate::test_helpers::run_rule(
+                &owner,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "location_header_uri_valid",
+                ]),
+            )
+            .is_some(),
             "{locations:?}"
         );
     }

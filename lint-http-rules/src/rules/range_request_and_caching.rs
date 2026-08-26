@@ -353,7 +353,8 @@ mod tests {
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
     ) -> Option<Violation> {
-        RangeRequestAndCaching.check_transaction(
+        crate::test_helpers::run_rule(
+            &RangeRequestAndCaching,
             tx,
             history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[

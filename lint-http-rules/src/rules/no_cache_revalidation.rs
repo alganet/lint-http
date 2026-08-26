@@ -186,7 +186,8 @@ mod tests {
     fn no_history_no_violation() {
         let rule = NoCacheRevalidation;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
@@ -249,7 +250,8 @@ mod tests {
         tx.request.uri = "/resource".to_string();
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
@@ -271,7 +273,8 @@ mod tests {
         tx.request.uri = "/resource".to_string();
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
@@ -293,15 +296,13 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "no_cache_revalidation"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -315,15 +316,13 @@ mod tests {
         tx.request.uri = "/resource".to_string();
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "no_cache_revalidation"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["no_cache_revalidation"]),
+        )
+        .is_none());
     }
 
     #[test]

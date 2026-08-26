@@ -479,7 +479,7 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(k, v)]);
             let history = crate::transaction_history::TransactionHistory::empty();
 
-            let found = rule.check_transaction(&tx, &history, &cfg);
+            let found = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg);
             match ex.compliance {
                 Compliance::Compliant => {
                     assert!(
@@ -488,7 +488,7 @@ mod tests {
                         ex.snippet
                     );
                     for (name, sibling) in siblings {
-                        let other = sibling.check_transaction(&tx, &history, &cfg);
+                        let other = crate::test_helpers::run_rule(sibling, &tx, &history, &cfg);
                         assert!(
                             other.is_none(),
                             "the {name} rule rejects a Compliant example {:?}: {other:?}",
@@ -544,7 +544,8 @@ mod tests {
         let header = format!("multipart/mixed; boundary={}", "a".repeat(len));
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", &header)]);
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -565,7 +566,8 @@ mod tests {
         let header = format!("multipart/mixed; boundary=\"{}\"", "é".repeat(36));
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", &header)]);
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -627,7 +629,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", h)]);
         }
 
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -652,7 +655,8 @@ mod tests {
             tx2.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", h)]);
         }
-        let v2 = MultipartBoundarySyntax.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg2,
@@ -678,7 +682,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "not-a-media-type")]);
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -697,7 +702,8 @@ mod tests {
             "content-type",
             "multipart/mixed; boundary=\"unfinished",
         )]);
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -725,7 +731,8 @@ mod tests {
         tx.request
             .headers
             .insert("content-type", HeaderValue::from_bytes(raw).unwrap());
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -751,7 +758,8 @@ mod tests {
         let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -769,7 +777,8 @@ mod tests {
             "content-type",
             "text/plain; boundary=abc",
         )]);
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -788,7 +797,8 @@ mod tests {
             "content-type",
             "multipart/mixed; boundary=\"bad$\"",
         )]);
-        let v = MultipartBoundarySyntax.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &MultipartBoundarySyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

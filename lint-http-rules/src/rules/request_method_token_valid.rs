@@ -329,7 +329,8 @@ mod tests {
         let rule = RequestMethodTokenValid;
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.method = method.to_string();
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config_with_methods(rule.id(), TEST_METHODS),
@@ -373,17 +374,21 @@ mod tests {
         tx.request.method = "purge".to_string();
         let history = crate::transaction_history::TransactionHistory::empty();
 
-        assert!(rule
-            .check_transaction(&tx, &history, &config_with_methods(rule.id(), TEST_METHODS))
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &config_with_methods(rule.id(), TEST_METHODS)
+        )
+        .is_none());
 
-        let v = rule
-            .check_transaction(
-                &tx,
-                &history,
-                &config_with_methods(rule.id(), &["GET", "PURGE"]),
-            )
-            .expect("a name in the array is the whole reason this spelling is reported");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &config_with_methods(rule.id(), &["GET", "PURGE"]),
+        )
+        .expect("a name in the array is the whole reason this spelling is reported");
         assert!(v.message.contains("'purge'") && v.message.contains("'PURGE'"));
     }
 
@@ -425,13 +430,13 @@ mod tests {
         tx.request.method = "GET".to_string();
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         assert!(parse_method_token_config(&cfg, rule.id()).is_err());
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg
+        )
+        .is_none());
     }
 
     #[rstest]

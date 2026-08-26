@@ -408,7 +408,7 @@ mod tests {
             }
             let history = crate::transaction_history::TransactionHistory::empty();
 
-            let v = rule.check_transaction(&tx, &history, &cfg);
+            let v = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg);
             match ex.compliance {
                 Compliance::Compliant => {
                     assert!(
@@ -417,7 +417,7 @@ mod tests {
                         ex.snippet
                     );
                     for (name, sibling) in siblings {
-                        let other = sibling.check_transaction(&tx, &history, &cfg);
+                        let other = crate::test_helpers::run_rule(sibling, &tx, &history, &cfg);
                         assert!(
                             other.is_none(),
                             "the {name} rule rejects a Compliant example {:?}: {other:?}",
@@ -473,7 +473,8 @@ mod tests {
         hm.insert("content-type", HeaderValue::from_bytes(raw).unwrap());
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -492,7 +493,8 @@ mod tests {
         {
             let sib_cfg =
                 crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_valid"]);
-            let other = crate::rules::content_type_valid::ContentTypeValid.check_transaction(
+            let other = crate::test_helpers::run_rule(
+                &crate::rules::content_type_valid::ContentTypeValid,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &sib_cfg,
@@ -515,7 +517,8 @@ mod tests {
         let cfg = make_cfg();
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", accept)]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -536,7 +539,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&pairs);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -558,7 +562,8 @@ mod tests {
         hm.insert("content-type", HeaderValue::from_bytes(raw).unwrap());
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -604,7 +609,8 @@ mod tests {
             &[("content-type", "application/ld+json")],
         );
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -619,7 +625,8 @@ mod tests {
             &[("content-type", "application/vnd.example+unknown")],
         );
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -636,7 +643,8 @@ mod tests {
             "application/vnd.foo+xml; q=0.8, application/bar+nope",
         )]);
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -652,7 +660,8 @@ mod tests {
             &[("content-type", "application/foo+")],
         );
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -668,7 +677,8 @@ mod tests {
             &[("content-type", "application/ld+JSON")],
         );
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -683,7 +693,8 @@ mod tests {
             &[("content-type", "text")],
         );
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -699,7 +710,8 @@ mod tests {
             "application/vnd.foo+unknown",
         )]);
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -716,7 +728,8 @@ mod tests {
             "application/example+JSON",
         )]);
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -732,7 +745,8 @@ mod tests {
             "application/vnd.foo+JSON; q=0.8, text/html",
         )]);
         let rule = MediaTypeSuffixValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),

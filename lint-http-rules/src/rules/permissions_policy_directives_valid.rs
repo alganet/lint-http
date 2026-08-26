@@ -468,7 +468,8 @@ mod tests {
             tx.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&pairs);
 
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -534,7 +535,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -567,7 +569,8 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -612,7 +615,8 @@ mod tests {
             ",geolocation=(self)",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -632,7 +636,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", "geolocation=")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -654,7 +659,8 @@ mod tests {
             "geolocation=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -676,7 +682,8 @@ mod tests {
             "geolocation=(self",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -698,7 +705,8 @@ mod tests {
             "geolocation=(self  )",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -720,7 +728,8 @@ mod tests {
             "geolocation=\"abc",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -742,7 +751,8 @@ mod tests {
             "geolocation=1abc",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -764,7 +774,8 @@ mod tests {
             "geolocation=(self);",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -786,7 +797,8 @@ mod tests {
             "geolocation=(self);123",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -808,7 +820,8 @@ mod tests {
             "geolocation=(self);foo=!",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -849,7 +862,8 @@ mod tests {
             "geolocation=(self);report-to=\"endpoint\"",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -871,7 +885,8 @@ mod tests {
             "geolocation;meta=1=(self)",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -892,7 +907,8 @@ mod tests {
             "geolocation=1.2",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -914,7 +930,8 @@ mod tests {
             "geolocation=:YWJj:",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -936,7 +953,8 @@ mod tests {
             "geolocation=(self);foo=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -957,7 +975,8 @@ mod tests {
             "geolocation=(self);foo",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -978,7 +997,8 @@ mod tests {
             "geolocation=(self);foo=\"bar\"",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -999,7 +1019,8 @@ mod tests {
             "geolocation=feat:sub/1.2-_",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1022,7 +1043,8 @@ mod tests {
             "geolocation=(self);*=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1043,7 +1065,8 @@ mod tests {
             "geolocation=(self);Foo=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1063,7 +1086,8 @@ mod tests {
             "permissions-policy",
             "1feature=(self)",
         )]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -1082,7 +1106,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", "")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1102,7 +1127,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", value)]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -1130,13 +1156,13 @@ mod tests {
         );
         hm.append("permissions-policy", HeaderValue::from_static("camera=()"));
         ok.response.as_mut().unwrap().headers = hm;
-        assert!(rule
-            .check_transaction(
-                &ok,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &ok,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg
+        )
+        .is_none());
 
         let mut dup = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
@@ -1149,7 +1175,8 @@ mod tests {
             HeaderValue::from_static("geolocation=()"),
         );
         dup.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &dup,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1173,7 +1200,8 @@ mod tests {
             "geolocation=(self);a.b_c*=1",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

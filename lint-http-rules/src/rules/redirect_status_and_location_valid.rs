@@ -206,7 +206,8 @@ mod tests {
 
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = RedirectStatusAndLocationValid;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -310,7 +311,8 @@ mod tests {
     fn no_response_is_ignored() {
         let rule = RedirectStatusAndLocationValid;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

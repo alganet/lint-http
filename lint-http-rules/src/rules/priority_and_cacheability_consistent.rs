@@ -147,7 +147,8 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("priority", "u=3")]);
 
         let rule = PriorityAndCacheabilityConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -163,7 +164,8 @@ mod tests {
             &[("priority", "u=1"), ("cache-control", "public, max-age=60")],
         );
         let rule = PriorityAndCacheabilityConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -178,7 +180,8 @@ mod tests {
             &[("priority", "u=1"), ("vary", "Accept-Encoding")],
         );
         let rule = PriorityAndCacheabilityConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -190,7 +193,8 @@ mod tests {
     fn no_priority_is_ignored() {
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let rule = PriorityAndCacheabilityConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -206,7 +210,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers = hm;
 
         let rule = PriorityAndCacheabilityConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -225,7 +230,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers = hm;
 
         let rule = PriorityAndCacheabilityConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -239,7 +245,8 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(503, &[("priority", "u=1")]);
         let rule = PriorityAndCacheabilityConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

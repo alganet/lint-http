@@ -221,7 +221,8 @@ mod tests {
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = RequestVersionMethodValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

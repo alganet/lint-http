@@ -231,15 +231,15 @@ mod tests {
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "private_cache_visibility"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "private_cache_visibility"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -255,15 +255,15 @@ mod tests {
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "private_cache_visibility"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "private_cache_visibility"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -281,7 +281,8 @@ mod tests {
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -308,7 +309,8 @@ mod tests {
             .headers
             .append("if-modified-since", lm.parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -333,14 +335,14 @@ mod tests {
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "private_cache_visibility"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "private_cache_visibility"
+            ]),
+        )
+        .is_none());
     }
 }

@@ -208,7 +208,8 @@ mod tests {
     fn no_origin_header_ignored() {
         let rule = OriginMatchingForCors;
         let tx = make_test_transaction_with_response(200, &[]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -222,7 +223,8 @@ mod tests {
         let mut tx = make_test_transaction();
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
         // response has no ACAO
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -238,7 +240,8 @@ mod tests {
             &[("access-control-allow-origin", "https://example.com")],
         );
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -252,7 +255,8 @@ mod tests {
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "*")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -271,13 +275,13 @@ mod tests {
             ],
         );
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap();
         assert!(v.message.contains("'*' is not allowed"));
     }
 
@@ -289,13 +293,13 @@ mod tests {
             &[("access-control-allow-origin", "https://other.com")],
         );
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap();
         assert!(v.message.contains("does not match request Origin"));
     }
 
@@ -305,7 +309,8 @@ mod tests {
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "null")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "null")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -324,13 +329,13 @@ mod tests {
             ],
         );
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap();
         assert!(v.message.contains("'*' is not allowed"));
     }
 
@@ -342,13 +347,13 @@ mod tests {
             &[("access-control-allow-origin", "https://a, https://b")],
         );
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://a")]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap();
         assert!(v.message.contains("single value"));
     }
 
@@ -369,13 +374,13 @@ mod tests {
             body_length: None,
             trailers: None,
         });
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap();
         assert!(v.message.contains("Multiple Access-Control-Allow-Origin"));
     }
 
@@ -385,7 +390,8 @@ mod tests {
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "null")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "NULL")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -398,7 +404,8 @@ mod tests {
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "NULL")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "null")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -412,7 +419,8 @@ mod tests {
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "null")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "null")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -425,13 +433,13 @@ mod tests {
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "*")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "bad://")]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap();
         // The helper now returns a generic message for missing authority,
         // so we simply check for the word "Origin" to avoid brittle tests.
         assert!(v.message.contains("Origin"));

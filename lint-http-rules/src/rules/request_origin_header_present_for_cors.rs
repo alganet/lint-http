@@ -159,7 +159,8 @@ mod tests {
         tx.request.method = "OPTIONS".into();
         tx.request.headers = make_headers_from_pairs(&[("access-control-request-method", "POST")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -178,7 +179,8 @@ mod tests {
             ("origin", "https://example.com"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -196,7 +198,8 @@ mod tests {
             ("origin", "http:///bad"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -212,7 +215,8 @@ mod tests {
         tx.request.uri = "http://other.example/resource".into();
         tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -231,7 +235,8 @@ mod tests {
         tx.request.uri = "http://example.com/resource".into();
         tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -249,7 +254,8 @@ mod tests {
         tx.request.uri = "/oauth/authorize?redirect_uri=https://client.example/cb".into();
         tx.request.headers = make_headers_from_pairs(&[("host", "auth.example")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -267,7 +273,8 @@ mod tests {
         tx.request.uri = "http://example.com?x=1".into();
         tx.request.headers = make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

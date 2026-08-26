@@ -389,7 +389,8 @@ mod tests {
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = PreferenceAppliedHeaderValid;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -551,7 +552,7 @@ mod tests {
         ]);
         let hist = crate::transaction_history::TransactionHistory::empty();
         assert!(
-            neighbour.check_transaction(&tx, &hist, &cfg).is_some(),
+            crate::test_helpers::run_rule(*neighbour, &tx, &hist, &cfg).is_some(),
             "the Prefer rule reports the member this one declines to read"
         );
     }
