@@ -5,62 +5,6 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-#[derive(Debug, Clone)]
-pub struct SemanticHeadResponseHeadersMatchGetConfig {
-    pub severity: crate::lint::Severity,
-    /// Lowercased header field-names that must match between a previous GET and a HEAD
-    pub headers: Vec<String>,
-}
-
-fn parse_headers_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<SemanticHeadResponseHeadersMatchGetConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
-        anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'headers' array listing header field-names to check. Example in config_example.toml",
-            rule_id
-        )
-    })?;
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let headers_val = table.get("headers").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires a 'headers' array listing header field-names to validate (e.g., ['etag','content-type','content-length'])",
-            rule_id
-        )
-    })?;
-
-    let arr = headers_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!("'headers' must be an array of strings (e.g., ['etag','content-type'])")
-    })?;
-
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'headers' array cannot be empty"));
-    }
-
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'headers' array item at index {} must be a string", i)
-        })?;
-        // The configured names are folded once here so the rest of the rule can
-        // compare them as strings; the fold is the field name's own rule, not a
-        // convenience.
-        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(SemanticHeadResponseHeadersMatchGetConfig {
-        severity,
-        headers: out,
-    })
-}
-
 /// Whether a difference in *presence* of this field between the two responses
 /// is licensed, in either direction.
 ///
@@ -182,13 +126,24 @@ impl Rule for HeadResponseHeadersMatchGet {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_headers_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        // The configured names are folded once at prepare time so the rest of the
+        // rule can compare them as strings; the fold is the field name's own
+        // rule, not a convenience.
+        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
+        let headers = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "headers",
+            "header field-names to check",
+            "['etag','content-type','content-length']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::HeaderNameList { headers }),
         })
     }
 
@@ -245,12 +200,12 @@ impl Rule for HeadResponseHeadersMatchGet {
 
         // Parse config only after the cheap method/response/history guards above —
         // non-HEAD transactions (the common case) skip the allocation entirely.
-        let config: &SemanticHeadResponseHeadersMatchGetConfig = ctx.state();
+        let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
 
         let report = |message: String| {
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message,
             })
         };
@@ -768,7 +723,9 @@ mod tests {
             }),
         );
 
-        let parsed = parse_headers_config(&cfg, "head_response_headers_match_get")?;
+        let parsed = HeadResponseHeadersMatchGet.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::HeaderNameList =
+            parsed.state.downcast_ref().expect("header name list state");
         assert!(parsed.headers.contains(&"etag".to_string()));
         Ok(())
     }
@@ -1134,7 +1091,6 @@ mod tests {
 
     #[test]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = HeadResponseHeadersMatchGet;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "head_response_headers_match_get",
         ]);
@@ -1152,7 +1108,9 @@ mod tests {
             }),
         );
 
-        let arc = parse_headers_config(&full_cfg, rule.id())?;
+        let arc = HeadResponseHeadersMatchGet.prepare(&full_cfg)?;
+        let arc: &crate::helpers::rule_config::HeaderNameList =
+            arc.state.downcast_ref().expect("header name list state");
         assert!(arc.headers.contains(&"etag".to_string()));
         Ok(())
     }
@@ -1173,7 +1131,7 @@ mod tests {
             }),
         );
 
-        let res = parse_headers_config(&cfg, "head_response_headers_match_get");
+        let res = HeadResponseHeadersMatchGet.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -1187,7 +1145,7 @@ mod tests {
             toml::Value::String("not a table".into()),
         );
 
-        let res = parse_headers_config(&cfg, "head_response_headers_match_get");
+        let res = HeadResponseHeadersMatchGet.prepare(&cfg);
         assert!(res.is_err());
     }
 

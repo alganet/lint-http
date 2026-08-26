@@ -2944,7 +2944,7 @@ sources:
     snippet: it specified a suffix (in that case, "+xml") to be appended to the base subtype name.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 139
+      line: 93
   - label: link_header_valid
     section: § 4.2
     snippet: 'Type and subtype names MUST conform to the following ABNF:'
@@ -2952,7 +2952,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1005
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 123
+      line: 83
   - label: link_header_valid (2)
     section: § 4.2
     snippet: restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT
@@ -2960,7 +2960,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1006
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 136
+      line: 96
   - label: link_header_valid (3)
     section: § 4.2
     snippet: restricted-name-chars = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "-" / "^" / "_"
@@ -2974,7 +2974,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 1009
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 131
+      line: 91
   - label: link_header_valid (5)
     section: § 4.2
     snippet: restricted-name-chars =/ "." ; Characters before first dot always ; specify a facet name
@@ -2992,13 +2992,13 @@ sources:
     snippet: '"+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions.'
     cited_by:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 177
+      line: 137
   - label: media_type_suffix_valid (2)
     section: § 4.2.8
     snippet: By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ.
     cited_by:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 178
+      line: 138
 - label: RFC 7231
   url: https://www.rfc-editor.org/rfc/rfc7231.txt
   type: text/plain
@@ -4609,7 +4609,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 67
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 110
+      line: 64
   - label: accept_encoding_parameter_valid (8)
     section: § 12.5.3
     snippet: The field value is evaluated the same way as in a request.
@@ -4797,7 +4797,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 165
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 208
+      line: 163
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 203
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
@@ -5087,13 +5087,13 @@ sources:
     snippet: New and existing authentication schemes are specified independently and ought to be registered
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 106
+      line: 62
   - label: auth_scheme_registered (2)
     section: § 16.4.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 107
+      line: 63
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -5187,11 +5187,11 @@ sources:
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
     cited_by:
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 73
+      line: 18
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 18
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 69
+      line: 18
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 20
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
@@ -5201,15 +5201,15 @@ sources:
     snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
     cited_by:
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 213
+      line: 169
   - label: charset_registered (3)
     section: § 8.3.2
     snippet: In both cases, charset names are matched case-insensitively.
     cited_by:
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 48
+      line: 28
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 214
+      line: 170
   - label: compression_and_transfer_encoding_consistent
     section: § 10.1.4
     snippet: transfer-coding    = token *( OWS ";" OWS transfer-parameter )
@@ -5217,7 +5217,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 88
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 159
+      line: 116
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 69
   - label: compression_and_transfer_encoding_consistent (2)
@@ -5227,7 +5227,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 89
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 140
+      line: 97
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 51
   - label: compression_and_transfer_encoding_consistent (3)
@@ -5245,7 +5245,7 @@ sources:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 32
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 95
+      line: 49
   - label: compression_and_transfer_encoding_consistent (5)
     section: § 8.4
     snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
@@ -5271,7 +5271,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 67
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 149
+      line: 103
   - label: conditional_headers_consistent
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -5379,19 +5379,19 @@ sources:
     snippet: codings = content-coding / "identity" / "*"
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 96
+      line: 50
   - label: content_encoding_registered (2)
     section: § 8.4
     snippet: Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included.
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 126
+      line: 80
   - label: content_encoding_registered (3)
     section: § 8.4.1
     snippet: content-coding = token
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 137
+      line: 91
   - label: content_length_valid
     section: § 8.6
     snippet: The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets.
@@ -5521,7 +5521,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 51
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 207
+      line: 162
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 73
   - label: content_type_registered
@@ -5529,7 +5529,7 @@ sources:
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
     cited_by:
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 115
+      line: 69
   - label: content_type_valid
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -5765,37 +5765,37 @@ sources:
     snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 193
+      line: 146
   - label: extension_headers_registered (2)
     section: § 16.3.2.1
     snippet: Field names ought not be prefixed with "X-"
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 155
+      line: 108
   - label: extension_headers_registered (3)
     section: § 5.1
     snippet: A proxy MUST forward unrecognized header fields unless the field name is listed in the Connection header field
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 191
+      line: 144
   - label: extension_headers_registered (4)
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 56
+      line: 27
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 214
+      line: 168
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 54
+      line: 133
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 316
+      line: 271
   - label: extension_headers_registered (5)
     section: § 5.1
     snippet: Other recipients SHOULD ignore unrecognized header and trailer fields
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 192
+      line: 145
   - label: from_header_email_syntax
     section: § 10.1.2
     snippet: The address ought to be machine-usable, as defined by "mailbox" in Section 3.4 of [RFC5322]
@@ -5807,19 +5807,19 @@ sources:
     snippet: A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 315
+      line: 270
   - label: head_response_headers_match_get (2)
     section: § 12.5.5
     snippet: To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 322
+      line: 277
   - label: head_response_headers_match_get (3)
     section: § 15
     snippet: The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any).
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 236
+      line: 191
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 34
   - label: head_response_headers_match_get (4)
@@ -5827,13 +5827,13 @@ sources:
     snippet: The content sent in a 200 response depends on the request method.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 161
+      line: 105
   - label: head_response_headers_match_get (5)
     section: § 8.6
     snippet: A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 128
+      line: 72
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 54
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
@@ -5843,43 +5843,43 @@ sources:
     snippet: In responses to safe requests, validator fields describe the selected representation chosen by the origin server while handling the response.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 98
+      line: 42
   - label: head_response_headers_match_get (7)
     section: § 8.8.1
     snippet: A "strong validator" is representation metadata that changes value whenever a change occurs to the representation data that would be observable in the content of a 200 (OK) response to GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 99
+      line: 43
   - label: head_response_headers_match_get (8)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified, as determined at the conclusion of handling the request.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 100
+      line: 44
   - label: head_response_headers_match_get (9)
     section: § 9.2.1
     snippet: Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 97
+      line: 41
   - label: head_response_headers_match_get (10)
     section: § 9.3.2
     snippet: However, a server MAY omit header fields for which a value is determined only while generating the content.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 75
+      line: 19
   - label: head_response_headers_match_get (11)
     section: § 9.3.2
     snippet: Such a response to GET might contain Content-Length and Vary fields, for example, that are not generated within a HEAD response.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 76
+      line: 20
   - label: head_response_headers_match_get (12)
     section: § 9.3.2
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 202
+      line: 157
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 66
   - label: field-name grammar
@@ -6301,7 +6301,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 16
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 145
+      line: 102
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 53
   - label: lint-http-rules/src/helpers/accept_ranges.rs (5)
@@ -6321,7 +6321,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 213
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 92
+      line: 48
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 29
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
@@ -6537,7 +6537,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 342
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 76
+      line: 18
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
       line: 18
   - label: lint-http-rules/src/helpers/headers.rs (5)
@@ -6597,7 +6597,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 80
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 330
+      line: 287
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields.
@@ -6685,13 +6685,13 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 247
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 251
+      line: 207
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 85
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 82
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 203
+      line: 163
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 48
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
@@ -6847,7 +6847,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 245
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 184
+      line: 141
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 210
   - label: OWS grammar
@@ -6889,7 +6889,7 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 462
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 160
+      line: 117
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 70
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
@@ -6921,7 +6921,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 33
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 343
+      line: 300
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 523
   - label: lint-http-rules/src/helpers/headers.rs (25)
@@ -6959,9 +6959,9 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 316
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 121
+      line: 78
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 342
+      line: 299
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 33
   - label: lint-http-rules/src/helpers/headers.rs (27)
@@ -6973,7 +6973,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 153
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 126
+      line: 82
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 212
   - label: lint-http-rules/src/helpers/headers.rs (28)
@@ -7009,7 +7009,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 289
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 132
+      line: 88
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 381
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -7043,7 +7043,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 119
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 142
+      line: 86
   - label: lint-http-rules/src/helpers/headers.rs (33)
     section: § 6.5
     snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
@@ -7053,7 +7053,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 343
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 103
+      line: 56
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
       line: 32
   - label: lint-http-rules/src/helpers/headers.rs (34)
@@ -7101,11 +7101,11 @@ sources:
     - file: lint-http-rules/src/rules/charset_present.rs
       line: 39
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 101
+      line: 55
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 46
+      line: 28
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 149
+      line: 109
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 179
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -7133,7 +7133,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 105
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
-      line: 107
+      line: 67
   - label: lint-http-rules/src/helpers/headers.rs (38)
     section: § 8.3.1
     snippet: type       = token subtype    = token
@@ -8671,7 +8671,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 26
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 377
+      line: 334
   - label: te_header_valid (3)
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
@@ -8775,7 +8775,7 @@ sources:
     snippet: 'TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )'
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 268
+      line: 225
   - label: upgrade_and_connection_consistent
     section: § 7.6.1
     snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
@@ -9361,11 +9361,11 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 98
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 53
+      line: 39
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 218
+      line: 175
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 302
+      line: 259
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 75
   - label: compression_and_transfer_encoding_consistent (4)
@@ -9453,13 +9453,13 @@ sources:
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 267
+      line: 222
   - label: head_response_headers_match_get (2)
     section: § 6.1
     snippet: Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 266
+      line: 221
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 172
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -9831,7 +9831,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 48
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 376
+      line: 333
   - label: te_header_valid (3)
     section: § 7.4
     snippet: Since the TE header field only applies to the immediate connection, a sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1 of [HTTP]) in order to prevent the TE header field from being forwarded by intermediaries that do not support its semantics.
@@ -9845,61 +9845,61 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 273
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 269
+      line: 226
   - label: transfer_coding_registered
     section: § 6.1
     snippet: A server that receives a request message with a transfer coding it does not understand SHOULD respond with 501 (Not Implemented).
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 290
+      line: 247
   - label: transfer_coding_registered (2)
     section: § 6.1
     snippet: 'Transfer-Encoding = #transfer-coding'
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 353
+      line: 310
   - label: transfer_coding_registered (3)
     section: § 7.1
     snippet: The chunked coding does not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 242
+      line: 199
   - label: transfer_coding_registered (4)
     section: § 7.1
     snippet: Their presence SHOULD be treated as an error.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 243
+      line: 200
   - label: transfer_coding_registered (5)
     section: § 7.2
     snippet: The compression codings do not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 233
+      line: 190
   - label: transfer_coding_registered (6)
     section: § 7.2
     snippet: The presence of parameters with any of these compression codings SHOULD be treated as an error.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 234
+      line: 191
   - label: transfer_coding_registered (7)
     section: § 7.3
     snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 132
+      line: 89
   - label: transfer_coding_registered (8)
     section: § 7.4
     snippet: A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 215
+      line: 172
   - label: transfer_coding_registered (9)
     section: § 7.4
     snippet: The keyword "trailers" indicates that the sender will not discard trailer fields, as described in Section 6.5 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 169
+      line: 126
   - label: transfer_encoding_chunked_final
     section: § 6.1
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).
@@ -10177,7 +10177,7 @@ sources:
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 206
+      line: 160
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
       line: 115
   - label: header_field_names_token_valid
@@ -10744,7 +10744,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 42
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 89
+      line: 35
   - label: lint-http-rules/src/helpers/structured_fields.rs (8)
     section: § 4.2
     snippet: Discard any leading SP characters from input_string.
@@ -10752,7 +10752,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 452
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 286
+      line: 239
   - label: lint-http-rules/src/helpers/structured_fields.rs (9)
     section: § 4.2
     snippet: The parsing algorithms for both types allow tab characters, since these might be used to combine field lines by some implementations.
@@ -10866,7 +10866,7 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 68
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 294
+      line: 247
   - label: lint-http-rules/src/helpers/structured_fields.rs (27)
     section: § 4.2.3
     snippet: Let bare_item be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string.
@@ -11082,7 +11082,7 @@ sources:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 251
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 119
+      line: 65
   - label: permissions_policy_directives_valid (4)
     section: § 4.2
     snippet: When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly.
@@ -11092,9 +11092,7 @@ sources:
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 61
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 55
-    - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 75
+      line: 21
   - label: permissions_policy_directives_valid (5)
     section: § 4.2.2
     snippet: Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored.
@@ -11113,37 +11111,37 @@ sources:
     snippet: This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 169
+      line: 122
   - label: structured_headers_valid (2)
     section: § 4.2
     snippet: Given an array of bytes as input_bytes that represent the chosen field's field-value (which is empty if that field is not present) and field_type (one of "dictionary", "list", or "item"), return the parsed field value.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 274
+      line: 227
   - label: structured_headers_valid (3)
     section: § 4.2
     snippet: If field_type is "dictionary", let output be the result of running Parsing a Dictionary (Section 4.2.2) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 306
+      line: 259
   - label: structured_headers_valid (4)
     section: § 4.2
     snippet: If field_type is "item", let output be the result of running Parsing an Item (Section 4.2.3) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 299
+      line: 252
   - label: structured_headers_valid (5)
     section: § 4.2
     snippet: If field_type is "list", let output be the result of running Parsing a List (Section 4.2.1) with input_string.
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 301
+      line: 254
   - label: structured_headers_valid (6)
     section: § 4.2.1
     snippet: No structured data has been found; return members (which is empty).
     cited_by:
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
-      line: 293
+      line: 246
 - label: RFC 9745
   url: https://www.rfc-editor.org/rfc/rfc9745.txt
   type: text/plain

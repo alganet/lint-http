@@ -5,64 +5,6 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-#[derive(Debug, Clone)]
-pub struct ExtensionHeadersConfig {
-    pub severity: crate::lint::Severity,
-    pub allowed: Vec<String>,
-}
-
-fn parse_allowed_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<ExtensionHeadersConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
-        anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'allowed' array listing the field names this deployment expects, in header and trailer sections alike. Example in config_example.toml",
-            rule_id
-        )
-    })?;
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let allowed_val = table.get("allowed").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires an 'allowed' array listing the field names this deployment expects (e.g., ['host','content-type','acme-request-id'])",
-            rule_id
-        )
-    })?;
-
-    let arr = allowed_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!("'allowed' must be an array of strings (e.g., ['host','content-type'])")
-    })?;
-
-    // No sentence forbids an empty array. It is refused because the rule it
-    // configures would then report the first field of every message, which reads as
-    // a broken linter rather than as a deployment that accepts nothing.
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
-    }
-
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'allowed' array item at index {} must be a string", i)
-        })?;
-        // What the array lists is field names, and a field name means the same thing
-        // however it is spelled, so the configured spelling is folded here -- once per
-        // array rather than once per field of every message.
-        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(ExtensionHeadersConfig {
-        severity,
-        allowed: out,
-    })
-}
-
 pub struct ExtensionHeadersRegistered;
 
 impl Rule for ExtensionHeadersRegistered {
@@ -78,13 +20,24 @@ impl Rule for ExtensionHeadersRegistered {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_allowed_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        // What the array lists is field names, and a field name means the same
+        // thing however it is spelled, so the configured spelling is folded at
+        // prepare time -- once per array rather than once per field of every message.
+        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
+        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "allowed",
+            "the field names this deployment expects, in header and trailer sections alike",
+            "['host','content-type']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
 
@@ -94,7 +47,7 @@ impl Rule for ExtensionHeadersRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config: &ExtensionHeadersConfig = ctx.state();
+        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
 
         // All four, in wire order, from the shared walk. A trailer field name is
         // a field name, so the allowlist reaches it on the same terms; a
@@ -102,7 +55,7 @@ impl Rule for ExtensionHeadersRegistered {
         // which sections exist at all is the framing's answer, not this rule's.
         // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
         for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-            if let Some(v) = check_section(section, headers, config) {
+            if let Some(v) = check_section(section, headers, config, ctx.severity) {
                 return Some(v);
             }
         }
@@ -194,7 +147,8 @@ impl Rule for ExtensionHeadersRegistered {
 fn check_section(
     section: &str,
     fields: &hyper::HeaderMap,
-    config: &ExtensionHeadersConfig,
+    config: &crate::helpers::rule_config::AllowedList,
+    severity: crate::lint::Severity,
 ) -> Option<Violation> {
     // `keys()` rather than `iter()`: what is being judged is the name, and a field
     // repeated across lines is one name that would otherwise be judged once per line.
@@ -214,7 +168,7 @@ fn check_section(
         // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
         return Some(Violation {
             rule: ExtensionHeadersRegistered.id().into(),
-            severity: config.severity,
+            severity,
             message: format!(
                 "Field name '{}' in the {} is not in the 'allowed' list for '{}'. That list is the rule's only authority: add the name to it if this deployment expects the field",
                 name.as_str(),
@@ -329,7 +283,7 @@ mod tests {
     #[test]
     fn parse_config_requires_allowed_array() {
         let cfg = crate::config::Config::default();
-        let res = parse_allowed_config(&cfg, "extension_headers_registered");
+        let res = ExtensionHeadersRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -349,7 +303,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "extension_headers_registered");
+        let res = ExtensionHeadersRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -372,7 +326,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "extension_headers_registered");
+        let res = ExtensionHeadersRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -392,7 +346,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "extension_headers_registered");
+        let res = ExtensionHeadersRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -406,7 +360,7 @@ mod tests {
             toml::Value::String("not a table".into()),
         );
 
-        let res = parse_allowed_config(&cfg, "extension_headers_registered");
+        let res = ExtensionHeadersRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -434,7 +388,6 @@ mod tests {
 
     #[test]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = ExtensionHeadersRegistered;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "extension_headers_registered",
         ]);
@@ -452,7 +405,9 @@ mod tests {
             }),
         );
 
-        let arc = parse_allowed_config(&full_cfg, rule.id())?;
+        let arc = ExtensionHeadersRegistered.prepare(&full_cfg)?;
+        let arc: &crate::helpers::rule_config::AllowedList =
+            arc.state.downcast_ref().expect("allowed list state");
         assert!(arc.allowed.contains(&"host".to_string()));
         Ok(())
     }
@@ -515,7 +470,9 @@ mod tests {
             }),
         );
 
-        let parsed = parse_allowed_config(&cfg, "extension_headers_registered")?;
+        let parsed = ExtensionHeadersRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
         assert!(parsed.allowed.contains(&"x-custom".to_string()));
         Ok(())
     }

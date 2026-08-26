@@ -5,61 +5,6 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-#[derive(Debug, Clone)]
-pub struct CharsetConfig {
-    pub severity: crate::lint::Severity,
-    pub allowed: Vec<String>,
-}
-
-fn parse_allowed_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<CharsetConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
-        anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'allowed' array listing acceptable charset names. Example in config_example.toml",
-            rule_id
-        )
-    })?;
-
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let allowed_val = table.get("allowed").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires an 'allowed' array listing allowed character set names (e.g., ['utf-8','iso-8859-1'])",
-            rule_id
-        )
-    })?;
-
-    let arr = allowed_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!("'allowed' must be an array of strings (e.g., ['utf-8','iso-8859-1'])")
-    })?;
-
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
-    }
-
-    // Entries are folded once here rather than at every comparison, which is
-    // sound because the matching itself is defined to ignore case.
-    // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'allowed' array item at index {} must be a string", i)
-        })?;
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(CharsetConfig {
-        severity,
-        allowed: out,
-    })
-}
-
 pub struct CharsetRegistered;
 
 impl Rule for CharsetRegistered {
@@ -76,13 +21,24 @@ impl Rule for CharsetRegistered {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_allowed_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        // Entries are folded once at prepare time rather than at every
+        // comparison, which is sound because the matching itself is defined to
+        // ignore case.
+        // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
+        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "allowed",
+            "acceptable charset names",
+            "['utf-8','iso-8859-1']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
 
@@ -92,7 +48,7 @@ impl Rule for CharsetRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config: &CharsetConfig = ctx.state();
+        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
         use crate::helpers::headers::parse_media_type;
 
         let check_header = |which: &str, val: &str| -> Option<Violation> {
@@ -133,7 +89,7 @@ impl Rule for CharsetRegistered {
                         if value.is_empty() {
                             return Some(Violation {
                                 rule: CharsetRegistered.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "Invalid Content-Type in {}: empty 'charset' parameter",
                                     which
@@ -154,7 +110,7 @@ impl Rule for CharsetRegistered {
                                 Err(e) => {
                                     return Some(Violation {
                                         rule: CharsetRegistered.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
                                             which, e
@@ -183,7 +139,7 @@ impl Rule for CharsetRegistered {
                             if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
                                 return Some(Violation {
                                     rule: CharsetRegistered.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!(
                                         "Invalid Content-Type in {}: charset contains invalid character '{}'",
                                         which, c
@@ -196,7 +152,7 @@ impl Rule for CharsetRegistered {
                         if value.is_empty() {
                             return Some(Violation {
                                 rule: CharsetRegistered.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "Invalid Content-Type in {}: empty 'charset' parameter",
                                     which
@@ -215,7 +171,7 @@ impl Rule for CharsetRegistered {
                         if !config.allowed.contains(&value.to_ascii_lowercase()) {
                             return Some(Violation {
                                 rule: CharsetRegistered.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "Unrecognized charset '{}' in {} header",
                                     value, which
@@ -645,7 +601,7 @@ mod tests {
     #[test]
     fn parse_config_requires_allowed_array() {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["charset_registered"]);
-        let res = parse_allowed_config(&cfg, "charset_registered");
+        let res = CharsetRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -664,7 +620,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "charset_registered");
+        let res = CharsetRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -686,7 +642,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "charset_registered");
+        let res = CharsetRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -704,7 +660,7 @@ mod tests {
                 t
             }),
         );
-        let res = parse_allowed_config(&cfg, "charset_registered");
+        let res = CharsetRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -716,7 +672,7 @@ mod tests {
             "charset_registered".into(),
             toml::Value::String("not-a-table".into()),
         );
-        let res = parse_allowed_config(&cfg, "charset_registered");
+        let res = CharsetRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -833,7 +789,7 @@ mod tests {
     #[test]
     fn parse_allowed_config_missing_rule_errors() {
         let cfg = crate::config::Config::default();
-        let res = parse_allowed_config(&cfg, "charset_registered");
+        let res = CharsetRegistered.prepare(&cfg);
         assert!(res.is_err());
         let msg = res.unwrap_err().to_string();
         assert!(msg.contains("requires configuration") || msg.contains("missing"));
@@ -841,7 +797,6 @@ mod tests {
 
     #[test]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = CharsetRegistered;
         let mut full_cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["charset_registered"]);
         full_cfg.rules.insert(
@@ -858,7 +813,9 @@ mod tests {
             }),
         );
 
-        let arc = parse_allowed_config(&full_cfg, rule.id())?;
+        let arc = CharsetRegistered.prepare(&full_cfg)?;
+        let arc: &crate::helpers::rule_config::AllowedList =
+            arc.state.downcast_ref().expect("allowed list state");
         assert!(arc.allowed.contains(&"utf-8".to_string()));
         Ok(())
     }

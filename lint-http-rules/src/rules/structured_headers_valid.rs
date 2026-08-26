@@ -8,60 +8,6 @@ use crate::rules::Rule;
 
 pub struct StructuredHeadersValid;
 
-#[derive(Debug, Clone)]
-pub struct MessageStructuredHeadersConfig {
-    pub severity: crate::lint::Severity,
-    pub headers: Vec<String>,
-}
-
-fn parse_headers_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<MessageStructuredHeadersConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    let rule_cfg = config
-        .get_rule_config(rule_id)
-        .ok_or_else(|| anyhow::anyhow!("missing configuration for '{}'", rule_id))?;
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let headers_val = table.get("headers").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires a 'headers' array listing header field-names to validate",
-            rule_id
-        )
-    })?;
-
-    let arr = headers_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!(
-            "'headers' must be an array of strings (e.g., ['Cache-Status','Proxy-Status'])"
-        )
-    })?;
-
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'headers' array cannot be empty"));
-    }
-
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'headers' array item at index {} must be a string", i)
-        })?;
-        // Folded once here so the lookups below are exact. The same sentence
-        // that makes a parser gather every line of a field says how it decides
-        // which lines belong to it.
-        // cite(RFC 9651 § 4.2): "When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly."
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(MessageStructuredHeadersConfig {
-        severity,
-        headers: out,
-    })
-}
-
 impl StructuredHeadersValid {
     /// Judge one header field across one section, from its joined value.
     ///
@@ -78,7 +24,7 @@ impl StructuredHeadersValid {
         headers: &hyper::HeaderMap,
         hdr: &str,
         section: &str,
-        config: &MessageStructuredHeadersConfig,
+        severity: crate::lint::Severity,
     ) -> Option<Violation> {
         let mut lines: Vec<&str> = Vec::new();
         for hv in headers.get_all(hdr).iter() {
@@ -92,7 +38,7 @@ impl StructuredHeadersValid {
                     hdr,
                     section,
                     "contains a byte outside ASCII",
-                    config.severity,
+                    severity,
                 ));
             };
             lines.push(v);
@@ -101,7 +47,7 @@ impl StructuredHeadersValid {
             return None;
         }
         let msg = validate_structured_field(&lines.join(", "))?;
-        Some(self.parse_failure(hdr, section, &msg, config.severity))
+        Some(self.parse_failure(hdr, section, &msg, severity))
     }
 
     /// The finding, framed as what a recipient does about it.
@@ -149,13 +95,20 @@ impl Rule for StructuredHeadersValid {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_headers_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        let headers = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "headers",
+            "header field-names to validate",
+            "['Cache-Status','Proxy-Status']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::HeaderNameList { headers }),
         })
     }
 
@@ -165,18 +118,18 @@ impl Rule for StructuredHeadersValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config: &MessageStructuredHeadersConfig = ctx.state();
+        let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
         // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
         for hdr in &config.headers {
             // The two sections are joined separately, never across the pair: the
             // sentence cited on `check_section` gathers the lines "in the same
             // section", so a request's field and a response's field of the same
             // name are two field values, not one.
-            if let Some(v) = self.check_section(&tx.request.headers, hdr, "request", config) {
+            if let Some(v) = self.check_section(&tx.request.headers, hdr, "request", ctx.severity) {
                 return Some(v);
             }
             if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_section(&resp.headers, hdr, "response", config) {
+                if let Some(v) = self.check_section(&resp.headers, hdr, "response", ctx.severity) {
                     return Some(v);
                 }
             }
@@ -423,7 +376,6 @@ mod tests {
 
     #[rstest]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = StructuredHeadersValid;
         let mut full_cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["structured_headers_valid"]);
         full_cfg.rules.insert(
@@ -440,7 +392,9 @@ mod tests {
             }),
         );
 
-        let arc = parse_headers_config(&full_cfg, rule.id())?;
+        let arc = StructuredHeadersValid.prepare(&full_cfg)?;
+        let arc: &crate::helpers::rule_config::HeaderNameList =
+            arc.state.downcast_ref().expect("header name list state");
         assert!(arc.headers.contains(&"x-struct".to_string()));
         Ok(())
     }

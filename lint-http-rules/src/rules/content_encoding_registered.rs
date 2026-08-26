@@ -5,59 +5,6 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-#[derive(Debug, Clone)]
-pub struct ContentEncodingConfig {
-    pub severity: crate::lint::Severity,
-    pub allowed: Vec<String>,
-}
-
-fn parse_allowed_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<ContentEncodingConfig> {
-    // Base required fields (enabled + severity)
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    // Allowed list is REQUIRED for this rule. It must be an array of strings.
-    let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
-        anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'allowed' array listing acceptable content-codings. Example in config_example.toml",
-            rule_id
-        )
-    })?;
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let allowed_val = table.get("allowed").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires an 'allowed' array listing allowed content-coding tokens (e.g., ['gzip','br','deflate'])",
-            rule_id
-        )
-    })?;
-
-    let arr = allowed_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!("'allowed' must be an array of strings (e.g., ['gzip','br'])")
-    })?;
-
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
-    }
-
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'allowed' array item at index {} must be a string", i)
-        })?;
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(ContentEncodingConfig {
-        severity,
-        allowed: out,
-    })
-}
-
 pub struct ContentEncodingRegistered;
 
 impl Rule for ContentEncodingRegistered {
@@ -70,13 +17,20 @@ impl Rule for ContentEncodingRegistered {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_allowed_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "allowed",
+            "acceptable content-coding tokens",
+            "['gzip','br','deflate']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
 
@@ -86,7 +40,7 @@ impl Rule for ContentEncodingRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config: &ContentEncodingConfig = ctx.state();
+        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
         // Helper to check a single header value against allowed list
         // `is_accept` distinguishes the two grammars. They are not the same vocabulary:
         // Content-Encoding is a list of plain content-codings, while Accept-Encoding
@@ -113,7 +67,7 @@ impl Rule for ContentEncodingRegistered {
                     }
                     return Some(Violation {
                             rule: "content_encoding_registered".into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "'*' is not a content-coding and is only meaningful in Accept-Encoding, not in {}",
                                 hdr_name
@@ -127,7 +81,7 @@ impl Rule for ContentEncodingRegistered {
                 if !is_accept && token.eq_ignore_ascii_case("identity") {
                     return Some(Violation {
                             rule: "content_encoding_registered".into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "'identity' is reserved for Accept-Encoding and SHOULD NOT be sent in {}",
                                 hdr_name
@@ -138,7 +92,7 @@ impl Rule for ContentEncodingRegistered {
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                     return Some(Violation {
                         rule: "content_encoding_registered".into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Invalid token '{}' in {} header", c, hdr_name),
                     });
                 }
@@ -150,7 +104,7 @@ impl Rule for ContentEncodingRegistered {
                 if !allowed.contains(&token.to_ascii_lowercase()) {
                     return Some(Violation {
                         rule: "content_encoding_registered".into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Unrecognized content-coding '{}' in {} header",
                             token, hdr_name
@@ -359,7 +313,9 @@ mod tests {
             }),
         );
 
-        let parsed = parse_allowed_config(&cfg, "content_encoding_registered")?;
+        let parsed = ContentEncodingRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
         assert_eq!(parsed.allowed, vec!["x-custom".to_string()]);
         Ok(())
     }
@@ -380,7 +336,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "content_encoding_registered");
+        let res = ContentEncodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -403,7 +359,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "content_encoding_registered");
+        let res = ContentEncodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -413,7 +369,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_encoding_registered",
         ]);
-        let res = parse_allowed_config(&cfg, "content_encoding_registered");
+        let res = ContentEncodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -421,7 +377,7 @@ mod tests {
     fn parse_allowed_config_missing_rule_errors() {
         // If the entire rule is not present in the config, parsing should fail
         let cfg = crate::config::Config::default();
-        let res = parse_allowed_config(&cfg, "content_encoding_registered");
+        let res = ContentEncodingRegistered.prepare(&cfg);
         assert!(res.is_err());
         let msg = res.unwrap_err().to_string();
         // Different helper functions compose different error strings; accept either form.
@@ -451,7 +407,7 @@ mod tests {
             "content_encoding_registered".into(),
             toml::Value::String("not-a-table".into()),
         );
-        let res = parse_allowed_config(&cfg, "content_encoding_registered");
+        let res = ContentEncodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -471,7 +427,7 @@ mod tests {
                 t
             }),
         );
-        let res = parse_allowed_config(&cfg, "content_encoding_registered");
+        let res = ContentEncodingRegistered.prepare(&cfg);
         assert!(res.is_err());
         let msg = res.unwrap_err().to_string();
         assert!(msg.contains("'allowed' must be an array"));
@@ -479,7 +435,6 @@ mod tests {
 
     #[test]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = ContentEncodingRegistered;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_encoding_registered",
         ]);
@@ -497,7 +452,9 @@ mod tests {
             }),
         );
 
-        let arc = parse_allowed_config(&full_cfg, rule.id())?;
+        let arc = ContentEncodingRegistered.prepare(&full_cfg)?;
+        let arc: &crate::helpers::rule_config::AllowedList =
+            arc.state.downcast_ref().expect("allowed list state");
         assert!(arc.allowed.contains(&"gzip".to_string()));
         Ok(())
     }
@@ -789,7 +746,9 @@ mod tests {
             }),
         );
 
-        let parsed = parse_allowed_config(&cfg, "content_encoding_registered")?;
+        let parsed = ContentEncodingRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
         assert_eq!(parsed.allowed, vec!["gzip".to_string()]);
         Ok(())
     }

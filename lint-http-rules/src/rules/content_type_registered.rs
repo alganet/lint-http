@@ -5,59 +5,6 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-#[derive(Debug, Clone)]
-pub struct ContentTypeConfig {
-    pub severity: crate::lint::Severity,
-    pub allowed: Vec<String>,
-}
-
-fn parse_allowed_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<ContentTypeConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
-        anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'allowed' array listing acceptable media-types or patterns. Example in config_example.toml",
-            rule_id
-        )
-    })?;
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let allowed_val = table.get("allowed").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires an 'allowed' array listing allowed media-types (e.g., ['text/plain','application/json','image/*','+json'])",
-            rule_id
-        )
-    })?;
-
-    let arr = allowed_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!(
-            "'allowed' must be an array of strings (e.g., ['text/plain','application/json'])"
-        )
-    })?;
-
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
-    }
-
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'allowed' array item at index {} must be a string", i)
-        })?;
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(ContentTypeConfig {
-        severity,
-        allowed: out,
-    })
-}
-
 pub struct ContentTypeRegistered;
 
 impl Rule for ContentTypeRegistered {
@@ -70,13 +17,20 @@ impl Rule for ContentTypeRegistered {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_allowed_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "allowed",
+            "acceptable media-types or patterns",
+            "['text/plain','application/json','image/*','+json']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
 
@@ -86,7 +40,7 @@ impl Rule for ContentTypeRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config: &ContentTypeConfig = ctx.state();
+        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
         let check_media_type =
             |hdr_name: &str, val: &str, allowed: &Vec<String>| -> Option<Violation> {
                 // Parse media-type; if it fails, let other rules (well-formed) report it.
@@ -145,7 +99,7 @@ impl Rule for ContentTypeRegistered {
 
                 Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("Unrecognized media type '{}' in {} header", full, hdr_name),
                 })
             };
@@ -389,7 +343,9 @@ mod tests {
                 t
             }),
         );
-        let parsed = parse_allowed_config(&cfg, "content_type_registered")?;
+        let parsed = ContentTypeRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
         assert!(parsed.allowed.contains(&"image/*".to_string()));
         Ok(())
     }
@@ -464,7 +420,9 @@ mod tests {
             }),
         );
 
-        let parsed = parse_allowed_config(&cfg, "content_type_registered")?;
+        let parsed = ContentTypeRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
         assert!(parsed.allowed.contains(&"x-custom/type".to_string()));
         Ok(())
     }
@@ -484,7 +442,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "content_type_registered");
+        let res = ContentTypeRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -506,13 +464,12 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "content_type_registered");
+        let res = ContentTypeRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
     #[test]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = ContentTypeRegistered;
         let mut full_cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_registered"]);
         full_cfg.rules.insert(
@@ -529,7 +486,9 @@ mod tests {
             }),
         );
 
-        let arc = parse_allowed_config(&full_cfg, rule.id())?;
+        let arc = ContentTypeRegistered.prepare(&full_cfg)?;
+        let arc: &crate::helpers::rule_config::AllowedList =
+            arc.state.downcast_ref().expect("allowed list state");
         assert!(arc.allowed.contains(&"text/plain".to_string()));
         Ok(())
     }
