@@ -806,9 +806,9 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
     // one, and HTML's own `must` about `as` is authoring conformance for a
     // `link` element rather than for a field.
     //
-    // cite(HTML Semantics): "To process link headers given a Document doc, a response response, and a "pre-media" or "media" phase"
-    // cite(HTML Semantics): "Apply link options from parsed header attributes to options given attribs"
-    // cite(HTML Semantics): "If attribs["as"] does not exist, then return false."
+    // cite(HTML Semantics § 4.2.4.4): "To process link headers given a Document doc, a response response, and a "pre-media" or "media" phase"
+    // cite(HTML Semantics § 4.2.4.4): "Apply link options from parsed header attributes to options given attribs"
+    // cite(HTML Semantics § 4.2.4.4): "If attribs["as"] does not exist, then return false."
     if is_response && preloads {
         let Some(as_value) = as_value else {
             return Err(format!(
@@ -826,9 +826,9 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
         // `crossorigin` and `fetchpriority` in as many words, and this step
         // says nothing of the kind — so `Font` is a string the set does not
         // hold.
-        // cite(HTML Semantics): "Let destination be the result of translating attribs["as"]."
-        // cite(HTML Semantics): "If destination is null, then return false."
-        // cite(HTML Semantics): "If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords"
+        // cite(HTML Semantics § 4.2.4.4): "Let destination be the result of translating attribs["as"]."
+        // cite(HTML Semantics § 4.2.4.4): "If destination is null, then return false."
+        // cite(HTML Semantics § 4.2.4.4): "If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords"
         if !PRELOAD_DESTINATIONS.contains(&as_value.as_str()) {
             return Err(format!(
                 "'{}' asks for a preload whose as='{}' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything",
@@ -851,8 +851,8 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
 /// destination and is discarded all the same. `fetch` is in the set — it
 /// translates to the empty string one call later — which is why it is not the
 /// odd one out it looks like.
-// cite(HTML Links): "A preload destination is "fetch", "font", "image", "script", "style", or "track"."
-// cite(HTML Links): "If destination is not a preload destination, then return null."
+// cite(HTML Links § 4.6.8.20): "A preload destination is "fetch", "font", "image", "script", "style", or "track"."
+// cite(HTML Links § 4.6.8.20): "If destination is not a preload destination, then return null."
 const PRELOAD_DESTINATIONS: &[&str] = &["fetch", "font", "image", "script", "style", "track"];
 
 /// The `rel` requirement, written once for the two branches that reach it — a

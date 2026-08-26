@@ -31,7 +31,7 @@ impl Rule for MessageSecFetchDestValueValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
-        // cite(Fetch Metadata): "HTTP request header exposes a request’s destination to a server"
+        // cite(Fetch Metadata § 2.1): "HTTP request header exposes a request’s destination to a server"
         let headers = &tx.request.headers;
         let count = headers.get_all("sec-fetch-dest").iter().count();
         if count == 0 {
@@ -63,7 +63,7 @@ impl Rule for MessageSecFetchDestValueValid {
         };
 
         // An empty value cannot be a token.
-        // cite(Fetch Metadata): "It is a Structured Field whose value MUST be a token."
+        // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
@@ -76,7 +76,7 @@ impl Rule for MessageSecFetchDestValueValid {
         // grammar, slightly looser than sf-token; the closed value match below is
         // what actually gates acceptance, so the difference only picks which
         // message a bad value gets.
-        // cite(Fetch Metadata): "It is a Structured Field whose value MUST be a token."
+        // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
         if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
             return Some(Violation {
                 rule: self.id().into(),
@@ -94,12 +94,12 @@ impl Rule for MessageSecFetchDestValueValid {
         // why the spec tells servers to ignore unknown values; this rule lints the
         // *sender*, where an unknown value means a non-conforming (or non-browser)
         // origin of the header, so it flags instead.
-        // cite(Fetch Metadata): "In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value."
-        // cite(Fetch Metadata): "Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch]."
-        // cite(Fetch): "A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt"."
+        // cite(Fetch Metadata § 2.1): "In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value."
+        // cite(Fetch Metadata § 2.1): "Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch]."
+        // cite(Fetch § 2.2.5): "A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt"."
         // Fetch's "the empty string" destination is carried as the literal token
         // `empty`, which is why the arm below accepts it.
-        // cite(Fetch Metadata): "If r’s destination is the empty string, set header’s value to the string "empty""
+        // cite(Fetch Metadata § 2.1): "If r’s destination is the empty string, set header’s value to the string "empty""
         match val {
             "empty" | "audio" | "audioworklet" | "document" | "embed" | "font" | "frame"
             | "iframe" | "image" | "json" | "manifest" | "object" | "paintworklet" | "report"

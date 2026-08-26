@@ -122,7 +122,7 @@ impl Rule for StatefulCookieSameSiteEnforcement {
                     // same paragraph as the Strict/Lax cites gives it a default
                     // enforcement equivalent to Lax, which is why this rule holds
                     // such cookies to the Lax cross-site rule below.
-                    // cite(draft-ietf-httpbis-rfc6265bis): "If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax"."
+                    // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax"."
                     crate::helpers::cookie::SameSite::Unspecified => {
                         crate::helpers::cookie::SameSite::Lax
                     }
@@ -130,7 +130,7 @@ impl Rule for StatefulCookieSameSiteEnforcement {
 
                 if is_cross {
                     match effective {
-                        // cite(draft-ietf-httpbis-rfc6265bis): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
+                        // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
                         crate::helpers::cookie::SameSite::Strict => {
                             return Some(Violation {
                                 rule: self.id().into(),
@@ -144,7 +144,7 @@ impl Rule for StatefulCookieSameSiteEnforcement {
                         // `allow_lax` is the carve-out named in the second half of this
                         // sentence: a top-level navigation is where a Lax cookie legitimately
                         // crosses sites, which is why this arm only fires when it is not one.
-                        // cite(draft-ietf-httpbis-rfc6265bis): "If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1."
+                        // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1."
                         crate::helpers::cookie::SameSite::Lax if !allow_lax => {
                             return Some(Violation {
                                 rule: self.id().into(),

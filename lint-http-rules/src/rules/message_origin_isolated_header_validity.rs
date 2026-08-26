@@ -57,7 +57,7 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
             };
 
         // Must not be a comma-separated list
-        // cite(HTML): "This header is a structured header whose value must be a boolean."
+        // cite(HTML § 7.1.2): "This header is a structured header whose value must be a boolean."
         if crate::helpers::headers::list_members(val).count() != 1 {
             return Some(Violation {
                 rule: self.id().into(),
@@ -70,7 +70,7 @@ impl Rule for MessageOriginIsolatedHeaderValidity {
         // origin-keyed agent cluster. The spec *ignores* any other value; this
         // rule is deliberately stricter and reports it, since a non-`?1` value
         // (`?0`, `unsafe-none`, …) is almost always a server misconfiguration.
-        // cite(HTML): "values that are not the structured header boolean true value (i.e., `?1`) will be ignored."
+        // cite(HTML § 7.1.2): "values that are not the structured header boolean true value (i.e., `?1`) will be ignored."
         if val.eq("?1") {
             return None;
         }

@@ -126,7 +126,7 @@ impl Rule for ServerClearSiteData {
         // cite(Clear-Site-Data): "A user signs out of Super Secret Social Network via a CSRF-protected POST to https://supersecretsocialnetwork.example.com/logout, and the site author wishes to ensure that locally stored data is removed as a result"
         // What the specification supplies is what the header is for, and the reason a
         // sign-out that omits it leaves the session's data behind.
-        // cite(Clear-Site-Data): "The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types."
+        // cite(Clear-Site-Data § 3.1): "The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types."
         if is_logout_path && !resp.headers.contains_key("clear-site-data") {
             Some(Violation {
                 rule: self.id().into(),

@@ -75,8 +75,8 @@ impl Rule for MessageCrossOriginResourcePolicyValid {
         // called `SAME-ORIGIN` valid; a user agent does not. It sets an unrecognized policy
         // to null and fetches the resource as if the header were never sent, so accepting
         // the miscased form told the operator a protection was on while it was off.
-        // cite(Fetch): "Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive"
-        // cite(Fetch): "If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null."
+        // cite(Fetch § 3.7): "Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive"
+        // cite(Fetch § 3.7): "If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null."
         if val == "same-site" || val == "same-origin" || val == "cross-origin" {
             return None;
         }

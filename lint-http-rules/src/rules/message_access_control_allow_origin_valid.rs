@@ -37,7 +37,7 @@ impl Rule for MessageAccessControlAllowOriginValid {
 
         // Multiple header fields are not allowed for Access-Control-Allow-Origin: the
         // header carries one value — an echoed origin, `null`, or `*` — not a list.
-        // cite(Fetch): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
+        // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
         if acao_count > 1 {
             return Some(Violation {
                 rule: self.id().into(),

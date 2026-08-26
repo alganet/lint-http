@@ -28,7 +28,7 @@ impl Rule for MessageSecFetchModeValueValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
-        // cite(Fetch Metadata): "HTTP request header exposes a request’s mode to a server"
+        // cite(Fetch Metadata § 2.2): "HTTP request header exposes a request’s mode to a server"
         let headers = &tx.request.headers;
         let count = headers.get_all("sec-fetch-mode").iter().count();
         if count == 0 {
@@ -60,7 +60,7 @@ impl Rule for MessageSecFetchModeValueValid {
         };
 
         // An empty value cannot be a token.
-        // cite(Fetch Metadata): "It is a Structured Field whose value MUST be a token."
+        // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
@@ -73,7 +73,7 @@ impl Rule for MessageSecFetchModeValueValid {
         // grammar, slightly looser than sf-token; the closed value match below is
         // what actually gates acceptance, so the difference only picks which
         // message a bad value gets.
-        // cite(Fetch Metadata): "It is a Structured Field whose value MUST be a token."
+        // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
         if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
             return Some(Violation {
                 rule: self.id().into(),
@@ -88,8 +88,8 @@ impl Rule for MessageSecFetchModeValueValid {
         // The spec tells servers to ignore unknown values for forward compatibility;
         // this rule lints the sender, where an unknown value means a non-conforming
         // (or non-browser) origin of the header, so it flags instead.
-        // cite(Fetch Metadata): "In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value."
-        // cite(Fetch Metadata): "Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket"."
+        // cite(Fetch Metadata § 2.1): "In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value."
+        // cite(Fetch Metadata § 2.2): "Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket"."
         match val {
             "cors" | "no-cors" | "same-origin" | "navigate" | "websocket" => None,
             _ => Some(Violation {
