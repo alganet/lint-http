@@ -24,9 +24,8 @@ impl Rule for SecFetchSiteValueValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
         // cite(Fetch Metadata § 2.3): "HTTP request header exposes the relationship between a request initiator’s origin and its target’s origin"
         let headers = &tx.request.headers;
@@ -41,7 +40,7 @@ impl Rule for SecFetchSiteValueValid {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Sec-Fetch-Site header fields present".into(),
             });
         }
@@ -52,7 +51,7 @@ impl Rule for SecFetchSiteValueValid {
             None => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Sec-Fetch-Site header contains non-ASCII or control characters"
                         .into(),
                 })
@@ -65,7 +64,7 @@ impl Rule for SecFetchSiteValueValid {
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Sec-Fetch-Site header is empty".into(),
             });
         }
@@ -78,7 +77,7 @@ impl Rule for SecFetchSiteValueValid {
         if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Sec-Fetch-Site header contains invalid token character: '{}'",
                     c
@@ -95,7 +94,7 @@ impl Rule for SecFetchSiteValueValid {
             "cross-site" | "same-origin" | "same-site" | "none" => None,
             _ => Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!("Unrecognized Sec-Fetch-Site value: '{}'", val),
             }),
         }

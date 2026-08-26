@@ -20,9 +20,8 @@ impl Rule for FormDataContentDispositionValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Scope worth being honest about: RFC 7578 §4.2 places its requirement on
         // each *part* of a multipart/form-data body, and this proxy does not parse
         // bodies — the transaction carries header maps, not parts. So what is
@@ -64,7 +63,7 @@ impl Rule for FormDataContentDispositionValid {
             if params_part.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Content-Disposition: 'form-data' missing 'name' parameter".into(),
                 });
             }
@@ -92,7 +91,7 @@ impl Rule for FormDataContentDispositionValid {
                             Ok(true) => {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: "Content-Disposition 'form-data' has empty 'name' parameter"
                                         .into(),
                                 });
@@ -104,7 +103,7 @@ impl Rule for FormDataContentDispositionValid {
                             Err(e) => {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!(
                                         "Content-Disposition 'form-data' has invalid quoted 'name' parameter: {}",
                                         e
@@ -117,7 +116,7 @@ impl Rule for FormDataContentDispositionValid {
                         if raw.is_empty() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message:
                                     "Content-Disposition 'form-data' has empty 'name' parameter"
                                         .into(),
@@ -139,7 +138,7 @@ impl Rule for FormDataContentDispositionValid {
             if !name_found && crate::helpers::headers::quoting_is_balanced(params_part) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Content-Disposition: 'form-data' missing 'name' parameter".into(),
                 });
             }
@@ -159,7 +158,7 @@ impl Rule for FormDataContentDispositionValid {
                     Err(_) => {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Content-Disposition header value is not valid UTF-8".into(),
                         })
                     }
@@ -178,7 +177,7 @@ impl Rule for FormDataContentDispositionValid {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Content-Disposition header value is not valid UTF-8".into(),
                     })
                 }

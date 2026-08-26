@@ -20,9 +20,8 @@ impl Rule for TimingAllowOriginValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // The header is server-sent: it rides responses, so only the response side is
         // inspected.
         // cite(Resource Timing § 3.5.2): "Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions."
@@ -47,7 +46,7 @@ impl Rule for TimingAllowOriginValid {
                     Ok(v) => v,
                     Err(_) => return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message:
                             "Timing-Allow-Origin header contains non-ASCII or control characters"
                                 .into(),
@@ -60,7 +59,7 @@ impl Rule for TimingAllowOriginValid {
             if s.trim().is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Timing-Allow-Origin header value is empty".into(),
                 });
             }
@@ -78,7 +77,7 @@ impl Rule for TimingAllowOriginValid {
                     if parts.iter().skip(i + 1).any(|p| !p.trim().is_empty()) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Timing-Allow-Origin header contains empty member".into(),
                         });
                     }
@@ -101,7 +100,7 @@ impl Rule for TimingAllowOriginValid {
                 if !crate::helpers::headers::is_valid_serialized_origin(m) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Timing-Allow-Origin contains invalid origin: '{}'", m),
                     });
                 }
@@ -468,7 +467,7 @@ mod tests {
         );
 
         // validate should succeed without error
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

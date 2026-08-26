@@ -33,9 +33,8 @@ impl Rule for Status101SwitchingProtocols {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // ── Check: HTTP traffic after a prior 101 on the same connection ──
@@ -52,7 +51,7 @@ impl Rule for Status101SwitchingProtocols {
                     if prev_resp.status == 101 {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message:
                                 "HTTP traffic after 101 Switching Protocols on the same connection; \
                                  the connection should have been handed off to the upgraded protocol"
@@ -86,7 +85,7 @@ impl Rule for Status101SwitchingProtocols {
         ) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message:
                     "101 Switching Protocols must not be sent in response to an HTTP/1.0 request; \
                      Upgrade is not supported in HTTP/1.0 (RFC 9110 §7.8)"
@@ -102,7 +101,7 @@ impl Rule for Status101SwitchingProtocols {
         if crate::http_version::is_major(&tx.request.version, 2) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "101 Switching Protocols must not be sent over HTTP/2 (RFC 9113 §8.6)"
                     .into(),
             });
@@ -116,7 +115,7 @@ impl Rule for Status101SwitchingProtocols {
         if crate::http_version::is_major(&tx.request.version, 3) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "101 Switching Protocols must not be sent over HTTP/3 (RFC 9114 §4.5)"
                     .into(),
             });
@@ -136,7 +135,7 @@ impl Rule for Status101SwitchingProtocols {
         if req_upgrade_combined.is_none() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Server sent 101 Switching Protocols but the request did not include an \
                      Upgrade header (RFC 9110 §7.8)"
                     .into(),
@@ -151,7 +150,7 @@ impl Rule for Status101SwitchingProtocols {
         if resp_upgrade_combined.is_none() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "101 Switching Protocols response missing required Upgrade header \
                      (RFC 9110 §15.2.2)"
                     .into(),
@@ -177,7 +176,7 @@ impl Rule for Status101SwitchingProtocols {
         if offered.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Server sent 101 Switching Protocols but the request Upgrade header \
                      contains no protocol tokens (RFC 9110 §7.8)"
                     .into(),
@@ -190,7 +189,7 @@ impl Rule for Status101SwitchingProtocols {
         if chosen_list.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "101 Switching Protocols response Upgrade header contains no protocol \
                      tokens (RFC 9110 §15.2.2)"
                     .into(),
@@ -206,7 +205,7 @@ impl Rule for Status101SwitchingProtocols {
         if !all_matched {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "101 response Upgrade '{}' was not offered by the client's Upgrade '{}' \
                      (RFC 9110 §7.8)",

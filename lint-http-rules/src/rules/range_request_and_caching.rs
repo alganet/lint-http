@@ -63,9 +63,8 @@ impl Rule for RangeRequestAndCaching {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
 
         // `Range` asks something of a GET and of nothing else. On any other
@@ -160,7 +159,7 @@ impl Rule for RangeRequestAndCaching {
         let Some(raw_if_range) = req.headers.get("if-range") else {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Range request for a resource this client holds a 206 of, whose stored entity tag is {stored_etag}, carries none of If-Range, If-Match or If-None-Match; the entity tags of the stored response being validated have to be sent in one of those three"
                 ),
@@ -197,7 +196,7 @@ impl Rule for RangeRequestAndCaching {
             // cite(RFC 9110 § 13.1.5): "Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "If-Range carries the date '{if_range}' although entity tag {stored_etag} was provided for this representation; a date is only permitted there when the client has no entity tag"
                 ),
@@ -208,7 +207,7 @@ impl Rule for RangeRequestAndCaching {
         if if_range != stored_etag {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "If-Range entity tag {if_range} is not {stored_etag}, the tag most recently provided for this representation; a server still holding that tag will ignore Range and send the whole representation"
                 ),

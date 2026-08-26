@@ -22,9 +22,8 @@ impl Rule for SunsetAndDeprecationConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only applies to responses
         let resp = tx.response.as_ref()?;
 
@@ -38,7 +37,7 @@ impl Rule for SunsetAndDeprecationConsistent {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                     });
                 }
@@ -86,7 +85,7 @@ impl Rule for SunsetAndDeprecationConsistent {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Deprecation header contains non-UTF8 value".into(),
                     })
                 }
@@ -104,7 +103,7 @@ impl Rule for SunsetAndDeprecationConsistent {
             if dep_dt > sun_dt + allowed_skew {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
                         dep_raw, sun_raw

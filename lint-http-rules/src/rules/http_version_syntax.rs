@@ -27,7 +27,7 @@ impl Rule for HttpVersionSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The request's version sits in the first line of the request message,
         // the response's in the first line of the response message. One
@@ -40,13 +40,9 @@ impl Rule for HttpVersionSyntax {
             judge("response", &resp.version)
         })?;
 
-        // The config is read last. `parse_rule_config` is several map probes and
-        // a hash over the rule id, and both gates above end the rule; only a
-        // message about to be reported should pay for it.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: finding,
         })
     }

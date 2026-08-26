@@ -27,10 +27,8 @@ impl Rule for AcceptEncodingParameterValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // The production the whole rule is a reading of. Two things about it
         // decide almost every branch below: a member is a coding and at most
         // one weight, and `codings` has exactly three alternatives.
@@ -72,7 +70,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 if primary.is_empty() {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "Empty content-coding in Accept-Encoding member '{}'",
                                             part
@@ -84,7 +82,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "Invalid token '{}' in Accept-Encoding header",
                                             c
@@ -118,7 +116,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 if param.is_empty() {
                                     return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!(
                                         "Accept-Encoding member '{}' has a ';' with no weight after it",
                                         part
@@ -138,7 +136,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 if !name.eq_ignore_ascii_case("q") {
                                     return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!(
                                         "'{}' is not a weight, and a weight is the only thing an Accept-Encoding coding may carry (member '{}')",
                                         param, part
@@ -148,7 +146,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 if weight_seen {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "More than one weight in Accept-Encoding member '{}'",
                                             part
@@ -160,7 +158,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 let Some(v) = val else {
                                     return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!(
                                         "Missing parameter value for '{}' in Accept-Encoding member '{}'",
                                         name, part
@@ -172,7 +170,7 @@ impl Rule for AcceptEncodingParameterValid {
                                 if !crate::helpers::headers::valid_qvalue(v) {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "Invalid qvalue '{}' in Accept-Encoding member '{}'",
                                             v, part
@@ -193,7 +191,7 @@ impl Rule for AcceptEncodingParameterValid {
                     // of this field whatever else the value contains.
                     return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "Accept-Encoding contains an octet no part of this field's grammar admits"
                             .into(),

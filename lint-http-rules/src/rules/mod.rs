@@ -64,13 +64,11 @@ pub fn parse_rule_config(cfg: &crate::config::Config, rule_id: &str) -> anyhow::
 
 /// Both keys a rule's table must carry, checked once at startup.
 ///
-/// This is the reading [`parse_rule_config`] used to perform on every
-/// transaction: `enabled` must be present and a boolean, and `severity` present
-/// and one of the three names. It is the default body of `Rule::validate` and
-/// `ProtocolRule::validate`, so a rule that overrides `validate` to check its own
-/// options is the one place the pair can be forgotten — which is why
-/// `validate_rules` also walks `Config::rules` itself before it calls any of
-/// them.
+/// `enabled` must be present and a boolean, and `severity` present and one of
+/// the three names. The two `prepare` defaults ask it, and every custom
+/// `prepare` is expected to ask it after its own options — which is the one
+/// place the pair could be forgotten, and why `validate_rules` also walks
+/// `Config::rules` itself before it calls any of them.
 pub fn validate_rule_table(cfg: &crate::config::Config, rule_id: &str) -> anyhow::Result<()> {
     get_rule_severity_required(cfg, rule_id)?;
     get_rule_enabled_required(cfg, rule_id)?;
@@ -87,6 +85,16 @@ pub fn validate_rule_table(cfg: &crate::config::Config, rule_id: &str) -> anyhow
 pub struct ResolvedRule {
     pub severity: crate::lint::Severity,
     pub state: Box<dyn std::any::Any + Send + Sync>,
+}
+
+impl std::fmt::Debug for ResolvedRule {
+    /// `state` is `dyn Any`, so only the severity can say anything; tests
+    /// `expect_err` on `prepare` results, which needs the Ok side printable.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolvedRule")
+            .field("severity", &self.severity)
+            .finish_non_exhaustive()
+    }
 }
 
 /// One rule's resolved configuration, borrowed for one dispatch.
@@ -208,24 +216,17 @@ impl std::fmt::Display for SpecRef {
 pub trait Rule: Send + Sync {
     fn id(&self) -> &'static str;
 
-    /// Validate the rule's configuration section. Called once per enabled
-    /// rule at startup so a malformed config fails fast rather than silently
-    /// disabling the rule at lint time.
+    /// Resolve this rule's configuration once, when the engine is built —
+    /// which is also when it is validated: a malformed section fails fast at
+    /// startup rather than silently disabling the rule at lint time.
     ///
-    /// The default checks the base `enabled` / `severity` fields. Rules with
-    /// a custom config section override this to validate their own fields.
-    fn validate(&self, cfg: &crate::config::Config) -> anyhow::Result<()> {
-        validate_rule_table(cfg, self.id())
-    }
-
-    /// Resolve this rule's configuration once, when the engine is built.
-    ///
-    /// Validation *is* successful preparation: what `validate` answers with
-    /// `Ok(())`, this answers with the resolved values themselves, so the
-    /// same parse cannot run again — typed or untyped — on the lint path.
-    /// The default resolves what every rule needs (the table's two required
-    /// keys, of which severity is the one carried forward); a rule with a
-    /// custom config section overrides this to parse it into its own `state`.
+    /// Validation *is* successful preparation: what a separate `validate`
+    /// hook would answer with `Ok(())`, this answers with the resolved values
+    /// themselves, so the same parse cannot run again — typed or untyped —
+    /// on the lint path. The default resolves what every rule needs (the
+    /// table's two required keys, of which severity is the one carried
+    /// forward); a rule with a custom config section overrides this to parse
+    /// it into its own `state`.
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<ResolvedRule> {
         validate_rule_table(cfg, self.id())?;
         Ok(ResolvedRule {
@@ -277,13 +278,14 @@ pub trait Rule: Send + Sync {
         }
     }
 
-    /// Evaluate an `HttpTransaction` against this rule. Rules parse whatever
-    /// configuration they need directly from the global `cfg: &Config`.
+    /// Evaluate an `HttpTransaction` against this rule. Everything the rule
+    /// derived from its configuration arrives resolved in `ctx` — its own
+    /// `prepare` ran when the engine was built, so nothing here reads TOML.
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &RuleContext<'_>,
     ) -> Option<Violation>;
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).
@@ -454,14 +456,14 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
     // a malformed section (including custom fields) fails fast at startup.
     for rule in RULES.iter() {
         if config.is_enabled(rule.id()) {
-            rule.validate(config).map_err(|e| {
+            rule.prepare(config).map_err(|e| {
                 anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
             })?;
         }
     }
     for rule in PROTOCOL_RULES.iter() {
         if config.is_enabled(rule.id()) {
-            rule.validate(config).map_err(|e| {
+            rule.prepare(config).map_err(|e| {
                 anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
             })?;
         }
@@ -485,12 +487,6 @@ include!(concat!(env!("OUT_DIR"), "/rule_modules.rs"));
 /// control frames, QUIC transport events) rather than HTTP transactions.
 pub trait ProtocolRule: Send + Sync {
     fn id(&self) -> &'static str;
-
-    /// Validate the rule's configuration section at startup. See
-    /// [`Rule::validate`] for the contract.
-    fn validate(&self, cfg: &crate::config::Config) -> anyhow::Result<()> {
-        validate_rule_table(cfg, self.id())
-    }
 
     /// Resolve this rule's configuration once, when the engine is built. See
     /// [`Rule::prepare`] for the contract.
@@ -1293,7 +1289,7 @@ severity = "warn"
                 &self,
                 _tx: &crate::http_transaction::HttpTransaction,
                 _history: &crate::transaction_history::TransactionHistory,
-                _cfg: &crate::config::Config,
+                _ctx: &crate::rules::RuleContext<'_>,
             ) -> Option<Violation> {
                 None
             }
@@ -1305,6 +1301,28 @@ severity = "warn"
         // Also verify through a trait object (now object-safe).
         let v: &dyn Rule = &r;
         assert_eq!(v.scope(), RuleScope::Both);
+    }
+
+    /// Every registered rule prepares successfully under the shipped example
+    /// config. This is the startup-time replacement for the coverage the
+    /// per-transaction `.ok()?` parses used to get incidentally: a rule whose
+    /// `prepare` cannot digest its own shipped `[rules.*]` section fails here
+    /// by name, and no per-rule test has to remember to ask.
+    #[test]
+    fn every_rule_prepares_under_the_example_config() -> anyhow::Result<()> {
+        let toml_src = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+        )?;
+        let cfg: crate::config::Config = toml::from_str(&toml_src)?;
+        for rule in RULES.iter() {
+            rule.prepare(&cfg)
+                .map_err(|e| anyhow::anyhow!("rule '{}' failed to prepare: {e}", rule.id()))?;
+        }
+        for rule in PROTOCOL_RULES.iter() {
+            rule.prepare(&cfg)
+                .map_err(|e| anyhow::anyhow!("rule '{}' failed to prepare: {e}", rule.id()))?;
+        }
+        Ok(())
     }
 
     #[test]

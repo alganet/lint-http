@@ -71,10 +71,8 @@ impl Rule for OptionsMethodCapabilities {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Two sentences meet at this gate and both are load-bearing: the first
         // is why the rule looks at OPTIONS at all, the second is why the
         // comparison is exact. `options` is not the OPTIONS method, and a method
@@ -102,7 +100,7 @@ impl Rule for OptionsMethodCapabilities {
             if !tx.request.headers.contains_key("content-type") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "OPTIONS request carries content ({evidence}) with no Content-Type header field; RFC 9110 § 9.3.7 says a client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type"
                     ),
@@ -158,7 +156,7 @@ impl Rule for OptionsMethodCapabilities {
             let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Successful OPTIONS response ({}) carries none of {}; RFC 9110 § 9.3.7 says a server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource",
                     resp.status,

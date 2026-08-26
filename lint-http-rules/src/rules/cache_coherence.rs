@@ -33,9 +33,8 @@ impl Rule for CacheCoherence {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // ignore 304 responses, they have no representation body of their own
@@ -108,7 +107,7 @@ impl Rule for CacheCoherence {
             if curr_time < prev_max {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "response for '{}' appears stale ({} < previous {})",
                         tx.request.uri, curr_time, prev_max

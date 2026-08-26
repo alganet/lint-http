@@ -109,7 +109,7 @@ impl Rule for SecWebsocketVersionAdvertised {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
 
@@ -133,9 +133,8 @@ impl Rule for SecWebsocketVersionAdvertised {
 
         let message = Self::defect(&resp.headers, requested.as_deref())?;
 
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         Some(self.violation(
-            config.severity,
+            ctx.severity,
             format!("The response to a WebSocket opening handshake {message}"),
         ))
     }

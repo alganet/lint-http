@@ -20,9 +20,8 @@ impl Rule for LastModifiedRfc1123Syntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -48,7 +47,7 @@ impl Rule for LastModifiedRfc1123Syntax {
             if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Last-Modified header is not a valid IMF-fixdate (RFC 9110)".into(),
                 });
             }
@@ -56,7 +55,7 @@ impl Rule for LastModifiedRfc1123Syntax {
             // Non-UTF8 header values are considered invalid for date parsing
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
             });
         }

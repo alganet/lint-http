@@ -118,7 +118,7 @@ impl Rule for UpgradeAndConnectionConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // Each half is measured against its own version. In a reverse-proxy capture
         // the request may have arrived over HTTP/3 while the response came back from
@@ -132,10 +132,9 @@ impl Rule for UpgradeAndConnectionConsistent {
 
         // Read last: every gate above ends the rule, so only a message about to be
         // reported pays for the map probes and the hash over the rule id.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message,
         })
     }

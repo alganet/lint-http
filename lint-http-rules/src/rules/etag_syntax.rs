@@ -22,9 +22,8 @@ impl Rule for EtagSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // ETag is a response field, which is why this rule is Server-scoped and only
         // inspects the response.
         // cite(RFC 9110 § 8.8.3): "The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request."
@@ -40,7 +39,7 @@ impl Rule for EtagSyntax {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "ETag header value is not valid UTF-8".into(),
                     })
                 }
@@ -58,7 +57,7 @@ impl Rule for EtagSyntax {
             if t == "*" {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "ETag header value '*' is invalid for responses; ETag must be an entity-tag"
                             .into(),
@@ -69,7 +68,7 @@ impl Rule for EtagSyntax {
             if let Err(msg) = crate::helpers::headers::validate_entity_tag(t) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("ETag header invalid: {}", msg),
                 });
             }
@@ -82,7 +81,7 @@ impl Rule for EtagSyntax {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Multiple ETag header fields present ({}); ETag must be a single entity-tag",
                     count

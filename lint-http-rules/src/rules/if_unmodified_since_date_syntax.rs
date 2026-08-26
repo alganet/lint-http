@@ -22,9 +22,8 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Applies to requests only
         for hv in tx.request.headers.get_all("if-unmodified-since").iter() {
             let s = match hv.to_str() {
@@ -32,7 +31,7 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "If-Unmodified-Since header contains non-UTF8 value".into(),
                     })
                 }
@@ -45,7 +44,7 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
             if crate::helpers::headers::trim_ows(s).is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "If-Unmodified-Since header is empty or contains only whitespace"
                         .into(),
                 });
@@ -68,7 +67,7 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
             if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "If-Unmodified-Since header is not a valid IMF-fixdate (RFC 9110 §5.6.7)"
                             .into(),

@@ -26,10 +26,8 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Why a MIME grammar governs an HTTP body at all, and why the boundary
         // named in the header is the one the body must use: RFC 9110 adopts
         // §5.1.1 for every multipart type and makes the parameter part of the
@@ -72,7 +70,8 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                 let s = crate::helpers::headers::field_line_as_written(hv);
                 if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(&s) {
-                    if let Some(v) = check_body_delimiters(which, &boundary, body.as_ref(), &config)
+                    if let Some(v) =
+                        check_body_delimiters(which, &boundary, body.as_ref(), ctx.severity)
                     {
                         return Some(v);
                     }
@@ -279,7 +278,7 @@ fn check_body_delimiters(
     which: &str,
     boundary: &str,
     body: &[u8],
-    config: &crate::rules::RuleConfig,
+    severity: crate::lint::Severity,
 ) -> Option<Violation> {
     // The boundary is text for the three findings below and octets for the scan,
     // and the two are not the same string. `boundary` is the as-written reading —
@@ -307,7 +306,7 @@ fn check_body_delimiters(
         };
         return Some(Violation {
             rule: MultipartContentTypeAndBodyConsistent.id().into(),
-            severity: config.severity,
+            severity,
             message: format!("Invalid multipart Content-Type in {}: {}", which, detail),
         });
     }
@@ -320,7 +319,7 @@ fn check_body_delimiters(
     if !scan.opens_a_part {
         return Some(Violation {
             rule: MultipartContentTypeAndBodyConsistent.id().into(),
-            severity: config.severity,
+            severity,
             message: format!(
                 "Invalid multipart Content-Type in {}: the only boundary delimiter line is the terminating '--{}--', so the body encapsulates no part",
                 which, shown
@@ -334,7 +333,7 @@ fn check_body_delimiters(
     if !scan.closes {
         return Some(Violation {
             rule: MultipartContentTypeAndBodyConsistent.id().into(),
-            severity: config.severity,
+            severity,
             message: format!(
                 "Invalid multipart Content-Type in {}: body missing terminating boundary '--{}--'",
                 which, boundary

@@ -148,7 +148,7 @@ impl Rule for HostAndAuthorityConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // Two fields can only disagree where both exist, and only HTTP/2 and
         // HTTP/3 carry an `:authority`. This is not a narrowing of either
@@ -244,13 +244,11 @@ impl Rule for HostAndAuthorityConsistent {
         let host = trim_ows(&value);
 
         // Every gate above ends the rule, and a request carrying both fields is
-        // the only one this can report; `parse_rule_config` is several map
-        // probes plus a hash over the rule id.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // the only one this can report.
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().to_string(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message,
             })
         };

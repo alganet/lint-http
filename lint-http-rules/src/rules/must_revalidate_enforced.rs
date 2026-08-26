@@ -47,9 +47,8 @@ impl Rule for MustRevalidateEnforced {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // find the most recent past response that contained must-revalidate
         let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
         for past in history.iter() {
@@ -114,7 +113,7 @@ impl Rule for MustRevalidateEnforced {
             if has_validator {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Cached response with 'must-revalidate' directive is stale (age {} >= freshness {}) and was reused without conditional request",
                         current_age, freshness_lifetime

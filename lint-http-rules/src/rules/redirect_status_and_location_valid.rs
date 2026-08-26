@@ -67,10 +67,8 @@ impl Rule for RedirectStatusAndLocationValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // `Location` is a response context field, so the response is the message this
         // rule measures and a request-only transaction is out of its subject entirely.
         // cite(RFC 9110 § 10.2): "The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources."
@@ -101,7 +99,7 @@ impl Rule for RedirectStatusAndLocationValid {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "Response with status {status} carries a Location header field. RFC 9110 §10.2.2 \
                  defines what the value refers to on a 201 (Created) response and on a 3xx \

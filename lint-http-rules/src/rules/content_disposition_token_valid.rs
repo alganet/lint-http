@@ -30,9 +30,8 @@ impl Rule for ContentDispositionTokenValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to validate a single Content-Disposition header value
         let check_value = |hdr_name: &str, val: &str| -> Option<Violation> {
             // Trim whitespace and split off parameters
@@ -43,7 +42,7 @@ impl Rule for ContentDispositionTokenValid {
             if s.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("{} header value must not be empty", hdr_name),
                 });
             }
@@ -57,7 +56,7 @@ impl Rule for ContentDispositionTokenValid {
             if dispo.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("{} header disposition-type must not be empty", hdr_name),
                 });
             }
@@ -73,7 +72,7 @@ impl Rule for ContentDispositionTokenValid {
             if let Some(c) = crate::helpers::token::find_invalid_token_char(dispo) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "{} disposition-type contains invalid token character: '{}'",
                         hdr_name, c
@@ -135,7 +134,7 @@ impl Rule for ContentDispositionTokenValid {
                 };
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Multiple Content-Disposition header fields in the {}; {}",
                         kind, basis
@@ -152,7 +151,7 @@ impl Rule for ContentDispositionTokenValid {
                 let Ok(s) = hv.to_str() else {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Content-Disposition header value contains octets outside visible US-ASCII; non-ASCII filenames belong in a `filename*` parameter (RFC 6266 §4.3)".into(),
                     });
                 };

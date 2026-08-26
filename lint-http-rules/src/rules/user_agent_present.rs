@@ -28,9 +28,8 @@ impl Rule for UserAgentPresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // A sentence does ask for the field, and it is a SHOULD -- but it ends
         // in a condition about the sender's configuration, and a request that
         // omits the field because it was told to is byte-for-byte a request that
@@ -54,7 +53,7 @@ impl Rule for UserAgentPresent {
         if !tx.request.headers.contains_key("user-agent") {
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Request missing User-Agent header".into(),
             })
         } else {

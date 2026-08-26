@@ -40,23 +40,22 @@ impl Rule for TrailerFieldsValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Each trailer section is measured against the header section of its own
         // message. A request's `Trailer` announces what that request will send and
         // its `Connection` names options for that message, so neither says anything
         // about what the response may put after its content.
         if let Some(ref trailers) = tx.request.trailers {
-            if let Some(v) = check_trailers(self.id(), &config, trailers, &tx.request.headers) {
+            if let Some(v) = check_trailers(self.id(), ctx.severity, trailers, &tx.request.headers)
+            {
                 return Some(v);
             }
         }
 
         if let Some(ref resp) = tx.response {
             if let Some(ref trailers) = resp.trailers {
-                if let Some(v) = check_trailers(self.id(), &config, trailers, &resp.headers) {
+                if let Some(v) = check_trailers(self.id(), ctx.severity, trailers, &resp.headers) {
                     return Some(v);
                 }
             }
@@ -185,7 +184,7 @@ fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Option<Vec<String>> 
 /// Validate one message's trailer section against its own header section.
 fn check_trailers(
     rule_id: &str,
-    config: &crate::rules::RuleConfig,
+    severity: crate::lint::Severity,
     trailers: &hyper::HeaderMap,
     headers: &hyper::HeaderMap,
 ) -> Option<Violation> {
@@ -213,7 +212,7 @@ fn check_trailers(
         if crate::helpers::headers::is_prohibited_trailer_field(name) {
             return Some(Violation {
                 rule: rule_id.to_string(),
-                severity: config.severity,
+                severity,
                 // The message names the field's own definition rather than the
                 // category §6.5.1 sorts it under, because the category is not what
                 // decides: `Authentication-Info` is an authentication field and its
@@ -240,7 +239,7 @@ fn check_trailers(
         if crate::helpers::headers::is_nominated_by_connection(name, connection_val.as_deref()) {
             return Some(Violation {
                 rule: rule_id.to_string(),
-                severity: config.severity,
+                severity,
                 message: format!(
                     "Trailer field '{}' is named as a connection-option in this \
                      message's Connection header, so it is control information for \
@@ -262,7 +261,7 @@ fn check_trailers(
             if !declared.iter().any(|d| d == name) {
                 return Some(Violation {
                     rule: rule_id.to_string(),
-                    severity: config.severity,
+                    severity,
                     message: format!(
                         "Trailer field '{}' was not declared in the Trailer header; \
                          senders should list the fields that might appear in the \

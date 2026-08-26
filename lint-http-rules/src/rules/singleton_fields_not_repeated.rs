@@ -109,10 +109,8 @@ impl Rule for SingletonFieldsNotRepeated {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         let message =
             judge(&tx.request.headers, tx.request.trailers.as_ref(), "Request").or_else(|| {
                 tx.response
@@ -122,7 +120,7 @@ impl Rule for SingletonFieldsNotRepeated {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message,
         })
     }

@@ -22,9 +22,8 @@ impl Rule for CacheControlPresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         if let Some(resp) = &tx.response {
             // Nothing requires a `Cache-Control` on a 200. What the absence of one buys is
             // a cache guessing: with no explicit expiration time, a heuristic freshness
@@ -41,7 +40,7 @@ impl Rule for CacheControlPresent {
             if resp.status == 200 && !resp.headers.contains_key("cache-control") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Response 200 without Cache-Control header".into(),
                 });
             }

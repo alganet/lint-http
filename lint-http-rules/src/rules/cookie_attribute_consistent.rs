@@ -20,9 +20,8 @@ impl Rule for CookieAttributeConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         for hv in resp.headers.get_all("set-cookie").iter() {
@@ -31,7 +30,7 @@ impl Rule for CookieAttributeConsistent {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Set-Cookie header value is not valid UTF-8".into(),
                     })
                 }
@@ -42,7 +41,7 @@ impl Rule for CookieAttributeConsistent {
             if parts.is_empty() || parts[0].is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Set-Cookie header missing cookie-pair".into(),
                 });
             }
@@ -54,7 +53,7 @@ impl Rule for CookieAttributeConsistent {
             if name.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Set-Cookie cookie name is empty".into(),
                 });
             }
@@ -63,7 +62,7 @@ impl Rule for CookieAttributeConsistent {
             if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("Set-Cookie cookie-name contains invalid character: '{}'", c),
                 });
             }
@@ -90,7 +89,7 @@ impl Rule for CookieAttributeConsistent {
                     if val_opt.is_some() && !val_opt.unwrap().is_empty() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Set-Cookie attribute 'Secure' must not have a value".into(),
                         });
                     }
@@ -103,7 +102,7 @@ impl Rule for CookieAttributeConsistent {
                     if val_opt.is_some() && !val_opt.unwrap().is_empty() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Set-Cookie attribute 'HttpOnly' must not have a value".into(),
                         });
                     }
@@ -116,7 +115,7 @@ impl Rule for CookieAttributeConsistent {
                         None => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Set-Cookie attribute 'SameSite' requires a value".into(),
                             })
                         }
@@ -127,7 +126,7 @@ impl Rule for CookieAttributeConsistent {
                     if vnorm != "strict" && vnorm != "lax" && vnorm != "none" {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Set-Cookie attribute 'SameSite' has invalid value: '{}'",
                                 v
@@ -144,7 +143,7 @@ impl Rule for CookieAttributeConsistent {
                         None => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Set-Cookie attribute 'Max-Age' requires a numeric value"
                                     .into(),
                             })
@@ -160,7 +159,7 @@ impl Rule for CookieAttributeConsistent {
                     if v.parse::<i64>().is_err() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Set-Cookie attribute 'Max-Age' is not a valid integer: '{}'",
                                 v
@@ -176,7 +175,7 @@ impl Rule for CookieAttributeConsistent {
                         None => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message:
                                     "Set-Cookie attribute 'Expires' requires a HTTP-date value"
                                         .into(),
@@ -187,7 +186,7 @@ impl Rule for CookieAttributeConsistent {
                     if !crate::http_date::is_valid_http_date(v) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Set-Cookie attribute 'Expires' is not a valid HTTP-date: '{}'",
                                 v
@@ -204,7 +203,7 @@ impl Rule for CookieAttributeConsistent {
                             // path with no value is acceptable? flag it
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Set-Cookie attribute 'Path' requires a value".into(),
                             });
                         }
@@ -212,7 +211,7 @@ impl Rule for CookieAttributeConsistent {
                     if !v.starts_with('/') {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Set-Cookie attribute 'Path' should start with '/': '{}'",
                                 v
@@ -228,7 +227,7 @@ impl Rule for CookieAttributeConsistent {
                         None => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Set-Cookie attribute 'Domain' requires a value".into(),
                             })
                         }
@@ -236,14 +235,14 @@ impl Rule for CookieAttributeConsistent {
                     if v.is_empty() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Set-Cookie attribute 'Domain' must not be empty".into(),
                         });
                     }
                     if v.contains(' ') {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Set-Cookie attribute 'Domain' must not contain spaces: '{}'",
                                 v
@@ -264,7 +263,7 @@ impl Rule for CookieAttributeConsistent {
                 if sv == "none" && !secure_present {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Set-Cookie with 'SameSite=None' must also set 'Secure'".into(),
                     });
                 }
@@ -410,7 +409,7 @@ mod tests {
         );
 
         // validate should succeed without error
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 

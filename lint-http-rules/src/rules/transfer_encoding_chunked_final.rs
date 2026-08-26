@@ -20,9 +20,8 @@ impl Rule for TransferEncodingChunkedFinal {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Collect the coding names in wire order across every field line.
         //
         // `None` means the value could not be read as a list at all: quoting
@@ -117,7 +116,7 @@ impl Rule for TransferEncodingChunkedFinal {
             if chunked_count > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "The chunked transfer coding must not be applied more than once: \
                          codings found '{}'",
@@ -158,7 +157,7 @@ impl Rule for TransferEncodingChunkedFinal {
                 if pos != codings.len() - 1 {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                         "Transfer-Encoding 'chunked' must be the final coding: codings found '{}'",
                         codings.join(", ")
@@ -187,7 +186,7 @@ impl Rule for TransferEncodingChunkedFinal {
             {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "A request that applies any transfer coding other than chunked must apply \
                          chunked as the final coding: codings found '{}'",

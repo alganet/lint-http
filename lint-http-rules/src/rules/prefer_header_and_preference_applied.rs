@@ -108,7 +108,7 @@ impl Rule for PreferHeaderAndPreferenceApplied {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
 
@@ -175,7 +175,6 @@ impl Rule for PreferHeaderAndPreferenceApplied {
         // above ends the rule, and each of them is a map lookup or a comparison
         // where the config read is several. Only a response that is about to be
         // reported pays for it.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // The name reached here through `parse_token_bws_word`, which admits only
         // `tchar`, so it is safe in a message as written; the `Vary` value is
@@ -190,7 +189,7 @@ impl Rule for PreferHeaderAndPreferenceApplied {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "Response states the '{}' preference was applied — {} — but {}, so a cache holding this response under the target URI alone can serve it to a request that preferred otherwise",
                 name, why, vary_state

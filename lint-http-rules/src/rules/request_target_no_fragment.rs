@@ -27,7 +27,7 @@ impl Rule for RequestTargetNoFragment {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // What this field holds is version-specific -- an HTTP/1.x
         // request-target, or the target URI the transport reassembled from
@@ -51,9 +51,7 @@ impl Rule for RequestTargetNoFragment {
         // probes and a hash of the rule id, where the test above is one scan of
         // a string the transaction already holds, and every return above this
         // one ends the rule.
-        let severity = crate::rules::parse_rule_config(cfg, self.id())
-            .ok()?
-            .severity;
+        let severity = ctx.severity;
 
         // A target read back from a capture can hold characters that print as
         // nothing or, worse, print as something else: an escape sequence in a

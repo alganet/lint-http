@@ -34,7 +34,7 @@ impl Rule for ProxyConnectionDiscouraged {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The versions that have a `Connection` field are the versions this
         // advice is about: `Proxy-Connection` was invented for HTTP/1.0 proxies
@@ -55,11 +55,6 @@ impl Rule for ProxyConnectionDiscouraged {
         if matches!(crate::http_version::major(&tx.request.version), Some(2 | 3)) {
             return None;
         }
-
-        // Read after the gate: one digit comparison ends the rule for the two
-        // versions that have their own rule, and `parse_rule_config` looks the
-        // rule id up twice.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // Presence is what the sentence is about — *"not to send the
         // Proxy-Connection header field in any requests"* names the field and
@@ -83,7 +78,7 @@ impl Rule for ProxyConnectionDiscouraged {
         //
         // cite(RFC 9112 § C.2.2): "One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above."
         Some(self.violation(
-            config.severity,
+            ctx.severity,
             format!(
                 "Request carries a Proxy-Connection header field: '{}'. RFC 9112 Appendix C.2.2 \
                  encourages clients not to send it in any request — it was an attempted fix for \

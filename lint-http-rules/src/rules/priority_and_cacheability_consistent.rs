@@ -24,9 +24,8 @@ impl Rule for PriorityAndCacheabilityConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // Only consider responses that include a Priority header field (§5: the
@@ -71,7 +70,7 @@ impl Rule for PriorityAndCacheabilityConsistent {
         if !has_cache_control && !has_vary {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Response includes Priority header ('{}') but lacks Cache-Control or Vary to control cacheability; origin servers emitting Priority should control cacheability per RFC 9218 §5",
                     priority

@@ -20,9 +20,8 @@ impl Rule for CrossOriginEmbedderPolicyValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // COEP is a response-only header per spec; ignore requests
         let resp = if let Some(resp) = &tx.response {
             resp
@@ -42,7 +41,7 @@ impl Rule for CrossOriginEmbedderPolicyValid {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Cross-Origin-Embedder-Policy header fields present".into(),
             });
         }
@@ -54,7 +53,7 @@ impl Rule for CrossOriginEmbedderPolicyValid {
             Some(v) => v.trim(),
             None => return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message:
                     "Cross-Origin-Embedder-Policy header contains non-ASCII or control characters"
                         .into(),
@@ -65,7 +64,7 @@ impl Rule for CrossOriginEmbedderPolicyValid {
         if crate::helpers::headers::list_members(val).count() != 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Cross-Origin-Embedder-Policy must be a single value".into(),
             });
         }
@@ -82,7 +81,7 @@ impl Rule for CrossOriginEmbedderPolicyValid {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "Cross-Origin-Embedder-Policy value '{}' does not enable cross-origin isolation (use 'require-corp' or 'credentialless')",
                 val
@@ -291,7 +290,7 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 
@@ -363,7 +362,7 @@ mod tests {
         );
 
         // validate configuration parsing still succeeds
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
 
         // Mixed-case header value must be accepted (case-insensitive)
         let tx = crate::test_helpers::make_test_transaction_with_response(

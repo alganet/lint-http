@@ -20,9 +20,8 @@ impl Rule for ContentTransferEncodingValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // The five named mechanisms. The grammar admits two more alternatives —
         // `ietf-token` and `x-token` — so this list is not the whole of it; see the
         // x-token branch below.
@@ -89,7 +88,7 @@ impl Rule for ContentTransferEncodingValid {
             let detail = describe_value(shown).map(|d| format!("; {}", d));
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Content-Transfer-Encoding: {} present in {}; HTTP does not use this field and a gateway is required to remove it{}",
                     shown.trim(),

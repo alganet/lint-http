@@ -20,9 +20,8 @@ impl Rule for CrossOriginOpenerPolicyValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // COOP is a response-only header per spec; ignore requests
         let resp = if let Some(resp) = &tx.response {
             resp
@@ -39,7 +38,7 @@ impl Rule for CrossOriginOpenerPolicyValid {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Cross-Origin-Opener-Policy header fields present".into(),
             });
         }
@@ -49,7 +48,7 @@ impl Rule for CrossOriginOpenerPolicyValid {
                 Some(v) => v.trim(),
                 None => return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "Cross-Origin-Opener-Policy header contains non-ASCII or control characters"
                             .into(),
@@ -60,7 +59,7 @@ impl Rule for CrossOriginOpenerPolicyValid {
         if crate::helpers::headers::list_members(val).count() != 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Cross-Origin-Opener-Policy must be a single value".into(),
             });
         }
@@ -83,7 +82,7 @@ impl Rule for CrossOriginOpenerPolicyValid {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "Cross-Origin-Opener-Policy contains unsupported value: '{}'",
                 val
@@ -301,7 +300,7 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 

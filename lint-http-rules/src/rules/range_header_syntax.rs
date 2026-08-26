@@ -26,9 +26,8 @@ impl Rule for RangeHeaderSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         use hyper::header::RANGE;
 
         // A request that names no range is every other request. The absence is
@@ -57,7 +56,7 @@ impl Rule for RangeHeaderSyntax {
             if hv.to_str().is_err() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Range header holds an octet no part of a ranges-specifier admits"
                         .into(),
                 });
@@ -92,7 +91,7 @@ impl Rule for RangeHeaderSyntax {
         else {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Invalid Range header '{}': not a ranges-specifier (a range-unit token, '=', then a range-set)",
                     value
@@ -108,7 +107,7 @@ impl Rule for RangeHeaderSyntax {
         if let Err(e) = validate_range_set(&unit, range_set) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!("Invalid Range header '{}': {}", value, e),
             });
         }

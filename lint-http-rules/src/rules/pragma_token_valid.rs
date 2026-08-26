@@ -29,9 +29,8 @@ impl Rule for PragmaTokenValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Validate request headers
         // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
         for header_val in tx.request.headers.get_all("pragma").iter() {
@@ -44,14 +43,14 @@ impl Rule for PragmaTokenValid {
                 if let Some(msg) = check_pragma_value(v) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Invalid Pragma header in request: {}", msg),
                     });
                 }
             } else {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Pragma header contains non-UTF8 value".into(),
                 });
             }
@@ -72,14 +71,14 @@ impl Rule for PragmaTokenValid {
                     if let Some(msg) = check_pragma_value(v) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!("Invalid Pragma header in response: {}", msg),
                         });
                     }
                 } else {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Pragma header contains non-UTF8 value".into(),
                     });
                 }
@@ -452,7 +451,7 @@ mod tests {
         table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert("pragma_token_valid".into(), toml::Value::Table(table));
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 

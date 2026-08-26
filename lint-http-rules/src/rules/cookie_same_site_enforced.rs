@@ -29,9 +29,8 @@ impl Rule for CookieSameSiteEnforced {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only care about outgoing requests that carry Cookie headers
         let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
         if cookie_headers.is_empty() {
@@ -134,7 +133,7 @@ impl Rule for CookieSameSiteEnforced {
                         crate::helpers::cookie::SameSite::Strict => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "Cookie '{}' has SameSite=Strict but is sent in a cross-site context",
                                     name
@@ -148,7 +147,7 @@ impl Rule for CookieSameSiteEnforced {
                         crate::helpers::cookie::SameSite::Lax if !allow_lax => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "Cookie '{}' has SameSite=Lax but is sent in a restricted cross-site context",
                                     name

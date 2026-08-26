@@ -204,22 +204,22 @@ impl Rule for AltSvcProtocolRegistered {
         crate::rules::RuleScope::Server
     }
 
-    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        parse_allowed_config(config, self.id())?;
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
+        let config = parse_allowed_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config
-        // naming a bad option still fails on that option. `enabled` is checked
-        // here because the parser above stopped reading it: that read ran once
-        // per message at lint time and the flag was discarded, since
-        // `PreparedEngine` had already decided whether the rule runs.
-        crate::rules::validate_rule_table(config, self.id())?;
-        Ok(())
+        // naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(cfg, self.id())?;
+        Ok(crate::rules::ResolvedRule {
+            severity: config.severity,
+            state: Box::new(config),
+        })
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // No status gate: the section says in one sentence that there is no
         // status this field may not ride on. § 6's *"An Alt-Svc header field in
@@ -229,7 +229,7 @@ impl Rule for AltSvcProtocolRegistered {
         // written the same defect whatever the status line says.
         // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
         let resp = tx.response.as_ref()?;
-        let config = parse_allowed_config(cfg, self.id()).ok()?;
+        let config: &AltSvcProtocolConfig = ctx.state();
 
         // One `char` per octet. `to_str` folds a field carrying `obs-text` into
         // "no such field here", which for this rule would drop every alternative
@@ -663,7 +663,7 @@ mod tests {
             (too_long.as_str(), "octets long"),
         ] {
             let err = AltSvcProtocolRegistered
-                .validate(&allowing(&[entry]))
+                .prepare(&allowing(&[entry]))
                 .expect_err("the entry names no ALPN protocol");
             assert!(err.to_string().contains(expected), "{err}");
         }

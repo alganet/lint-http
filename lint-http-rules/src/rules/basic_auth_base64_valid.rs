@@ -20,9 +20,8 @@ impl Rule for BasicAuthBase64Valid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         for hv in tx.request.headers.get_all("authorization").iter() {
             match hv.to_str() {
                 Ok(s) => {
@@ -35,7 +34,7 @@ impl Rule for BasicAuthBase64Valid {
                         if creds.is_empty() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Basic Authorization missing credentials".into(),
                             });
                         }
@@ -47,7 +46,7 @@ impl Rule for BasicAuthBase64Valid {
                         if let Err(msg) = crate::helpers::auth::validate_basic_credentials(creds) {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!("Invalid Basic credentials: {} (RFC 7617)", msg),
                             });
                         }
@@ -56,7 +55,7 @@ impl Rule for BasicAuthBase64Valid {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Authorization header contains non-UTF8 value".into(),
                     })
                 }

@@ -20,9 +20,8 @@ impl Rule for CookieDomainValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         for hv in resp.headers.get_all("set-cookie").iter() {
@@ -31,7 +30,7 @@ impl Rule for CookieDomainValid {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Set-Cookie header value is not valid UTF-8".into(),
                     })
                 }
@@ -51,7 +50,7 @@ impl Rule for CookieDomainValid {
                     if val.is_empty() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Set-Cookie attribute 'Domain' requires a value".into(),
                         });
                     }
@@ -66,7 +65,7 @@ impl Rule for CookieDomainValid {
                             if val.starts_with('.') {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: "Set-Cookie 'Domain' attribute uses a leading '.' which is deprecated; prefer the registry form without leading dot".into(),
                                 });
                             }
@@ -74,7 +73,7 @@ impl Rule for CookieDomainValid {
                         Err(e) => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "Invalid Set-Cookie Domain attribute '{}': {}",
                                     val, e

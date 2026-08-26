@@ -189,7 +189,7 @@ impl Rule for UpgradeHeaderSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // No version gate, and the sibling that reports presence is why. A
         // grammar is what a value is measured against whatever carried it, and
@@ -207,8 +207,7 @@ impl Rule for UpgradeHeaderSyntax {
 
         // Read last: a message about to be reported is the only one that pays
         // for the map probes and the two lookups of the rule id.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-        Some(self.violation(config.severity, message))
+        Some(self.violation(ctx.severity, message))
     }
 
     fn description(&self) -> &'static str {

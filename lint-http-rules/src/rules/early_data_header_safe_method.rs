@@ -123,24 +123,24 @@ impl Rule for EarlyDataHeaderSafeMethod {
         crate::rules::RuleScope::Both
     }
 
-    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        parse_early_data_config(config, self.id())?;
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
+        let config = parse_early_data_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config
-        // naming a bad option still fails on that option. `enabled` is checked
-        // here because the parser above stopped reading it: that read ran once
-        // per message at lint time and the flag was discarded, since
-        // `PreparedEngine` had already decided whether the rule runs.
-        crate::rules::validate_rule_table(config, self.id())?;
-        Ok(())
+        // naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(cfg, self.id())?;
+        Ok(crate::rules::ResolvedRule {
+            severity: config.severity,
+            state: Box::new(config),
+        })
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = parse_early_data_config(cfg, self.id()).ok()?;
+        let config: &EarlyDataConfig = ctx.state();
 
         // A count, not a value: the field is a singleton whose whole grammar is one
         // literal, so several field lines is a defect of its own rather than a longer
@@ -220,7 +220,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
         // before this one forbids removing it.
         // cite(RFC 8470 § 5.1): "An intermediary MUST NOT remove this header field if it is present in a request."
         // cite(RFC 8470 § 5.1): "Early-Data MUST NOT appear in a Connection header field."
-        if let Some(v) = self.connection_names_early_data(&config, "request", &tx.request.headers) {
+        if let Some(v) = self.connection_names_early_data(config, "request", &tx.request.headers) {
             return Some(v);
         }
 
@@ -232,7 +232,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                     "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
                 ));
             }
-            if let Some(v) = self.connection_names_early_data(&config, "response", &resp.headers) {
+            if let Some(v) = self.connection_names_early_data(config, "response", &resp.headers) {
                 return Some(v);
             }
         }
@@ -608,7 +608,8 @@ mod tests {
 
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
-        EarlyDataHeaderSafeMethod.validate(&make_cfg())
+        EarlyDataHeaderSafeMethod.prepare(&make_cfg())?;
+        Ok(())
     }
 
     /// A `safe_methods` array is required, and the rule says so rather than passing.
@@ -618,7 +619,7 @@ mod tests {
             "early_data_header_safe_method",
         ]);
         let err = EarlyDataHeaderSafeMethod
-            .validate(&cfg)
+            .prepare(&cfg)
             .expect_err("refused");
         assert!(err.to_string().contains("safe_methods"), "{err}");
     }
@@ -626,7 +627,7 @@ mod tests {
     #[test]
     fn an_empty_array_is_refused() {
         assert!(EarlyDataHeaderSafeMethod
-            .validate(&make_cfg_with(&[]))
+            .prepare(&make_cfg_with(&[]))
             .is_err());
     }
 

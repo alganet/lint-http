@@ -26,9 +26,8 @@ impl Rule for VaryAndCacheConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // A `Vary: *` can never be matched by a cache, so any explicit
@@ -75,7 +74,7 @@ impl Rule for VaryAndCacheConsistent {
                     "max-age" | "s-maxage" | "public" => {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
                                 name, name
@@ -373,7 +372,7 @@ mod tests {
             "vary_and_cache_consistent",
         ]);
         // validate should succeed without error
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

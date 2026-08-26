@@ -20,9 +20,8 @@ impl Rule for AccessControlAllowOriginValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         let headers = &resp.headers;
@@ -41,7 +40,7 @@ impl Rule for AccessControlAllowOriginValid {
         if acao_count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into(),
             });
         }
@@ -56,7 +55,7 @@ impl Rule for AccessControlAllowOriginValid {
             Ok(v) => v.trim(),
             Err(_) => return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message:
                     "Access-Control-Allow-Origin header contains non-ASCII or control characters"
                         .into(),
@@ -70,7 +69,7 @@ impl Rule for AccessControlAllowOriginValid {
         if members.len() != 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Access-Control-Allow-Origin must be a single value ('*', 'null', or a serialized origin)".into(),
             });
         }
@@ -83,7 +82,7 @@ impl Rule for AccessControlAllowOriginValid {
         if !crate::helpers::headers::is_valid_serialized_origin(&member) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Access-Control-Allow-Origin contains invalid origin: '{}'",
                     member
@@ -407,7 +406,7 @@ mod tests {
         );
 
         // validate should succeed without error
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

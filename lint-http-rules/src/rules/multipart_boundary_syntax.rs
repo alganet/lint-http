@@ -26,9 +26,8 @@ impl Rule for MultipartBoundarySyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Every Content-Type field line, not just the first. `HeaderMap::get`
         // returns one value, and RFC 9110 §8.3 is explicit that implementations
         // differ over which member of a duplicated Content-Type they act on, so
@@ -48,7 +47,7 @@ impl Rule for MultipartBoundarySyntax {
                 // below rejects it, as `bcharsnospace` is US-ASCII throughout.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                 let s = crate::helpers::headers::field_line_as_written(hv);
-                if let Some(v) = check_multipart_boundary(which, &s, &config) {
+                if let Some(v) = check_multipart_boundary(which, &s, ctx.severity) {
                     return Some(v);
                 }
             }
@@ -160,7 +159,7 @@ impl Rule for MultipartBoundarySyntax {
 fn check_multipart_boundary(
     which: &str,
     val: &str,
-    config: &crate::rules::RuleConfig,
+    severity: crate::lint::Severity,
 ) -> Option<Violation> {
     // A value that is not a media-type at all has no type to compare and no
     // parameters to read. Saying so is `content_type_valid`'s
@@ -220,7 +219,7 @@ fn check_multipart_boundary(
                     if value.is_empty() {
                         return Some(Violation {
                             rule: MultipartBoundarySyntax.id().into(),
-                            severity: config.severity,
+                            severity,
                             message: format!(
                                 "Invalid multipart Content-Type in {}: empty 'boundary' parameter",
                                 which
@@ -249,7 +248,7 @@ fn check_multipart_boundary(
                             Err(e) => {
                                 return Some(Violation {
                                     rule: MultipartBoundarySyntax.id().into(),
-                                    severity: config.severity,
+                                    severity,
                                     message: format!(
                                         "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
                                         which, e
@@ -270,7 +269,7 @@ fn check_multipart_boundary(
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
                             return Some(Violation {
                                 rule: MultipartBoundarySyntax.id().into(),
-                                severity: config.severity,
+                                severity,
                                 message: format!(
                                     "Invalid multipart Content-Type in {}: boundary contains invalid token character '{}'",
                                     which, c
@@ -318,7 +317,7 @@ fn check_multipart_boundary(
                         }
                         return Some(Violation {
                             rule: MultipartBoundarySyntax.id().into(),
-                            severity: config.severity,
+                            severity,
                             message: format!(
                                 "Invalid multipart Content-Type in {}: boundary contains invalid character '{}'",
                                 which, ch
@@ -337,7 +336,7 @@ fn check_multipart_boundary(
                     if len == 0 || len > 70 {
                         return Some(Violation {
                             rule: MultipartBoundarySyntax.id().into(),
-                            severity: config.severity,
+                            severity,
                             message: format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
                                 which
@@ -357,7 +356,7 @@ fn check_multipart_boundary(
                     if boundary_unquoted.ends_with(' ') {
                         return Some(Violation {
                             rule: MultipartBoundarySyntax.id().into(),
-                            severity: config.severity,
+                            severity,
                             message: format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
                                 which
@@ -383,7 +382,7 @@ fn check_multipart_boundary(
         if !found && !unreadable {
             return Some(Violation {
                 rule: MultipartBoundarySyntax.id().into(),
-                severity: config.severity,
+                severity,
                 message: format!(
                     "Invalid multipart Content-Type in {}: missing required 'boundary' parameter",
                     which

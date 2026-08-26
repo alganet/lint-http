@@ -81,11 +81,11 @@ impl ForwardedHeaderValid {
     /// The element arrives trimmed of the whitespace the *list* allows around
     /// its commas. Everything inside it is the element's own production, which
     /// has no `OWS` in it anywhere.
-    fn check_element(&self, elem: &str, config: &crate::rules::RuleConfig) -> Option<Violation> {
+    fn check_element(&self, elem: &str, severity: crate::lint::Severity) -> Option<Violation> {
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity,
                 message,
             })
         };
@@ -208,11 +208,11 @@ impl ForwardedHeaderValid {
     }
 
     /// One `Forwarded` field line.
-    fn check_field_line(&self, line: &str, config: &crate::rules::RuleConfig) -> Option<Violation> {
+    fn check_field_line(&self, line: &str, severity: crate::lint::Severity) -> Option<Violation> {
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity,
                 message,
             })
         };
@@ -254,7 +254,7 @@ impl ForwardedHeaderValid {
                 continue;
             }
             carried_an_element = true;
-            if let Some(v) = self.check_element(elem, config) {
+            if let Some(v) = self.check_element(elem, severity) {
                 return Some(v);
             }
         }
@@ -293,10 +293,8 @@ impl Rule for ForwardedHeaderValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Every field line of the request's header section. A list may be split
         // over several of them and each holds whole elements — a comma is what
         // separates members, and joining the lines would put one there — so each
@@ -310,7 +308,7 @@ impl Rule for ForwardedHeaderValid {
         //
         // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
         for hv in tx.request.headers.get_all("forwarded").iter() {
-            if let Some(v) = self.check_field_line(&field_line(hv.as_bytes()), &config) {
+            if let Some(v) = self.check_field_line(&field_line(hv.as_bytes()), ctx.severity) {
                 return Some(v);
             }
         }
@@ -336,7 +334,7 @@ impl Rule for ForwardedHeaderValid {
             if resp.headers.contains_key("forwarded") || in_trailers {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Response carries a Forwarded field in its {} section: the field is only for use in HTTP requests, and copying it into a response reveals the proxy chain to the client",
                         match in_trailers && !resp.headers.contains_key("forwarded") {

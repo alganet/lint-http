@@ -25,9 +25,8 @@ impl Rule for ExpiresAndCacheControlConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // If either header is missing, nothing to check
@@ -108,7 +107,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory (RFC 9111 §5.3)",
                         expires_raw
@@ -147,7 +146,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
         if (cc_no_cache || cc_no_store || cc_max_age == Some(0)) && expires > date_ref {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Response contains Cache-Control directives {:?} that make it non-fresh, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1)",
                     if cc_no_cache { "no-cache" } else if cc_no_store { "no-store" } else { "max-age=0" },
@@ -164,7 +163,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
         if (cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0) && expires <= date_ref {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Response contains Cache-Control max-age/s-maxage but Expires {} is not in the future relative to Date {} — values are contradictory (RFC 9111 §4.2, §5.3)",
                     expires, date_ref
@@ -185,7 +184,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
                     if diff > 1 {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Cache-Control max-age={} suggests Expires should be {} (Date + max-age), but Expires is {} — prefer consistent values or omit Expires (RFC 9111 §5.3)",
                                 max_age, expected, expires

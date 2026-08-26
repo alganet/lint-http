@@ -39,9 +39,8 @@ impl Rule for ImmutableRequiresFreshness {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         let mut found_immutable = false;
@@ -53,7 +52,7 @@ impl Rule for ImmutableRequiresFreshness {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Cache-Control header contains non-UTF8 value".into(),
                     })
                 }
@@ -106,7 +105,7 @@ impl Rule for ImmutableRequiresFreshness {
         if let (true, Some(conflict)) = (found_immutable, conflicting) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Cache-Control pairs 'immutable' with '{}', which leaves the response no freshness lifetime; 'immutable' only applies during one, so it has no effect here",
                     conflict
@@ -316,7 +315,7 @@ mod tests {
         table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert(rule.id().to_string(), toml::Value::Table(table));
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

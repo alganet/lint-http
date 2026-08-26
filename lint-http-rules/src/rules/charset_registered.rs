@@ -75,24 +75,24 @@ impl Rule for CharsetRegistered {
         crate::rules::RuleScope::Both
     }
 
-    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        parse_allowed_config(config, self.id())?;
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
+        let config = parse_allowed_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config
-        // naming a bad option still fails on that option. `enabled` is checked
-        // here because the parser above stopped reading it: that read ran once
-        // per message at lint time and the flag was discarded, since
-        // `PreparedEngine` had already decided whether the rule runs.
-        crate::rules::validate_rule_table(config, self.id())?;
-        Ok(())
+        // naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(cfg, self.id())?;
+        Ok(crate::rules::ResolvedRule {
+            severity: config.severity,
+            state: Box::new(config),
+        })
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = parse_allowed_config(cfg, self.id()).ok()?;
+        let config: &CharsetConfig = ctx.state();
         use crate::helpers::headers::parse_media_type;
 
         let check_header = |which: &str, val: &str| -> Option<Violation> {

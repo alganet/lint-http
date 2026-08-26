@@ -77,22 +77,22 @@ impl Rule for KeepAliveHeaderValid {
         crate::rules::RuleScope::Both
     }
 
-    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        parse_keep_alive_config(config, self.id())?;
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
+        let config = parse_keep_alive_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config
-        // naming a bad option still fails on that option. `enabled` is checked
-        // here because the parser above stopped reading it: that read ran once
-        // per message at lint time and the flag was discarded, since
-        // `PreparedEngine` had already decided whether the rule runs.
-        crate::rules::validate_rule_table(config, self.id())?;
-        Ok(())
+        // naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(cfg, self.id())?;
+        Ok(crate::rules::ResolvedRule {
+            severity: config.severity,
+            state: Box::new(config),
+        })
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The field probe is one lookup per section; `parse_keep_alive_config`
         // is several map probes and a hash of the rule id. Nearly every message
@@ -107,7 +107,7 @@ impl Rule for KeepAliveHeaderValid {
             return None;
         }
 
-        let config = parse_keep_alive_config(cfg, self.id()).ok()?;
+        let config: &MessageKeepAliveConfig = ctx.state();
         let message = judge(
             &tx.request.headers,
             &tx.request.version,
@@ -915,7 +915,7 @@ mod tests {
     #[case(Some(-1))]
     fn validate_requires_a_positive_max_timeout(#[case] max: Option<i64>) {
         let cfg = cfg_with_optional_max(max);
-        assert!(KeepAliveHeaderValid.validate(&cfg).is_err());
+        assert!(KeepAliveHeaderValid.prepare(&cfg).is_err());
         assert!(crate::rules::validate_rules(&cfg).is_err());
     }
 

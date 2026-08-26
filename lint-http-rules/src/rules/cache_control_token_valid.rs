@@ -20,9 +20,8 @@ impl Rule for CacheControlTokenValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Apply to both request and response messages
         // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         for header_val in tx.request.headers.get_all("cache-control").iter() {
@@ -36,14 +35,14 @@ impl Rule for CacheControlTokenValid {
                 if let Some(msg) = check_cache_control_value(v) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Invalid Cache-Control header in request: {}", msg),
                     });
                 }
             } else {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Cache-Control header contains non-UTF8 value".into(),
                 });
             }
@@ -61,14 +60,14 @@ impl Rule for CacheControlTokenValid {
                     if let Some(msg) = check_cache_control_value(v) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!("Invalid Cache-Control header in response: {}", msg),
                         });
                     }
                 } else {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Cache-Control header contains non-UTF8 value".into(),
                     });
                 }
@@ -398,7 +397,7 @@ mod tests {
         );
 
         // validate should succeed without error
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

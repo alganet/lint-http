@@ -24,12 +24,12 @@ impl ConnectionHeaderTokensValid {
     fn check_field_section(
         &self,
         headers: &hyper::HeaderMap,
-        config: &crate::rules::RuleConfig,
+        severity: crate::lint::Severity,
     ) -> Option<Violation> {
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().to_string(),
-                severity: config.severity,
+                severity,
                 message,
             })
         };
@@ -137,16 +137,14 @@ impl Rule for ConnectionHeaderTokensValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
-        if let Some(v) = self.check_field_section(&tx.request.headers, &config) {
+        if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
             return Some(v);
         }
 
         if let Some(resp) = &tx.response {
-            if let Some(v) = self.check_field_section(&resp.headers, &config) {
+            if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
                 return Some(v);
             }
         }

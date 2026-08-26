@@ -20,9 +20,8 @@ impl Rule for CacheControlAndPragmaConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Check requests: Pragma: no-cache vs Cache-Control: only-if-cached contradiction
         // `Pragma` is the HTTP/1.0 spelling of a request `no-cache`, and `Cache-Control`
         // is the one that means anything now. A message carrying both is asking to be
@@ -52,7 +51,7 @@ impl Rule for CacheControlAndPragmaConsistent {
                                     // in the tracker.
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)".to_string(),
                                     });
                                 }
@@ -72,7 +71,7 @@ impl Rule for CacheControlAndPragmaConsistent {
             if resp.headers.contains_key("pragma") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead (RFC 9111 §5.4)".into(),
                 });
             }

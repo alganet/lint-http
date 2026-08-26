@@ -22,9 +22,8 @@ impl Rule for AgeHeaderNumeric {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Applies to responses only
         let resp = tx.response.as_ref()?;
 
@@ -40,7 +39,7 @@ impl Rule for AgeHeaderNumeric {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Age header contains non-UTF8 value".into(),
                     })
                 }
@@ -61,7 +60,7 @@ impl Rule for AgeHeaderNumeric {
 
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Age value '{}' is invalid: must be a non-negative integer (delta-seconds)",
                     s

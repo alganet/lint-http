@@ -64,10 +64,8 @@ impl Rule for RequestVersionMethodValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Matched exactly, never case-folded. `get` is not the GET method, and
         // none of the sentences below say anything about it: an unrecognized
         // method has no defined content semantics, so there is nothing to
@@ -94,7 +92,7 @@ impl Rule for RequestVersionMethodValid {
             "CONNECT" => {
                 return request_declares_content(&tx.request).then(|| Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "CONNECT request declares content in its header section; RFC 9110 § 9.3.6 defines a CONNECT request message as having none".into(),
                 });
             }
@@ -114,7 +112,7 @@ impl Rule for RequestVersionMethodValid {
         // cite(RFC 9110 § 9.3.1): "An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain."
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "{} request carries content; RFC 9110 {}, and content received in one has no generally defined semantics",
                 method, sentence

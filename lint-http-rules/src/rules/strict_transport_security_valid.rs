@@ -20,9 +20,8 @@ impl Rule for StrictTransportSecurityValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applicable to responses
         let resp = tx.response.as_ref()?;
 
@@ -35,7 +34,7 @@ impl Rule for StrictTransportSecurityValid {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Strict-Transport-Security header contains non-UTF8 value".into(),
                     });
                 }
@@ -44,7 +43,7 @@ impl Rule for StrictTransportSecurityValid {
             if v.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Strict-Transport-Security header must not be empty".into(),
                 });
             }
@@ -58,7 +57,7 @@ impl Rule for StrictTransportSecurityValid {
                     // skip stray semicolons but flag as violation
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Empty directive in Strict-Transport-Security header".into(),
                     });
                 }
@@ -69,7 +68,7 @@ impl Rule for StrictTransportSecurityValid {
                 if name.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Empty directive name in Strict-Transport-Security header".into(),
                     });
                 }
@@ -78,7 +77,7 @@ impl Rule for StrictTransportSecurityValid {
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Strict-Transport-Security directive name contains invalid character: '{}'", c),
                     });
                 }
@@ -97,35 +96,35 @@ impl Rule for StrictTransportSecurityValid {
                             if vpart.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: "Strict-Transport-Security 'max-age' must have a numeric value".into(),
                                 });
                             }
                             if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!("Strict-Transport-Security 'max-age' contains invalid character: '{}'", c),
                                 });
                             }
                             if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: "Strict-Transport-Security 'max-age' must be a non-negative integer".into(),
                                 });
                             }
                             if vpart.parse::<u64>().is_err() {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: "Strict-Transport-Security 'max-age' value is not a valid integer".into(),
                                 });
                             }
                         } else {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Strict-Transport-Security 'max-age' must have a value"
                                     .into(),
                             });
@@ -138,7 +137,7 @@ impl Rule for StrictTransportSecurityValid {
                         if kv.next().is_some() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Strict-Transport-Security 'includeSubDomains' directive must not have a value".into(),
                             });
                         }
@@ -151,7 +150,7 @@ impl Rule for StrictTransportSecurityValid {
                         if kv.next().is_some() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Strict-Transport-Security 'preload' directive must not have a value".into(),
                             });
                         }
@@ -167,7 +166,7 @@ impl Rule for StrictTransportSecurityValid {
                                 {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e),
                                     });
                                 }
@@ -176,7 +175,7 @@ impl Rule for StrictTransportSecurityValid {
                             {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!("Strict-Transport-Security directive '{}' value contains invalid character: '{}'", name, c),
                                 });
                             }
@@ -189,7 +188,7 @@ impl Rule for StrictTransportSecurityValid {
             if max_age_count > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
                             .into(),
@@ -199,7 +198,7 @@ impl Rule for StrictTransportSecurityValid {
             if !saw_max_age {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "Strict-Transport-Security header missing required 'max-age' directive"
                             .into(),

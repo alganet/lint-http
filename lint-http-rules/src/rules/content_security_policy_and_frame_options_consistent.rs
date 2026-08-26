@@ -20,9 +20,8 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check responses
         let resp = tx.response.as_ref()?;
 
@@ -122,7 +121,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
             if csp_self || !csp_origins.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "X-Frame-Options: DENY contradicts Content-Security-Policy frame-ancestors which permits framing".into(),
                 });
             }
@@ -134,7 +133,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
             if csp_none {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Content-Security-Policy frame-ancestors: 'none' forbids framing while X-Frame-Options: SAMEORIGIN permits same-origin frames".into(),
                 });
             }
@@ -158,7 +157,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
             if csp_none {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("X-Frame-Options: ALLOW-FROM {} permits framing but Content-Security-Policy frame-ancestors is 'none'", rest),
                 });
             }
@@ -186,7 +185,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
 
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("X-Frame-Options: ALLOW-FROM {} is not included in Content-Security-Policy frame-ancestors", rest),
                     });
                 }
@@ -201,7 +200,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
                     } else {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!("X-Frame-Options: ALLOW-FROM {} does not match Content-Security-Policy frame-ancestors 'self' (origin {})", rest, rorig),
                         });
                     }

@@ -28,9 +28,8 @@ impl Rule for ContentLocationAndUriConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -61,7 +60,7 @@ impl Rule for ContentLocationAndUriConsistent {
             .expect("the branch is reached only when the field has more than one line");
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "{}. The comma a recipient joins them with is a `sub-delims` character both alternatives admit inside a path or a query (RFC 3986 §2.2), so the joined value is a well-formed reference to a resource neither line named",
                     crate::helpers::headers::singleton_field_preamble(
@@ -96,7 +95,7 @@ impl Rule for ContentLocationAndUriConsistent {
             if s.trim().is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Content-Location header must not be empty".into(),
                 });
             }
@@ -119,7 +118,7 @@ impl Rule for ContentLocationAndUriConsistent {
             if let Some(c) = crate::helpers::uri::find_non_uri_char(s) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Content-Location value holds {}, which no part of a URI is composed from: an octet outside that set is percent-encoded before the reference is formed, or the value is not a URI reference at all",
                         crate::helpers::headers::describe_char(c)
@@ -132,7 +131,7 @@ impl Rule for ContentLocationAndUriConsistent {
             if let Some(msg) = crate::helpers::uri::check_percent_encoding(s) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: msg,
                 });
             }
@@ -142,7 +141,7 @@ impl Rule for ContentLocationAndUriConsistent {
             if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(s) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: msg,
                 });
             }
@@ -171,7 +170,7 @@ impl Rule for ContentLocationAndUriConsistent {
             if let Some(hash) = s.find('#') {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Content-Location value '{}' carries the fragment component '{}': neither alternative of `Content-Location = absolute-URI / partial-URI` generates one — each is a URI rule with the `[ \"#\" fragment ]` group dropped (RFC 9110 §4.1, RFC 3986 §4.3) — so the value derives from no reading of the grammar (RFC 9110 §2.2)",
                         crate::helpers::headers::shown_in_finding(s),
@@ -275,7 +274,7 @@ impl Rule for ContentLocationAndUriConsistent {
                 if !matches {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into(),
                     });
                 }

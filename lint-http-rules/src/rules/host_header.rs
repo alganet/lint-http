@@ -44,9 +44,8 @@ impl Rule for HostHeader {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let host_lines = tx.request.headers.get_all("host");
         let host_count = host_lines.iter().count();
 
@@ -63,7 +62,7 @@ impl Rule for HostHeader {
             }
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Request carries no Host header field and no :authority pseudo-header"
                     .into(),
             });
@@ -78,7 +77,7 @@ impl Rule for HostHeader {
         if host_count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "{} Host header field lines: the field is not defined as a list, so they are not one value",
                     host_count
@@ -126,7 +125,7 @@ impl Rule for HostHeader {
         if s.contains('@') {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Host field value '{}' carries a userinfo subcomponent and its '@' delimiter",
                     s
@@ -145,7 +144,7 @@ impl Rule for HostHeader {
         {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "IPv6 literal '{}' in a Host field value must be enclosed in square brackets",
                     s
@@ -162,7 +161,7 @@ impl Rule for HostHeader {
         if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(s) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!("Host field value '{}' is not a host and port: {}", s, msg),
             });
         }

@@ -22,10 +22,8 @@ impl Rule for CachedValidatorsReused {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Only GET/HEAD re-requests are in scope. If-None-Match / If-Modified-Since
         // are the cache-revalidation preconditions, and RFC 9110 §13.1.2's client
         // SHOULD is written "when making a GET request". On other methods a validator
@@ -68,7 +66,7 @@ impl Rule for CachedValidatorsReused {
         if !has_if_none_match && !has_if_modified_since {
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Client re-requesting resource without conditional headers. \
                      Server provided validators (ETag: {}, Last-Modified: {}) but client \

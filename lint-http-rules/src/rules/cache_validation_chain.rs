@@ -45,9 +45,8 @@ impl Rule for CacheValidationChain {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
         let has_inm = req.headers.contains_key("if-none-match");
         let has_ims = req.headers.contains_key("if-modified-since");
@@ -133,7 +132,7 @@ impl Rule for CacheValidationChain {
                     // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Conditional request uses If-None-Match '{}' which does not match most recent validator '{}' from history; cache validation chain may be broken",
                             reported.trim(),
@@ -172,7 +171,7 @@ impl Rule for CacheValidationChain {
                     if mismatch {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Conditional request uses If-Modified-Since '{}' which does not match most recent Last-Modified '{}' from history; cache validation chain may be broken",
                                 ims_str,

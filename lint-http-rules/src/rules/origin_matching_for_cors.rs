@@ -20,9 +20,8 @@ impl Rule for OriginMatchingForCors {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
         let headers = &req.headers;
 
@@ -33,7 +32,7 @@ impl Rule for OriginMatchingForCors {
         if let Some(reason) = crate::helpers::uri::validate_origin_value(origin) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!("Invalid Origin header value '{}': {}", origin, reason),
             });
         }
@@ -48,7 +47,7 @@ impl Rule for OriginMatchingForCors {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Access-Control-Allow-Origin header contains non-ASCII or control characters".into(),
                     });
                 }
@@ -63,7 +62,7 @@ impl Rule for OriginMatchingForCors {
         if acao_values.len() > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into(),
             });
         }
@@ -77,7 +76,7 @@ impl Rule for OriginMatchingForCors {
         if members.len() != 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Access-Control-Allow-Origin must be a single value".into(),
             });
         }
@@ -97,7 +96,7 @@ impl Rule for OriginMatchingForCors {
                 if cred.trim().eq_ignore_ascii_case("true") {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true".into(),
                     });
                 }
@@ -112,7 +111,7 @@ impl Rule for OriginMatchingForCors {
         if acao_val != origin {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",
                     acao_val, origin
@@ -460,7 +459,7 @@ mod tests {
         table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert("origin_matching_for_cors".into(), toml::Value::Table(table));
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

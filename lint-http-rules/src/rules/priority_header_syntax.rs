@@ -102,19 +102,17 @@ impl Rule for PriorityHeaderSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // The two sections are judged separately and never joined across the
         // pair: the sentence on `check_section` gathers the lines "in the same
         // section", and § 8 has an intermediary combine the two afterwards as
         // two signals rather than reading them as one field.
-        if let Some(v) = self.check_section(&tx.request.headers, Section::Request, config.severity)
-        {
+        if let Some(v) = self.check_section(&tx.request.headers, Section::Request, ctx.severity) {
             return Some(v);
         }
         if let Some(resp) = &tx.response {
-            if let Some(v) = self.check_section(&resp.headers, Section::Response, config.severity) {
+            if let Some(v) = self.check_section(&resp.headers, Section::Response, ctx.severity) {
                 return Some(v);
             }
         }
@@ -604,7 +602,7 @@ mod tests {
         table.insert("severity".to_string(), toml::Value::String("warn".into()));
         cfg.rules
             .insert("priority_header_syntax".into(), toml::Value::Table(table));
-        PriorityHeaderSyntax.validate(&cfg)?;
+        PriorityHeaderSyntax.prepare(&cfg)?;
         Ok(())
     }
 }

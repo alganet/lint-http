@@ -30,21 +30,17 @@ impl Rule for WarningHeaderSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        // The config is read last. `parse_rule_config` is several map probes and
-        // a hash of the rule id; the field probe under it is one lookup, and a
-        // message carrying no `Warning` is nearly every message.
         let message = judge(&tx.request.headers, "Request").or_else(|| {
             tx.response
                 .as_ref()
                 .and_then(|resp| judge(&resp.headers, "Response"))
         })?;
 
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message,
         })
     }

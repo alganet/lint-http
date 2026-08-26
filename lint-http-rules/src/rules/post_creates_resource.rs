@@ -20,10 +20,8 @@ impl Rule for PostCreatesResource {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // The sentence this rule enforces is in the POST method's own section, so the
         // method is the first gate. It is compared exactly: a request whose method is
         // `post` is a request with an unrecognized method, and §9.3.3 says nothing
@@ -87,7 +85,7 @@ impl Rule for PostCreatesResource {
         // cite(RFC 9112 § 3.3): "Otherwise, the target URI's combined path and query component is the request-target."
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "201 Created response to a POST request carries no Location header field. \
                  RFC 9110 §9.3.3 asks an origin server that has created one or more resources \

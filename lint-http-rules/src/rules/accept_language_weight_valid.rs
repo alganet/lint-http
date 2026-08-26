@@ -28,9 +28,8 @@ impl Rule for AcceptLanguageWeightValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // The production the rule is a reading of. A member is a range and at
         // most one weight; nothing else derives from it.
         // cite(RFC 9110 § 12.5.4): "Accept-Language = #( language-range [ weight ] )"
@@ -70,7 +69,7 @@ impl Rule for AcceptLanguageWeightValid {
                     if param.is_empty() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Accept-Language member '{}' has a ';' with no weight after it",
                                 member
@@ -88,7 +87,7 @@ impl Rule for AcceptLanguageWeightValid {
                     if !name.eq_ignore_ascii_case("q") {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "'{}' is not a weight, and a weight is the only thing an Accept-Language range may carry (member '{}')",
                                 param, member
@@ -98,7 +97,7 @@ impl Rule for AcceptLanguageWeightValid {
                     if weight_seen {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "More than one weight in Accept-Language member '{}'",
                                 member
@@ -110,7 +109,7 @@ impl Rule for AcceptLanguageWeightValid {
                     let Some(val) = val_opt else {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Missing parameter value for '{}' in Accept-Language member '{}'",
                                 name, member
@@ -122,7 +121,7 @@ impl Rule for AcceptLanguageWeightValid {
                     if !crate::helpers::headers::valid_qvalue(val) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Invalid qvalue '{}' in Accept-Language member '{}'",
                                 val, member
@@ -143,7 +142,7 @@ impl Rule for AcceptLanguageWeightValid {
             } else {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "Accept-Language contains an octet no part of this field's grammar admits"
                             .into(),
@@ -165,7 +164,7 @@ impl Rule for AcceptLanguageWeightValid {
                 } else {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message:
                             "Accept-Language contains an octet no part of this field's grammar admits"
                                 .into(),

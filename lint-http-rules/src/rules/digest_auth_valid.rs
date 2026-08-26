@@ -20,9 +20,8 @@ impl Rule for DigestAuthValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         for hv in tx.request.headers.get_all("authorization").iter() {
             match hv.to_str() {
                 Ok(s) => {
@@ -43,7 +42,7 @@ impl Rule for DigestAuthValid {
                         None => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Authorization Digest scheme missing parameters".into(),
                             })
                         }
@@ -77,7 +76,7 @@ impl Rule for DigestAuthValid {
                                         if is_empty {
                                             return Some(Violation {
                                                 rule: self.id().into(),
-                                                severity: config.severity,
+                                                severity: ctx.severity,
                                                 message: format!(
                                                     "Digest Authorization missing or empty required parameter '{}'",
                                                     k
@@ -88,7 +87,7 @@ impl Rule for DigestAuthValid {
                                     None => {
                                         return Some(Violation {
                                             rule: self.id().into(),
-                                            severity: config.severity,
+                                            severity: ctx.severity,
                                             message: format!(
                                                 "Digest Authorization missing or empty required parameter '{}'",
                                                 k
@@ -115,7 +114,7 @@ impl Rule for DigestAuthValid {
                                     if !map.contains_key(k) {
                                         return Some(Violation {
                                             rule: self.id().into(),
-                                            severity: config.severity,
+                                            severity: ctx.severity,
                                             message: format!(
                                                 "Digest Authorization sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
                                             ),
@@ -131,7 +130,7 @@ impl Rule for DigestAuthValid {
                                 {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "Invalid character '{}' in Digest auth-param name",
                                             inv
@@ -159,7 +158,7 @@ impl Rule for DigestAuthValid {
                                 if MUST_QUOTE.contains(&k.as_str()) && !quoted {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "Digest Authorization sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
                                         ),
@@ -168,7 +167,7 @@ impl Rule for DigestAuthValid {
                                 if MUST_NOT_QUOTE.contains(&k.as_str()) && quoted {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "Digest Authorization sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
                                         ),
@@ -183,7 +182,7 @@ impl Rule for DigestAuthValid {
                                     {
                                         return Some(Violation {
                                             rule: self.id().into(),
-                                            severity: config.severity,
+                                            severity: ctx.severity,
                                             message: format!(
                                                 "Invalid quoted-string in Digest auth-param '{}': {}",
                                                 k, msg
@@ -199,7 +198,7 @@ impl Rule for DigestAuthValid {
                                     {
                                         return Some(Violation {
                                             rule: self.id().into(),
-                                            severity: config.severity,
+                                            severity: ctx.severity,
                                             message: format!(
                                                 "Invalid character '{}' in Digest auth-param value for '{}'",
                                                 inv, k
@@ -212,7 +211,7 @@ impl Rule for DigestAuthValid {
                         Err(msg) => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!("Invalid Digest auth parameters: {}", msg),
                             })
                         }
@@ -221,7 +220,7 @@ impl Rule for DigestAuthValid {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Authorization header contains non-UTF8 value".into(),
                     })
                 }

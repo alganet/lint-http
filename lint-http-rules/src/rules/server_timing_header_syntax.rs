@@ -145,10 +145,9 @@ impl Rule for ServerTimingHeaderSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // Both field sections, because the specification's own worked exchange
         // uses both: § 6 announces `Trailer: Server-Timing` and then writes
@@ -187,7 +186,7 @@ impl Rule for ServerTimingHeaderSyntax {
             // it reads as an afterthought about the first.
             if let Some(message) = check_field_value(&value) {
                 return Some(self.violation(
-                    config.severity,
+                    ctx.severity,
                     format!("In the response {section}: {message}"),
                 ));
             }

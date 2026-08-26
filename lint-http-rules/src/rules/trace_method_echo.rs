@@ -67,10 +67,8 @@ impl Rule for TraceMethodEcho {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Matched exactly, never case-folded: `trace` is not the TRACE method,
         // and § 9.3.8 says nothing about it. A method this specification does
         // not define has no loop-back semantics for content to be measured
@@ -90,7 +88,7 @@ impl Rule for TraceMethodEcho {
         {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"
                 ),
@@ -110,7 +108,7 @@ impl Rule for TraceMethodEcho {
         if !present.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names credentials and cookies as its example",
                     present.join(", ")

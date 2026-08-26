@@ -24,9 +24,8 @@ impl Rule for SecFetchModeValueValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
         // cite(Fetch Metadata § 2.2): "HTTP request header exposes a request’s mode to a server"
         let headers = &tx.request.headers;
@@ -41,7 +40,7 @@ impl Rule for SecFetchModeValueValid {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Sec-Fetch-Mode header fields present".into(),
             });
         }
@@ -52,7 +51,7 @@ impl Rule for SecFetchModeValueValid {
             None => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Sec-Fetch-Mode header contains non-ASCII or control characters"
                         .into(),
                 })
@@ -64,7 +63,7 @@ impl Rule for SecFetchModeValueValid {
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Sec-Fetch-Mode header is empty".into(),
             });
         }
@@ -77,7 +76,7 @@ impl Rule for SecFetchModeValueValid {
         if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Sec-Fetch-Mode header contains invalid token character: '{}'",
                     c
@@ -94,7 +93,7 @@ impl Rule for SecFetchModeValueValid {
             "cors" | "no-cors" | "same-origin" | "navigate" | "websocket" => None,
             _ => Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!("Unrecognized Sec-Fetch-Mode value: '{}'", val),
             }),
         }

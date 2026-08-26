@@ -20,9 +20,8 @@ impl Rule for ContentLengthVsTransferEncoding {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // "in any message" is what puts both directions in scope; the same check runs
         // over the response below.
         // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
@@ -41,7 +40,7 @@ impl Rule for ContentLengthVsTransferEncoding {
         {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Both Content-Length and Transfer-Encoding present".into(),
             });
         }
@@ -53,7 +52,7 @@ impl Rule for ContentLengthVsTransferEncoding {
             {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Both Content-Length and Transfer-Encoding present".into(),
                 });
             }

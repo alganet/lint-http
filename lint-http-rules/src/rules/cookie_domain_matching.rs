@@ -33,9 +33,8 @@ impl Rule for CookieDomainMatching {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // only care about outgoing requests that carry Cookie headers
         let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
         if cookie_headers.is_empty() {
@@ -103,7 +102,7 @@ impl Rule for CookieDomainMatching {
             if domain_mismatch {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Cookie '{}' with value '{}' was set for a different domain and should not be sent to host '{}'",
                         name, value, req_host
@@ -117,7 +116,7 @@ impl Rule for CookieDomainMatching {
             if path_mismatch {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Cookie '{}' with value '{}' is not valid for path '{}'",
                         name, value, req_path

@@ -21,9 +21,8 @@ impl Rule for DateAndTimeHeadersConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         use chrono::Duration;
 
         // Tolerate some small clock skew when comparing dates. 60s is a linter
@@ -46,14 +45,14 @@ impl Rule for DateAndTimeHeadersConsistent {
                 if crate::http_date::parse_http_date_to_datetime(s).is_err() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
                     });
                 }
             } else {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Date header contains non-UTF8 bytes and is invalid".into(),
                 });
             }
@@ -67,7 +66,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                     if crate::http_date::parse_http_date_to_datetime(s).is_err() {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)"
                                 .into(),
                         });
@@ -75,7 +74,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                 } else {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Date header contains non-UTF8 bytes and is invalid".into(),
                     });
                 }
@@ -94,7 +93,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                                         if lm_dt > date_dt + skew {
                                             return Some(Violation {
                                             rule: self.id().into(),
-                                            severity: config.severity,
+                                            severity: ctx.severity,
                                             message: format!(
                                                 "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
                                                 lm_str, date_str
@@ -110,7 +109,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                             Err(_) => {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
                                 });
                             }
@@ -129,7 +128,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                                         if sunset_dt <= date_dt - skew {
                                             return Some(Violation {
                                             rule: self.id().into(),
-                                            severity: config.severity,
+                                            severity: ctx.severity,
                                             message: format!(
                                                 "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
                                                 s, date_str
@@ -140,7 +139,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                                     Err(_) => {
                                         return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                                     });
                                     }
@@ -149,7 +148,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                             Err(_) => {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: "Sunset header contains non-UTF8 bytes and is invalid"
                                         .into(),
                                 });
@@ -185,7 +184,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                                 if ifms_dt > date_dt + skew {
                                     return Some(Violation {
                                         rule: self.id().into(),
-                                        severity: config.severity,
+                                        severity: ctx.severity,
                                         message: format!(
                                             "If-Modified-Since '{}' is later than Date '{}'; conditional requests should not use a future date",
                                             ifms_str, date_str
@@ -202,7 +201,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "If-Modified-Since header contains non-UTF8 bytes and is invalid"
                             .into(),
                     });

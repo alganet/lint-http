@@ -125,7 +125,7 @@ impl Rule for Http2PseudoHeadersValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // Only applies to HTTP/2 transactions. The gate is scoping, not a
         // normative check, so it carries no cite; each requirement below cites
@@ -187,12 +187,6 @@ impl Rule for Http2PseudoHeadersValid {
         // cite(RFC 9113 § 8.5): "The ":method" pseudo-header field is set to CONNECT."
         let is_connect = method == "CONNECT";
 
-        // Read once the two cheapest and most selective gates above have had
-        // their say: `parse_rule_config` is several map probes and a hash of
-        // the rule id, where a version comparison is nine characters and a
-        // method comparison is seven.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Which of the three forms the transport reassembled is what says which
         // CONNECT this is, and it is the only thing that does: the capture
         // records no `:protocol`, so an absolute-form target -- `:scheme` and
@@ -217,7 +211,7 @@ impl Rule for Http2PseudoHeadersValid {
                 if !tx.request.headers.contains_key("host") {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "CONNECT request carries a path and no authority: an extended \
                                   CONNECT sends ':scheme' and ':path' beside an ':authority', and \
                                   a basic one sends only the host and port to connect to"
@@ -228,7 +222,7 @@ impl Rule for Http2PseudoHeadersValid {
                 if let Some(msg) = connect_authority_finding(target) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: msg,
                     });
                 }
@@ -244,7 +238,7 @@ impl Rule for Http2PseudoHeadersValid {
                 if method != "OPTIONS" {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Asterisk ('*') is the ':path' value of a server-wide OPTIONS request \
                              and of nothing else, and this request's ':method' is '{method}'"
@@ -257,7 +251,7 @@ impl Rule for Http2PseudoHeadersValid {
                 if crate::helpers::uri::extract_path_from_request_target(target).is_none() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Request target '{}' carries no path, and every non-CONNECT request \
                              sends exactly one ':path': an 'http' or 'https' URI with no path \
@@ -286,7 +280,7 @@ impl Rule for Http2PseudoHeadersValid {
             if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(target) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("Request target's scheme is not a scheme name: {msg}"),
                 });
             }
@@ -304,7 +298,7 @@ impl Rule for Http2PseudoHeadersValid {
             else {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Request target '{}' names the scheme '{scheme}' and then no authority",
                         crate::helpers::headers::shown_in_finding(target)
@@ -326,7 +320,7 @@ impl Rule for Http2PseudoHeadersValid {
                     .unwrap_or_else(|| authority.to_string());
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Authority '{}' of an '{scheme}' target carries the deprecated userinfo \
                          subcomponent and its '@' delimiter",
@@ -343,7 +337,7 @@ impl Rule for Http2PseudoHeadersValid {
             if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(&authority) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Authority '{}' is not a host and port: {msg}",
                         crate::helpers::headers::shown_in_finding(&authority)

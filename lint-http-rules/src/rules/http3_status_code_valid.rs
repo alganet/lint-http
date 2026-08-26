@@ -20,7 +20,7 @@ impl Rule for Http3StatusCodeValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // Only applies to HTTP/3 connections. Scoping, not a normative check — no cite.
         // Both gates read the major digit rather than a string: neither direction
@@ -38,18 +38,12 @@ impl Rule for Http3StatusCodeValid {
             return None;
         }
 
-        // Read after all three gates: only an exchange that is HTTP/3 on both
-        // sides can be reported here, reaching that verdict costs two digit
-        // comparisons and a borrow, and `parse_rule_config` looks the rule id up
-        // twice (its doc comment costs it).
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // § 4.5 is the only place RFC 9114 mentions 101 at all.
         // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
         if resp.status == 101 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message:
                     "HTTP/3 does not support 101 (Switching Protocols); use extended CONNECT instead"
                         .into(),
