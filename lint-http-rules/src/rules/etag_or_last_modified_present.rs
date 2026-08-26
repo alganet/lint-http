@@ -20,9 +20,8 @@ impl Rule for EtagOrLastModifiedPresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let Some(resp) = &tx.response else {
             return None;
         };
@@ -41,7 +40,7 @@ impl Rule for EtagOrLastModifiedPresent {
         {
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Response 200 without ETag or Last-Modified validator".into(),
             })
         } else {

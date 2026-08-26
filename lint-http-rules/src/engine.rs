@@ -17,11 +17,15 @@ use crate::lint::Violation;
 use crate::rules::{ProtocolRule, Rule};
 
 /// One enabled rule with everything the engine resolved about it at
-/// construction. `query` is the [`crate::rules::STATEFUL_RULES`] lookup,
-/// answered once here instead of hashing the rule id on every transaction.
+/// construction: `query` is the [`crate::rules::STATEFUL_RULES`] lookup,
+/// answered once here instead of hashing the rule id on every transaction,
+/// and `resolved` is what the rule's own `prepare` made of its config.
+/// Dispatch borrows `resolved` into a [`crate::rules::RuleContext`] per
+/// transaction — no per-dispatch config reads.
 struct PreparedRule {
     rule: &'static dyn Rule,
     query: Option<crate::queries::QueryType>,
+    resolved: crate::rules::ResolvedRule,
 }
 
 /// One enabled protocol rule with its configuration resolved by its own
@@ -69,15 +73,18 @@ impl PreparedEngine {
             rules
                 .iter()
                 .filter(|r| cfg.is_enabled(r.id()))
-                .map(|&rule| PreparedRule {
-                    rule,
-                    query: crate::rules::query_type_for(rule.id()),
+                .map(|&rule| {
+                    Ok(PreparedRule {
+                        rule,
+                        query: crate::rules::query_type_for(rule.id()),
+                        resolved: rule.prepare(cfg)?,
+                    })
                 })
-                .collect()
+                .collect::<anyhow::Result<_>>()
         };
         Ok(Self {
-            enabled_full: prepare_enabled(&crate::rules::RULES),
-            enabled_request_only: prepare_enabled(&crate::rules::REQUEST_ONLY_RULES),
+            enabled_full: prepare_enabled(&crate::rules::RULES)?,
+            enabled_request_only: prepare_enabled(&crate::rules::REQUEST_ONLY_RULES)?,
             enabled_protocol: crate::rules::PROTOCOL_RULES
                 .iter()
                 .copied()
@@ -92,11 +99,12 @@ impl PreparedEngine {
         })
     }
 
-    /// Lint an entire `HttpTransaction` against the enabled rule set.
+    /// Lint an entire `HttpTransaction` against the enabled rule set. No
+    /// config parameter: everything config-derived was resolved when the
+    /// engine was built.
     pub fn lint_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        cfg: &Config,
         state: &crate::state::StateStore,
     ) -> Vec<Violation> {
         let mut out = Vec::new();
@@ -163,7 +171,8 @@ impl PreparedEngine {
                 None => &empty_history,
             };
 
-            out.extend(rule.check_transaction(tx, history, cfg));
+            let ctx = crate::rules::RuleContext::new(&prepared.resolved);
+            out.extend(rule.check_transaction(tx, history, &ctx));
         }
 
         out
@@ -188,7 +197,7 @@ pub fn lint_transaction(
 ) -> Vec<Violation> {
     PreparedEngine::new(cfg)
         .expect("config failed rule validation")
-        .lint_transaction(tx, cfg, state)
+        .lint_transaction(tx, state)
 }
 
 #[cfg(test)]
@@ -267,7 +276,7 @@ mod tests {
         let via_free = lint_transaction(&tx, &cfg, &state);
         let via_prepared = PreparedEngine::new(&cfg)
             .unwrap()
-            .lint_transaction(&tx, &cfg, &state);
+            .lint_transaction(&tx, &state);
 
         let ids = |vs: &[Violation]| {
             let mut v: Vec<_> = vs.iter().map(|x| x.rule.clone()).collect();

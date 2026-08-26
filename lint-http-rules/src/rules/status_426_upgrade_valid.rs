@@ -26,7 +26,7 @@ impl Rule for Status426UpgradeValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
 
@@ -65,7 +65,6 @@ impl Rule for Status426UpgradeValid {
 
         // Read after both gates: only a response this rule could report pays for
         // the map probes and the two lookups of the rule id.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // One field section is one value however many lines carry it, and the join
         // is over the octets as written: reading them back through a UTF-8 decoder
@@ -93,7 +92,7 @@ impl Rule for Status426UpgradeValid {
                 .is_some_and(|trailers| trailers.contains_key("upgrade"));
 
             return Some(self.violation(
-                config.severity,
+                ctx.severity,
                 format!(
                     "426 Upgrade Required with no Upgrade header field. The status says the server \
                      refuses the request under the current protocol but might comply after the \
@@ -126,7 +125,7 @@ impl Rule for Status426UpgradeValid {
         // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
         if trim_ows(&value).is_empty() {
             return Some(self.violation(
-                config.severity,
+                ctx.severity,
                 "426 Upgrade Required whose Upgrade header field names no protocol. The field is \
                  `#protocol`, so an empty value is a well-formed list of none — but the requirement \
                  is to send the field *to indicate the required protocol(s)*, and a client reading \

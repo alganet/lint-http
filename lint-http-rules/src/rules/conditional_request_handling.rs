@@ -27,9 +27,8 @@ impl Rule for ConditionalRequestHandling {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies when request contains one or more conditional headers
         let req = &tx.request;
         let has_inm = req.headers.get("if-none-match").is_some();
@@ -48,7 +47,7 @@ impl Rule for ConditionalRequestHandling {
             None => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into(),
                 })
             }
@@ -64,7 +63,7 @@ impl Rule for ConditionalRequestHandling {
             if (has_inm || has_imatch) && resp.headers.get("etag").is_none() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into(),
                 });
             }
@@ -74,14 +73,14 @@ impl Rule for ConditionalRequestHandling {
             if (has_ifm || has_iunmod) && resp.headers.get("last-modified").is_none() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into(),
                 });
             }
         } else {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message:
                     "Conditional request sent but previous transaction has no response recorded"
                         .into(),
@@ -108,7 +107,7 @@ impl Rule for ConditionalRequestHandling {
                                         if member == resp_etag.trim() || member == "*" {
                                             return Some(Violation {
                                                 rule: self.id().into(),
-                                                severity: config.severity,
+                                                severity: ctx.severity,
                                                 message: "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 §13.1.2 requires a 304 (Not Modified) for GET/HEAD".into(),
                                             });
                                         }
@@ -151,7 +150,7 @@ impl Rule for ConditionalRequestHandling {
                                     if resp_dt <= req_dt {
                                         return Some(Violation {
                                             rule: self.id().into(),
-                                            severity: config.severity,
+                                            severity: ctx.severity,
                                             message: "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; consider returning 304 Not Modified".into(),
                                         });
                                     }

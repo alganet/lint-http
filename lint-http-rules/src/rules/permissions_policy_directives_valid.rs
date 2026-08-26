@@ -21,9 +21,8 @@ impl Rule for PermissionsPolicyDirectivesValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only inspect responses (server header)
         let resp = tx.response.as_ref()?;
 
@@ -44,7 +43,7 @@ impl Rule for PermissionsPolicyDirectivesValid {
             let Ok(v) = hv.to_str() else {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Permissions-Policy contains a byte outside ASCII, so the field \
                               fails Structured Fields parsing and every directive in it is \
                               discarded"
@@ -71,7 +70,7 @@ impl Rule for PermissionsPolicyDirectivesValid {
             if s.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Permissions-Policy is empty, which grants and denies nothing; an \
                               empty policy is written by omitting the field"
                         .into(),
@@ -100,7 +99,7 @@ impl Rule for PermissionsPolicyDirectivesValid {
             if let Some(msg) = validate_permissions_policy(s) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Permissions-Policy will not be enforced as written: {}",
                         msg

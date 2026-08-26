@@ -25,9 +25,8 @@ impl Rule for VaryHeaderValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Vary is a response header field; the rule inspects responses only.
         // cite(RFC 9110 § 12.5.5): "The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response."
         let resp = tx.response.as_ref()?;
@@ -41,7 +40,7 @@ impl Rule for VaryHeaderValid {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Vary header contains non-UTF8 value".into(),
                     })
                 }
@@ -61,7 +60,7 @@ impl Rule for VaryHeaderValid {
                 if raw.trim().is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Vary header contains empty token (e.g., trailing or consecutive commas)".into(),
                     });
                 }
@@ -89,7 +88,7 @@ impl Rule for VaryHeaderValid {
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Vary header contains invalid field-name token character: '{}'",
                             c

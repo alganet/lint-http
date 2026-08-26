@@ -381,15 +381,13 @@ impl Rule for AltSvcHeaderSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // No status gate, and the sentence below is the whole reason there is
         // none: every response is a response this field may ride on.
         // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
         let resp = tx.response.as_ref()?;
-        let severity = crate::rules::parse_rule_config(cfg, self.id())
-            .ok()?
-            .severity;
+        let severity = ctx.severity;
 
         // One `char` per octet, because the findings below are about what a
         // sender wrote: `to_str` would fold a field carrying `obs-text` into

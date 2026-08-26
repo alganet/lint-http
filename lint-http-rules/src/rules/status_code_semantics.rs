@@ -54,10 +54,8 @@ impl Rule for StatusCodeSemantics {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // This rule reads the response and never the request, and the two fields say
         // so differently. `WWW-Authenticate` is called a response header field in its
         // definition's first words; `Proxy-Authenticate`'s definition never uses the
@@ -82,7 +80,7 @@ impl Rule for StatusCodeSemantics {
             if !resp.headers.contains_key("www-authenticate") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "401 Unauthorized response carries no WWW-Authenticate field; a \
                               server generating a 401 MUST send one containing at least one \
                               challenge applicable to the target resource"
@@ -102,7 +100,7 @@ impl Rule for StatusCodeSemantics {
             if !carries_a_challenge(&resp.headers, "www-authenticate") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "401 Unauthorized response carries a WWW-Authenticate field with no \
                               challenge in it (the value is empty, or every element of it is); a \
                               server generating a 401 MUST send at least one challenge applicable \
@@ -132,7 +130,7 @@ impl Rule for StatusCodeSemantics {
             if !resp.headers.contains_key("proxy-authenticate") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "407 Proxy Authentication Required response carries no \
                               Proxy-Authenticate field; the proxy generating a 407 MUST send at \
                               least one, containing a challenge applicable to that proxy for the \
@@ -148,7 +146,7 @@ impl Rule for StatusCodeSemantics {
             if !carries_a_challenge(&resp.headers, "proxy-authenticate") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "407 Proxy Authentication Required response carries a \
                               Proxy-Authenticate field with no challenge in it (the value is \
                               empty, or every element of it is); the proxy generating a 407 MUST \
@@ -173,7 +171,7 @@ impl Rule for StatusCodeSemantics {
         if resp.headers.contains_key("proxy-authenticate") {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Proxy-Authenticate arrived on status {status}; RFC 9110 pairs this field \
                      with 407 Proxy Authentication Required, the one response a proxy MUST send \

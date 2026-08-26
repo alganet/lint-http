@@ -23,17 +23,15 @@ impl Rule for HeaderFieldNamesTokenValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // All four, in wire order, from the shared walk. A trailer field name is
         // a field name, so the same grammar reaches it; a transaction the
         // upstream never answered has no response half; and which sections exist
         // at all is the framing's answer, not this rule's.
         // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
         for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-            if let Some(v) = check_section(section, headers, &config) {
+            if let Some(v) = check_section(section, headers, ctx.severity) {
                 return Some(v);
             }
         }
@@ -106,7 +104,7 @@ impl Rule for HeaderFieldNamesTokenValid {
 fn check_section(
     section: &str,
     fields: &hyper::HeaderMap,
-    config: &crate::rules::RuleConfig,
+    severity: crate::lint::Severity,
 ) -> Option<Violation> {
     for (k, _v) in fields.iter() {
         // The one check a § 5.1 validator still owes -- that the name is not
@@ -115,7 +113,7 @@ fn check_section(
         // HTTP/2 and HTTP/3 decoders reject an uppercase name outright, so `as_str()`
         // has already been made lowercase by the time any rule reads it.
         // cite(RFC 9114 § 4.2): "A request or response containing uppercase characters in field names MUST be treated as malformed"
-        if let Some(v) = check_header_name(section, k.as_str(), config) {
+        if let Some(v) = check_header_name(section, k.as_str(), severity) {
             return Some(v);
         }
     }
@@ -133,7 +131,7 @@ fn check_section(
 fn check_header_name(
     section: &str,
     name: &str,
-    config: &crate::rules::RuleConfig,
+    severity: crate::lint::Severity,
 ) -> Option<Violation> {
     // The production is defined in § 5.1; the quote is the collected grammar's copy,
     // where it sits beside a neighbour rather than alone between two paragraphs, so
@@ -143,7 +141,7 @@ fn check_header_name(
     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
         return Some(Violation {
             rule: HeaderFieldNamesTokenValid.id().into(),
-            severity: config.severity,
+            severity,
             message: format!(
                 "Field name '{}' in the {} contains invalid character: '{}'",
                 name, section, c
@@ -264,7 +262,7 @@ mod tests {
         #[case] expected_char: Option<char>,
     ) -> anyhow::Result<()> {
         let cfg = &crate::test_helpers::make_test_rule_config();
-        let res = super::check_header_name("request header section", name, cfg);
+        let res = super::check_header_name("request header section", name, cfg.severity);
 
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", name);

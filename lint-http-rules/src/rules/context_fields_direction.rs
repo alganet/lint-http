@@ -79,10 +79,8 @@ impl Rule for ContextFieldsDirection {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // A response context field in a request, then a request context field
         // in a response. Each table is probed against the *other* direction
         // only — in its own direction the field is what its section says it
@@ -108,7 +106,7 @@ impl Rule for ContextFieldsDirection {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message,
         })
     }

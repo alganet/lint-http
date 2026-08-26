@@ -26,10 +26,8 @@ impl Rule for LanguageTagSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // The two fields this rule reads do not use the same production, and
         // RFC 9110 says so in one sentence. `Content-Language` carries
         // `language-tag` (RFC 5646 §2.1); `Accept-Language` carries the broader
@@ -54,7 +52,7 @@ impl Rule for LanguageTagSyntax {
             if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("Invalid language tag '{}' in {}: {}", tag, hdr, e),
                 });
             }

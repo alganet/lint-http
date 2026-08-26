@@ -41,9 +41,8 @@ impl Rule for Oauth2CodeFlow {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req_uri = &tx.request.uri;
         // simple query extraction: portion after '?' if present, ignoring any
         // URI fragment (`#...`) which is not part of the query string.
@@ -81,7 +80,7 @@ impl Rule for Oauth2CodeFlow {
                     _ => {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "OAuth2 authorization request with response_type=code missing or empty state parameter".into(),
                         });
                     }
@@ -119,7 +118,7 @@ impl Rule for Oauth2CodeFlow {
                     if !seen {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "OAuth2 authorization callback used a state value that was not seen in a prior request".into(),
                         });
                     }
@@ -127,7 +126,7 @@ impl Rule for Oauth2CodeFlow {
                 _ => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "OAuth2 authorization callback missing or empty state parameter"
                             .into(),
                     });

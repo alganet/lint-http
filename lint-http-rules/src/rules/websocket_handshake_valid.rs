@@ -371,7 +371,7 @@ impl Rule for WebsocketHandshakeValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let req = &tx.request;
 
@@ -410,7 +410,6 @@ impl Rule for WebsocketHandshakeValid {
         // Every gate above ends the rule, and reading the configuration is several
         // map probes and a hash of the id — so only an exchange about to be measured
         // pays for it.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // § 4.1's numbered order, which is the order a client validating this
         // response would reach them, with the question about the handshake's
@@ -430,7 +429,7 @@ impl Rule for WebsocketHandshakeValid {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!("This 101 completes a WebSocket opening handshake, but {defect}"),
         })
     }

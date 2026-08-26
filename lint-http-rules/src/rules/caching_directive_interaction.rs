@@ -27,9 +27,8 @@ impl Rule for CachingDirectiveInteraction {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to check a single HeaderMap for contradictions
         let check_headers = |hdrs: &hyper::HeaderMap| -> Option<Violation> {
             use crate::helpers::headers::split_commas_respecting_quotes;
@@ -43,7 +42,7 @@ impl Rule for CachingDirectiveInteraction {
                     Err(_) => {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Cache-Control header contains non-UTF8 value".into(),
                         })
                     }
@@ -64,7 +63,7 @@ impl Rule for CachingDirectiveInteraction {
                         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Cache-Control header contains empty member".into(),
                         });
                     }
@@ -102,7 +101,7 @@ impl Rule for CachingDirectiveInteraction {
             if seen.contains_key("public") && private_unqualified {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Cache-Control contains both 'public' and 'private' directives (contradictory visibility)".into(),
                 });
             }
@@ -117,7 +116,7 @@ impl Rule for CachingDirectiveInteraction {
                 // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Cache-Control contains 'no-store' together with 'public' or 'private' (contradiction)".into(),
                 });
             }
@@ -150,7 +149,7 @@ impl Rule for CachingDirectiveInteraction {
                         if nums.iter().any(|x| x != first) {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!("Cache-Control contains multiple '{}' directives with differing values", key),
                             });
                         }

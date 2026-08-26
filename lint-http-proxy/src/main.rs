@@ -308,7 +308,7 @@ async fn lint_app(
         match record {
             capture::CaptureRecord::HttpTransaction(tx) => {
                 tx_count += 1;
-                let mut violations = engine.lint_transaction(&tx, &cfg, &state);
+                let mut violations = engine.lint_transaction(&tx, &state);
                 // Record *before* gating: stateful rules must see every
                 // transaction in the file regardless of what the report includes.
                 state.record_transaction(&tx);

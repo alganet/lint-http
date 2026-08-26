@@ -65,10 +65,8 @@ impl Rule for AcceptRangesOnPartialContent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // The subject is a request that asks for a range, and presence is the
         // whole of it: the advice below is against attempting a range request at
         // all, so a value this rule cannot read is still a range request.
@@ -119,7 +117,7 @@ impl Rule for AcceptRangesOnPartialContent {
         if advertised.advertises("none") {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Previous response for this resource sent Accept-Ranges: none, advising against a range request on the same request path, and this request sends Range anyway (advice: nothing forbids it)".into(),
             });
         }
@@ -143,7 +141,7 @@ impl Rule for AcceptRangesOnPartialContent {
         if !advertised.advertises(&unit) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Range asks in '{}', a unit the previous response for this resource did not advertise, so a server that does not understand it will ignore the field and send the whole representation (advice: nothing forbids it)",
                     unit

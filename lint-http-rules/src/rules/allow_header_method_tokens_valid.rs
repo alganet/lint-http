@@ -37,12 +37,12 @@ impl AllowHeaderMethodTokensValid {
         &self,
         value: &str,
         section: &str,
-        config: &crate::rules::RuleConfig,
+        severity: crate::lint::Severity,
     ) -> Option<Violation> {
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().to_string(),
-                severity: config.severity,
+                severity,
                 message,
             })
         };
@@ -178,7 +178,7 @@ impl Rule for AllowHeaderMethodTokensValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // One field section is one list however many lines carry it, so the lines are
         // joined before the members are counted: an `Allow:` written as a second line
@@ -199,10 +199,8 @@ impl Rule for AllowHeaderMethodTokensValid {
         // `description()` says so rather than leaving the silence to be read as a
         // verdict.
         //
-        // Each read is one `HeaderMap` probe, and a message carrying no `Allow` at all
-        // is the overwhelming majority of traffic; `parse_rule_config` is several map
-        // probes plus a hash over the rule id, so only a message that carries the
-        // field pays for it.
+        // Each read is one `HeaderMap` probe, and a message carrying no `Allow`
+        // at all is the overwhelming majority of traffic.
         let request = combined_field_value_as_written(&tx.request.headers, "allow");
         let response = tx
             .response
@@ -213,16 +211,14 @@ impl Rule for AllowHeaderMethodTokensValid {
             return None;
         }
 
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         if let Some(value) = &request {
-            if let Some(v) = self.check_field_section(value, "request", &config) {
+            if let Some(v) = self.check_field_section(value, "request", ctx.severity) {
                 return Some(v);
             }
         }
 
         if let Some(value) = &response {
-            if let Some(v) = self.check_field_section(value, "response", &config) {
+            if let Some(v) = self.check_field_section(value, "response", ctx.severity) {
                 return Some(v);
             }
         }
@@ -634,7 +630,7 @@ mod tests {
             toml::Value::Table(table),
         );
 
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

@@ -38,7 +38,7 @@ impl Rule for ExpectHeaderValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The field is defined on the request, so the request is where it is read.
         //
@@ -63,11 +63,10 @@ impl Rule for ExpectHeaderValid {
         // Read after the field, not before it: both this and a missing `Expect`
         // end the rule, and the header probe is one map lookup where the config
         // read is several.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let report = |message: String| {
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message,
             })
         };

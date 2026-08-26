@@ -28,9 +28,8 @@ impl Rule for ConditionalHeadersConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to requests
         let req = &tx.request;
 
@@ -40,7 +39,7 @@ impl Rule for ConditionalHeadersConsistent {
         if has_if_none_match && has_if_modified_since {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "If-Modified-Since MUST be ignored when If-None-Match is present; prefer entity-tag conditionals".into(),
             });
         }
@@ -51,7 +50,7 @@ impl Rule for ConditionalHeadersConsistent {
         if has_if_match && has_if_unmodified_since {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "If-Unmodified-Since MUST be ignored when If-Match is present; prefer entity-tag conditionals".into(),
             });
         }
@@ -63,7 +62,7 @@ impl Rule for ConditionalHeadersConsistent {
             if req.headers.get("range").is_none() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into(),
                 });
             }
@@ -77,7 +76,7 @@ impl Rule for ConditionalHeadersConsistent {
                 if trimmed.starts_with("W/") {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "If-Range MUST not contain a weak entity-tag (W/...)".into(),
                     });
                 }
@@ -86,7 +85,7 @@ impl Rule for ConditionalHeadersConsistent {
             } else {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "If-Range header contains non-UTF8 value".into(),
                 });
             }
@@ -110,7 +109,7 @@ impl Rule for ConditionalHeadersConsistent {
             if req.headers.get_all(name).iter().count() > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Multiple {} header fields present; the combined value is a list of dates, which the recipient MUST ignore",
                         label
@@ -129,7 +128,7 @@ impl Rule for ConditionalHeadersConsistent {
         {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into(),
             });
         }

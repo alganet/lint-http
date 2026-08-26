@@ -20,9 +20,8 @@ impl Rule for OriginIsolatedHeaderValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = if let Some(r) = &tx.response {
             r
         } else {
@@ -37,7 +36,7 @@ impl Rule for OriginIsolatedHeaderValid {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Origin-Agent-Cluster header fields present".into(),
             });
         }
@@ -48,7 +47,7 @@ impl Rule for OriginIsolatedHeaderValid {
                 None => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message:
                             "Origin-Agent-Cluster header contains non-ASCII or control characters"
                                 .into(),
@@ -61,7 +60,7 @@ impl Rule for OriginIsolatedHeaderValid {
         if crate::helpers::headers::list_members(val).count() != 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Origin-Agent-Cluster must be a single value".into(),
             });
         }
@@ -77,7 +76,7 @@ impl Rule for OriginIsolatedHeaderValid {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val),
         })
     }
@@ -333,7 +332,7 @@ mod tests {
         let rule = OriginIsolatedHeaderValid;
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "origin_isolated_header_valid");
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

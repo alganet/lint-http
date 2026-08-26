@@ -22,9 +22,8 @@ impl Rule for ContentDispositionParameterValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // This rule owns `disposition-parm` and nothing above it. An empty field
         // value and a missing disposition-type are defects in the part of the
         // grammar `content_disposition_token_valid` owns, and it reports
@@ -56,7 +55,7 @@ impl Rule for ContentDispositionParameterValid {
                 if eq.is_none() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "{} has malformed parameter '{}': missing '='",
                             hdr_name, p
@@ -80,14 +79,14 @@ impl Rule for ContentDispositionParameterValid {
                 if bare_name.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("{} contains empty parameter name", hdr_name),
                     });
                 }
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(bare_name) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "{} parameter name contains invalid token character: '{}'",
                             hdr_name, c
@@ -99,7 +98,7 @@ impl Rule for ContentDispositionParameterValid {
                 if seen.contains(&name_lc) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("{} contains duplicate parameter: '{}'", hdr_name, name),
                     });
                 }
@@ -109,7 +108,7 @@ impl Rule for ContentDispositionParameterValid {
                 if val.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("{} parameter '{}' has empty value", hdr_name, name),
                     });
                 }
@@ -121,7 +120,7 @@ impl Rule for ContentDispositionParameterValid {
                         if let Err(e) = crate::helpers::headers::validate_quoted_string(val) {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "{} filename parameter invalid quoted-string: {}",
                                     hdr_name, e
@@ -131,7 +130,7 @@ impl Rule for ContentDispositionParameterValid {
                     } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "{} filename parameter contains invalid token character: '{}'",
                                 hdr_name, c
@@ -145,7 +144,7 @@ impl Rule for ContentDispositionParameterValid {
                     if let Err(e) = crate::helpers::headers::validate_ext_value(val) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "{} filename* extended value invalid: {}",
                                 hdr_name, e
@@ -160,7 +159,7 @@ impl Rule for ContentDispositionParameterValid {
                             Err(e) => {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!(
                                         "{} size parameter invalid quoted-string: {}",
                                         hdr_name, e
@@ -175,7 +174,7 @@ impl Rule for ContentDispositionParameterValid {
                     if !raw_val.chars().all(|c| c.is_ascii_digit()) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "{} size parameter must be numeric: '{}'",
                                 hdr_name, raw_val
@@ -189,7 +188,7 @@ impl Rule for ContentDispositionParameterValid {
                         if let Err(e) = crate::helpers::headers::validate_ext_value(val) {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "{} extended parameter '{}' invalid: {}",
                                     hdr_name, name, e
@@ -200,7 +199,7 @@ impl Rule for ContentDispositionParameterValid {
                         if let Err(e) = crate::helpers::headers::validate_quoted_string(val) {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "{} parameter '{}' invalid quoted-string: {}",
                                     hdr_name, name, e
@@ -210,7 +209,7 @@ impl Rule for ContentDispositionParameterValid {
                     } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "{} parameter '{}' contains invalid token character: '{}'",
                                 hdr_name, name, c

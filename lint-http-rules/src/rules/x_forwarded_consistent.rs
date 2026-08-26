@@ -139,10 +139,8 @@ impl Rule for XForwardedConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         for (name, field, kind) in FIELDS {
             // Every line of the field, and every octet of every line. A proxy
             // chain appends by adding a field line as often as by extending the
@@ -157,7 +155,7 @@ impl Rule for XForwardedConsistent {
                 if let Some(message) = check_member(field, *kind, member) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message,
                     });
                 }

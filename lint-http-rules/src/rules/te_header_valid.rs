@@ -24,11 +24,11 @@ impl TeHeaderValid {
     ///
     /// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
     /// cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
-    fn check_members(&self, value: &str, config: &crate::rules::RuleConfig) -> Option<Violation> {
+    fn check_members(&self, value: &str, severity: crate::lint::Severity) -> Option<Violation> {
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().to_string(),
-                severity: config.severity,
+                severity,
                 message,
             })
         };
@@ -127,7 +127,7 @@ impl TeHeaderValid {
             //
             // cite(RFC 9110 § A): "transfer-coding = token *( OWS ";" OWS transfer-parameter )"
             for parameter in segments.iter().skip(1) {
-                if let Some(v) = self.check_parameter(member, parameter, config) {
+                if let Some(v) = self.check_parameter(member, parameter, severity) {
                     return Some(v);
                 }
             }
@@ -163,7 +163,7 @@ impl TeHeaderValid {
     fn check_connection_option(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        config: &crate::rules::RuleConfig,
+        severity: crate::lint::Severity,
     ) -> Option<Violation> {
         // The major digit decides whether this version has a `Connection` field
         // to carry the option; `http_version` owns the production that reads it.
@@ -187,7 +187,7 @@ impl TeHeaderValid {
 
         Some(Violation {
             rule: self.id().to_string(),
-            severity: config.severity,
+            severity,
             message:
                 "Request carries a TE header field without a 'TE' connection option in Connection; \
                  TE applies to the immediate connection only, and the option is what stops an \
@@ -203,12 +203,12 @@ impl TeHeaderValid {
         &self,
         member: &str,
         parameter: &str,
-        config: &crate::rules::RuleConfig,
+        severity: crate::lint::Severity,
     ) -> Option<Violation> {
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().to_string(),
-                severity: config.severity,
+                severity,
                 message,
             })
         };
@@ -368,10 +368,8 @@ impl Rule for TeHeaderValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         if let Some(resp) = &tx.response {
             // The field is defined in § 10.1, whose subject is stated in its first
             // sentence, and § 10.1.4 defines this one as describing the *client*.
@@ -404,7 +402,7 @@ impl Rule for TeHeaderValid {
                     combined_field_value_as_written(&resp.headers, "te").unwrap_or_default();
                 return Some(Violation {
                     rule: self.id().to_string(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Response carries a TE header field: '{}'; TE is a request context field describing the client's capabilities, and RFC 9110 gives it no meaning in a response",
                         value.escape_debug()
@@ -415,11 +413,11 @@ impl Rule for TeHeaderValid {
 
         let value = combined_field_value_as_written(&tx.request.headers, "te")?;
 
-        if let Some(v) = self.check_members(&value, &config) {
+        if let Some(v) = self.check_members(&value, ctx.severity) {
             return Some(v);
         }
 
-        self.check_connection_option(tx, &config)
+        self.check_connection_option(tx, ctx.severity)
     }
 
     fn description(&self) -> &'static str {

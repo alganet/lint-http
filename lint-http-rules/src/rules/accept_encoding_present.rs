@@ -20,10 +20,8 @@ impl Rule for AcceptEncodingPresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // A CONNECT does not ask for a representation, so there is no response
         // content for a content coding to apply to. This is the method's own
         // semantics rather than a guess about the status it will get back:
@@ -72,7 +70,7 @@ impl Rule for AcceptEncodingPresent {
         if !present {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Request expresses no content-coding preference (no Accept-Encoding \
                           header); any coding is acceptable, but most servers will not compress \
                           without an explicit signal"
@@ -83,7 +81,7 @@ impl Rule for AcceptEncodingPresent {
         if !any_coding {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Request declines all content codings (empty Accept-Encoding header)"
                     .into(),
             });

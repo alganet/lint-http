@@ -28,14 +28,12 @@ impl Rule for FromHeaderEmailSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let req = &tx.request;
 
-        // The field probe first and the config after it. `parse_rule_config` is
-        // several map lookups and a hash of the rule id; a request with no `From`
-        // — which is nearly all of them, since § 10.1.2 says the field is rarely
-        // sent — should not pay for them.
+        // A request with no `From` — which is nearly all of them, since § 10.1.2
+        // says the field is rarely sent — ends the rule at one field probe.
         //
         // Read as the sender wrote it, one `char` per octet. The `to_str` this
         // replaced answered "From header value is not valid UTF-8" for any octet
@@ -53,11 +51,10 @@ impl Rule for FromHeaderEmailSyntax {
         // cite(RFC 9110 § 10.1.2): "The address ought to be machine-usable, as defined by "mailbox" in Section 3.4 of [RFC5322]"
         // cite(RFC 9110 § 10.1.2): "mailbox = <mailbox, see [RFC5322], Section 3.4>"
         let value = combined_field_value_as_written(&req.headers, "from")?;
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().to_string(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message,
             })
         };

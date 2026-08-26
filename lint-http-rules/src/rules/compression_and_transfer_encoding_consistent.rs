@@ -27,10 +27,8 @@ impl Rule for CompressionAndTransferEncodingConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Both fields are lists whose members a sender may spread over several
         // field lines, and there the resemblance ends: their grammars differ in
         // a way that decides how each is split.
@@ -152,7 +150,7 @@ impl Rule for CompressionAndTransferEncodingConsistent {
             if !overlap.is_empty() {
                 return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Compression coding(s) '{}' appear in both Content-Encoding and Transfer-Encoding of the {}; the representation is coded once and then coded again in transit, which is decodable but almost never intended",
                     overlap.join(", "),

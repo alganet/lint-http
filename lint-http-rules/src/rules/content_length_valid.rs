@@ -20,9 +20,8 @@ impl Rule for ContentLengthValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // The field is defined by what it describes, not by direction, so it is checked
         // on both sides below. The `1*DIGIT` grammar and the §6.3 comma-list rule are
         // deliberately *not* re-quoted here: `validate_content_length` owns both, and a
@@ -54,7 +53,7 @@ impl Rule for ContentLengthValid {
 
                     Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message,
                     })
                 }

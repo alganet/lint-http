@@ -23,9 +23,8 @@ impl Rule for IfMatchEtagSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only applies to requests. **One value, however many field lines carry
         // it**: `#entity-tag` is a list, so § 5.2 combines the lines with a
         // comma before the members are counted -- and the alternation above the
@@ -64,7 +63,7 @@ impl Rule for IfMatchEtagSyntax {
         if value.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "If-Match header is empty or contains only whitespace".into(),
             });
         }
@@ -83,14 +82,14 @@ impl Rule for IfMatchEtagSyntax {
             if member.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "If-Match header contains an empty list element".into(),
                 });
             }
             if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "If-Match header has invalid member '{}': {}",
                         crate::helpers::headers::shown_in_finding(member),

@@ -20,9 +20,8 @@ impl Rule for DeprecationHeaderSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Deprecation is a response header field, which is why this rule is Server-scoped.
         // cite(RFC 9745 § 2): "The Deprecation HTTP response header field allows a server to communicate to a client application that the resource in the context of the message will be or has been deprecated."
         let resp = tx.response.as_ref()?;
@@ -41,7 +40,7 @@ impl Rule for DeprecationHeaderSyntax {
         if vals.len() > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Deprecation header fields present; Deprecation is a single Structured Field Item (RFC 9745 §2.1), so a response carries at most one Deprecation field line (RFC 9110 §5.3)".into(),
             });
         }
@@ -53,7 +52,7 @@ impl Rule for DeprecationHeaderSyntax {
             Err(_) => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Deprecation header contains non-UTF8 value".into(),
                 })
             }
@@ -75,7 +74,7 @@ impl Rule for DeprecationHeaderSyntax {
         if s.eq_ignore_ascii_case("true") {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Deprecation header uses legacy token 'true'; RFC 9745 defines Deprecation as a structured date '@<epoch>' (prefer '@<seconds>' form)".into(),
             });
         }
@@ -84,7 +83,7 @@ impl Rule for DeprecationHeaderSyntax {
         if crate::http_date::is_valid_http_date(s) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>' (see RFC 9745 §2.1)".into(),
             });
         }
@@ -92,7 +91,7 @@ impl Rule for DeprecationHeaderSyntax {
         // Otherwise it's invalid
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", s),
         })
     }

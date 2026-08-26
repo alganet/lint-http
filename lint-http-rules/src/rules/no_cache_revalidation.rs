@@ -50,9 +50,8 @@ impl Rule for NoCacheRevalidation {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // locate the most recent past response with a no-cache directive.
         let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
         for past in history.iter() {
@@ -86,7 +85,7 @@ impl Rule for NoCacheRevalidation {
         if !has_conditional {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Possible reuse of response marked 'no-cache' without conditional revalidation: subsequent request lacked If-None-Match/If-Modified-Since despite earlier no-cache response with a validator".into(),
             });
         }

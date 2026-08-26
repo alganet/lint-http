@@ -76,7 +76,7 @@ impl Rule for Status103EarlyHintsBeforeFinal {
         // answered by the transaction in hand. Registering it anyway would make
         // the engine build a `ByResource` history nothing looks at.
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
 
@@ -88,10 +88,6 @@ impl Rule for Status103EarlyHintsBeforeFinal {
         if resp.status != 103 {
             return None;
         }
-
-        // Read last: `parse_rule_config` is several map probes and a hash over
-        // the id, and the gate above ends the rule for all but one status.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // ── The HTTP/1.0 client ──
         // Reported first because it is the narrower fact and the only sentence
@@ -109,7 +105,7 @@ impl Rule for Status103EarlyHintsBeforeFinal {
         ) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "103 (Early Hints) answering an HTTP/1.0 request: HTTP/1.0 defined no \
                           1xx status codes, so a server must not send one to that client"
                     .into(),
@@ -127,7 +123,7 @@ impl Rule for Status103EarlyHintsBeforeFinal {
         // cite(RFC 8297 § 3): "In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response."
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "103 (Early Hints) is recorded as the response to '{}', and a 103 is an interim \
                  response that exactly one final response has to follow: either the final \

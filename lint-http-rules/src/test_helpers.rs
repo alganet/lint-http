@@ -21,21 +21,20 @@ pub fn make_test_rule_config() -> crate::rules::RuleConfig {
     }
 }
 
-/// Dispatch one transaction through `rule` under `cfg`, the way a test would
-/// have called `check_transaction` directly.
+/// Prepare `rule` under `cfg`, then dispatch one transaction through it — the
+/// way the engine does, collapsed to one call for tests.
 ///
-/// Today this is that direct call. When the trait's check signature moves to
-/// a prepared [`crate::rules::RuleContext`], this body becomes
-/// prepare-then-dispatch — like [`run_protocol_rule`] below — and no test
-/// call site moves again. A config that fails preparation will answer `None`
-/// here, which is what a failed per-dispatch parse answers today.
+/// Returns `None` when `prepare` rejects the config, which preserves what a
+/// direct `check_transaction` call answered when its own per-dispatch parse
+/// failed. Tests asserting *why* preparation fails call `prepare` directly.
 pub fn run_rule(
     rule: &dyn crate::rules::Rule,
     tx: &crate::http_transaction::HttpTransaction,
     history: &crate::transaction_history::TransactionHistory,
     cfg: &crate::config::Config,
 ) -> Option<crate::lint::Violation> {
-    rule.check_transaction(tx, history, cfg)
+    let resolved = rule.prepare(cfg).ok()?;
+    rule.check_transaction(tx, history, &crate::rules::RuleContext::new(&resolved))
 }
 
 /// Prepare `rule` under `cfg`, then dispatch one event through it — the way

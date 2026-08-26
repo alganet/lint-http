@@ -69,24 +69,24 @@ impl Rule for ContentEncodingRegistered {
         crate::rules::RuleScope::Both
     }
 
-    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        parse_allowed_config(config, self.id())?;
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
+        let config = parse_allowed_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config
-        // naming a bad option still fails on that option. `enabled` is checked
-        // here because the parser above stopped reading it: that read ran once
-        // per message at lint time and the flag was discarded, since
-        // `PreparedEngine` had already decided whether the rule runs.
-        crate::rules::validate_rule_table(config, self.id())?;
-        Ok(())
+        // naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(cfg, self.id())?;
+        Ok(crate::rules::ResolvedRule {
+            severity: config.severity,
+            state: Box::new(config),
+        })
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = parse_allowed_config(cfg, self.id()).ok()?;
+        let config: &ContentEncodingConfig = ctx.state();
         // Helper to check a single header value against allowed list
         // `is_accept` distinguishes the two grammars. They are not the same vocabulary:
         // Content-Encoding is a list of plain content-codings, while Accept-Encoding
@@ -438,7 +438,7 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "content_encoding_registered",
         ]);
-        let res = rule.validate(&cfg);
+        let res = rule.prepare(&cfg);
         assert!(res.is_err());
     }
 

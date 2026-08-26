@@ -20,10 +20,8 @@ impl Rule for AcceptRangesAnd206Consistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // `Accept-Ranges` is a response field, which is the sentence behind
         // reading one side only -- not the scope enum, which in this engine only
         // decides when the rule is dispatched.
@@ -58,7 +56,7 @@ impl Rule for AcceptRangesAnd206Consistent {
         if !advertised.present {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "206 Partial Content response carries no Accept-Ranges field, so a client resuming this transfer has nothing telling it which range units the resource supports (advice: nothing requires the field)".into(),
             });
         }
@@ -73,7 +71,7 @@ impl Rule for AcceptRangesAnd206Consistent {
         if advertised.advertises("none") {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into(),
             });
         }
@@ -107,7 +105,7 @@ impl Rule for AcceptRangesAnd206Consistent {
         if !advertised.advertises(unit) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Content-Range describes a range in '{}', a unit this response's Accept-Ranges does not advertise (advice: nothing requires the two to agree)",
                     unit

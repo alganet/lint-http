@@ -27,7 +27,7 @@ impl Rule for RequestUriPercentEncodingValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // What this field holds is version-specific -- an HTTP/1.x
         // request-target, or the target URI the transport reassembled from
@@ -62,9 +62,7 @@ impl Rule for RequestUriPercentEncodingValid {
             // Read after the finding is certain: parsing the config is several
             // map probes and a hash of the rule id, where the scan above walks a
             // string the transaction already holds.
-            let severity = crate::rules::parse_rule_config(cfg, self.id())
-                .ok()?
-                .severity;
+            let severity = ctx.severity;
 
             // A target read back from a capture can hold characters that print
             // as nothing or, worse, print as something else: an escape sequence
@@ -110,9 +108,7 @@ impl Rule for RequestUriPercentEncodingValid {
         // cite(RFC 3986 § 2): "The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII]."
         // cite(RFC 3986 § 2): "the integer values used by the ABNF must be mapped back to their corresponding characters via US-ASCII in order to complete the syntax rules."
         if let Some(ch) = crate::helpers::uri::find_non_uri_char(target) {
-            let severity = crate::rules::parse_rule_config(cfg, self.id())
-                .ok()?
-                .severity;
+            let severity = ctx.severity;
 
             let shown = crate::helpers::headers::shown_in_finding(target);
             let shown_char = crate::helpers::headers::shown_in_finding(&ch.to_string());

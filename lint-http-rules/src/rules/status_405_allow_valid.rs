@@ -73,15 +73,13 @@ impl Rule for Status405AllowValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
 
         // The status is the whole antecedent of both findings: the field is a MAY on
         // every other response, so a 200 carrying no `Allow` is a server taking the
-        // licence rather than a defect. The status is one integer comparison and
-        // `parse_rule_config` is several map probes plus a hash over the rule id, so
-        // only a response this rule could report pays for the configuration.
+        // licence rather than a defect.
         //
         // No version gate. The sentence defining this status names the request-line,
         // which only an HTTP/1.x message has — it is quoted below, where it decides
@@ -94,11 +92,10 @@ impl Rule for Status405AllowValid {
             return None;
         }
 
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().to_string(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message,
             })
         };
@@ -596,7 +593,7 @@ mod tests {
         cfg.rules
             .insert("status_405_allow_valid".into(), toml::Value::Table(table));
 
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

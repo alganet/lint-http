@@ -67,9 +67,8 @@ impl Rule for ProblemDetailsStructureValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // Two field lines: `get` below reads the first while the recipient is
@@ -131,7 +130,7 @@ impl Rule for ProblemDetailsStructureValid {
             // JSON text is, and an empty octet sequence serializes no value.
             // cite(RFC 8259 § 2): "A JSON text is a serialized value."
             if b.is_empty() {
-                return Some(self.report(config.severity, "its content is empty"));
+                return Some(self.report(ctx.severity, "its content is empty"));
             }
             if coded {
                 return None;
@@ -149,7 +148,7 @@ impl Rule for ProblemDetailsStructureValid {
                 // Well-formed JSON, but not the structure the media type names.
                 // cite(RFC 9457 § 3): "The canonical model for problem details is a JSON [JSON] object."
                 Ok(other) => Some(self.report(
-                    config.severity,
+                    ctx.severity,
                     &format!(
                         "its content is a JSON {}, not a JSON object",
                         json_kind(&other)
@@ -160,7 +159,7 @@ impl Rule for ProblemDetailsStructureValid {
                 // recipient cannot decode, let alone parse.
                 // cite(RFC 8259 § 2): "A JSON text is a serialized value."
                 // cite(RFC 8259 § 8.1): "JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8"
-                Err(_) => Some(self.report(config.severity, "its content is not a JSON document")),
+                Err(_) => Some(self.report(ctx.severity, "its content is not a JSON document")),
             };
         }
 
@@ -171,7 +170,7 @@ impl Rule for ProblemDetailsStructureValid {
         // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
         if let Some(len) = resp.body_length {
             return (len == 0)
-                .then(|| self.report(config.severity, "the capture counted zero content octets"));
+                .then(|| self.report(ctx.severity, "the capture counted zero content octets"));
         }
 
         // Nothing counted either -- a transaction deserialized from a capture
@@ -189,7 +188,7 @@ impl Rule for ProblemDetailsStructureValid {
                 Ok(Some(0))
             )
         {
-            return Some(self.report(config.severity, "it declares a Content-Length of zero"));
+            return Some(self.report(ctx.severity, "it declares a Content-Length of zero"));
         }
 
         // A declared length above zero, an unreadable one, or none at all: the

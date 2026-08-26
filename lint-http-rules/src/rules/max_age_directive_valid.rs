@@ -44,9 +44,8 @@ impl Rule for MaxAgeDirectiveValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // locate most recent prior response with a usable max-age
         let mut candidate: Option<(&crate::http_transaction::HttpTransaction, i64)> = None;
 
@@ -116,7 +115,7 @@ impl Rule for MaxAgeDirectiveValid {
                 // cite(RFC 9111 § 4.2): "When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency"
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Request revalidated resource while response is still fresh (age {} < max-age {})",
                         current_age, max_age
@@ -136,7 +135,7 @@ impl Rule for MaxAgeDirectiveValid {
                 // cite(RFC 9111 § 4.3): "it can use the conditional request mechanism"
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Stale cached entry (age {} >= max-age {}) refetched without a conditional request, though a validator was available to revalidate with",
                         current_age, max_age

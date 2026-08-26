@@ -48,9 +48,8 @@ impl Rule for VaryHeaderCacheValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let req = &tx.request;
         // Only a conditional request reuses a stored validator — the precondition header ties
         // the request to a specific stored representation whose Vary key we can check.
@@ -194,7 +193,7 @@ impl Rule for VaryHeaderCacheValid {
                 let reported_validator = matched_validator.as_deref().unwrap_or("<unknown>");
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Conditional request with validator '{}' differs in Vary field '{}'; cache key must incorporate all Vary dimensions",
                         reported_validator, field

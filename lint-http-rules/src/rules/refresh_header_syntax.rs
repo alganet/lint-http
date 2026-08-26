@@ -205,9 +205,8 @@ impl Rule for RefreshHeaderSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         let lines = resp.headers.get_all("refresh");
@@ -226,7 +225,7 @@ impl Rule for RefreshHeaderSyntax {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Response carries {count} Refresh header field lines; HTML specifies no \
                      handling for more than one, so what a recipient does with them is not \
@@ -256,7 +255,7 @@ impl Rule for RefreshHeaderSyntax {
         // makes it this field's requirement too.
         refresh_value_error(value).map(|why| Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!("Refresh header value '{value}': {why}"),
         })
     }
@@ -506,7 +505,7 @@ mod tests {
         cfg.rules
             .insert("refresh_header_syntax".into(), toml::Value::Table(table));
 
-        rule.validate(&cfg)?;
+        rule.prepare(&cfg)?;
         Ok(())
     }
 }

@@ -20,9 +20,8 @@ impl Rule for ContentEncodingAndTypeConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Helper to validate a Content-Encoding-like header value (comma-separated members).
         // This helper validates members in `val` and updates `seen` with found codings so duplicates
         // across multiple header fields can be detected when `seen` is shared between calls.
@@ -37,21 +36,21 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 if token.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("{} header contains empty member", hdr_name),
                     });
                 }
                 if token == "*" && hdr_name.eq_ignore_ascii_case("Content-Encoding") {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Wildcard '*' is not valid in {} header", hdr_name),
                     });
                 }
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Invalid token '{}' in {} header", c, hdr_name),
                     });
                 }
@@ -65,7 +64,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 if !seen.insert(key.clone()) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Duplicate content-coding '{}' in {} header",
                             key, hdr_name
@@ -87,7 +86,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 } else {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Content-Encoding header value is not valid UTF-8".into(),
                     });
                 }
@@ -120,7 +119,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
             if is_no_body_status && resp.headers.contains_key("content-encoding") {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Response {} carries no content, so it should not send Content-Encoding",
                         status
@@ -137,7 +136,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 } else {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Content-Encoding header value is not valid UTF-8".into(),
                     });
                 }

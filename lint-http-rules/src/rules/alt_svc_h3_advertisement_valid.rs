@@ -56,7 +56,7 @@ impl Rule for AltSvcH3AdvertisementValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
 
@@ -77,7 +77,6 @@ impl Rule for AltSvcH3AdvertisementValid {
         // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
         // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
         let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let value = trim_ows(&value);
 
         // The other alternative of the top production, which advertises no
@@ -132,7 +131,7 @@ impl Rule for AltSvcH3AdvertisementValid {
             // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
             if proto_lower.starts_with("h3-") {
                 return Some(self.violation(
-                    config.severity,
+                    ctx.severity,
                     format!(
                         "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead (RFC 9114 §3.1.1)",
                         shown_in_finding(protocol_id)
@@ -146,7 +145,7 @@ impl Rule for AltSvcH3AdvertisementValid {
             }
 
             if let Some(message) = h3_ma_defect(parameters) {
-                return Some(self.violation(config.severity, message));
+                return Some(self.violation(ctx.severity, message));
             }
         }
 

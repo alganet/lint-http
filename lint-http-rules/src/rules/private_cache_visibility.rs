@@ -31,9 +31,8 @@ impl Rule for PrivateCacheVisibility {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only conditional requests are evidence: a precondition header carries a validator a
         // client could only have from a prior response.
         // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
@@ -87,7 +86,7 @@ impl Rule for PrivateCacheVisibility {
                                         if val_norm == normalized {
                                             return Some(Violation {
                                                 rule: self.id().into(),
-                                                severity: config.severity,
+                                                severity: ctx.severity,
                                                 message: format!(
                                                     "Validator '{}' from a private response seen by a different client",
                                                     member
@@ -124,7 +123,7 @@ impl Rule for PrivateCacheVisibility {
                                             if val_dt == candidate_dt {
                                                 return Some(Violation {
                                                     rule: self.id().into(),
-                                                    severity: config.severity,
+                                                    severity: ctx.severity,
                                                     message: format!(
                                                         "Validator '{}' from a private response seen by a different client",
                                                         candidate

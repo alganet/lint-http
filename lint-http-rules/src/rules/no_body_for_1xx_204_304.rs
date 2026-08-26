@@ -35,9 +35,8 @@ impl Rule for NoBodyFor1xx204304 {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
         let status = resp.status;
 
@@ -92,7 +91,7 @@ impl Rule for NoBodyFor1xx204304 {
         if let Some(n) = resp.body_length {
             if n > 0 {
                 return Some(self.report(
-                    config.severity,
+                    ctx.severity,
                     status,
                     &format!(
                         "is terminated by the end of its header section and cannot contain \
@@ -117,7 +116,7 @@ impl Rule for NoBodyFor1xx204304 {
         // answer -- that `#[test]` is the reason the empty case is pinned here.
         if resp.trailers.is_some() {
             return Some(self.report(
-                config.severity,
+                ctx.severity,
                 status,
                 "is terminated by the end of its header section and cannot contain trailers, \
                  but a trailer section was received",
@@ -156,7 +155,7 @@ impl Rule for NoBodyFor1xx204304 {
                 // finding, and nothing here is measuring a length.
                 let shown = crate::helpers::headers::field_line_as_written(value);
                 return Some(self.report(
-                    config.severity,
+                    ctx.severity,
                     status,
                     &format!(
                         "must not carry a Content-Length header field at any value, \
@@ -195,7 +194,7 @@ impl Rule for NoBodyFor1xx204304 {
             && resp.headers.contains_key("transfer-encoding")
         {
             return Some(self.report(
-                config.severity,
+                ctx.severity,
                 status,
                 "must not carry a Transfer-Encoding header field",
             ));

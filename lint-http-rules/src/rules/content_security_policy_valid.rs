@@ -26,9 +26,8 @@ impl Rule for ContentSecurityPolicyValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only check responses
         let resp = tx.response.as_ref()?;
 
@@ -39,7 +38,7 @@ impl Rule for ContentSecurityPolicyValid {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Content-Security-Policy header value is not valid UTF-8".into(),
                     });
                 }
@@ -49,7 +48,7 @@ impl Rule for ContentSecurityPolicyValid {
             if s_trim.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Content-Security-Policy header MUST not be empty".into(),
                 });
             }
@@ -61,7 +60,7 @@ impl Rule for ContentSecurityPolicyValid {
                     // Empty directive (e.g., trailing or consecutive semicolons)
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Content-Security-Policy contains empty directive at position {}",
                             i
@@ -85,7 +84,7 @@ impl Rule for ContentSecurityPolicyValid {
                 {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Invalid character '{}' in CSP directive-name '{}', at position {}",
                             c, name, i
@@ -100,7 +99,7 @@ impl Rule for ContentSecurityPolicyValid {
                         if !val.ends_with('\'') || val.len() < 2 {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!("Unterminated or empty single-quoted source expression '{}' in directive '{}'", val, name),
                             });
                         }
@@ -108,7 +107,7 @@ impl Rule for ContentSecurityPolicyValid {
                         if inner.is_empty() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "Empty single-quoted source expression '{}' in directive '{}'",
                                     val, name
@@ -121,14 +120,14 @@ impl Rule for ContentSecurityPolicyValid {
                             if rest.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!("Empty nonce value in directive '{}'", name),
                                 });
                             }
                             if rest.chars().any(|c: char| c.is_whitespace()) {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!("Invalid nonce value containing whitespace in directive '{}'", name),
                                 });
                             }
@@ -138,7 +137,7 @@ impl Rule for ContentSecurityPolicyValid {
                             if rest.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!("Empty hash value in directive '{}'", name),
                                 });
                             }
@@ -146,7 +145,7 @@ impl Rule for ContentSecurityPolicyValid {
                             if rest.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!("Empty hash value in directive '{}'", name),
                                 });
                             }
@@ -154,7 +153,7 @@ impl Rule for ContentSecurityPolicyValid {
                             if rest.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
-                                    severity: config.severity,
+                                    severity: ctx.severity,
                                     message: format!("Empty hash value in directive '{}'", name),
                                 });
                             }
@@ -166,13 +165,13 @@ impl Rule for ContentSecurityPolicyValid {
                         if rest.is_empty() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!("Empty nonce value in directive '{}'", name),
                             });
                         }
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message:
                                 "Nonce source expressions MUST be single-quoted (e.g., 'nonce-...')"
                                     .into(),
@@ -183,13 +182,13 @@ impl Rule for ContentSecurityPolicyValid {
                         if rest.is_empty() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!("Empty hash value in directive '{}'", name),
                             });
                         }
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message:
                                 "Hash source expressions MUST be single-quoted (e.g., 'sha256-...')"
                                     .into(),
@@ -198,13 +197,13 @@ impl Rule for ContentSecurityPolicyValid {
                         if rest.is_empty() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!("Empty hash value in directive '{}'", name),
                             });
                         }
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message:
                                 "Hash source expressions MUST be single-quoted (e.g., 'sha384-...')"
                                     .into(),
@@ -213,13 +212,13 @@ impl Rule for ContentSecurityPolicyValid {
                         if rest.is_empty() {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!("Empty hash value in directive '{}'", name),
                             });
                         }
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message:
                                 "Hash source expressions MUST be single-quoted (e.g., 'sha512-...')"
                                     .into(),

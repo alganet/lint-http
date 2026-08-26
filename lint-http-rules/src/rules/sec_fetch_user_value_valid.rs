@@ -23,9 +23,8 @@ impl Rule for SecFetchUserValueValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // A request header; absence is the normal case (it rides only user-activated
         // navigations).
         // cite(Fetch Metadata § 2.4): "HTTP request header exposes whether or not a navigation request was triggered by user activation."
@@ -41,7 +40,7 @@ impl Rule for SecFetchUserValueValid {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Sec-Fetch-User header fields present".into(),
             });
         }
@@ -52,7 +51,7 @@ impl Rule for SecFetchUserValueValid {
             None => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Sec-Fetch-User header contains non-ASCII or control characters"
                         .into(),
                 })
@@ -64,7 +63,7 @@ impl Rule for SecFetchUserValueValid {
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Sec-Fetch-User header is empty".into(),
             });
         }
@@ -76,7 +75,7 @@ impl Rule for SecFetchUserValueValid {
         if val != "?1" {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Unrecognized Sec-Fetch-User value: '{}'; expected '?1'",
                     val

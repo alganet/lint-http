@@ -29,9 +29,8 @@ impl Rule for AcceptRangesValuesValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // Both of the sections the field is defined for, and every line inside
@@ -73,7 +72,7 @@ impl Rule for AcceptRangesValuesValid {
                 let Ok(value) = hv.to_str() else {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Accept-Ranges holds an octet no range-unit admits: a range unit name is a token, whose characters are all visible US-ASCII".into(),
                     });
                 };
@@ -97,7 +96,7 @@ impl Rule for AcceptRangesValuesValid {
             if let Err(e) = read_units(&value, &mut units) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("Invalid Accept-Ranges field value '{}': {}", value, e),
                 });
             }
@@ -136,7 +135,7 @@ impl Rule for AcceptRangesValuesValid {
         if units.iter().any(|u| u == "none") && !others.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Accept-Ranges advertises '{}' beside 'none', which is reserved for advising that no kind of range request is supported: the field says both that this resource supports range requests and that it does not (advice: nothing forbids it)",
                     others.join("', '")

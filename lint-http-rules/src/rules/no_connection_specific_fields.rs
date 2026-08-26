@@ -139,7 +139,7 @@ impl NoConnectionSpecificFields {
         governing: ConnectionlessVersion,
         direction: Direction,
         headers: &hyper::HeaderMap,
-        config: &crate::rules::RuleConfig,
+        severity: crate::lint::Severity,
     ) -> Option<Violation> {
         // Presence is the whole defect, so the value is never read: what both
         // documents forbid is generating a message that *contains* the field.
@@ -153,7 +153,7 @@ impl NoConnectionSpecificFields {
         for &name in CONNECTION_SPECIFIC_FIELDS {
             if headers.contains_key(name) {
                 return Some(self.violation(
-                    config.severity,
+                    severity,
                     format!(
                         "{} {} carries the connection-specific header field '{}'; \
                          {} makes such a message malformed",
@@ -166,7 +166,7 @@ impl NoConnectionSpecificFields {
             }
         }
 
-        self.check_te(governing, direction, headers, config)
+        self.check_te(governing, direction, headers, severity)
     }
 
     /// The one field both documents take back out of the set, and only for one
@@ -179,7 +179,7 @@ impl NoConnectionSpecificFields {
         governing: ConnectionlessVersion,
         direction: Direction,
         headers: &hyper::HeaderMap,
-        config: &crate::rules::RuleConfig,
+        severity: crate::lint::Severity,
     ) -> Option<Violation> {
         // A response is not the request the exception is written for, so the
         // field is connection-specific there like the five above it and the
@@ -192,7 +192,7 @@ impl NoConnectionSpecificFields {
         if direction == Direction::Response {
             if headers.contains_key("te") {
                 return Some(self.violation(
-                    config.severity,
+                    severity,
                     format!(
                         "{} response carries a TE header field; the exception {} makes is \
                          for a request, so in a response TE is a connection-specific field \
@@ -245,7 +245,7 @@ impl NoConnectionSpecificFields {
             .find(|member| !member.eq_ignore_ascii_case("trailers"))?;
 
         Some(self.violation(
-            config.severity,
+            severity,
             format!(
                 "{} request's TE header field holds '{}'; the only value {} permits it \
                  to contain is 'trailers'",
@@ -274,7 +274,7 @@ impl Rule for NoConnectionSpecificFields {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // Each section's own version, decided before anything else is read.
         let request = ConnectionlessVersion::of(&tx.request.version);
@@ -282,29 +282,30 @@ impl Rule for NoConnectionSpecificFields {
             ConnectionlessVersion::of(&resp.version).map(|governing| (governing, resp))
         });
 
-        // Read after the gates and not before them: a transaction neither half
-        // of which was carried by one of these versions ends here, and
-        // `parse_rule_config` looks the rule id up twice.
+        // A transaction neither half of which was carried by one of these
+        // versions ends here.
         if request.is_none() && response.is_none() {
             return None;
         }
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         if let Some(governing) = request {
             if let Some(violation) = self.check_field_section(
                 governing,
                 Direction::Request,
                 &tx.request.headers,
-                &config,
+                ctx.severity,
             ) {
                 return Some(violation);
             }
         }
 
         if let Some((governing, resp)) = response {
-            if let Some(violation) =
-                self.check_field_section(governing, Direction::Response, &resp.headers, &config)
-            {
+            if let Some(violation) = self.check_field_section(
+                governing,
+                Direction::Response,
+                &resp.headers,
+                ctx.severity,
+            ) {
                 return Some(violation);
             }
         }

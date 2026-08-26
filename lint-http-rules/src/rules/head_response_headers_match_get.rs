@@ -181,22 +181,22 @@ impl Rule for HeadResponseHeadersMatchGet {
         crate::rules::RuleScope::Server
     }
 
-    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        parse_headers_config(config, self.id())?;
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
+        let config = parse_headers_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config
-        // naming a bad option still fails on that option. `enabled` is checked
-        // here because the parser above stopped reading it: that read ran once
-        // per message at lint time and the flag was discarded, since
-        // `PreparedEngine` had already decided whether the rule runs.
-        crate::rules::validate_rule_table(config, self.id())?;
-        Ok(())
+        // naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(cfg, self.id())?;
+        Ok(crate::rules::ResolvedRule {
+            severity: config.severity,
+            state: Box::new(config),
+        })
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The sentence the whole rule enforces, and the response it is about.
         // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
@@ -245,7 +245,7 @@ impl Rule for HeadResponseHeadersMatchGet {
 
         // Parse config only after the cheap method/response/history guards above —
         // non-HEAD transactions (the common case) skip the allocation entirely.
-        let config = parse_headers_config(cfg, self.id()).ok()?;
+        let config: &SemanticHeadResponseHeadersMatchGetConfig = ctx.state();
 
         let report = |message: String| {
             Some(Violation {
@@ -700,7 +700,7 @@ mod tests {
     fn parse_config_requires_headers_array() {
         let cfg = crate::config::Config::default();
         let rule = HeadResponseHeadersMatchGet;
-        let res = rule.validate(&cfg);
+        let res = rule.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -721,7 +721,7 @@ mod tests {
         );
 
         let rule = HeadResponseHeadersMatchGet;
-        let res = rule.validate(&cfg);
+        let res = rule.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -745,7 +745,7 @@ mod tests {
         );
 
         let rule = HeadResponseHeadersMatchGet;
-        let res = rule.validate(&cfg);
+        let res = rule.prepare(&cfg);
         assert!(res.is_err());
     }
 

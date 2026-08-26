@@ -38,10 +38,8 @@ impl Rule for PatchPartialUpdate {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // The method token is case-sensitive, so the comparison is exact: a
         // request whose method is `patch` did not use PATCH, it used a method
         // with no defined semantics, and RFC 5789 § 2 is not a sentence about
@@ -99,7 +97,7 @@ impl Rule for PatchPartialUpdate {
         // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "PATCH request carries content ({evidence}) with no Content-Type naming the patch document format"
             ),

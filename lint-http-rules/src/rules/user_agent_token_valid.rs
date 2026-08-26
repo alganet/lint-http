@@ -28,9 +28,8 @@ impl Rule for UserAgentTokenValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // `User-Agent` and `Server` are one production, and RFC 9110 defines
         // `product` once — under this field — for both. The grammar walk lives
         // in the shared helper so the two fields cannot be validated by two
@@ -71,7 +70,7 @@ impl Rule for UserAgentTokenValid {
             if let Err(e) = crate::helpers::product::validate_product_list(hv.as_bytes()) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!("Invalid User-Agent header: {}", e),
                 });
             }

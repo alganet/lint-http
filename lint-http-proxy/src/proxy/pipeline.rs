@@ -20,7 +20,6 @@ use std::sync::Arc;
 use tracing::warn;
 
 use crate::capture::CaptureWriter;
-use crate::config::Config;
 use crate::engine::PreparedEngine;
 use crate::http_transaction::HttpTransaction;
 use crate::lint::Violation;
@@ -31,10 +30,10 @@ use crate::state::StateStore;
 use super::Shared;
 
 /// Orchestrates the per-transaction cycle: lint, record to state, write the
-/// capture line.
+/// capture line. No config here: the rules' configuration was resolved into
+/// the engine when it was built.
 pub(super) struct TransactionPipeline {
     engine: Arc<PreparedEngine>,
-    cfg: Arc<Config>,
     state: Arc<StateStore>,
     captures: CaptureWriter,
 }
@@ -45,7 +44,7 @@ impl TransactionPipeline {
     /// cannot be re-committed or mutated after capture; returns the
     /// violations for callers that need them.
     pub(super) async fn commit(&self, mut tx: HttpTransaction) -> Vec<Violation> {
-        tx.violations = self.engine.lint_transaction(&tx, &self.cfg, &self.state);
+        tx.violations = self.engine.lint_transaction(&tx, &self.state);
         self.state.record_transaction(&tx);
         // Extract violations before moving the transaction into the writer.
         let violations = tx.violations.clone();
@@ -84,7 +83,6 @@ impl Shared {
     pub(super) fn pipeline(&self) -> TransactionPipeline {
         TransactionPipeline {
             engine: self.engine.clone(),
-            cfg: self.cfg.clone(),
             state: self.state.clone(),
             captures: self.captures.clone(),
         }

@@ -148,35 +148,35 @@ impl Rule for StructuredHeadersValid {
         crate::rules::RuleScope::Both
     }
 
-    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        parse_headers_config(config, self.id())?;
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
+        let config = parse_headers_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config
-        // naming a bad option still fails on that option. `enabled` is checked
-        // here because the parser above stopped reading it: that read ran once
-        // per message at lint time and the flag was discarded, since
-        // `PreparedEngine` had already decided whether the rule runs.
-        crate::rules::validate_rule_table(config, self.id())?;
-        Ok(())
+        // naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(cfg, self.id())?;
+        Ok(crate::rules::ResolvedRule {
+            severity: config.severity,
+            state: Box::new(config),
+        })
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = parse_headers_config(cfg, self.id()).ok()?;
+        let config: &MessageStructuredHeadersConfig = ctx.state();
         // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
         for hdr in &config.headers {
             // The two sections are joined separately, never across the pair: the
             // sentence cited on `check_section` gathers the lines "in the same
             // section", so a request's field and a response's field of the same
             // name are two field values, not one.
-            if let Some(v) = self.check_section(&tx.request.headers, hdr, "request", &config) {
+            if let Some(v) = self.check_section(&tx.request.headers, hdr, "request", config) {
                 return Some(v);
             }
             if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_section(&resp.headers, hdr, "response", &config) {
+                if let Some(v) = self.check_section(&resp.headers, hdr, "response", config) {
                     return Some(v);
                 }
             }
@@ -610,7 +610,7 @@ mod tests {
             }),
         );
 
-        assert!(rule.validate(&full_cfg).is_err());
+        assert!(rule.prepare(&full_cfg).is_err());
         Ok(())
     }
 
@@ -630,7 +630,7 @@ mod tests {
             }),
         );
 
-        assert!(rule.validate(&full_cfg).is_err());
+        assert!(rule.prepare(&full_cfg).is_err());
         Ok(())
     }
 
@@ -650,7 +650,7 @@ mod tests {
             }),
         );
 
-        assert!(rule.validate(&full_cfg).is_err());
+        assert!(rule.prepare(&full_cfg).is_err());
         Ok(())
     }
 
@@ -673,7 +673,7 @@ mod tests {
             }),
         );
 
-        assert!(rule.validate(&full_cfg).is_err());
+        assert!(rule.prepare(&full_cfg).is_err());
         Ok(())
     }
 

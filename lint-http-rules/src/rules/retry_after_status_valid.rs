@@ -54,10 +54,8 @@ impl Rule for RetryAfterStatusValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // `Retry-After` is defined among §10.2's response context fields and its
         // own sentence names the server as the sender, which is why this rule
         // reads the response and never the request. A request carrying the field
@@ -91,7 +89,7 @@ impl Rule for RetryAfterStatusValid {
         // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "Retry-After arrived on status {status}, which neither RFC 9110 nor RFC 6585 pairs with \
                  this field; the two documents pair it with any 3xx redirection, 413 Content Too Large, \

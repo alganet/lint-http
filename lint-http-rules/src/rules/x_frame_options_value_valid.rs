@@ -20,9 +20,8 @@ impl Rule for XFrameOptionsValueValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // It is a response header, so only the response side is inspected. RFC 7034
         // originally defined it; the HTML Standard's §7.7 definition governs now.
         // cite(HTML Speculative Loading § 7.7): "It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document."
@@ -42,7 +41,7 @@ impl Rule for XFrameOptionsValueValid {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple X-Frame-Options header fields present".into(),
             });
         }
@@ -53,7 +52,7 @@ impl Rule for XFrameOptionsValueValid {
             None => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "X-Frame-Options header contains non-ASCII or control characters"
                         .into(),
                 })
@@ -77,7 +76,7 @@ impl Rule for XFrameOptionsValueValid {
         if val.len() >= 10 && val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "X-Frame-Options: ALLOW-FROM is obsolete and not implemented by browsers \
                      (use the Content-Security-Policy frame-ancestors directive instead): '{}'",
@@ -88,7 +87,7 @@ impl Rule for XFrameOptionsValueValid {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!("X-Frame-Options contains unsupported value: '{}'", val),
         })
     }

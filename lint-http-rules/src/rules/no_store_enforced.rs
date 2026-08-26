@@ -45,9 +45,8 @@ impl Rule for NoStoreEnforced {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Build maps of validators to a boolean indicating whether the most
         // recent occurrence of that validator came from a no-store response.
         //
@@ -150,7 +149,7 @@ impl Rule for NoStoreEnforced {
                     if no_store_etags.contains(&normalized) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Conditional request uses ETag '{}' from a no-store response",
                                 member
@@ -181,7 +180,7 @@ impl Rule for NoStoreEnforced {
                 {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Conditional request uses Last-Modified '{}' from a no-store response",
                             candidate

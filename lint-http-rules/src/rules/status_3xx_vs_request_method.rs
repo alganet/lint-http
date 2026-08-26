@@ -60,10 +60,8 @@ impl Rule for Status3xxVsRequestMethod {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Both halves of the question are on the transaction: the status the server
         // chose and the method the client sent. `RuleScope::Server` only means the
         // engine skips a transaction that has no response yet.
@@ -102,7 +100,7 @@ impl Rule for Status3xxVsRequestMethod {
         // cite(RFC 9110 § 9.3.3): "If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field."
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "{status} response to a POST request: for historical reasons a user agent MAY \
                  change the method to GET before following this redirect (RFC 9110 {section}), so \

@@ -20,9 +20,8 @@ impl Rule for RetryAfterDateOrDelay {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Retry-After is a server-sent response field, which is why this rule is Server-scoped.
         // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
         let resp = tx.response.as_ref()?;
@@ -35,7 +34,7 @@ impl Rule for RetryAfterDateOrDelay {
         if resp.headers.get_all("retry-after").iter().count() > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into(),
             });
         }
@@ -48,7 +47,7 @@ impl Rule for RetryAfterDateOrDelay {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Retry-After header contains non-UTF8 value".into(),
                     })
                 }
@@ -72,7 +71,7 @@ impl Rule for RetryAfterDateOrDelay {
 
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
                     s

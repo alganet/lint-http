@@ -114,10 +114,8 @@ impl Rule for PatchMethodContentTypeMatch {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // Compared exactly: a request whose method is `patch` is a request with
         // some other method, and its content has whatever semantics that method
         // gives it. `request_method_token_valid` reports the spelling.
@@ -210,7 +208,7 @@ impl Rule for PatchMethodContentTypeMatch {
         // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "PATCH request sends Content-Type '{}', which no Accept-Patch for this resource has mentioned; the most recent advertisement listed {}. A format the advertisement does not mention is one the server has said it does not accept, and 415 (Unsupported Media Type) is the answer RFC 5789 offers for it{}",
                 sent,

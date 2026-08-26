@@ -20,7 +20,7 @@ impl Rule for Http3PseudoHeadersValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // Only applies to HTTP/3 transactions. The version gate is scoping, not a
         // normative check, so it carries no cite; each requirement below cites the
@@ -31,11 +31,6 @@ impl Rule for Http3PseudoHeadersValid {
             return None;
         }
 
-        // Read after the gate, not before it: one digit comparison ends the rule
-        // for every request that is not HTTP/3, and `parse_rule_config` looks the
-        // rule id up twice (its doc comment costs it).
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // :method is required. (The :scheme half of the same sentence is not
         // checked — the canonical model does not retain scheme for origin-form
         // requests, as the description says.)
@@ -44,7 +39,7 @@ impl Rule for Http3PseudoHeadersValid {
         if method.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "HTTP/3 request missing required ':method' pseudo-header".into(),
             });
         }
@@ -60,7 +55,7 @@ impl Rule for Http3PseudoHeadersValid {
             if uri_trimmed.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "HTTP/3 CONNECT request missing required ':authority' pseudo-header or Host header"
                             .into(),
@@ -75,7 +70,7 @@ impl Rule for Http3PseudoHeadersValid {
                 if !has_host {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "HTTP/3 extended CONNECT request with origin-form target must include Host header as authority"
                             .into(),
                     });
@@ -84,7 +79,7 @@ impl Rule for Http3PseudoHeadersValid {
                 // Authority-form (or absolute-form) CONNECT without any authority.
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "HTTP/3 CONNECT request must include ':authority' pseudo-header or Host header"
                             .into(),
@@ -113,7 +108,7 @@ impl Rule for Http3PseudoHeadersValid {
                     .unwrap_or(authority);
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "HTTP/3 CONNECT ':authority' '{}' carries a userinfo subcomponent and its '@' delimiter: the field is only the host and port to connect to",
                         crate::helpers::headers::shown_in_finding(&shown)
@@ -131,7 +126,7 @@ impl Rule for Http3PseudoHeadersValid {
                 if !method.eq_ignore_ascii_case("OPTIONS") {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message:
                             "Asterisk ('*') request-target is only permitted with OPTIONS method"
                                 .into(),
@@ -144,7 +139,7 @@ impl Rule for Http3PseudoHeadersValid {
                 if !has_path {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "HTTP/3 request missing required ':path' pseudo-header".into(),
                     });
                 }
@@ -160,7 +155,7 @@ impl Rule for Http3PseudoHeadersValid {
             if authority.is_none() && !has_host {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "HTTP/3 request must include ':authority' pseudo-header or Host header"
                             .into(),
@@ -186,7 +181,7 @@ impl Rule for Http3PseudoHeadersValid {
                             .unwrap_or(authority);
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter",
                                 crate::helpers::headers::shown_in_finding(&shown)

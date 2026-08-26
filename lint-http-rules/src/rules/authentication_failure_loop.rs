@@ -22,9 +22,8 @@ impl Rule for AuthenticationFailureLoop {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Only 401 responses matter — the status that means credentials were missing
         // or rejected, i.e. an authentication attempt that did not succeed.
         // cite(RFC 9110 § 15.5.2): "The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource."
@@ -58,7 +57,7 @@ impl Rule for AuthenticationFailureLoop {
         if consecutive_401s >= 3 {
             Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Authentication failure loop detected: client has received {} consecutive 401 Unauthorized challenges for this origin.",
                     consecutive_401s + 1

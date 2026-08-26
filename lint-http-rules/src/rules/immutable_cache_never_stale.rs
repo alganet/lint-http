@@ -44,9 +44,8 @@ impl Rule for ImmutableCacheNeverStale {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // locate the most recent prior response with an immutable
         // directive that isn't simultaneously forbidding caching.
         let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
@@ -109,7 +108,7 @@ impl Rule for ImmutableCacheNeverStale {
         if has_conditional && current_age < freshness_lifetime {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Unnecessary revalidation of immutable response while still fresh (age {} < freshness {})",
                     current_age, freshness_lifetime

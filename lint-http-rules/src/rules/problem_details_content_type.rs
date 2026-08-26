@@ -24,9 +24,8 @@ impl Rule for ProblemDetailsContentType {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // The permission is unconditional and the fit is not, so the gate is the
@@ -98,7 +97,7 @@ impl Rule for ProblemDetailsContentType {
         // cite(RFC 9457 § 1): "This specification's aim is to define common error formats for applications that need one so that they aren't required to define their own or, worse, tempted to redefine the semantics of existing HTTP status codes."
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "Error response carries the generic media type '{}'; problem details (RFC 9457) would describe the error in a machine-readable form, as 'application/problem+json' or 'application/problem+xml'. Advisory: no RFC requires them, and an application that already has an error format of its own should keep using it",
                 ct_str

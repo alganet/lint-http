@@ -131,7 +131,7 @@ impl Rule for RequestTargetFormValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The four forms are a request-line's, and a request-line is what a
         // major version 1 message has. HTTP/2 and HTTP/3 send the same target
@@ -194,9 +194,7 @@ impl Rule for RequestTargetFormValid {
         // cite(RFC 9112 § 3.2): "A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain."
         // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
         if let Some(ws) = target.chars().find(|c| c.is_ascii_whitespace()) {
-            let severity = crate::rules::parse_rule_config(cfg, self.id())
-                .ok()?
-                .severity;
+            let severity = ctx.severity;
             return Some(self.violation(
                 severity,
                 format!(
@@ -212,9 +210,7 @@ impl Rule for RequestTargetFormValid {
         // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
         // cite(RFC 9112 § 3.2): "Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded."
         if target.is_empty() {
-            let severity = crate::rules::parse_rule_config(cfg, self.id())
-                .ok()?
-                .severity;
+            let severity = ctx.severity;
             return Some(self.violation(
                 severity,
                 "Request carries an empty request-target. Every one of the four forms derives at least one character -- an absolute path opens with '/', an absolute-URI has a scheme and its colon, a host and port has the colon between them, and the asterisk is itself -- so the empty string is none of them and the request-line naming it is invalid".into(),
@@ -309,12 +305,7 @@ impl Rule for RequestTargetFormValid {
             ),
         };
 
-        // Read last: every gate above ends the rule on its own and each costs a
-        // scan or two of a short string, where `parse_rule_config` is several map
-        // probes plus a hash over the rule id.
-        let severity = crate::rules::parse_rule_config(cfg, self.id())
-            .ok()?
-            .severity;
+        let severity = ctx.severity;
         Some(self.violation(severity, message))
     }
 

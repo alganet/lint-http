@@ -20,9 +20,8 @@ impl Rule for XXssProtectionValueValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // A response header (a legacy browser feature; no standard ever defined it),
         // so only the response side is inspected. Its absence is fine — CSP is the
         // replacement — which is why count == 0 simply passes.
@@ -41,7 +40,7 @@ impl Rule for XXssProtectionValueValid {
         if count > 1 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "Multiple X-XSS-Protection header fields present".into(),
             });
         }
@@ -52,7 +51,7 @@ impl Rule for XXssProtectionValueValid {
             None => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "X-XSS-Protection header contains non-ASCII or control characters"
                         .into(),
                 })
@@ -81,7 +80,7 @@ impl Rule for XXssProtectionValueValid {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!("X-XSS-Protection contains unsupported value: '{}'", val),
         })
     }

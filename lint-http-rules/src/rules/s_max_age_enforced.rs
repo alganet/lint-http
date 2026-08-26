@@ -38,9 +38,8 @@ impl Rule for SMaxAgeEnforced {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // locate the most recent prior response with both s-maxage and a
         // larger max-age value.  s-maxage by itself is not actionable for this
         // check; we need a "real" private freshness lifetime to compare.
@@ -100,7 +99,7 @@ impl Rule for SMaxAgeEnforced {
         if has_conditional && current_age >= s_max_age && current_age < max_age {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "Resource revalidated after s-maxage={} but before max-age={} (age {}) — private caches must ignore s-maxage and use max-age for freshness",
                     s_max_age, max_age, current_age

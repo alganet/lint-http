@@ -48,11 +48,11 @@ impl AcceptPatchHeaderValid {
     ///
     /// cite(RFC 5789 § 3.1, label: Accept-Patch grammar): "Accept-Patch = "Accept-Patch" ":" 1#media-type"
     /// cite(RFC 5789 § 3.1): "The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7."
-    fn check_value(&self, value: &str, config: &crate::rules::RuleConfig) -> Option<Violation> {
+    fn check_value(&self, value: &str, severity: crate::lint::Severity) -> Option<Violation> {
         let violation = |message: String| {
             Some(Violation {
                 rule: self.id().to_string(),
-                severity: config.severity,
+                severity,
                 message,
             })
         };
@@ -211,7 +211,7 @@ impl Rule for AcceptPatchHeaderValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let resp = tx.response.as_ref()?;
 
@@ -222,16 +222,13 @@ impl Rule for AcceptPatchHeaderValid {
         // name may arrive as a trailer at all is § 6.5.1's question, asked of
         // every name at once by `trailer_fields_valid`.
         //
-        // Each of the reads below is one `HeaderMap` probe, and
-        // `parse_rule_config` is several map probes plus a hash over the rule
-        // id; a response carrying no `Accept-Patch` and answering neither of the
-        // two methods below is the overwhelming majority of traffic, so it pays
-        // for none of them.
+        // Each of the reads below is one `HeaderMap` probe; a response carrying
+        // no `Accept-Patch` and answering neither of the two methods below is
+        // the overwhelming majority of traffic.
         //
         // cite(RFC 5789 § 3.1): "The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI."
         if let Some(value) = combined_field_value_as_written(&resp.headers, "accept-patch") {
-            let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-            return self.check_value(&value, &config);
+            return self.check_value(&value, ctx.severity);
         }
 
         // Compared exactly, both of them: a request whose method is `patch` or
@@ -254,10 +251,9 @@ impl Rule for AcceptPatchHeaderValid {
             // cite(RFC 9110 § 15.5.16): "The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly."
             // cite(RFC 9110 § 15.5.16): "If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used"
             if resp.status == 415 && !resp.headers.contains_key("accept-encoding") {
-                let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into(),
                 });
             }
@@ -299,10 +295,9 @@ impl Rule for AcceptPatchHeaderValid {
             // cite(RFC 5789 § 3): "The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised."
             // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
             if tx.request.uri != "*" && allow_names_patch(&resp.headers) {
-                let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "OPTIONS response ({}) advertises PATCH in Allow and carries no Accept-Patch; RFC 5789 § 3.1 says Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method. § 3 leaves the Allow listing conforming without it and names what is lost: the list of allowed patch documents is not advertised",
                         resp.status

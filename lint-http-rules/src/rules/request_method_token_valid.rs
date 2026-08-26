@@ -108,19 +108,22 @@ impl Rule for RequestMethodTokenValid {
     /// and `registered_methods` was read for the first time **at lint time** —
     /// where the `.ok()?` below turns a missing or malformed array into silence
     /// rather than into the startup error every sibling gives.
-    fn validate(&self, config: &crate::config::Config) -> anyhow::Result<()> {
-        parse_method_token_config(config, self.id())?;
-        // Its fifteen siblings check the two standard keys here, after their own
-        // options, so a config naming a bad option still fails on that option.
-        crate::rules::validate_rule_table(config, self.id())?;
-        Ok(())
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
+        let config = parse_method_token_config(cfg, self.id())?;
+        // The two standard keys, **after** this rule's own options, so a config
+        // naming a bad option still fails on that option.
+        crate::rules::validate_rule_table(cfg, self.id())?;
+        Ok(crate::rules::ResolvedRule {
+            severity: config.severity,
+            state: Box::new(config),
+        })
     }
 
     fn check_transaction(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let m = tx.request.method.as_str();
 
@@ -136,10 +139,8 @@ impl Rule for RequestMethodTokenValid {
         // cite(RFC 9113 § 8.3.1): "The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP])."
         // cite(RFC 9114 § 4.3.1): "":method":  Contains the HTTP method (Section 9 of [HTTP])"
         //
-        // Nothing above the configuration read costs more than two scans of a token a
-        // handful of octets long, and each of the three questions ends the rule on its
-        // own. `parse_rule_config` is several map probes plus a hash over the rule id,
-        // so only a request about to be reported pays it.
+        // Each of the three questions below ends the rule on its own, at a scan or
+        // two of a token a handful of octets long.
         let invalid_char = crate::helpers::token::find_invalid_token_char(m);
         // A string that is not a token has no case to be in yet: the character scan is
         // what decides whether this is a `method` at all, and the convention below is
@@ -151,7 +152,7 @@ impl Rule for RequestMethodTokenValid {
             return None;
         }
 
-        let config = parse_method_token_config(cfg, self.id()).ok()?;
+        let config: &MethodTokenConfig = ctx.state();
 
         // `token` is `1*tchar` -- one character at minimum, transcribed in full at
         // `helpers::token::is_tchar`. A character scan answers `None` for the empty

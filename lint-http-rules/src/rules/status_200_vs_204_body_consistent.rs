@@ -48,9 +48,8 @@ impl Rule for Status200Vs204BodyConsistent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // Both sentences this rule rests on are written for one status code. The
@@ -109,7 +108,7 @@ impl Rule for Status200Vs204BodyConsistent {
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
             match crate::helpers::headers::validate_content_length(&resp.headers) {
                 // Zero octets, said by the sender rather than counted by the capture.
-                Ok(Some(0)) => return Some(self.report(config.severity, "Content-Length: 0")),
+                Ok(Some(0)) => return Some(self.report(ctx.severity, "Content-Length: 0")),
                 // A declared length above zero is content, and the expectation quoted
                 // at the status gate is met.
                 Ok(Some(_)) => return None,
@@ -128,7 +127,7 @@ impl Rule for Status200Vs204BodyConsistent {
             // count is of content, not of framing: chunk sizes and the trailer section
             // are not in it.
             // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
-            Some(0) => Some(self.report(config.severity, "captured length 0")),
+            Some(0) => Some(self.report(ctx.severity, "captured length 0")),
             // Content was counted.
             Some(_) => None,
             // Neither the sender nor the capture says how long the content is (a

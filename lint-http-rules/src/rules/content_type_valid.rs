@@ -24,10 +24,8 @@ impl Rule for ContentTypeValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         let check_message = |which: &str,
                              headers: &hyper::HeaderMap,
                              trailers: Option<&hyper::HeaderMap>|
@@ -66,7 +64,7 @@ impl Rule for ContentTypeValid {
             if vals.len() > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Multiple Content-Type field lines in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
                         which
@@ -83,7 +81,7 @@ impl Rule for ContentTypeValid {
                 // reject it, so the decode decides nothing on its own.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                 let s = crate::helpers::headers::field_line_as_written(hv);
-                if let Some(v) = check_content_type(which, &s, &config) {
+                if let Some(v) = check_content_type(which, &s, ctx.severity) {
                     return Some(v);
                 }
             }
@@ -211,7 +209,7 @@ impl Rule for ContentTypeValid {
 fn check_content_type(
     _which: &str,
     val: &str,
-    config: &crate::rules::RuleConfig,
+    severity: crate::lint::Severity,
 ) -> Option<Violation> {
     use crate::helpers::headers::parse_media_type;
 
@@ -229,7 +227,7 @@ fn check_content_type(
             };
             return Some(Violation {
                 rule: ContentTypeValid.id().into(),
-                severity: config.severity,
+                severity,
                 message,
             });
         }
@@ -245,7 +243,7 @@ fn check_content_type(
     if parsed.type_ == "*" || parsed.subtype == "*" {
         return Some(Violation {
             rule: ContentTypeValid.id().into(),
-            severity: config.severity,
+            severity,
             message: format!(
                 "Content-Type '{}' uses a wildcard, which names a set of media types rather than one; a representation's Content-Type is expected to identify a single media type (wildcards belong to Accept's media-range)",
                 val
@@ -267,7 +265,7 @@ fn check_content_type(
     if let Some(reason) = crate::helpers::headers::media_type_parts_defect(&parsed) {
         return Some(Violation {
             rule: ContentTypeValid.id().into(),
-            severity: config.severity,
+            severity,
             message: format!("Invalid Content-Type '{}': {}", val, reason),
         });
     }
@@ -311,7 +309,7 @@ mod tests {
     #[case("text/plain; charset=\"\"", false)]
     fn content_type_parsing_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let cfg = crate::test_helpers::make_test_rule_config();
-        let res = super::check_content_type("test", val, &cfg);
+        let res = super::check_content_type("test", val, cfg.severity);
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", val);
         } else {
@@ -342,7 +340,7 @@ mod tests {
     #[case("text/plain; foo=\"\"", false)]
     fn extra_content_type_cases(#[case] val: &str, #[case] expect_violation: bool) {
         let cfg = crate::test_helpers::make_test_rule_config();
-        let res = super::check_content_type("test", val, &cfg);
+        let res = super::check_content_type("test", val, cfg.severity);
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", val);
         } else {

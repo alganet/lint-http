@@ -20,16 +20,15 @@ impl Rule for BearerTokenSyntax {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         for hv in tx.request.headers.get_all("authorization").iter() {
             let s = match hv.to_str() {
                 Ok(s) => s,
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Authorization header contains non-UTF8 value".into(),
                     })
                 }
@@ -48,7 +47,7 @@ impl Rule for BearerTokenSyntax {
                 if creds.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Authorization: Bearer missing token".into(),
                     });
                 }
@@ -56,7 +55,7 @@ impl Rule for BearerTokenSyntax {
                 if let Err(msg) = crate::helpers::auth::validate_bearer_token(creds) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Invalid Bearer token: {}", msg),
                     });
                 }

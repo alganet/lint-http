@@ -20,10 +20,8 @@ impl Rule for StatusCodeValidRange {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // A status code is something a *response* has. `RuleScope::Server` above is
         // the engine's dispatch filter and not a sentence; this is the sentence, and
         // it is the definition the range check below used to be hung on.
@@ -104,7 +102,7 @@ impl Rule for StatusCodeValidRange {
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "Response status code {status} is outside the range 100-599; RFC 9110 §15 states that values outside it are invalid, and directs a client that receives one to process the response as if it had a 5xx (Server Error) status code. {detail}"
             ),

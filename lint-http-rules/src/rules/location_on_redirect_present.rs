@@ -97,9 +97,8 @@ impl Rule for LocationOnRedirectPresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         // The status is read first because the status is what gives the field a
@@ -128,7 +127,7 @@ impl Rule for LocationOnRedirectPresent {
         // carried into the message from there.
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "Response with status {status} carries no Location header field, and {reason}. \
                  A user agent has no target to redirect to",

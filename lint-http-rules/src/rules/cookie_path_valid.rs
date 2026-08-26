@@ -20,9 +20,8 @@ impl Rule for CookiePathValid {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let resp = tx.response.as_ref()?;
 
         for hv in resp.headers.get_all("set-cookie").iter() {
@@ -31,7 +30,7 @@ impl Rule for CookiePathValid {
                 Err(_) => {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "Set-Cookie header value is not valid UTF-8".into(),
                     })
                 }
@@ -59,7 +58,7 @@ impl Rule for CookiePathValid {
                         None => {
                             return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: "Set-Cookie attribute 'Path' requires a value".into(),
                             })
                         }
@@ -68,7 +67,7 @@ impl Rule for CookiePathValid {
                     if let Err(e) = crate::helpers::cookie::validate_cookie_path(v) {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!("Set-Cookie attribute 'Path' invalid: {}", e),
                         });
                     }

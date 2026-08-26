@@ -20,9 +20,8 @@ impl Rule for CharsetPresent {
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Response-only, though Content-Type is equally a request field. The concern
         // driving this rule — a recipient guessing the encoding of text it renders —
         // is a response-side one, so a request that omits charset is left alone.
@@ -86,7 +85,7 @@ impl Rule for CharsetPresent {
                     if !has_charset {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "Text-based Content-Type header missing charset parameter."
                                 .into(),
                         });
