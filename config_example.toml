@@ -102,7 +102,7 @@ severity = "info"
 enabled = false
 severity = "warn"
 
-[rules.message_sec_websocket_extensions_syntax]
+[rules.sec_websocket_extensions_syntax]
 enabled = true
 severity = "warn"
 
@@ -232,7 +232,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_strict_transport_security_validity]
+[rules.strict_transport_security_valid]
 enabled = true
 severity = "warn"
 
@@ -328,7 +328,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_user_agent_token_valid]
+[rules.user_agent_token_valid]
 enabled = true
 severity = "warn"
 
@@ -405,11 +405,11 @@ max_timeout_seconds = 3600
 enabled = true
 severity = "warn"
 
-[rules.message_sec_fetch_user_value_valid]
+[rules.sec_fetch_user_value_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_sec_fetch_dest_value_valid]
+[rules.sec_fetch_dest_value_valid]
 enabled = true
 severity = "warn"
 
@@ -463,7 +463,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_server_header_product_valid]
+[rules.server_header_product_valid]
 enabled = true
 severity = "warn"
 
@@ -579,7 +579,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_sunset_and_deprecation_consistency]
+[rules.sunset_and_deprecation_consistent]
 enabled = true
 severity = "warn"
 
@@ -662,7 +662,7 @@ safe_methods = [
 enabled = true
 severity = "warn"
 
-[rules.message_structured_headers_validity]
+[rules.structured_headers_valid]
 enabled = true
 severity = "warn"
 # Fields the HTTP Field Name Registry gives a Structured Type and that no other
@@ -684,7 +684,7 @@ severity = "warn"
 enabled = true
 severity = "info"
 
-[rules.message_well_known_uri_format]
+[rules.well_known_uri_syntax]
 enabled = true
 severity = "warn"
 
@@ -704,7 +704,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_timing_allow_origin_validity]
+[rules.timing_allow_origin_valid]
 enabled = true
 severity = "warn"
 
@@ -712,18 +712,18 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_x_forwarded_consistency]
+[rules.x_forwarded_consistent]
 enabled = true
 severity = "warn"
 
 [rules.cross_origin_opener_policy_valid]
 enabled = true
 severity = "warn"
-[rules.message_sec_fetch_site_value_valid]
+[rules.sec_fetch_site_value_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_sec_fetch_mode_value_valid]
+[rules.sec_fetch_mode_value_valid]
 enabled = true
 severity = "warn"
 
@@ -744,7 +744,7 @@ allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip"
 enabled = true
 severity = "warn"
 
-[rules.message_transfer_coding_iana_registered]
+[rules.transfer_coding_registered]
 enabled = true
 severity = "warn"
 # The registry also holds x-compress and x-gzip (both Deprecated) and identity
@@ -760,15 +760,15 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_te_header_constraints]
+[rules.te_header_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_trailer_fields_validity]
+[rules.trailer_fields_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_trailer_headers_valid]
+[rules.trailer_header_valid]
 enabled = true
 severity = "warn"
 
@@ -780,11 +780,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_warning_header_syntax]
+[rules.warning_header_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_www_authenticate_challenge_syntax]
+[rules.www_authenticate_challenge_syntax]
 enabled = true
 severity = "warn"
 
@@ -957,7 +957,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_singleton_fields_not_repeated]
+[rules.singleton_fields_not_repeated]
 # RFC 9110 §5.3's MUST NOT is unconditional, so the shipped severity is error:
 # a second field line of a singleton is a defect of the message however a
 # recipient recovers from it.
@@ -984,11 +984,11 @@ enabled = false
 severity = "warn"
 allowed = ["host", "user-agent", "accept", "content-type", "acme-request-id"]
 
-[rules.message_transfer_encoding_chunked_final]
+[rules.transfer_encoding_chunked_final]
 enabled = true
 severity = "warn"
 
-[rules.message_via_header_syntax_valid]
+[rules.via_header_syntax]
 enabled = true
 severity = "warn"
 
@@ -996,7 +996,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_upgrade_header_syntax_valid]
+[rules.upgrade_header_syntax]
 enabled = true
 severity = "warn"
 

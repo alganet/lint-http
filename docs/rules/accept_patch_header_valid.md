@@ -23,7 +23,7 @@ Checks the `Accept-Patch` response header field — its grammar wherever it appe
 
 **Not reported: which formats are advertised.** RFC 5789 defines no default patch document format and no registry of them, so no list of media types is the right one. Whether a `PATCH` request's `Content-Type` is among those advertised is `patch_method_content_type_match`'s question; whether a `PATCH` carrying content names its format at all is `patch_partial_update`'s.
 
-Scope: responses only — §3.1 defines `Accept-Patch` as a response header, and an `Accept-Patch` in a request is measured by nothing here. A trailer section is not read: whether a field name may arrive as a trailer at all is §6.5.1's question, asked of every name at once by `message_trailer_fields_validity`. Method comparisons are exact, because the method token is case-sensitive (§9.1).
+Scope: responses only — §3.1 defines `Accept-Patch` as a response header, and an `Accept-Patch` in a request is measured by nothing here. A trailer section is not read: whether a field name may arrive as a trailer at all is §6.5.1's question, asked of every name at once by `trailer_fields_valid`. Method comparisons are exact, because the method token is case-sensitive (§9.1).
 
 ## Specifications
 

@@ -207,7 +207,7 @@ pub trait Rule: Send + Sync {
     /// dispatches every rule through `&'static dyn Rule`.
     ///
     /// An inherent method of this name on a rule would shadow this one silently,
-    /// which is why `message_structured_headers_validity`'s private finding
+    /// which is why `structured_headers_valid`'s private finding
     /// builder is named for its failure rather than for what it returns.
     fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
         Violation {
