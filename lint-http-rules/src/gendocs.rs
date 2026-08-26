@@ -14,7 +14,7 @@
 //! (`docs_match_generated` test) can diff regenerated output against the
 //! checked-in docs.
 
-use crate::rules::{Compliance, Example, ProtocolRule, Rule, SpecRef};
+use crate::rules::{Compliance, Example, ProtocolRule, Rule, RuleScope, SpecRef};
 use std::path::{Path, PathBuf};
 
 /// The workspace root, derived from this crate's manifest dir. `config_example.toml`
@@ -40,17 +40,29 @@ const SPDX_HEADER: &str = "<!--\nSPDX-FileCopyrightText: 2026 Alexandre Gomes Ga
 <alganet@gmail.com>\n\nSPDX-License-Identifier: ISC\n-->\n";
 // REUSE-IgnoreEnd
 
-/// Index sections, in render order, paired with the id prefix that selects a
-/// transaction rule into them. Protocol rules get their own trailing section;
-/// anything matching no prefix falls into "Other Rules".
-const TX_SECTIONS: &[(&str, &str)] = &[
-    ("connection_", "Connection Rules"),
-    ("client_", "Client Rules"),
-    ("server_", "Server Rules"),
-    ("message_", "Message Rules"),
-    ("semantic_", "Semantic Rules"),
-    ("stateful_", "Stateful Rules"),
-];
+/// The transaction-rule sections of the index, in render order. Protocol rules
+/// have no scope and get their own trailing section.
+///
+/// Selection used to be `id().starts_with("client_")` and friends, which made
+/// the id string load-bearing for one generated file and was the last reason the
+/// category prefixes existed. Scope is metadata the rule already declares and
+/// the engine already partitions by, so the index now groups rules the way they
+/// are dispatched. Titles come from [`section_title`], whose match the compiler
+/// checks; that a scope is not merely titled but actually *listed* here is what
+/// `render_index_mentions_every_rule` checks, since omitting one would silently
+/// drop its rules from the index.
+const TX_SECTION_ORDER: &[RuleScope] = &[RuleScope::Client, RuleScope::Server, RuleScope::Both];
+
+/// Heading for a transaction-rule section. Exhaustive over [`RuleScope`], so a
+/// new variant fails to compile until it is given a heading here and a place in
+/// [`TX_SECTION_ORDER`].
+fn section_title(scope: RuleScope) -> &'static str {
+    match scope {
+        RuleScope::Client => "Client Rules",
+        RuleScope::Server => "Server Rules",
+        RuleScope::Both => "Client and Server Rules",
+    }
+}
 
 /// Derive a human-readable title from a snake_case rule id, e.g.
 /// `client_user_agent_present` → `"Client User Agent Present"`. A deterministic
@@ -146,8 +158,8 @@ fn render_examples(out: &mut String, examples: &[Example]) {
 }
 
 /// Render the `docs/rules.md` index: transaction rules grouped into
-/// fixed-order sections by id prefix, then a Protocol Rules section. Rules keep
-/// the catalogue's (id-sorted) order within each section.
+/// fixed-order sections by [`Rule::scope`], then a Protocol Rules section. Rules
+/// keep the catalogue's (id-sorted) order within each section.
 pub fn render_index(rules: &[&dyn Rule], protocol_rules: &[&dyn ProtocolRule]) -> String {
     let mut out = String::new();
     out.push_str(SPDX_HEADER);
@@ -157,32 +169,17 @@ the per-rule documentation under `rules/`. Rules are disabled by default and \
 enabled via configuration.\n",
     );
 
-    let mut covered = vec![false; rules.len()];
-
-    for (prefix, title) in TX_SECTIONS {
+    for scope in TX_SECTION_ORDER {
         let mut section = String::new();
-        for (idx, rule) in rules.iter().enumerate() {
-            if !covered[idx] && rule.id().starts_with(prefix) {
-                covered[idx] = true;
+        for rule in rules.iter() {
+            if rule.scope() == *scope {
                 section.push_str(&index_entry(rule.id(), rule.description()));
             }
         }
         if !section.is_empty() {
-            out.push_str(&format!("\n## {}\n\n", title));
+            out.push_str(&format!("\n## {}\n\n", section_title(*scope)));
             out.push_str(&section);
         }
-    }
-
-    // Transaction rules whose id matched no known prefix.
-    let mut other = String::new();
-    for (idx, rule) in rules.iter().enumerate() {
-        if !covered[idx] {
-            other.push_str(&index_entry(rule.id(), rule.description()));
-        }
-    }
-    if !other.is_empty() {
-        out.push_str("\n## Other Rules\n\n");
-        out.push_str(&other);
     }
 
     if !protocol_rules.is_empty() {
@@ -416,14 +413,21 @@ mod tests {
         assert_eq!(config_block_for("missing", toml), None);
     }
 
+    /// Also the guard on `TX_SECTION_ORDER`: sections are selected by scope, so a
+    /// scope left out of that list would drop its rules from the index entirely,
+    /// and one listed twice would print them twice. Counting the links catches
+    /// both, which a `contains` check on its own would not.
     #[test]
     fn render_index_mentions_every_rule() {
         let index = render_index(&crate::rules::RULES, &crate::rules::PROTOCOL_RULES);
         assert!(index.contains("# Lint Rules"));
         for rule in crate::rules::RULES.iter() {
-            assert!(
-                index.contains(&format!("[{0}](rules/{0}.md)", rule.id())),
-                "index missing {}",
+            assert_eq!(
+                index
+                    .matches(&format!("[{0}](rules/{0}.md)", rule.id()))
+                    .count(),
+                1,
+                "index should link {} exactly once",
                 rule.id()
             );
         }
