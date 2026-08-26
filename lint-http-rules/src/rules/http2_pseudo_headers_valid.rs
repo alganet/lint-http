@@ -515,7 +515,8 @@ mod tests {
 
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<String> {
         let rule = Http2PseudoHeadersValid;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -536,7 +537,8 @@ mod tests {
         rule: &dyn crate::rules::Rule,
         tx: &crate::http_transaction::HttpTransaction,
     ) -> Option<String> {
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -620,13 +622,13 @@ mod tests {
         cfg.rules
             .insert(owner.id().to_string(), toml::Value::Table(table));
         assert!(
-            owner
-                .check_transaction(
-                    &tx,
-                    &crate::transaction_history::TransactionHistory::empty(),
-                    &cfg,
-                )
-                .is_some(),
+            crate::test_helpers::run_rule(
+                &owner,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .is_some(),
             "method {method:?} is reported by nobody"
         );
     }

@@ -372,7 +372,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&pairs);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -394,7 +395,8 @@ mod tests {
                 "application/json",
             )]));
         }
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -425,7 +427,8 @@ mod tests {
         hm.insert("content-type", HeaderValue::from_bytes(raw).unwrap());
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -452,14 +455,14 @@ mod tests {
             ("content-type", "text/plain"),
             ("content-type", "*/plain"),
         ]);
-        let msg = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("must be reported")
-            .message;
+        let msg = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("must be reported")
+        .message;
         assert!(
             msg.contains("Multiple Content-Type field lines in the request"),
             "{msg}"
@@ -477,14 +480,14 @@ mod tests {
         tx.response.as_mut().unwrap().trailers = Some(
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/")]),
         );
-        let msg = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("must be reported")
-            .message;
+        let msg = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("must be reported")
+        .message;
         assert!(msg.contains("empty type or subtype"), "{msg}");
     }
 
@@ -523,7 +526,7 @@ mod tests {
             tx.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&pairs);
             let history = crate::transaction_history::TransactionHistory::empty();
-            let v = rule.check_transaction(&tx, &history, &cfg);
+            let v = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg);
             match ex.compliance {
                 Compliance::Compliant => {
                     assert!(
@@ -537,8 +540,12 @@ mod tests {
                     // published here as good would contradict it. (The
                     // IANA-registry siblings are allowlist-driven and so depend
                     // on the operator's config, not on the example.)
-                    let other = crate::rules::charset_present::CharsetPresent
-                        .check_transaction(&tx, &history, &cfg);
+                    let other = crate::test_helpers::run_rule(
+                        &crate::rules::charset_present::CharsetPresent,
+                        &tx,
+                        &history,
+                        &cfg,
+                    );
                     assert!(
                         other.is_none(),
                         "the charset rule rejects a Compliant example {:?}: {other:?}",
@@ -565,7 +572,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -577,7 +585,8 @@ mod tests {
             200,
             &[("content-type", "text")],
         );
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -594,12 +603,14 @@ mod tests {
             200,
             &[("content-type", "application/json")],
         );
-        let v3 = rule.check_transaction(
+        let v3 = crate::test_helpers::run_rule(
+            &rule,
             &tx3,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        let v4 = rule.check_transaction(
+        let v4 = crate::test_helpers::run_rule(
+            &rule,
             &tx4,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

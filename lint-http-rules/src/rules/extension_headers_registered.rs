@@ -284,7 +284,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&header_pairs);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -311,7 +312,8 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, header_pairs.as_slice());
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -417,7 +419,8 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("x-unknown", "v")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -464,7 +467,8 @@ mod tests {
         let cfg = make_cfg_with_allowed(vec!["x-custom"]);
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("X-CUSTOM", "1")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -480,7 +484,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("x-a", "1"), ("x-b", "2")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -533,13 +538,13 @@ mod tests {
             tx.response.as_mut().unwrap().trailers = Some(trailers);
         }
 
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("a trailer field name the deployment did not list must be reported");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("a trailer field name the deployment did not list must be reported");
         assert!(v.message.contains("checksum"));
         assert!(
             v.message.contains(section),
@@ -561,13 +566,13 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("checksum", "abc123")]),
         );
 
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_none());
         Ok(())
     }
 
@@ -615,7 +620,8 @@ mod tests {
                 tx.request.headers = section;
             }
 
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,

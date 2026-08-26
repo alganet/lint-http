@@ -182,7 +182,8 @@ mod tests {
         let rule = Http3StatusCodeValid;
         let tx = make_h3_transaction_with_response(101, &[("upgrade", "websocket")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -199,7 +200,8 @@ mod tests {
         let rule = Http3StatusCodeValid;
         let tx = make_h3_transaction_with_response(101, &[]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -218,7 +220,8 @@ mod tests {
         let rule = Http3StatusCodeValid;
         let tx = make_h3_transaction_with_response(status, headers);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -256,7 +259,8 @@ mod tests {
         }
 
         assert!(
-            rule.check_transaction(
+            crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -270,13 +274,13 @@ mod tests {
             .find(|r| r.id() == "no_body_for_1xx_204_304")
             .expect("the owning rule is registered");
         assert!(
-            owner
-                .check_transaction(
-                    &tx,
-                    &crate::transaction_history::TransactionHistory::empty(),
-                    &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
-                )
-                .is_some(),
+            crate::test_helpers::run_rule(
+                *owner,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
+            )
+            .is_some(),
             "nothing reported a {status} carrying headers {headers:?} \
              body {body_length:?} trailers {trailer_pairs:?}"
         );
@@ -290,7 +294,8 @@ mod tests {
             resp.body_length = Some(0);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -311,7 +316,8 @@ mod tests {
         let rule = Http3StatusCodeValid;
         let tx = make_h3_transaction_with_response(status, &[]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -329,7 +335,8 @@ mod tests {
             &[("upgrade", "websocket")],
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -348,7 +355,8 @@ mod tests {
         tx.request.version = "HTTP/3.0".into();
         // response.version stays HTTP/1.1
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -364,7 +372,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = "HTTP/3.0".into();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -380,7 +389,8 @@ mod tests {
         let rule = Http3StatusCodeValid;
         let tx = make_h3_transaction_with_response(200, &[("content-length", "42")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -398,7 +408,8 @@ mod tests {
             resp.body_length = Some(100);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -417,7 +428,8 @@ mod tests {
             )]));
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -437,7 +449,8 @@ mod tests {
             resp.body_length = Some(10);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -456,7 +469,8 @@ mod tests {
             resp.body_length = None;
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -473,7 +487,8 @@ mod tests {
             crate::test_helpers::make_test_transaction_with_response(101, &[("upgrade", "h2c")]);
         tx.request.version = "HTTP/2.0".into();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

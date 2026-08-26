@@ -236,13 +236,13 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<String> {
-        ContextFieldsDirection
-            .check_transaction(
-                tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg(),
-            )
-            .map(|v| v.message)
+        crate::test_helpers::run_rule(
+            &ContextFieldsDirection,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+        .map(|v| v.message)
     }
 
     /// Each field in its own direction draws nothing — that is the direction

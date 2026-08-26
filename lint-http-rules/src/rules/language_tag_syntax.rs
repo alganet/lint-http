@@ -271,7 +271,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-language", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -301,7 +302,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-language", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -340,7 +342,8 @@ mod tests {
         tx.request
             .headers
             .insert(name, HeaderValue::from_bytes(raw).unwrap());
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -379,7 +382,8 @@ mod tests {
                 .collect();
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -435,7 +439,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         let pairs: Vec<(&str, &str)> = values.iter().map(|v| (header, *v)).collect();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -472,7 +477,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("accept-language", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -495,7 +501,8 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-language", "en, fr")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -525,7 +532,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = crate::test_helpers::make_headers_from_octet_pairs(&[(field, value)]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

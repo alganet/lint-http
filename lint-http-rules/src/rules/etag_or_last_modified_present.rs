@@ -127,7 +127,8 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -148,7 +149,8 @@ mod tests {
     fn check_missing_response() {
         let rule = EtagOrLastModifiedPresent;
         let tx = crate::test_helpers::make_test_transaction();
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

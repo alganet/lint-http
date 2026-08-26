@@ -230,15 +230,13 @@ mod tests {
         let rule = CookieDomainMatching;
         let tx = make_tx_with_req("https://example.com/", Some("foo=1"));
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_domain_matching"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -249,15 +247,13 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/foo", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_domain_matching"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -272,7 +268,8 @@ mod tests {
         let mut tx = make_tx_with_req("https://other.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
@@ -301,15 +298,13 @@ mod tests {
             prev2.clone(),
             prev1.clone(),
         ]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_domain_matching"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -324,7 +319,8 @@ mod tests {
         let mut tx = make_tx_with_req("https://sub.example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
@@ -350,15 +346,13 @@ mod tests {
         let mut tx = make_tx_with_req("https://sub.example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_domain_matching"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -369,7 +363,8 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/public", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
@@ -383,15 +378,13 @@ mod tests {
         let rule = CookieDomainMatching;
         let tx = make_tx_with_req("https://example.com/", None);
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_domain_matching"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -408,15 +401,13 @@ mod tests {
         let mut tx = make_tx_with_req("https://other.com/", Some("a=2"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_domain_matching"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -428,15 +419,13 @@ mod tests {
         let mut tx = make_tx_with_req("http://example.com/foo", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_domain_matching"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -452,15 +441,13 @@ mod tests {
         let mut tx = make_tx_with_req("http://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_domain_matching"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_domain_matching"]),
+        )
+        .is_none());
     }
 
     #[test]

@@ -456,15 +456,13 @@ mod tests {
                 HeaderValue::from_bytes(value.as_bytes()).expect("a field value"),
             );
         }
-        ForwardedHeaderValid
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "forwarded_header_valid",
-                ]),
-            )
-            .map(|v| v.message)
+        crate::test_helpers::run_rule(
+            &ForwardedHeaderValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["forwarded_header_valid"]),
+        )
+        .map(|v| v.message)
     }
 
     /// One field line, which is what all but a couple of the cases below need.
@@ -719,13 +717,13 @@ mod tests {
             HeaderValue::from_bytes(b"foo=\"\xdcnix\"").expect("a field value"),
         );
         let rule = ForwardedHeaderValid;
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .is_none());
 
         // The same octet outside a quoted-string is a finding, and about the
         // thing that is actually wrong with it.
@@ -734,14 +732,14 @@ mod tests {
             "forwarded",
             HeaderValue::from_bytes(b"for=\xff").expect("a field value"),
         );
-        let message = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .expect("a finding")
-            .message;
+        let message = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding")
+        .message;
         assert!(message.contains("neither a token"), "{message}");
     }
 
@@ -762,14 +760,14 @@ mod tests {
             200,
             &[("forwarded", "for=192.0.2.1")],
         );
-        let message = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .expect("a finding")
-            .message;
+        let message = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .expect("a finding")
+        .message;
         assert!(
             message.contains("only for use in HTTP requests"),
             "{message}"
@@ -781,26 +779,26 @@ mod tests {
         tx.response.as_mut().expect("a response").trailers = Some(
             crate::test_helpers::make_headers_from_pairs(&[("forwarded", "for=192.0.2.1")]),
         );
-        let message = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .expect("a finding")
-            .message;
+        let message = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .expect("a finding")
+        .message;
         assert!(message.contains("its trailer section"), "{message}");
 
         // A response with no `Forwarded` of its own is not a finding, whatever
         // the request carried.
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .is_none());
     }
 
     #[test]
@@ -850,14 +848,14 @@ mod tests {
             HeaderValue::from_bytes(b"foo=a\xa0b").expect("a field value"),
         );
         let rule = ForwardedHeaderValid;
-        let message = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .expect("a finding")
-            .message;
+        let message = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding")
+        .message;
         assert!(message.contains("neither a token"), "{message}");
     }
 

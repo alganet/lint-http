@@ -645,7 +645,8 @@ mod tests {
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -668,7 +669,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -683,7 +685,8 @@ mod tests {
         let tx = make_req_want_digest("sha-256=, , sha-512");
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -699,7 +702,8 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("want-digest", "SHA-256")]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -720,7 +724,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -752,7 +757,8 @@ mod tests {
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -773,7 +779,8 @@ mod tests {
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -791,7 +798,8 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction();
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -810,7 +818,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -836,7 +845,8 @@ mod tests {
         });
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -853,7 +863,8 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("digest", "SHA@1=YWJj")]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -869,7 +880,8 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("digest", "SHA-256=YWJj")]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -888,7 +900,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -905,7 +918,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -922,7 +936,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -942,7 +957,8 @@ mod tests {
         )]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -962,7 +978,8 @@ mod tests {
         )]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -979,7 +996,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -996,7 +1014,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1013,7 +1032,8 @@ mod tests {
             .append("want-content-digest", "sha-256=20".parse().unwrap());
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1031,7 +1051,8 @@ mod tests {
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
         // Add a simple check that presence of header yields a violation via our rule: we will add handling next
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1048,7 +1069,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1065,7 +1087,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1083,7 +1106,8 @@ mod tests {
         )]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1100,7 +1124,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1117,7 +1142,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1136,7 +1162,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1169,7 +1196,8 @@ mod tests {
         });
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1186,7 +1214,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1205,7 +1234,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1232,7 +1262,8 @@ mod tests {
         });
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1259,7 +1290,8 @@ mod tests {
         });
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1277,7 +1309,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1297,7 +1330,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1332,7 +1366,8 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1366,13 +1401,13 @@ mod tests {
         let tx = make_req_digest(value);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("legacy Digest is always reported as obsolete");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("legacy Digest is always reported as obsolete");
         assert!(
             v.message.contains("obsoleted by RFC 9530"),
             "expected the obsolescence report, not a syntax error: {}",
@@ -1389,13 +1424,13 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .unwrap_or_else(|| panic!("expected violation for '{}: {}'", header, value));
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .unwrap_or_else(|| panic!("expected violation for '{}: {}'", header, value));
         assert!(v.message.contains("structured-field key"));
     }
 
@@ -1411,7 +1446,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1438,7 +1474,8 @@ mod tests {
         });
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1465,7 +1502,8 @@ mod tests {
         });
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1483,7 +1521,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1507,7 +1546,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1530,7 +1570,8 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1561,7 +1602,8 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("content-md5", "dGVzdA==")]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1580,7 +1622,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1601,7 +1644,8 @@ mod tests {
 
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1625,7 +1669,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1647,7 +1692,8 @@ mod tests {
         )]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1668,7 +1714,8 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1697,7 +1744,8 @@ mod tests {
         tx.request.headers = hm;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1713,7 +1761,8 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("digest", "SHA-256=YWJj,")]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1732,7 +1781,8 @@ mod tests {
         )]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1758,7 +1808,8 @@ mod tests {
         req.request.headers = hm_req;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let vreq = rule.check_transaction(
+        let vreq = crate::test_helpers::run_rule(
+            &rule,
             &req,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1784,7 +1835,8 @@ mod tests {
             body_length: None,
             trailers: None,
         });
-        let vresp = rule.check_transaction(
+        let vresp = crate::test_helpers::run_rule(
+            &rule,
             &resp_tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1801,7 +1853,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1820,7 +1873,8 @@ mod tests {
             200,
             &[("want-content-digest", "sha-512 = 2")],
         );
-        let v_ok = rule.check_transaction(
+        let v_ok = crate::test_helpers::run_rule(
+            &rule,
             &tx_ok,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1832,7 +1886,8 @@ mod tests {
             200,
             &[("want-content-digest", "sha-512=3, sha-256")],
         );
-        let v_bad = rule.check_transaction(
+        let v_bad = crate::test_helpers::run_rule(
+            &rule,
             &tx_bad,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1851,7 +1906,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1870,7 +1926,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1884,7 +1941,8 @@ mod tests {
         let tx = make_req_want_digest("sha@1");
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1903,7 +1961,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1923,7 +1982,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1942,7 +2002,8 @@ mod tests {
         );
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1958,7 +2019,8 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("digest", "SHA-256=YWJj,")]);
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

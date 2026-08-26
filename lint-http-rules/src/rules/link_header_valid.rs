@@ -1056,13 +1056,13 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<String> {
-        LinkHeaderValid
-            .check_transaction(
-                tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg(),
-            )
-            .map(|v| v.message)
+        crate::test_helpers::run_rule(
+            &LinkHeaderValid,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+        .map(|v| v.message)
     }
 
     fn judge_response(status: u16, value: &[u8]) -> Option<String> {

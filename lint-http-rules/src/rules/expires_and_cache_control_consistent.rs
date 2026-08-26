@@ -286,7 +286,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -327,7 +328,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -346,7 +348,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -373,7 +376,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -399,7 +403,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -423,7 +428,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -451,7 +457,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -495,7 +502,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -521,7 +529,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -597,7 +606,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -620,7 +630,8 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "expires_and_cache_control_consistent",
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

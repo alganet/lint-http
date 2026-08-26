@@ -288,7 +288,8 @@ mod tests {
             "location_header_uri_valid",
             "warn",
         );
-        LocationHeaderUriValid.check_transaction(
+        crate::test_helpers::run_rule(
+            &LocationHeaderUriValid,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,

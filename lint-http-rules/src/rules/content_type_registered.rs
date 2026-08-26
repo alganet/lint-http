@@ -279,7 +279,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -310,7 +311,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -330,7 +332,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -360,7 +363,8 @@ mod tests {
             "content-type",
             "application/vnd.unknown",
         )]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -398,26 +402,26 @@ mod tests {
         let mut tx1 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx1.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "application/json")]);
-        assert!(rule
-            .check_transaction(
-                &tx1,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx1,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_none());
 
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx2.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[(
             "content-type",
             "application/ld+json",
         )]);
-        assert!(rule
-            .check_transaction(
-                &tx2,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_none());
     }
 
     #[test]
@@ -429,7 +433,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/x-custom")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -542,7 +547,8 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -557,7 +563,8 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx2.request.headers = hm2;
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
