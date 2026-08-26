@@ -270,7 +270,8 @@ mod tests {
     fn no_history_no_violation() {
         let rule = ImmutableCacheNeverStale;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -286,7 +287,8 @@ mod tests {
         let prev = make_prev_with_headers(&[("cache-control", "max-age=60")], Utc::now());
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -309,7 +311,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -338,15 +341,15 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         tx.timestamp = base + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "immutable_cache_never_stale"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "immutable_cache_never_stale"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -361,15 +364,15 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         tx.timestamp = base + chrono::Duration::seconds(5);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "immutable_cache_never_stale"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "immutable_cache_never_stale"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -380,15 +383,15 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "immutable_cache_never_stale"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "immutable_cache_never_stale"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -407,7 +410,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.timestamp = base + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -437,7 +441,8 @@ mod tests {
         tx.timestamp = base - chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         // age_val=5, elapsed clamped to 0 -> current_age=5 < freshness(50) => violation
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -460,14 +465,14 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         // freshness lifetime zero, so no violation should be reported
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "immutable_cache_never_stale"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "immutable_cache_never_stale"
+            ]),
+        )
+        .is_none());
     }
 }

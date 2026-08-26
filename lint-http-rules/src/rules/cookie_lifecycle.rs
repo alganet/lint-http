@@ -321,13 +321,13 @@ mod tests {
         let rule = CookieLifecycle;
         let tx = make_tx_with_req("https://example.com/", Some("foo=1"));
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -339,13 +339,13 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/", Some("b=2"));
         tx.timestamp = ts + chrono::Duration::seconds(1);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -356,7 +356,8 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
@@ -372,13 +373,13 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(30);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -389,7 +390,8 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(5);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
@@ -414,7 +416,8 @@ mod tests {
             prev2.clone(),
             prev1.clone(),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
@@ -431,7 +434,8 @@ mod tests {
         let mut tx = make_tx_with_req("http://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
@@ -465,7 +469,8 @@ mod tests {
             prev_nonsecure.clone(),
             prev_secure.clone(),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
@@ -484,7 +489,8 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/public", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
@@ -502,7 +508,8 @@ mod tests {
         let mut tx = make_tx_with_req("https://example.com/foobar", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
@@ -524,7 +531,8 @@ mod tests {
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(
-            rule.check_transaction(
+            crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),
@@ -546,7 +554,8 @@ mod tests {
         let mut tx = make_tx_with_req("https://other.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_lifecycle"]),

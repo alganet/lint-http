@@ -552,7 +552,8 @@ mod tests {
         history: &crate::transaction_history::TransactionHistory,
     ) -> Option<Violation> {
         let rule = ExpectHeaderValid;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

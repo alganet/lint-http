@@ -271,15 +271,15 @@ mod tests {
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -296,15 +296,15 @@ mod tests {
                 Some("a=1; SameSite=Strict"),
                 Some(Utc::now()),
             )]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -321,15 +321,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("none"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -346,15 +346,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("invalid"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -372,15 +372,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -398,15 +398,15 @@ mod tests {
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
         // even though cross-site, the secure cookie should not match because of scheme
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -424,15 +424,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_some());
     }
 
     #[test]
@@ -453,15 +453,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-mode", HeaderValue::from_static("cors"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_some());
     }
 
     #[test]
@@ -482,15 +482,15 @@ mod tests {
             .headers
             .append("sec-fetch-mode", HeaderValue::from_static("navigate"));
         tx.request.method = "GET".parse().unwrap();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -511,15 +511,15 @@ mod tests {
             .headers
             .append("sec-fetch-mode", HeaderValue::from_static("navigate"));
         tx.request.method = "HEAD".parse().unwrap();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -536,15 +536,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -564,15 +564,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-mode", HeaderValue::from_static("cors"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_some());
     }
 
     #[test]
@@ -580,15 +580,15 @@ mod tests {
         let rule = CookieSameSiteEnforced;
         let tx = make_tx_with_req("https://example.com/", Some("a=1"));
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -612,15 +612,15 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("same-site"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -637,14 +637,14 @@ mod tests {
         tx.request
             .headers
             .append("sec-fetch-site", HeaderValue::from_static("cross-site"));
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "cookie_same_site_enforced"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_same_site_enforced"
+            ]),
+        )
+        .is_none());
     }
 }

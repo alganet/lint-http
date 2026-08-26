@@ -679,7 +679,8 @@ mod tests {
     }
 
     fn check(tx: &crate::http_transaction::HttpTransaction, max: i64) -> Option<Violation> {
-        KeepAliveHeaderValid.check_transaction(
+        crate::test_helpers::run_rule(
+            &KeepAliveHeaderValid,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_max(max),
@@ -922,13 +923,13 @@ mod tests {
     /// in it cannot read as a clean run of the grammar checks.
     #[test]
     fn an_unreadable_config_reports_nothing_at_all() {
-        assert!(KeepAliveHeaderValid
-            .check_transaction(
-                &response_with(Some("timeout=bad")),
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg_with_optional_max(None),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &KeepAliveHeaderValid,
+            &response_with(Some("timeout=bad")),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg_with_optional_max(None),
+        )
+        .is_none());
     }
 
     #[test]

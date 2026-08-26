@@ -165,7 +165,8 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = DeprecationHeaderSyntax;
         let tx = crate::test_helpers::make_test_transaction_with_response(status, hdrs);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -199,7 +200,8 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -224,7 +226,8 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -242,7 +245,8 @@ mod tests {
             200,
             &[("deprecation", "   @1688169599   ")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -258,7 +262,8 @@ mod tests {
             200,
             &[("deprecation", "@abc")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -275,7 +280,8 @@ mod tests {
         let rule = DeprecationHeaderSyntax;
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("deprecation", "@")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -291,7 +297,8 @@ mod tests {
             200,
             &[("deprecation", "@-1")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -307,7 +314,8 @@ mod tests {
             200,
             &[("deprecation", "TRUE")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -322,7 +330,8 @@ mod tests {
     fn no_response_no_violation() {
         let rule = DeprecationHeaderSyntax;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

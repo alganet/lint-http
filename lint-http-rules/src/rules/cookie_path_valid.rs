@@ -156,7 +156,8 @@ mod tests {
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(200, &[("set-cookie", value)]);
         let rule = CookiePathValid;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -242,7 +243,8 @@ mod tests {
         });
 
         let rule = CookiePathValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -271,7 +273,8 @@ mod tests {
         });
 
         let rule = CookiePathValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -319,7 +322,8 @@ mod tests {
     fn check_missing_response() {
         let tx = crate::test_helpers::make_test_transaction();
         let rule = CookiePathValid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

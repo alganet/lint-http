@@ -269,7 +269,8 @@ mod tests {
     fn judge(headers: &[(&str, &str)]) -> Option<String> {
         let rule = HostHeader;
         let tx = crate::test_helpers::make_test_transaction_with_headers(headers);
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -374,7 +375,8 @@ mod tests {
             ("host", "example.com"),
             ("host", "other.example.com"),
         ]);
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -406,7 +408,8 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -437,7 +440,8 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -483,7 +487,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_headers(&[]);
         tx.request.version = version.into();
         tx.request.uri = uri.into();
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

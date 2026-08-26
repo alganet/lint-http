@@ -505,7 +505,8 @@ mod tests {
         // ensure URIs match
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag", "content-type", "content-length"]),
@@ -520,7 +521,8 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag"]),
@@ -536,7 +538,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("x-foo", "bar")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["x-foo"]),
@@ -555,7 +558,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("content-length", "5")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["content-length"]),
@@ -571,7 +575,8 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["content-length"]),
@@ -586,7 +591,8 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["vary"]),
@@ -604,7 +610,8 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = get.request.uri.clone();
 
-        let v = HeadResponseHeadersMatchGet.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &HeadResponseHeadersMatchGet,
             &head,
             // newest first
             &crate::transaction_history::TransactionHistory::from_transactions(vec![
@@ -620,7 +627,8 @@ mod tests {
     fn no_previous_does_nothing() {
         let rule = HeadResponseHeadersMatchGet;
         let head = make_head_with_headers(&[("etag", "\"v1\"")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg_with_headers(vec!["etag"]),
@@ -636,7 +644,8 @@ mod tests {
         // different URIs
         head.request.uri = "/other".parse().unwrap();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag"]),
@@ -652,7 +661,8 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag"]),
@@ -677,7 +687,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag"]),
@@ -774,7 +785,8 @@ mod tests {
     ) -> Option<Violation> {
         let mut head = head.clone();
         head.request.uri = prev.request.uri.clone();
-        HeadResponseHeadersMatchGet.check_transaction(
+        crate::test_helpers::run_rule(
+            &HeadResponseHeadersMatchGet,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(headers),
@@ -951,7 +963,8 @@ mod tests {
         head.request.uri = prev.request.uri.clone();
 
         // 'x-foo' is not in the configured headers list -> should be ignored
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag"]),
@@ -966,7 +979,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("transfer-encoding", "chunked")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["transfer-encoding"]),
@@ -981,7 +995,8 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["transfer-encoding"]),
@@ -996,7 +1011,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("content-length", "5")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["content-length"]),
@@ -1011,7 +1027,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("vary", "accept, accept-encoding")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["vary"]),
@@ -1026,7 +1043,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("vary", "a, c")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["vary"]),
@@ -1050,7 +1068,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("vary", "a, b")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["vary"]),
@@ -1071,7 +1090,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("etag", "\"v1\"")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag"]),
@@ -1086,7 +1106,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("etag", "\"v1\""), ("content-type", "text/html")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag", "content-type"]),
@@ -1102,7 +1123,8 @@ mod tests {
         let mut head = make_head_with_headers(&[("accept-encoding", "deflate, gzip")]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["accept-encoding"]),
@@ -1179,7 +1201,8 @@ mod tests {
         head.response = None;
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag"]),
@@ -1195,7 +1218,8 @@ mod tests {
         head.request.uri = prev.request.uri.clone();
 
         // validate_content_length on prev will error -> rule must be lenient
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["content-length"]),
@@ -1210,7 +1234,8 @@ mod tests {
         let mut head = make_head_with_headers(&[]);
         head.request.uri = prev.request.uri.clone();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &head,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &make_cfg_with_headers(vec!["etag"]),
