@@ -226,7 +226,7 @@ impl Rule for MessageContentLocationAndUriConsistency {
                 // different host but the same path passes silently, while a
                 // network-path reference naming *this* host is reported. The
                 // reconstruction and the sentences licensing it live in the
-                // helper: `stateful_redirect_chain_validity` needed the same
+                // helper: `redirect_chain_valid` needed the same
                 // three lines, and a second copy of them is a second place for
                 // the answer to drift.
                 let req_authority =

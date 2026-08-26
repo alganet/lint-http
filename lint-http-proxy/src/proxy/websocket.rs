@@ -615,7 +615,7 @@ mod tests {
     /// The MASK bit reaches the event only from the raw frame path, and an
     /// assembled message records `None` rather than `false`.
     ///
-    /// The distinction is the whole of `stateful_websocket_frame_masking`'s
+    /// The distinction is the whole of `websocket_frame_masking`'s
     /// decline: `false` is RFC 6455 § 5.1's finding against a client, and an
     /// assembled `Text` has no header to have read it from.
     #[test]
@@ -687,7 +687,7 @@ mod tests {
     /// The one line that turns a `101` into the fact a frame rule reads.
     ///
     /// The absent case is the load-bearing one: it says *the server accepted
-    /// nothing*, which is what licenses `stateful_websocket_frame_rsv_bits` to
+    /// nothing*, which is what licenses `websocket_frame_rsv_bits` to
     /// report a reserved bit at all. The `obs-text` case is the mirror — a
     /// field that is there and unreadable must not become "accepted nothing",
     /// or an unreadable handshake would start licensing findings.
@@ -1461,7 +1461,7 @@ mod tests {
     /// header parser before any of the rest of the header is used. Two ranges,
     /// and everything the document defines still parses.
     ///
-    /// `stateful_websocket_frame_opcode_sequence` reports reserved opcodes, and
+    /// `websocket_frame_opcode_sequence` reports reserved opcodes, and
     /// this is why its `description()` says those findings arrive through
     /// `lint` over a capture file some other tool wrote rather than off this
     /// proxy's own relay. When this test fails, that paragraph is what has gone

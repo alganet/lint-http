@@ -460,7 +460,7 @@ pub fn inm_matches_known(inm: &str, known: &str) -> bool {
 /// `If-Range` or range revalidation), use
 /// [`extract_strong_validators_from_response`] instead.
 ///
-/// See [`stateful_cache_validation_chain`] for an example consumer.
+/// See [`cache_validation_chain`] for an example consumer.
 pub fn extract_validators_from_response(headers: &HeaderMap) -> (Option<String>, Option<String>) {
     let etag = headers
         .get("etag")
@@ -482,7 +482,7 @@ pub fn extract_validators_from_response(headers: &HeaderMap) -> (Option<String>,
 /// This is the original implementation of [`extract_validators_from_response`];
 /// it filters out weak ETags (`W/` prefix) because they are not suitable for
 /// certain cache validation scenarios.  Rules that do not accept weak ETags
-/// (for example, `stateful_range_request_and_caching`) should call this
+/// (for example, `range_request_and_caching`) should call this
 /// helper instead of `extract_validators_from_response`.
 pub fn extract_strong_validators_from_response(
     headers: &HeaderMap,
@@ -1954,7 +1954,7 @@ pub fn validate_ext_value(val: &str) -> Result<(), String> {
 /// so there the `*` is the **whole field value** and never a member of the list.
 /// Accepting it here put it in both places at once, and every caller answered
 /// that the same way: three of the five excluded `*` on the line before calling
-/// (`message_etag_syntax` with a finding of its own, `stateful_range_request_and_caching`
+/// (`message_etag_syntax` with a finding of its own, `range_request_and_caching`
 /// with a `return`), and the two that did not were the two the `*` was
 /// ostensibly for — where it made `If-None-Match: "abc", *` a conforming list.
 /// **A tolerance that every honest caller has to undo is not a tolerance.**

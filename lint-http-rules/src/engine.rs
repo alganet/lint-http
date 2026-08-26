@@ -336,7 +336,7 @@ mod tests {
     fn lint_transaction_exercises_by_origin_query() {
         // Enable a ByOrigin rule to exercise the lazy ByOrigin init path
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&["stateful_authentication_failure_loop"]);
+        let cfg = make_test_config_with_enabled_rules(&["authentication_failure_loop"]);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -359,7 +359,7 @@ mod tests {
     fn lint_transaction_exercises_by_resource_all_query() {
         // Enable a ByResourceAll rule to exercise the lazy ByResourceAll init path
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&["stateful_private_cache_visibility"]);
+        let cfg = make_test_config_with_enabled_rules(&["private_cache_visibility"]);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -382,7 +382,7 @@ mod tests {
     fn lint_transaction_by_origin_with_no_origin() {
         // Enable a ByOrigin rule with a relative URI to exercise the None path
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&["stateful_authentication_failure_loop"]);
+        let cfg = make_test_config_with_enabled_rules(&["authentication_failure_loop"]);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),

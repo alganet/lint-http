@@ -20,7 +20,7 @@ Reports a `426 (Upgrade Required)` response that carries no `Upgrade` header fie
 
 **Not reported: the order.** §7.8 asks for the protocols *in order of descending preference*, which is what a sender meant by the order it wrote — no field records a preference for the order to disagree with. Nor is any name checked against the Upgrade Token Registry: §16.7's policy is First Come First Served and §7.8's *ought to be registered* is not a requirement.
 
-**What the neighbours own.** Whether the value derives from `protocol = protocol-name ["/" protocol-version]` is `message_upgrade_header_syntax_valid`'s. Whether the field is named by an `upgrade` connection option — which §7.8 asks of every sender of `Upgrade`, including this one — is `message_connection_upgrade`'s. The mirror requirement on a `101` response, and the rule that the chosen protocol was one the client offered, is `stateful_101_switching_protocols`'s.
+**What the neighbours own.** Whether the value derives from `protocol = protocol-name ["/" protocol-version]` is `message_upgrade_header_syntax_valid`'s. Whether the field is named by an `upgrade` connection option — which §7.8 asks of every sender of `Upgrade`, including this one — is `message_connection_upgrade`'s. The mirror requirement on a `101` response, and the rule that the chosen protocol was one the client offered, is `status_101_switching_protocols`'s.
 
 Scope: this rule reads a response's header section, and its subject is *the server* — whatever answered, which for a capture taken at a proxy is the party that wrote this response. Where the field appears on several lines they are one value (§5.2), and the value is read as written rather than through a UTF-8 decode, so a field carrying `obs-text` counts as a field that is there.
 

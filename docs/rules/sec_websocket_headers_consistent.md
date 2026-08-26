@@ -18,7 +18,7 @@ Measures a WebSocket opening handshake — a `GET` whose `Upgrade` field names `
 
 Only HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshake is an extended CONNECT carrying a `:protocol` pseudo-header field (RFC 8441, RFC 9220), the `Connection` and `Upgrade` fields this rule reads are forbidden outright, and `Sec-WebSocket-Key` is not processed — so demanding them there would be advice a sender must not follow.
 
-`Host` is asked for by the same list and reported by `host_header`; the server's half of the handshake is `stateful_websocket_handshake_validity`'s. RFC 6455 § 4.1 also requires an `Origin` field from a browser client, and nothing in a capture says whether a client is one — § 4.2.1 says as much, telling a server not to read a missing `Origin` as evidence either way — so no rule here reports its absence.
+`Host` is asked for by the same list and reported by `host_header`; the server's half of the handshake is `websocket_handshake_valid`'s. RFC 6455 § 4.1 also requires an `Origin` field from a browser client, and nothing in a capture says whether a client is one — § 4.2.1 says as much, telling a server not to read a missing `Origin` as evidence either way — so no rule here reports its absence.
 
 ## Specifications
 

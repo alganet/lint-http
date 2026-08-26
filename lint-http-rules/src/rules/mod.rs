@@ -509,29 +509,26 @@ pub static RULES: LazyLock<Vec<&'static dyn Rule>> = LazyLock::new(|| {
 pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
     // ── ByOrigin: history spans an entire origin (all resources) ──
     (
-        &stateful_authentication_failure_loop::StatefulAuthenticationFailureLoop,
+        &authentication_failure_loop::AuthenticationFailureLoop,
         QueryType::ByOrigin,
     ),
     (
-        &stateful_digest_auth_nonce_handling::StatefulDigestAuthNonceHandling,
+        &digest_auth_nonce_handling::DigestAuthNonceHandling,
         QueryType::ByOrigin,
     ),
+    (&cookie_lifecycle::CookieLifecycle, QueryType::ByOrigin),
     (
-        &stateful_cookie_lifecycle::StatefulCookieLifecycle,
-        QueryType::ByOrigin,
-    ),
-    (
-        &stateful_cookie_same_site_enforcement::StatefulCookieSameSiteEnforcement,
+        &cookie_same_site_enforced::CookieSameSiteEnforced,
         QueryType::ByOrigin,
     ),
     // ── ByResourceAll: history for a resource across all clients ──
     (
-        &stateful_private_cache_visibility::StatefulPrivateCacheVisibility,
+        &private_cache_visibility::PrivateCacheVisibility,
         QueryType::ByResourceAll,
     ),
     // ── ByConnection: history for a single TCP connection ──
     (
-        &stateful_101_switching_protocols::Stateful101SwitchingProtocols,
+        &status_101_switching_protocols::Status101SwitchingProtocols,
         QueryType::ByConnection,
     ),
     // ── ByResource: per-client history for one resource (the common case) ──
@@ -557,55 +554,46 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
         QueryType::ByResource,
     ),
     (
-        &stateful_cookie_domain_matching::StatefulCookieDomainMatching,
+        &cookie_domain_matching::CookieDomainMatching,
         QueryType::ByResource,
     ),
-    // `stateful_103_early_hints_before_final` was here. Its requirement relates
+    // `status_103_early_hints_before_final` was here. Its requirement relates
     // two responses to one request, which a history entry — a different request
     // — cannot supply, so it reads no history and would have paid for one built
     // for nothing.
     (
-        &stateful_cache_validation_chain::StatefulCacheValidationChain,
+        &cache_validation_chain::CacheValidationChain,
         QueryType::ByResource,
     ),
     (
-        &stateful_conditional_request_handling::StatefulConditionalRequestHandling,
+        &conditional_request_handling::ConditionalRequestHandling,
         QueryType::ByResource,
     ),
     (
-        &stateful_immutable_cache_never_stale::StatefulImmutableCacheNeverStale,
+        &immutable_cache_never_stale::ImmutableCacheNeverStale,
         QueryType::ByResource,
     ),
     (
-        &stateful_max_age_directive_validity::StatefulMaxAgeDirectiveValidity,
+        &max_age_directive_valid::MaxAgeDirectiveValid,
         QueryType::ByResource,
     ),
     (
-        &stateful_must_revalidate_enforcement::StatefulMustRevalidateEnforcement,
+        &must_revalidate_enforced::MustRevalidateEnforced,
         QueryType::ByResource,
     ),
     (
-        &stateful_no_cache_revalidation::StatefulNoCacheRevalidation,
+        &no_cache_revalidation::NoCacheRevalidation,
         QueryType::ByResource,
     ),
+    (&no_store_enforced::NoStoreEnforced, QueryType::ByResource),
+    (&oauth2_code_flow::Oauth2CodeFlow, QueryType::ByResource),
     (
-        &stateful_no_store_enforcement::StatefulNoStoreEnforcement,
+        &range_request_and_caching::RangeRequestAndCaching,
         QueryType::ByResource,
     ),
+    (&s_max_age_enforced::SMaxAgeEnforced, QueryType::ByResource),
     (
-        &stateful_oauth2_code_flow::StatefulOauth2CodeFlow,
-        QueryType::ByResource,
-    ),
-    (
-        &stateful_range_request_and_caching::StatefulRangeRequestAndCaching,
-        QueryType::ByResource,
-    ),
-    (
-        &stateful_s_max_age_enforcement::StatefulSMaxAgeEnforcement,
-        QueryType::ByResource,
-    ),
-    (
-        &stateful_vary_header_cache_validity::StatefulVaryHeaderCacheValidity,
+        &vary_header_cache_valid::VaryHeaderCacheValid,
         QueryType::ByResource,
     ),
 ];
@@ -1036,13 +1024,14 @@ severity = "warn"
         }
     }
 
-    // Note: there is intentionally no "every `stateful_`-prefixed rule must be
-    // registered" test. The prefix is not a reliable signal for whether a rule
-    // reads history — `stateful_websocket_handshake_validity` is prefixed but
-    // ignores history, while several `client_*` / `semantic_*` rules read it.
-    // The real guard is per-rule: a history consumer omitted from
-    // STATEFUL_RULES is dispatched with an empty history and fails its own
-    // history-exercising tests loudly.
+    // Note: there is intentionally no test deriving this table's membership from
+    // the catalogue. It used to be phrased against a `stateful_` id prefix, which
+    // never answered the question anyway — `websocket_handshake_valid` carried
+    // the prefix and read no history, while rules that carried `client_` and
+    // `semantic_` did — and now there is no prefix left to phrase it against.
+    // Nothing about an id says whether a rule reads history. The real guard is
+    // per-rule: a history consumer omitted from STATEFUL_RULES is dispatched with
+    // an empty history and fails its own history-exercising tests loudly.
 
     #[test]
     fn config_example_includes_all_rules() -> anyhow::Result<()> {

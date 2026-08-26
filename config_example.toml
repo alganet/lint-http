@@ -159,43 +159,43 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.stateful_101_switching_protocols]
+[rules.status_101_switching_protocols]
 enabled = true
 severity = "warn"
 
-[rules.stateful_redirect_chain_validity]
+[rules.redirect_chain_valid]
 enabled = true
 severity = "warn"
 
-[rules.stateful_cache_validation_chain]
+[rules.cache_validation_chain]
 enabled = true
 severity = "warn"
 
-[rules.stateful_websocket_handshake_validity]
+[rules.websocket_handshake_valid]
 enabled = true
 severity = "warn"
 
-[rules.stateful_websocket_frame_opcode_sequence]
+[rules.websocket_frame_opcode_sequence]
 enabled = true
 severity = "warn"
 
-[rules.stateful_websocket_frame_rsv_bits]
+[rules.websocket_frame_rsv_bits]
 enabled = true
 severity = "warn"
 
-[rules.stateful_websocket_frame_masking]
+[rules.websocket_frame_masking]
 enabled = true
 severity = "warn"
 
-[rules.stateful_http3_goaway_semantics]
+[rules.http3_goaway_semantics]
 enabled = true
 severity = "warn"
 
-[rules.stateful_http3_max_push_id]
+[rules.http3_max_push_id]
 enabled = true
 severity = "warn"
 
-[rules.stateful_http3_settings_frame]
+[rules.http3_settings_frame]
 enabled = true
 severity = "warn"
 
@@ -203,7 +203,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.stateful_103_early_hints_before_final]
+[rules.status_103_early_hints_before_final]
 enabled = true
 severity = "warn"
 
@@ -841,55 +841,55 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.stateful_conditional_request_handling]
+[rules.conditional_request_handling]
 enabled = true
 severity = "warn"
 
-[rules.stateful_cookie_lifecycle]
+[rules.cookie_lifecycle]
 enabled = true
 severity = "warn"
 
-[rules.stateful_cookie_same_site_enforcement]
+[rules.cookie_same_site_enforced]
 enabled = true
 severity = "warn"
 
-[rules.stateful_cookie_domain_matching]
+[rules.cookie_domain_matching]
 enabled = true
 severity = "warn"
 
-[rules.stateful_oauth2_code_flow]
+[rules.oauth2_code_flow]
 enabled = true
 severity = "warn"
 
-[rules.stateful_authentication_failure_loop]
+[rules.authentication_failure_loop]
 enabled = true
 severity = "warn"
 
-[rules.stateful_digest_auth_nonce_handling]
+[rules.digest_auth_nonce_handling]
 enabled = true
 severity = "warn"
 
-[rules.stateful_range_request_and_caching]
+[rules.range_request_and_caching]
 enabled = true
 severity = "warn"
 
-[rules.stateful_max_age_directive_validity]
+[rules.max_age_directive_valid]
 enabled = true
 severity = "warn"
 
-[rules.stateful_must_revalidate_enforcement]
+[rules.must_revalidate_enforced]
 enabled = true
 severity = "warn"
 
-[rules.stateful_immutable_cache_never_stale]
+[rules.immutable_cache_never_stale]
 enabled = true
 severity = "warn"
 
-[rules.stateful_no_store_enforcement]
+[rules.no_store_enforced]
 enabled = true
 severity = "warn"
 
-[rules.stateful_private_cache_visibility]
+[rules.private_cache_visibility]
 enabled = true
 severity = "warn"
 
@@ -897,15 +897,15 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.stateful_no_cache_revalidation]
+[rules.no_cache_revalidation]
 enabled = true
 severity = "warn"
 
-[rules.stateful_s_max_age_enforcement]
+[rules.s_max_age_enforced]
 enabled = true
 severity = "warn"
 
-[rules.stateful_vary_header_cache_validity]
+[rules.vary_header_cache_valid]
 enabled = true
 severity = "warn"
 
