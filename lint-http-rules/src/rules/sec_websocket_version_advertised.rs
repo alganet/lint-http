@@ -248,7 +248,8 @@ mod tests {
         }
         tx.response.as_mut().expect("response").headers = hm;
 
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -353,13 +354,13 @@ mod tests {
         ]);
         tx.response.as_mut().expect("response").headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-websocket-version", "013")]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .is_none());
     }
 
     /// Every published snippet, run as the exchange it prints.

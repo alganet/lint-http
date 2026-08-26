@@ -209,7 +209,8 @@ mod tests {
         let config =
             crate::test_helpers::make_test_config_with_severity("status_code_valid_range", "error");
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -241,7 +242,8 @@ mod tests {
         tx.request.version = version.into();
         tx.response.as_mut().expect("response").version = version.into();
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -261,13 +263,13 @@ mod tests {
     fn the_message_names_the_case(#[case] status: u16, #[case] expected: &str) {
         let rule = StatusCodeValidRange;
         let tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .expect("expected violation");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("expected violation");
 
         assert!(v.message.contains(&status.to_string()), "{}", v.message);
         assert!(
@@ -324,7 +326,8 @@ mod tests {
                 });
 
             let tx = crate::test_helpers::make_test_transaction_with_response(status, &[]);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -344,7 +347,8 @@ mod tests {
         let config =
             crate::test_helpers::make_test_config_with_severity("status_code_valid_range", "error");
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,

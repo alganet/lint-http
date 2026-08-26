@@ -288,13 +288,13 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<String> {
-        SingletonFieldsNotRepeated
-            .check_transaction(
-                tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg(),
-            )
-            .map(|v| v.message)
+        crate::test_helpers::run_rule(
+            &SingletonFieldsNotRepeated,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+        .map(|v| v.message)
     }
 
     fn response_with_lines(pairs: &[(&str, &str)]) -> crate::http_transaction::HttpTransaction {

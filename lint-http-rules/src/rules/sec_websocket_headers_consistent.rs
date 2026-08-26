@@ -337,7 +337,8 @@ mod tests {
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = SecWebsocketHeadersConsistent;
         let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

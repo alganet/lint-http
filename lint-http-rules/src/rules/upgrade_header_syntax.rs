@@ -346,7 +346,8 @@ mod tests {
             Section::Request => tx.request.headers = hm,
             Section::Response => tx.response.as_mut().expect("response").headers = hm,
         }
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -503,7 +504,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = version.into();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("upgrade", "/1.1")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -555,7 +557,8 @@ mod tests {
 
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -565,7 +568,8 @@ mod tests {
                 Compliance::NonCompliant => assert!(v.is_some(), "{}", ex.snippet),
             }
 
-            let v = neighbour.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &neighbour,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &neighbour_cfg,

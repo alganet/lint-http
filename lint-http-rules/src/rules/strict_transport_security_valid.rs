@@ -322,13 +322,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        let got = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some();
+        let got = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some();
         assert_eq!(got, expect_violation, "value: {}", val);
         Ok(())
     }
@@ -355,13 +355,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -372,13 +372,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -389,13 +389,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -406,13 +406,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -423,13 +423,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -440,13 +440,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_none());
     }
 
     #[test]
@@ -457,13 +457,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -474,13 +474,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -491,13 +491,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -508,13 +508,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]
@@ -525,13 +525,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_none());
     }
 
     #[test]
@@ -542,13 +542,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_none());
     }
 
     #[test]
@@ -571,13 +571,13 @@ mod tests {
             "strict_transport_security_valid",
             "warn",
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     #[test]

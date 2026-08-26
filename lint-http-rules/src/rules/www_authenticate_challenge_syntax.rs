@@ -148,7 +148,8 @@ mod tests {
             "www_authenticate_challenge_syntax",
         ]);
         let tx = make_resp(val);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -175,7 +176,8 @@ mod tests {
         );
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -193,7 +195,8 @@ mod tests {
             401,
             &[("www-authenticate", "error=\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -215,7 +218,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"x\", ")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -239,7 +243,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"a\", NewScheme abcdef=")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -264,7 +269,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic re@alm=\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -283,7 +289,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=abc@")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -317,7 +324,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic =\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -336,7 +344,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"unfinished")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -358,7 +367,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic a=\"good\"extra")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -380,7 +390,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"x\", , error=\"y\"")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -407,7 +418,8 @@ mod tests {
             401,
             &[("www-authenticate", " realm=\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -429,7 +441,8 @@ mod tests {
             401,
             &[("www-authenticate", ",")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -455,7 +468,8 @@ mod tests {
             hyper::header::HeaderValue::from_static("NewScheme abc="),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -480,7 +494,8 @@ mod tests {
             hyper::header::HeaderValue::from_static("Basic realm=\"x\""),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -498,7 +513,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -520,7 +536,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=\"a\\\"b\"")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -538,7 +555,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic realm=token123")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -556,7 +574,8 @@ mod tests {
             401,
             &[("www-authenticate", "NewScheme abc+/.=-_123")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -575,7 +594,8 @@ mod tests {
             401,
             &[("www-authenticate", "New abc/def=\"x\"")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -595,7 +615,8 @@ mod tests {
             401,
             &[("www-authenticate", "New abc/def=xyz")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -613,7 +634,8 @@ mod tests {
             401,
             &[("www-authenticate", "NonCommon abc=")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -631,7 +653,8 @@ mod tests {
             401,
             &[("www-authenticate", "Basic abc=")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -652,7 +675,8 @@ mod tests {
             401,
             &[("www-authenticate", "NewScheme realm")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -671,7 +695,8 @@ mod tests {
             401,
             &[("www-authenticate", "New abc/def=\"x\", realm=\"y\"")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

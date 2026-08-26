@@ -184,7 +184,8 @@ mod tests {
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("user-agent", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -207,25 +208,25 @@ mod tests {
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "A@gen/1.0")]);
-        assert!(rule
-            .check_transaction(
-                &tx1,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx1,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
 
         // invalid character in version
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent/1@0")]);
-        assert!(rule
-            .check_transaction(
-                &tx2,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx2,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
 
         Ok(())
     }
@@ -241,13 +242,13 @@ mod tests {
         hm.append("user-agent", HeaderValue::from_static("Bad@UA/1.0"));
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = hm;
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
 
         Ok(())
     }
@@ -266,7 +267,8 @@ mod tests {
         hm.insert("user-agent", HeaderValue::from_bytes(b"\xff").unwrap());
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -297,7 +299,8 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -322,7 +325,8 @@ mod tests {
             tx.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&[("user-agent", value)]);
 
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -344,7 +348,8 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent  /1.0")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -371,7 +376,8 @@ mod tests {
         let mut tx1 = crate::test_helpers::make_test_transaction();
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "A@gen/1.0")]);
-        let v1 = rule.check_transaction(
+        let v1 = crate::test_helpers::run_rule(
+            &rule,
             &tx1,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -384,7 +390,8 @@ mod tests {
         let mut tx2 = crate::test_helpers::make_test_transaction();
         tx2.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent/1@0")]);
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -408,7 +415,8 @@ mod tests {
             "(compatible; something)",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -436,7 +444,8 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent (unclosed")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -466,7 +475,8 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("user-agent", "Agent\\(1.0\\)")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -520,7 +530,8 @@ mod tests {
 
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,

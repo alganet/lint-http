@@ -176,7 +176,8 @@ mod tests {
     ) {
         let rule = VaryAndCacheConsistent;
         let tx = make_tx(vary, cc);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -216,7 +217,8 @@ mod tests {
                 "cache-control",
                 "max-age=3600".parse().expect("a directive"),
             );
-            VaryAndCacheConsistent.check_transaction(
+            crate::test_helpers::run_rule(
+                &VaryAndCacheConsistent,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -250,7 +252,8 @@ mod tests {
             .unwrap()
             .headers
             .insert("cache-control", bad);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -286,7 +289,8 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -300,7 +304,8 @@ mod tests {
 
         // Public (mixed case) should be detected
         let tx = make_tx(Some("*"), Some("Public"));
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -309,7 +314,8 @@ mod tests {
 
         // MAX-AGE uppercase
         let tx2 = make_tx(Some("*"), Some("MAX-AGE=60"));
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -337,7 +343,8 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -350,7 +357,8 @@ mod tests {
         // Vary: * with a non-cacheability extension should not be flagged
         let rule = VaryAndCacheConsistent;
         let tx = make_tx(Some("*"), Some("foo=bar"));
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

@@ -252,7 +252,8 @@ mod tests {
         trailers: &[&str],
     ) -> Option<Violation> {
         let tx = transaction(version, status, lines, trailers);
-        RULE.check_transaction(
+        crate::test_helpers::run_rule(
+            &RULE,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[RULE.id()]),
@@ -396,13 +397,13 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(426, &[]);
         tx.request.version = "HTTP/3.0".into();
         tx.response.as_mut().expect("response").version = "HTTP/1.1".into();
-        let v = RULE
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[RULE.id()]),
-            )
-            .expect("the MUST is unmet");
+        let v = crate::test_helpers::run_rule(
+            &RULE,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[RULE.id()]),
+        )
+        .expect("the MUST is unmet");
         assert!(
             v.message.contains("no Upgrade header field"),
             "{}",
@@ -413,7 +414,8 @@ mod tests {
     #[test]
     fn a_transaction_with_no_response_is_not_measured() {
         let tx = crate::test_helpers::make_test_transaction();
-        let v = RULE.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &RULE,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[RULE.id()]),
@@ -476,7 +478,8 @@ mod tests {
 
             let tx = transaction(version, status, &borrowed, &[]);
             for (neighbour, id) in neighbours {
-                let v = neighbour.check_transaction(
+                let v = crate::test_helpers::run_rule(
+                    neighbour,
                     &tx,
                     &crate::transaction_history::TransactionHistory::empty(),
                     &crate::test_helpers::make_test_config_with_severity(id, "warn"),

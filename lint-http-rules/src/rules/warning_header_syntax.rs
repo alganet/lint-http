@@ -565,15 +565,13 @@ mod tests {
     fn judged_response(value: &str) -> Option<String> {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("Warning", value)]);
-        WarningHeaderSyntax
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "warning_header_syntax",
-                ]),
-            )
-            .map(|v| v.message)
+        crate::test_helpers::run_rule(
+            &WarningHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax"]),
+        )
+        .map(|v| v.message)
     }
 
     #[rstest]
@@ -774,15 +772,13 @@ mod tests {
                 ),
             ],
         );
-        assert!(WarningHeaderSyntax
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "warning_header_syntax",
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &WarningHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax",]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -797,16 +793,13 @@ mod tests {
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax"]);
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(WarningHeaderSyntax
-            .check_transaction(&tx, &history, &cfg)
-            .is_none());
+        assert!(crate::test_helpers::run_rule(&WarningHeaderSyntax, &tx, &history, &cfg).is_none());
 
         tx.request.headers.insert(
             "Warning",
             "110-\"bad\"".parse::<hyper::header::HeaderValue>().unwrap(),
         );
-        let message = WarningHeaderSyntax
-            .check_transaction(&tx, &history, &cfg)
+        let message = crate::test_helpers::run_rule(&WarningHeaderSyntax, &tx, &history, &cfg)
             .expect("a malformed request Warning is a finding")
             .message;
         assert!(
@@ -818,15 +811,13 @@ mod tests {
     #[test]
     fn a_message_with_no_warning_is_not_read() {
         let tx = crate::test_helpers::make_test_transaction();
-        assert!(WarningHeaderSyntax
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "warning_header_syntax",
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &WarningHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["warning_header_syntax",]),
+        )
+        .is_none());
     }
 
     /// The quoted-string checks in this rule answer a question no input can

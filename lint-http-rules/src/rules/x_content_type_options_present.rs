@@ -245,7 +245,8 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -392,7 +393,8 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -420,7 +422,8 @@ mod tests {
             "x_content_type_options_present".to_string(),
             toml::Value::Table(table),
         );
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,

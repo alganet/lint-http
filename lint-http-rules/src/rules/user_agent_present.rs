@@ -135,7 +135,8 @@ mod tests {
     ) -> anyhow::Result<()> {
         let rule = UserAgentPresent;
         let tx = crate::test_helpers::make_test_transaction_with_headers(&header_pairs);
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -172,18 +173,19 @@ mod tests {
 
         let presence = UserAgentPresent;
         assert!(
-            presence
-                .check_transaction(
-                    &tx,
-                    &history,
-                    &crate::test_helpers::make_test_config_with_enabled_rules(&[presence.id()]),
-                )
-                .is_none(),
+            crate::test_helpers::run_rule(
+                &presence,
+                &tx,
+                &history,
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[presence.id()]),
+            )
+            .is_none(),
             "an empty field line is present, not missing"
         );
 
         let grammar = UserAgentTokenValid;
-        let found = grammar.check_transaction(
+        let found = crate::test_helpers::run_rule(
+            &grammar,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[grammar.id()]),
@@ -228,7 +230,8 @@ mod tests {
         for ex in rule.examples() {
             let pairs = published_fields(ex.snippet);
             let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -268,7 +271,8 @@ mod tests {
             }
             let pairs = published_fields(ex.snippet);
             let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
-            let found = grammar.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &grammar,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
