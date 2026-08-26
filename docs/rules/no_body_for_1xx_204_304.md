@@ -13,7 +13,7 @@ A `1xx (Informational)`, `204 (No Content)` or `304 (Not Modified)` response *"i
 **Four findings, and they are not the same kind.** Two read what actually arrived, and are the violation itself: content octets in the response body, and a trailer section. Two read a header field, and are a violation of that field's own prohibition rather than evidence of a body — because no field can make one of these responses carry one.
 
 - **Content.** Any captured content octet is reported, for all three statuses. The count is of content in §6.4's sense, so chunk sizes and the trailer section are not in it. Of the two other rules that read the captured length for these statuses, one reaches its check only when a valid `Content-Length` is present and has handed these statuses over, and the other checked `1xx` alone and only when both request and response were HTTP/3; so a `204` answering with a chunked body and no declared length is seen here and was seen nowhere before.
-- **Trailers.** A trailer section is reported for all three statuses, whether or not it carries any fields: what the sentences forbid is the section. Which fields a trailer section may hold, when one is allowed, is `message_trailer_fields_validity`.
+- **Trailers.** A trailer section is reported for all three statuses, whether or not it carries any fields: what the sentences forbid is the section. Which fields a trailer section may hold, when one is allowed, is `trailer_fields_valid`.
 - **`Content-Length`.** Reported on `1xx` and `204` only, at **any value including `0`** — §8.6's prohibition is on the field, not on a number. No value is parsed; `content_length_valid` owns the field's syntax.
 - **`Transfer-Encoding`.** Reported on `1xx` and `204` only, by RFC 9112 §6.1's matching MUST NOT.
 

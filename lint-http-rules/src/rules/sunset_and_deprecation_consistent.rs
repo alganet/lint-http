@@ -1,0 +1,476 @@
+// SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+//
+// SPDX-License-Identifier: ISC
+
+use crate::lint::Violation;
+use crate::rules::Rule;
+use chrono::TimeZone;
+
+pub struct SunsetAndDeprecationConsistent;
+
+impl Rule for SunsetAndDeprecationConsistent {
+    fn id(&self) -> &'static str {
+        "sunset_and_deprecation_consistent"
+    }
+
+    fn scope(&self) -> crate::rules::RuleScope {
+        // This rule inspects response headers only
+        crate::rules::RuleScope::Server
+    }
+
+    fn check_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        cfg: &crate::config::Config,
+    ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // only applies to responses
+        let resp = tx.response.as_ref()?;
+
+        // Get Sunset header if present and parseable. Recipient parse (all three
+        // HTTP-date formats, helper-owned), so a failure is "not any HTTP-date" —
+        // not "IMF-fixdate"; RFC 8594 itself calls the value an HTTP-date.
+        // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
+        let sunset_opt = match crate::helpers::headers::get_header_str(&resp.headers, "sunset") {
+            Some(s) => match crate::http_date::parse_http_date_to_datetime(s) {
+                Ok(dt) => Some((s.to_string(), dt)),
+                Err(_) => {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
+                    });
+                }
+            },
+            None => None,
+        };
+
+        // Get Deprecation header (structured '@<seconds>' form) if present and parseable
+        // We intentionally only consider the structured '@' form here; legacy forms are
+        // validated by `deprecation_header_syntax` and we avoid duplicate errors.
+        let deprecation_opt = match resp.headers.get_all("deprecation").iter().next() {
+            Some(hv) => match hv.to_str() {
+                Ok(s_raw) => {
+                    let s = s_raw.trim();
+                    // Deprecation is a Structured Field Date (`@` + integer epoch
+                    // seconds); this recognises exactly that form and defers the
+                    // legacy/invalid forms to `deprecation_header_syntax`.
+                    // (The previous cites here were mis-anchored — a Sunset
+                    // *definition* and an Abstract blurb, neither governing this parse.)
+                    // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
+                    // cite(RFC 9651 § 3.3.7): "their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@"."
+                    // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970
+                    // instant — is treated as non-structured and deferred; recorded
+                    // in the audit ledger. Such a Deprecation date is pathological.)
+                    if s.starts_with('@')
+                        && s.len() > 1
+                        && s[1..].chars().all(|c| c.is_ascii_digit())
+                    {
+                        // parse seconds since epoch
+                        match s[1..].parse::<i64>() {
+                            Ok(secs) => {
+                                // Build a UTC DateTime safely from epoch seconds.
+                                chrono::Utc
+                                    .timestamp_opt(secs, 0)
+                                    .single()
+                                    .map(|dt| (s.to_string(), dt)) // treat out-of-range as non-parseable
+                            }
+                            Err(_) => None,
+                        }
+                    } else {
+                        // Not structured '@' form -> ignore here (other rule flags legacy forms)
+                        None
+                    }
+                }
+                Err(_) => {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Deprecation header contains non-UTF8 value".into(),
+                    })
+                }
+            },
+            None => None,
+        };
+
+        // If both parseable values present, enforce the ordering RFC 9745 §4
+        // requires (Sunset not before Deprecation). The 60s skew is a linter
+        // tolerance — no spec licenses it; against a strict MUST NOT it only makes
+        // the rule more lenient (recorded in the audit ledger, not cited).
+        // cite(RFC 9745 § 4): "The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field."
+        if let (Some((dep_raw, dep_dt)), Some((sun_raw, sun_dt))) = (deprecation_opt, sunset_opt) {
+            let allowed_skew = chrono::Duration::seconds(60);
+            if dep_dt > sun_dt + allowed_skew {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
+                        dep_raw, sun_raw
+                    ),
+                });
+            }
+        }
+
+        None
+    }
+
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Sunset and Deprecation Consistency")
+    }
+
+    fn description(&self) -> &'static str {
+        "When both `Sunset` and `Deprecation` response headers are present they must be logically consistent: `Deprecation` (a Structured Field Date, `@<seconds>`, RFC 9745 §2.1) marks when a resource was or will be deprecated, and `Sunset` (an HTTP-date, RFC 8594 §3) marks the removal date. RFC 9745 §4 requires that the Sunset timestamp not be earlier than the Deprecation timestamp; this rule flags the reverse (subject to a small clock-skew tolerance). It also validates the `Sunset` syntax: a `Sunset` header that is not a parseable HTTP-date is reported even when `Deprecation` is absent. Legacy/non-structured `Deprecation` forms are left to `deprecation_header_syntax`."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 8594",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
+                note: "`Sunset` header semantics (HTTP-date)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9745",
+                section: Some("2.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
+                note: "`Deprecation` is a Structured Field Date (`@<seconds>`)",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9745",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-4",
+                note: "Sunset MUST NOT be earlier than Deprecation",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9651",
+                section: Some("3.3.7"),
+                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7",
+                note: "Structured Field `Date` item syntax",
+            },
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2025 07:28:00 GMT\nDeprecation: @1730000000\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2025 07:28:00 GMT\nDeprecation: @4102444800   # year 2100\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
+            },
+        ]
+    }
+}
+
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &SunsetAndDeprecationConsistent;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    #[rstest]
+    fn consistent_deprecation_and_sunset_ok() {
+        // Deprecation @0 (1970) obviously <= far-future Sunset
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "@0"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        if let Some(v) = &v {
+            eprintln!(
+                "unexpected violation: rule={} message={}",
+                v.rule, v.message
+            );
+        }
+        assert!(v.is_none());
+    }
+
+    #[rstest]
+    fn deprecation_after_sunset_reports_violation() {
+        // Deprecation @4102444800 (2100-01-01) is after Sunset 2030 -> violation
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "@4102444800"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("Deprecation") && msg.contains("Sunset"));
+    }
+
+    #[rstest]
+    fn legacy_deprecation_ignored_by_this_rule() {
+        // Deprecation legacy 'true' is handled by deprecation_header_syntax; this rule should not duplicate it
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "true"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+    }
+
+    #[rstest]
+    fn missing_sunset_or_deprecation_no_violation() {
+        let tx1 = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("sunset", "Tue, 01 Jan 2030 00:00:00 GMT")],
+        );
+        let tx2 =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("deprecation", "@0")]);
+        let rule = SunsetAndDeprecationConsistent;
+        assert!(rule
+            .check_transaction(
+                &tx1,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none());
+        assert!(rule
+            .check_transaction(
+                &tx2,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none());
+    }
+
+    #[rstest]
+    fn non_utf8_deprecation_reports_violation() {
+        use hyper::header::HeaderValue;
+        use hyper::HeaderMap;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = HeaderMap::new();
+        hm.insert(
+            "sunset",
+            HeaderValue::from_static("Tue, 01 Jan 2030 00:00:00 GMT"),
+        );
+        hm.insert("deprecation", HeaderValue::from_bytes(&[0xff]).unwrap());
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+            body_length: None,
+            trailers: None,
+        });
+
+        let rule = SunsetAndDeprecationConsistent;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("non-UTF8"));
+    }
+
+    #[test]
+    fn parseable_but_non_structured_deprecation_ignored() {
+        // Deprecation as HTTP-date is parsed as legacy by deprecation_header_syntax;
+        // this rule only checks structured '@' values, so it should not error here.
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "Tue, 01 Jan 2025 00:00:00 GMT"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn sunset_invalid_reports_violation() {
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("sunset", "not-a-date"), ("deprecation", "@0")],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("Sunset header is not a valid HTTP-date"));
+    }
+
+    #[test]
+    fn deprecation_equal_to_sunset_ok() {
+        // Sunset: Tue, 01 Jan 2030 00:00:00 GMT -> epoch 1893456000
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "@1893456000"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none());
+    }
+
+    #[test]
+    fn deprecation_within_allowed_skew_ok() {
+        // Sunset epoch 1893456000; dep = sunset + 30s -> allowed
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "@1893456030"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none());
+    }
+
+    #[test]
+    fn deprecation_just_over_allowed_skew_reports_violation() {
+        // dep = sunset + 61s -> violation
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "@1893456061"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn structured_deprecation_nondigits_ignored_here() {
+        // deprecation_header_syntax flags '@abc' as invalid; this rule ignores non-structured forms
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "@abc"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none());
+    }
+
+    #[test]
+    fn structured_deprecation_overflow_ignored_here() {
+        // extremely large numeric value that doesn't parse into i64 should be ignored by this rule
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("sunset", "Tue, 01 Jan 2030 00:00:00 GMT"),
+                ("deprecation", "@999999999999999999999999"),
+            ],
+        );
+        let rule = SunsetAndDeprecationConsistent;
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none());
+    }
+
+    #[test]
+    fn non_utf8_sunset_ignored_and_no_panic() {
+        use hyper::header::HeaderValue;
+        use hyper::HeaderMap;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = HeaderMap::new();
+        hm.insert("sunset", HeaderValue::from_bytes(&[0xff]).unwrap());
+        hm.insert("deprecation", HeaderValue::from_static("@0"));
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+            body_length: None,
+            trailers: None,
+        });
+
+        let rule = SunsetAndDeprecationConsistent;
+        assert!(rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none());
+    }
+    #[test]
+    fn validate_rules_with_valid_config() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        crate::test_helpers::enable_rule(&mut cfg, "sunset_and_deprecation_consistent");
+        crate::rules::validate_rules(&cfg)?;
+        Ok(())
+    }
+
+    #[test]
+    fn scope_is_server() {
+        let rule = SunsetAndDeprecationConsistent;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
+}

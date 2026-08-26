@@ -901,7 +901,7 @@ mod concat_header_tests {
 /// a definition permits the usage, and reporting all of them would report the senders
 /// that read their own specification. What the table can hold honestly is the fields
 /// whose definitions are in the specifications this crate cites and do *not* permit
-/// trailers; `message_trailer_fields_validity` says so where an operator reads it.
+/// trailers; `trailer_fields_valid` says so where an operator reads it.
 ///
 /// The categories below are the ones §6.5.1 names, in its order. The last group is
 /// here because a connection-specific field is, by definition, needed before the

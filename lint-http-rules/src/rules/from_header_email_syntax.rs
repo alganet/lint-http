@@ -46,7 +46,7 @@ impl Rule for FromHeaderEmailSyntax {
         //
         // The header section only. Whether *any* field may appear in a trailer
         // section is § 6.5.1's deny-by-default question and
-        // `message_trailer_fields_validity`'s finding, and an address identifying
+        // `trailer_fields_valid`'s finding, and an address identifying
         // the user who sent a request cannot arrive after the request's content.
         //
         // cite(RFC 9110 § 10.1.2): "The "From" header field contains an Internet email address for a human user who controls the requesting user agent."

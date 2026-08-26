@@ -16,7 +16,7 @@ Reports a message context field arriving in the direction it is not defined for:
 
 **`TE` is also a connection-specific field**, so over HTTP/2 and HTTP/3 `no_connection_specific_fields` reports its presence in either direction under a different and stronger sentence (RFC 9113 §8.2.2). The two findings answer different questions — that one is about hop-by-hop fields surviving into a multiplexed protocol, this one is about a field defined for the other direction — and only this one exists over HTTP/1.1.
 
-**Only header sections are read.** A context field in a *trailer* section is a different fault with its own sentences, and `message_trailer_fields_validity` owns them.
+**Only header sections are read.** A context field in a *trailer* section is a different fault with its own sentences, and `trailer_fields_valid` owns them.
 
 **Fields defined for both directions are not here.** `Content-Location` is defined in both (§8.7 gives the request side its own meaning), and the general representation fields travel with content in either direction, so nothing about them is a placement fault.
 

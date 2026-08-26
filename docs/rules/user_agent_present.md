@@ -12,7 +12,7 @@ Report a request that carries no `User-Agent` header field. RFC 9110 §10.1.5 ma
 
 The requirement ends in an exception: *unless specifically configured not to do so*. That condition is a property of the client's configuration, and a request that omits the field on purpose is indistinguishable from one that omits it by oversight, so both are reported. A deployment that suppresses the field deliberately — §17.13 describes what a `User-Agent` can contribute to identifying a specific device — is conforming, and should turn this rule off rather than read the finding as a defect.
 
-Only the header section is examined. A `User-Agent` field line that is present but empty is not reported here: it is a field that fails the field's own grammar, and `message_user_agent_token_valid` owns and reports that.
+Only the header section is examined. A `User-Agent` field line that is present but empty is not reported here: it is a field that fails the field's own grammar, and `user_agent_token_valid` owns and reports that.
 
 ## Specifications
 

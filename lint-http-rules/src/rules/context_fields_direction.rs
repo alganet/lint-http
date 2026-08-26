@@ -143,7 +143,7 @@ impl Rule for ContextFieldsDirection {
          over HTTP/1.1.\
          \n\n\
          **Only header sections are read.** A context field in a *trailer* section is a \
-         different fault with its own sentences, and `message_trailer_fields_validity` owns \
+         different fault with its own sentences, and `trailer_fields_valid` owns \
          them.\
          \n\n\
          **Fields defined for both directions are not here.** `Content-Location` is defined in \

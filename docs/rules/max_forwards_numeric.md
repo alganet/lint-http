@@ -20,7 +20,7 @@ The value is never parsed into an integer. `1*DIGIT` puts no bound on its length
 
 **Scope: this rule reads the field's syntax and nothing else.** §7.6.2's requirements on the *value* are addressed to the intermediary forwarding the message — it MUST check and update the value before forwarding, MUST NOT forward at all when it receives zero (it responds as the final recipient instead), and §9.3.7 says a proxy MUST NOT generate the field while forwarding a request that arrived without it. A captured transaction records the request as it was received on one leg; the message that was forwarded upstream is not in it, so nothing here can tell whether the value was decremented, honoured at zero, or written by the sender at all. Those are gaps in what any rule can measure, not checks this rule leaves out.
 
-The field on a method other than `TRACE` or `OPTIONS` is not reported. §7.6.2 says a recipient MAY ignore it there — a permission granted to the recipient, not a prohibition on the sender — so such a request has a syntactically valid field that limits nothing. Whether the field may appear in a *trailer* section is §6.5.1's question and `message_trailer_fields_validity`'s finding.
+The field on a method other than `TRACE` or `OPTIONS` is not reported. §7.6.2 says a recipient MAY ignore it there — a permission granted to the recipient, not a prohibition on the sender — so such a request has a syntactically valid field that limits nothing. Whether the field may appear in a *trailer* section is §6.5.1's question and `trailer_fields_valid`'s finding.
 
 ## Specifications
 

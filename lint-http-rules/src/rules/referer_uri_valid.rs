@@ -77,7 +77,7 @@ impl Rule for RefererUriValid {
         //
         // The header section only. Whether *any* field may appear in a trailer
         // section is § 6.5.1's deny-by-default question and
-        // `message_trailer_fields_validity`'s finding, and a field naming where
+        // `trailer_fields_valid`'s finding, and a field naming where
         // the request came from cannot arrive after the request's content.
         //
         // cite(RFC 9110 § 10.1.3): "The "Referer" [sic] header field allows the user agent to specify a URI reference for the resource from which the target URI was obtained (i.e., the "referrer", though the field name is misspelled)."

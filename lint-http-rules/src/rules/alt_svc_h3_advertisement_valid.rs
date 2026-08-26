@@ -72,7 +72,7 @@ impl Rule for AltSvcH3AdvertisementValid {
         // list that licenses the join — an `alt-value` is not a `clear`, which
         // is the field's other alternative and is ruled out under it. The
         // header section only: what may ride in a trailer section is
-        // § 6.5.1's question and `message_trailer_fields_validity`'s finding.
+        // § 6.5.1's question and `trailer_fields_valid`'s finding.
         //
         // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
         // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."

@@ -47,7 +47,7 @@ impl Rule for UserAgentPresent {
         //
         // Presence is the whole question. A field line that is present and empty
         // is not a missing field; it is a field that fails the production below,
-        // and `message_user_agent_token_valid` -- which owns that grammar and
+        // and `user_agent_token_valid` -- which owns that grammar and
         // ships enabled -- reports it as one. Answering "missing" here would name
         // the wrong defect and report one field twice.
         // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
@@ -67,7 +67,7 @@ impl Rule for UserAgentPresent {
     }
 
     fn description(&self) -> &'static str {
-        "Report a request that carries no `User-Agent` header field. RFC 9110 §10.1.5 makes sending one a `SHOULD`, in each request, and it asks it of a *user agent* — which in that specification is any client program that initiates a request, so a command-line tool or a firmware update script is inside the requirement and not only a browser.\n\nThe requirement ends in an exception: *unless specifically configured not to do so*. That condition is a property of the client's configuration, and a request that omits the field on purpose is indistinguishable from one that omits it by oversight, so both are reported. A deployment that suppresses the field deliberately — §17.13 describes what a `User-Agent` can contribute to identifying a specific device — is conforming, and should turn this rule off rather than read the finding as a defect.\n\nOnly the header section is examined. A `User-Agent` field line that is present but empty is not reported here: it is a field that fails the field's own grammar, and `message_user_agent_token_valid` owns and reports that."
+        "Report a request that carries no `User-Agent` header field. RFC 9110 §10.1.5 makes sending one a `SHOULD`, in each request, and it asks it of a *user agent* — which in that specification is any client program that initiates a request, so a command-line tool or a firmware update script is inside the requirement and not only a browser.\n\nThe requirement ends in an exception: *unless specifically configured not to do so*. That condition is a property of the client's configuration, and a request that omits the field on purpose is indistinguishable from one that omits it by oversight, so both are reported. A deployment that suppresses the field deliberately — §17.13 describes what a `User-Agent` can contribute to identifying a specific device — is conforming, and should turn this rule off rather than read the finding as a defect.\n\nOnly the header section is examined. A `User-Agent` field line that is present but empty is not reported here: it is a field that fails the field's own grammar, and `user_agent_token_valid` owns and reports that."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -165,7 +165,7 @@ mod tests {
     /// the first is only defensible while the second holds.
     #[test]
     fn an_empty_field_line_is_left_to_the_rule_that_owns_the_grammar() {
-        use crate::rules::message_user_agent_token_valid::MessageUserAgentTokenValid;
+        use crate::rules::user_agent_token_valid::UserAgentTokenValid;
 
         let tx = crate::test_helpers::make_test_transaction_with_headers(&[("user-agent", "")]);
         let history = crate::transaction_history::TransactionHistory::empty();
@@ -182,7 +182,7 @@ mod tests {
             "an empty field line is present, not missing"
         );
 
-        let grammar = MessageUserAgentTokenValid;
+        let grammar = UserAgentTokenValid;
         let found = grammar.check_transaction(
             &tx,
             &history,
@@ -256,10 +256,10 @@ mod tests {
     /// published values are judged by the rule that owns the grammar.
     #[test]
     fn published_values_satisfy_the_rule_that_owns_the_grammar() {
-        use crate::rules::message_user_agent_token_valid::MessageUserAgentTokenValid;
+        use crate::rules::user_agent_token_valid::UserAgentTokenValid;
         use crate::rules::{Compliance, Rule as _};
 
-        let grammar = MessageUserAgentTokenValid;
+        let grammar = UserAgentTokenValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[grammar.id()]);
 
         for ex in UserAgentPresent.examples() {
