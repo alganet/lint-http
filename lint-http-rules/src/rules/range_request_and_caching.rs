@@ -137,7 +137,7 @@ impl Rule for RangeRequestAndCaching {
             return None;
         }
 
-        // A malformed stored tag is the server's defect and `message_etag_syntax`
+        // A malformed stored tag is the server's defect and `etag_syntax`
         // reports it there. Asking the client to echo it would be this rule
         // charging one party for another's field. The `stored_etag == "*"` beside
         // this was a workaround for `validate_entity_tag` admitting a `*`, which
@@ -167,7 +167,7 @@ impl Rule for RangeRequestAndCaching {
             });
         };
 
-        // Present and unreadable is not absent. `message_conditional_headers_consistency`
+        // Present and unreadable is not absent. `conditional_headers_consistent`
         // reports a non-ASCII `If-Range`; a "carries none of them" finding here
         // would be false about the message on the wire.
         let Ok(if_range) = raw_if_range.to_str() else {
@@ -508,7 +508,7 @@ mod tests {
     }
 
     /// The client cannot be asked to echo a tag the server malformed;
-    /// `message_etag_syntax` reports it where it was generated.
+    /// `etag_syntax` reports it where it was generated.
     #[test]
     fn a_malformed_stored_etag_is_not_this_rules_finding() {
         for bad in ["unquoted", "*", "\"unterminated"] {
@@ -543,7 +543,7 @@ mod tests {
     }
 
     /// A weak tag in `If-Range` breaks §13.1.5 and
-    /// `message_conditional_headers_consistency` owns that sentence; two findings
+    /// `conditional_headers_consistent` owns that sentence; two findings
     /// on one field would be this rule copying its neighbour's check.
     #[test]
     fn a_weak_tag_in_if_range_belongs_to_the_rule_that_owns_the_field() {

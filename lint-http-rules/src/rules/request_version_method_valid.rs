@@ -316,7 +316,7 @@ mod tests {
     }
 
     /// A `Content-Length` that leaves no number leaves this rule nothing to
-    /// measure; `message_content_length` is where the field's own syntax is
+    /// measure; `content_length_valid` is where the field's own syntax is
     /// reported.
     #[rstest]
     #[case("not-a-number")]

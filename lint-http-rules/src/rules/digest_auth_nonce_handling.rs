@@ -152,7 +152,7 @@ impl Rule for DigestAuthNonceHandling {
             let params = match crate::helpers::auth::parse_auth_params(rest) {
                 Ok(m) => m,
                 Err(_) => {
-                    // syntax errors are caught by message_digest_auth_validity,
+                    // syntax errors are caught by digest_auth_valid,
                     // so just bail out here rather than reporting again.
                     continue;
                 }

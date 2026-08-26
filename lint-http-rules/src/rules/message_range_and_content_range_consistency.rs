@@ -63,7 +63,7 @@ fn parse_units_config(
 
 /// Whether the response declares the media type § 15.3.7.2 requires of a 206
 /// that carries multiple parts. Only the first `Content-Type` field line is
-/// read; a message carrying more than one is `message_content_type_well_formed`'s
+/// read; a message carrying more than one is `content_type_valid`'s
 /// finding, and the parameters (the boundary among them) belong to
 /// `message_multipart_boundary_syntax`.
 ///
@@ -253,7 +253,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
                     // diverged from it: `parse::<u128>()` on the whole value
                     // rejected `Content-Length: 500, 500`, which § 6.3 makes valid,
                     // and its "Invalid Content-Length value" finding duplicated
-                    // `message_content_length`'s word for word. A value that does
+                    // `content_length_valid`'s word for word. A value that does
                     // not parse leaves nothing to compare, so this rule declines
                     // and its owner reports.
                     match crate::helpers::headers::validate_content_length(&resp.headers) {
@@ -376,7 +376,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `message_content_length`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
+        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -716,7 +716,7 @@ mod tests {
     }
 
     /// A Content-Length that does not parse leaves no number to compare against
-    /// the range, and the field's syntax belongs to `message_content_length`.
+    /// the range, and the field's syntax belongs to `content_length_valid`.
     /// This rule used to report it too, in the owner's own words.
     #[rstest]
     fn malformed_content_length_is_left_to_its_owner() {
@@ -738,7 +738,7 @@ mod tests {
             "reported a field this rule does not own: {v:?}"
         );
 
-        let owner = crate::rules::message_content_length::MessageContentLength;
+        let owner = crate::rules::content_length_valid::ContentLengthValid;
         let found = owner.check_transaction(
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -873,7 +873,7 @@ mod tests {
     /// cannot see a defect in a value it never judges, so the owners are asked.
     #[test]
     fn published_values_satisfy_the_rules_that_own_them() {
-        use crate::rules::message_content_length::MessageContentLength;
+        use crate::rules::content_length_valid::ContentLengthValid;
         use crate::rules::message_multipart_boundary_syntax::MessageMultipartBoundarySyntax;
         use crate::rules::{Compliance, Rule as _};
 
@@ -896,7 +896,7 @@ mod tests {
                 ex.snippet
             );
 
-            let length = MessageContentLength;
+            let length = ContentLengthValid;
             let found = length.check_transaction(
                 &tx,
                 &history,

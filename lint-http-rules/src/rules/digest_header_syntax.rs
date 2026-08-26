@@ -1,0 +1,1974 @@
+// SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigalas <alganet@gmail.com>
+//
+// SPDX-License-Identifier: ISC
+
+use crate::lint::Violation;
+use crate::rules::Rule;
+use base64::Engine;
+
+pub struct DigestHeaderSyntax;
+
+impl Rule for DigestHeaderSyntax {
+    fn id(&self) -> &'static str {
+        "digest_header_syntax"
+    }
+
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn check_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        cfg: &crate::config::Config,
+    ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // Shared parser for comma-separated key=value members
+        let parse_key_value_members = |value: &str,
+                                       empty_member_msg: &str,
+                                       missing_eq_fmt: &str,
+                                       empty_alg_fmt: &str|
+         -> Result<Vec<(String, String)>, String> {
+            let mut members = Vec::new();
+            // Splitting on a bare comma is safe for every field routed through here:
+            // the Dictionary values are Byte Sequences and Integers, neither of which
+            // can contain a comma, and the legacy `Digest` value is base64, which has
+            // no comma in its alphabet either. A quote-aware split would find nothing
+            // extra. (Dictionary *parameters*, which could complicate this, are not
+            // defined for any of these fields.)
+            for member in value.split(',') {
+                let m = member.trim();
+                if m.is_empty() {
+                    return Err(empty_member_msg.to_string());
+                }
+                match m.find('=') {
+                    None => return Err(missing_eq_fmt.replace("{}", m)),
+                    Some(eq) => {
+                        let alg = m[..eq].trim();
+                        let val = m[eq + 1..].trim();
+                        if alg.is_empty() {
+                            return Err(empty_alg_fmt.replace("{}", m));
+                        }
+                        members.push((alg.to_string(), val.to_string()));
+                    }
+                }
+            }
+            Ok(members)
+        };
+
+        // Shared parser for comma-separated token-only members (e.g., Want-Digest)
+        let parse_token_list = |value: &str,
+                                empty_member_msg: &str,
+                                invalid_token_fmt: &str|
+         -> Result<Vec<String>, String> {
+            let mut members = Vec::new();
+            for member in value.split(',') {
+                let m = member.trim();
+                if m.is_empty() {
+                    return Err(empty_member_msg.to_string());
+                }
+                if let Some(c) = crate::helpers::token::find_invalid_token_char(m) {
+                    return Err(invalid_token_fmt.replace("{}", &c.to_string()));
+                }
+                members.push(m.to_string());
+            }
+            Ok(members)
+        };
+
+        // Helper to validate legacy `Digest` header member value (alg=base64).
+        // This is the RFC 3230 shape, not a structured field: the algorithm is an
+        // ordinary token and the value is bare base64 with no `:` delimiters.
+        let validate_legacy_digest = |value: &str| -> Option<String> {
+            let members = match parse_key_value_members(
+                value,
+                "Digest header contains empty member",
+                "Digest member '{}' missing '=' separator",
+                "Digest member '{}' has empty algorithm",
+            ) {
+                Err(e) => return Some(e),
+                Ok(m) => m,
+            };
+
+            for (alg, val) in members {
+                if val.is_empty() {
+                    return Some(format!("Digest member '{}' has empty value", alg));
+                }
+
+                // Algorithm must be a token. RFC 3230 also makes it case-insensitive,
+                // which is why no lowercase rule is applied on this legacy path — the
+                // opposite of the structured fields below.
+                // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
+                // cite(RFC 3230 § 4.1.1): "All digest-algorithm values are case-insensitive."
+                if let Some(c) = crate::helpers::token::find_invalid_token_char(&alg) {
+                    return Some(format!(
+                        "Digest algorithm contains invalid character: '{}'",
+                        c
+                    ));
+                }
+
+                // Value must be valid base64
+                let decoded = base64::engine::general_purpose::STANDARD.decode(&val);
+                if decoded.is_err() {
+                    return Some(format!(
+                        "Digest value for algorithm '{}' is not valid base64",
+                        alg
+                    ));
+                }
+            }
+            None
+        };
+
+        // Helper to validate new RFC 9530 fields (Content-Digest / Repr-Digest).
+        // Both are Dictionaries of algorithm-key to digest-value, which is what the
+        // member loop below checks; the two fields differ only in *what* is hashed
+        // (message content vs representation data), not in syntax, so one validator
+        // serves both.
+        // cite(RFC 9530 § 2): "It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:"
+        let validate_structured_digest = |value: &str| -> Option<String> {
+            let members = match parse_key_value_members(
+                value,
+                "Digest field contains empty member",
+                "Digest member '{}' missing '=' separator",
+                "Digest member '{}' has empty algorithm",
+            ) {
+                Err(e) => return Some(e),
+                Ok(m) => m,
+            };
+
+            for (alg, val) in members {
+                // These are Dictionary *keys*, not RFC 3230 tokens: an SF key may not
+                // contain uppercase. The distinction matters most on exactly the path a
+                // deployment is likely to take — RFC 3230's `digest-algorithm = token`
+                // is case-insensitive and its registry spells the algorithms `SHA-256`,
+                // `MD5`, so carrying that spelling across to Content-Digest produces a
+                // field no structured-field parser will accept. The `key` grammar
+                // itself is owned by the structured-fields helper.
+                // cite(RFC 9530 § 2): "key conveys the hashing algorithm (see Section 5) used to compute the digest;"
+                if !crate::helpers::structured_fields::is_valid_sf_key(&alg) {
+                    return Some(format!(
+                        "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
+                        alg,
+                        alg.to_ascii_lowercase()
+                    ));
+                }
+
+                // Value must be a Byte Sequence — the `:`-delimited base64 form, whose
+                // grammar the structured-fields helper owns (hand-rolling it here was a
+                // second transcription of the same rule).
+                // cite(RFC 9530 § 2): "value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation."
+                if !crate::helpers::structured_fields::is_byte_sequence(&val) {
+                    return Some(format!(
+                        "Digest member '{}={}' value must be a byte sequence like ':b64:'",
+                        alg, val
+                    ));
+                }
+                let inner = &val[1..val.len() - 1];
+                // Two deliberate strictnesses beyond the grammar, neither of which the
+                // spec states, so neither is cited. (1) `::` is a well-formed Byte
+                // Sequence carrying zero bytes, but a digest of nothing identifies no
+                // content, so it is reported. (2) the decode below demands canonical
+                // padding, while a structured-field parser synthesizes padding when it
+                // is missing — so an unpadded-but-decodable value is reported here and
+                // accepted there.
+                if inner.is_empty() {
+                    return Some(format!("Digest member '{}' has empty byte sequence", alg));
+                }
+                let decoded = base64::engine::general_purpose::STANDARD.decode(inner);
+                if decoded.is_err() {
+                    return Some(format!(
+                        "Digest value for algorithm '{}' is not valid base64",
+                        alg
+                    ));
+                }
+            }
+            None
+        };
+
+        // Helper to validate Want-Content-Digest / Want-Repr-Digest dictionaries.
+        // Syntax: alg=weight[, alg2=weight]
+        // cite(RFC 9530 § 4): "Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:"
+        let validate_want_field = |value: &str| -> Option<String> {
+            let members = match parse_key_value_members(
+                value,
+                "Want-* header contains empty member",
+                "Want member '{}' missing '=' separator",
+                "Want member '{}' has empty algorithm",
+            ) {
+                Err(e) => return Some(e),
+                Ok(m) => m,
+            };
+
+            for (alg, val) in members {
+                // Same Dictionary-key rule as the digest fields above.
+                if !crate::helpers::structured_fields::is_valid_sf_key(&alg) {
+                    return Some(format!(
+                        "Want-* algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
+                        alg,
+                        alg.to_ascii_lowercase()
+                    ));
+                }
+
+                // Weight must be integer 0..=10 — the bound is the spec's own, not a
+                // chosen tolerance, and the type is Integer (so no decimal point).
+                // cite(RFC 9530 § 4): "value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive."
+                match val.parse::<i64>() {
+                    Ok(n) => {
+                        if !(0..=10).contains(&n) {
+                            return Some(format!("Want-* weight '{}' out of range 0..=10", val));
+                        }
+                    }
+                    Err(_) => return Some(format!("Want-* weight '{}' is not an integer", val)),
+                }
+            }
+            None
+        };
+
+        // Helper to validate legacy Want-Digest header (comma-separated token list)
+        let validate_want_digest = |value: &str| -> Option<String> {
+            parse_token_list(
+                value,
+                "Want-Digest header contains empty member",
+                "Want-Digest algorithm contains invalid character: '{}'",
+            )
+            .err()
+        };
+
+        // Check deprecated legacy headers and validate them (requests)
+        if let Some(hv) = tx.request.headers.get_all("digest").iter().next() {
+            if let Ok(s) = hv.to_str() {
+                // First validate legacy syntax
+                if let Some(msg) = validate_legacy_digest(s) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Invalid Digest header in request: {} (obsoleted by RFC 9530)",
+                            msg
+                        ),
+                    });
+                }
+
+                // If syntax ok, report obsolescence — the field itself is gone, not
+                // merely discouraged.
+                // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest".into(),
+                });
+            } else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Digest header value is not valid UTF-8".into(),
+                });
+            }
+        }
+
+        // Check deprecated legacy Want-Digest header in requests
+        if let Some(hv) = tx.request.headers.get_all("want-digest").iter().next() {
+            if let Ok(s) = hv.to_str() {
+                // Validate token list
+                if let Some(msg) = validate_want_digest(s) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Invalid Want-Digest header in request: {} (obsoleted by RFC 9530)",
+                            msg
+                        ),
+                    });
+                }
+
+                // If syntax ok, report obsolescence — the field itself is gone, not
+                // merely discouraged.
+                // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Want-Digest header is obsoleted by RFC 9530; prefer Want-Content-Digest or Want-Repr-Digest".into(),
+                });
+            } else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Want-Digest header value is not valid UTF-8".into(),
+                });
+            }
+        }
+
+        // Responses: check deprecated legacy 'Digest' header
+        if let Some(resp) = &tx.response {
+            if let Some(hv) = resp.headers.get_all("digest").iter().next() {
+                if let Ok(s) = hv.to_str() {
+                    if let Some(msg) = validate_legacy_digest(s) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid Digest header in response: {} (obsoleted by RFC 9530)",
+                                msg
+                            ),
+                        });
+                    }
+
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest".into(),
+                    });
+                } else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Digest header value is not valid UTF-8".into(),
+                    });
+                }
+            }
+        }
+
+        // Validate new RFC 9530 integrity fields in requests
+        for hv in tx.request.headers.get_all("content-digest").iter() {
+            if let Ok(s) = hv.to_str() {
+                if let Some(msg) = validate_structured_digest(s) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Invalid Content-Digest header in request: {} (RFC 9530 §2)",
+                            msg
+                        ),
+                    });
+                }
+            } else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Content-Digest header value is not valid UTF-8".into(),
+                });
+            }
+        }
+
+        for hv in tx.request.headers.get_all("repr-digest").iter() {
+            if let Ok(s) = hv.to_str() {
+                if let Some(msg) = validate_structured_digest(s) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Invalid Repr-Digest header in request: {} (RFC 9530 §3)",
+                            msg
+                        ),
+                    });
+                }
+            } else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Repr-Digest header value is not valid UTF-8".into(),
+                });
+            }
+        }
+
+        // Validate integrity preference fields (Want-Content-Digest / Want-Repr-Digest)
+        for hv in tx.request.headers.get_all("want-content-digest").iter() {
+            if let Ok(s) = hv.to_str() {
+                if let Some(msg) = validate_want_field(s) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Invalid Want-Content-Digest header in request: {} (RFC 9530 §4)",
+                            msg
+                        ),
+                    });
+                }
+            } else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Want-Content-Digest header value is not valid UTF-8".into(),
+                });
+            }
+        }
+
+        for hv in tx.request.headers.get_all("want-repr-digest").iter() {
+            if let Ok(s) = hv.to_str() {
+                if let Some(msg) = validate_want_field(s) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "Invalid Want-Repr-Digest header in request: {} (RFC 9530 §4)",
+                            msg
+                        ),
+                    });
+                }
+            } else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Want-Repr-Digest header value is not valid UTF-8".into(),
+                });
+            }
+        }
+
+        // Validate new RFC 9530 integrity fields in responses
+        if let Some(resp) = &tx.response {
+            for hv in resp.headers.get_all("content-digest").iter() {
+                if let Ok(s) = hv.to_str() {
+                    if let Some(msg) = validate_structured_digest(s) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid Content-Digest header in response: {} (RFC 9530 §2)",
+                                msg
+                            ),
+                        });
+                    }
+                } else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Content-Digest header value is not valid UTF-8".into(),
+                    });
+                }
+            }
+
+            for hv in resp.headers.get_all("repr-digest").iter() {
+                if let Ok(s) = hv.to_str() {
+                    if let Some(msg) = validate_structured_digest(s) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid Repr-Digest header in response: {} (RFC 9530 §3)",
+                                msg
+                            ),
+                        });
+                    }
+                } else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Repr-Digest header value is not valid UTF-8".into(),
+                    });
+                }
+            }
+
+            for hv in resp.headers.get_all("want-content-digest").iter() {
+                if let Ok(s) = hv.to_str() {
+                    if let Some(msg) = validate_want_field(s) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid Want-Content-Digest header in response: {} (RFC 9530 §4)",
+                                msg
+                            ),
+                        });
+                    }
+                } else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Want-Content-Digest header value is not valid UTF-8".into(),
+                    });
+                }
+            }
+
+            for hv in resp.headers.get_all("want-repr-digest").iter() {
+                if let Ok(s) = hv.to_str() {
+                    if let Some(msg) = validate_want_field(s) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!(
+                                "Invalid Want-Repr-Digest header in response: {} (RFC 9530 §4)",
+                                msg
+                            ),
+                        });
+                    }
+                } else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Want-Repr-Digest header value is not valid UTF-8".into(),
+                    });
+                }
+            }
+        }
+
+        // Content-MD5 is obsolete, but RFC 9530 is not what obsoleted it — that
+        // document never mentions the field. It was removed from HTTP by RFC 7231,
+        // years earlier, and the sentence below is the whole provenance. RFC 9530 is
+        // named only as what to use instead.
+        // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
+        if let Some(hv) = tx.request.headers.get_all("content-md5").iter().next() {
+            if hv.to_str().is_ok() {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message:
+                        "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead"
+                            .into(),
+                });
+            } else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Content-MD5 header value is not valid UTF-8".into(),
+                });
+            }
+        }
+
+        if let Some(resp) = &tx.response {
+            if let Some(hv) = resp.headers.get_all("content-md5").iter().next() {
+                if hv.to_str().is_ok() {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead".into(),
+                    });
+                } else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Content-MD5 header value is not valid UTF-8".into(),
+                    });
+                }
+            }
+        }
+
+        None
+    }
+
+    fn description(&self) -> &'static str {
+        "RFC 9530 obsoletes RFC 3230 and defines modern Integrity fields: `Content-Digest` (for message content), `Repr-Digest` (for representation data) and their preference counterparts `Want-Content-Digest` / `Want-Repr-Digest`. This rule validates:\n\n- **Legacy** `Digest` / `Want-Digest` header syntax (alg=base64) and flags their use as obsoleted by RFC 9530.\n- **New** RFC 9530 Integrity fields (`Content-Digest`, `Repr-Digest`) must follow the structured dictionary syntax (e.g., `sha-256=:BASE64:`) with byte sequences that decode as valid Base64.\n- **Integrity preference** fields (`Want-Content-Digest`, `Want-Repr-Digest`) use algorithm=weight pairs where weight is an integer in 0..=10.\n- **Obsolete field**: presence of `Content-MD5` is flagged. It was removed from HTTP by RFC 7231 (not by RFC 9530, which does not mention it); prefer `Content-Digest`.\n\nAlgorithm names in the RFC 9530 fields are structured-field Dictionary keys and so must be lowercase (`sha-256`, not the `SHA-256` spelling used by the obsolete `Digest` field, whose algorithm token is case-insensitive)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            crate::rules::SpecRef {
+                spec: "RFC 9530",
+                section: Some("2"),
+                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
+                note: "`Content-Digest`: a Dictionary keyed by hashing algorithm whose values are Byte Sequences",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9530",
+                section: Some("3"),
+                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-3",
+                note: "`Repr-Digest`: the same syntax over representation data rather than message content",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 9530",
+                section: Some("4"),
+                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-4",
+                note: "`Want-Content-Digest` / `Want-Repr-Digest`: a Dictionary whose values are Integers in the range 0 to 10 inclusive",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 3230",
+                section: Some("4.1.1"),
+                url: "https://www.rfc-editor.org/rfc/rfc3230.html#section-4.1.1",
+                note: "Historical `Digest` / `Want-Digest`, obsoleted by RFC 9530: `digest-algorithm = token`, case-insensitive — which is why uppercase is valid there and not in the structured fields",
+            },
+            crate::rules::SpecRef {
+                spec: "RFC 7231",
+                section: Some("Appendix B"),
+                url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
+                note: "Where `Content-MD5` was removed from HTTP — RFC 9530 does not mention the field at all",
+            },
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Digest: sha-256=:YWJj:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Digest: sha-256=dGVzdA==   # missing the required ':' byte sequence delimiters",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Digest: SHA-256=not-base64!  # legacy Digest is obsoleted by RFC 9530 and will be reported",
+            },
+        ]
+    }
+}
+
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &DigestHeaderSyntax;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    fn make_req_digest(value: &str) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("digest", value)]);
+        tx
+    }
+
+    fn make_resp_digest(value: &str) -> crate::http_transaction::HttpTransaction {
+        crate::test_helpers::make_test_transaction_with_response(200, &[("digest", value)])
+    }
+
+    fn make_req_want_digest(value: &str) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("want-digest", value)]);
+        tx
+    }
+
+    #[rstest]
+    #[case("SHA-256", true)]
+    #[case("SHA-256, SHA-512", true)]
+    #[case("sha-256", true)]
+    #[case("sha@1", true)]
+    #[case("", true)]
+    #[case("SHA-256,", true)]
+    fn request_want_digest_cases(#[case] value: &str, #[case] expect_violation: bool) {
+        let rule = DigestHeaderSyntax;
+        let tx = make_req_want_digest(value);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        if expect_violation {
+            assert!(v.is_some(), "expected violation for '{}'", value);
+        } else {
+            assert!(v.is_none(), "did not expect violation for '{}'", value);
+        }
+    }
+
+    #[test]
+    fn non_utf8_request_want_digest_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("want-digest", bad);
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn want_digest_empty_member_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let tx = make_req_want_digest("sha-256=, , sha-512");
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn want_digest_deprecation_is_reported() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("want-digest", "SHA-256")]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("obsoleted") || msg.contains("prefer Want-Content-Digest"));
+    }
+
+    #[test]
+    fn multiple_want_digest_header_fields_are_checked() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.append("want-digest", HeaderValue::from_static("SHA-256"));
+        hm.append("want-digest", HeaderValue::from_static("sha-256"));
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn validate_rules_with_valid_config() -> anyhow::Result<()> {
+        let mut cfg = crate::config::Config::default();
+        crate::test_helpers::enable_rule(&mut cfg, "digest_header_syntax");
+        crate::rules::validate_rules(&cfg)?;
+        Ok(())
+    }
+
+    #[rstest]
+    #[case("SHA-256=YWJj", true)] // 'abc' -> YWJj
+    #[case("SHA-256=YWJj, SHA-512=ZGVm", true)] // two members
+    #[case("sha-256=YWJj", true)] // algorithm case is allowed as token (not enforced)
+    #[case("SHA-256=not-base64!", true)]
+    #[case("=YWJj", true)]
+    #[case("SHA256", true)]
+    #[case("", true)]
+    #[case("SHA-256=", true)]
+    #[case("SHA-256=Y WJj", true)]
+    fn request_digest_cases(#[case] value: &str, #[case] expect_violation: bool) {
+        let rule = DigestHeaderSyntax;
+        let tx = make_req_digest(value);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        if expect_violation {
+            assert!(v.is_some(), "expected violation for '{}'", value);
+        } else {
+            assert!(v.is_none(), "did not expect violation for '{}'", value);
+        }
+    }
+
+    #[rstest]
+    #[case("SHA-256=YWJj", true)]
+    #[case("SHA-256=notbase64", true)]
+    fn response_digest_cases(#[case] value: &str, #[case] expect_violation: bool) {
+        let rule = DigestHeaderSyntax;
+        let tx = make_resp_digest(value);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        if expect_violation {
+            assert!(v.is_some(), "expected violation for '{}'", value);
+        } else {
+            assert!(v.is_none(), "did not expect violation for '{}'", value);
+        }
+    }
+
+    #[test]
+    fn empty_header_absent_returns_none() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction();
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn non_utf8_request_header_value_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("digest", bad);
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn non_utf8_response_header_value_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("digest", bad);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+            body_length: None,
+            trailers: None,
+        });
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn algorithm_invalid_token_char_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("digest", "SHA@1=YWJj")]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn legacy_digest_deprecation_is_reported() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("digest", "SHA-256=YWJj")]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("obsoleted") || msg.contains("prefer Content-Digest"));
+    }
+
+    #[test]
+    fn content_digest_structured_syntax_valid() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-digest", "sha-256=:dGVzdA==:")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn content_digest_structured_syntax_invalid_base64() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-digest", "sha-256=:not-base64!:")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn response_legacy_digest_deprecation_is_reported() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("digest", "SHA-256=YWJj")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("obsoleted") || msg.contains("prefer Content-Digest"));
+    }
+
+    #[test]
+    fn content_digest_structured_syntax_invalid_base64_in_request() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-digest",
+            "sha-256=:not-base64!:",
+        )]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("Invalid Content-Digest header") && msg.contains("RFC 9530"));
+    }
+
+    #[test]
+    fn content_digest_trailing_comma_in_request_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "content-digest",
+            "sha-256=:dGVzdA==:,",
+        )]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn want_content_digest_valid_weights() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha-512=3, sha-256=10")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn want_content_digest_invalid_weight_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha-256=20")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn want_content_digest_in_request_invalid_weight_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request
+            .headers
+            .append("want-content-digest", "sha-256=20".parse().unwrap());
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn content_md5_deprecation_is_reported() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-md5", "dGVzdA==")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        // Add a simple check that presence of header yields a violation via our rule: we will add handling next
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn repr_digest_structured_syntax_valid() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("repr-digest", "sha-256=:dGVzdA==:")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn repr_digest_structured_syntax_invalid_base64() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("repr-digest", "sha-256=:not-base64!:")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn repr_digest_structured_syntax_invalid_base64_in_request() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "repr-digest",
+            "sha-256=:not-base64!:",
+        )]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn want_repr_digest_valid_weights() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-repr-digest", "sha-512=0, sha-256=10")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn want_repr_digest_invalid_weight_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-repr-digest", "sha-256=20")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn content_digest_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("content-digest", bad);
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn content_digest_multiple_fields_are_checked() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.append(
+            "content-digest",
+            HeaderValue::from_static("sha-256=:dGVzdA==:"),
+        );
+        hm.append(
+            "content-digest",
+            HeaderValue::from_static("sha-256=:not-base64!:"),
+        );
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+
+            body_length: None,
+            trailers: None,
+        });
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn want_content_digest_non_integer_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha-256=abc")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn repr_digest_request_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("repr-digest", bad);
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn repr_digest_response_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("repr-digest", bad);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+
+            body_length: None,
+            trailers: None,
+        });
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn content_digest_response_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("content-digest", bad);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+
+            body_length: None,
+            trailers: None,
+        });
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn want_content_digest_missing_equals_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha-256")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn multiple_digest_header_fields_are_checked() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        // Construct headers with two digest fields: one valid, one invalid
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.append("digest", HeaderValue::from_static("SHA-256=YWJj"));
+        hm.append("digest", HeaderValue::from_static("SHA-256=not-base64!"));
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    // Parametrized tests for structured digest fields (Content-Digest & Repr-Digest)
+    #[rstest]
+    #[case("content-digest", "sha-256=:dGVzdA==:", false)]
+    #[case("content-digest", "sha-256=:not-base64!:", true)]
+    #[case("content-digest", "sha-256=dGVzdA==", true)] // missing byte sequence colons
+    #[case("content-digest", "sha-256=:", true)] // empty inner
+    #[case("content-digest", "= :dGVzdA==:", true)] // missing alg
+    #[case("content-digest", "sha@1=:dGVzdA==:", true)] // invalid alg token char
+    #[case("repr-digest", "sha-256=:dGVzdA==:", false)]
+    #[case("repr-digest", "sha-256=:not-base64!:", true)]
+    // Dictionary keys are lowercase-only. `SHA-256` is how RFC 3230's registry
+    // spells it, so this is the spelling a migration from `Digest` carries over —
+    // and it makes the field unparseable as a structured field.
+    #[case("content-digest", "SHA-256=:dGVzdA==:", true)]
+    #[case("repr-digest", "SHA-512=:dGVzdA==:", true)]
+    #[case("content-digest", "sha-256=:dGVzdA==:, SHA-512=:dGVzdA==:", true)]
+    // `+` is a valid token character but not a valid SF key character.
+    #[case("content-digest", "sha+256=:dGVzdA==:", true)]
+    fn structured_digest_cases(
+        #[case] header: &str,
+        #[case] value: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        if expect_violation {
+            assert!(
+                v.is_some(),
+                "expected violation for '{}: {}'",
+                header,
+                value
+            );
+        } else {
+            assert!(
+                v.is_none(),
+                "did not expect violation for '{}: {}'",
+                header,
+                value
+            );
+        }
+    }
+
+    /// The lowercase rule belongs to the structured fields only. RFC 3230's
+    /// `digest-algorithm = token` is explicitly case-insensitive, so an uppercase
+    /// algorithm in the legacy header is *not* a syntax error — the rule reports
+    /// only the obsolescence. This guards against over-applying the fix.
+    #[rstest]
+    #[case("SHA-256=dGVzdA==")]
+    #[case("MD5=dGVzdA==")]
+    fn legacy_digest_algorithm_stays_case_insensitive(#[case] value: &str) {
+        let rule = DigestHeaderSyntax;
+        let tx = make_req_digest(value);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("legacy Digest is always reported as obsolete");
+        assert!(
+            v.message.contains("obsoleted by RFC 9530"),
+            "expected the obsolescence report, not a syntax error: {}",
+            v.message
+        );
+        assert!(!v.message.contains("structured-field key"));
+    }
+
+    #[rstest]
+    #[case("want-content-digest", "SHA-256=5")]
+    #[case("want-repr-digest", "SHA-512=3, sha-256=10")]
+    fn want_field_keys_must_be_lowercase(#[case] header: &str, #[case] value: &str) {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule
+            .check_transaction(
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .unwrap_or_else(|| panic!("expected violation for '{}: {}'", header, value));
+        assert!(v.message.contains("structured-field key"));
+    }
+
+    // Non-UTF8 tests for structured digest and want headers
+    #[test]
+    fn content_digest_non_utf8_in_request_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("content-digest", bad);
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn want_content_digest_response_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("want-content-digest", bad);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+
+            body_length: None,
+            trailers: None,
+        });
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn want_repr_digest_response_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("want-repr-digest", bad);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+
+            body_length: None,
+            trailers: None,
+        });
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn want_field_response_missing_equals_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-repr-digest", "sha-256")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    // Non-UTF8 request tests for Want-* headers (parametrized)
+    #[rstest]
+    #[case("want-content-digest")]
+    #[case("want-repr-digest")]
+    fn want_field_request_non_utf8_is_violation(
+        #[case] header: &'static str,
+    ) -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append(header, bad);
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    // Parametrized tests for Want-* weights and invalid forms
+    #[rstest]
+    #[case("want-content-digest", "sha-512=3, sha-256=10", false)]
+    #[case("want-content-digest", "sha-256=20", true)]
+    #[case("want-content-digest", "sha-256=-1", true)]
+    #[case("want-content-digest", "sha-256=abc", true)]
+    #[case("want-content-digest", "sha@1=5", true)]
+    #[case("want-repr-digest", "sha-512=0, sha-256=10", false)]
+    #[case("want-repr-digest", "sha-256=11", true)]
+    fn want_field_cases(#[case] header: &str, #[case] value: &str, #[case] expect_violation: bool) {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        if expect_violation {
+            assert!(
+                v.is_some(),
+                "expected violation for '{}: {}'",
+                header,
+                value
+            );
+        } else {
+            assert!(
+                v.is_none(),
+                "did not expect violation for '{}: {}'",
+                header,
+                value
+            );
+        }
+    }
+
+    // Content-MD5 detection tests for both request and response
+    #[test]
+    fn content_md5_request_deprecation_is_reported() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-md5", "dGVzdA==")]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn content_md5_non_utf8_is_violation_in_request() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("content-md5", bad);
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn content_md5_response_non_utf8_is_violation() -> anyhow::Result<()> {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        hm.append("content-md5", bad);
+        tx.response.as_mut().unwrap().headers = hm;
+
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    // Combined header scenario: Digest (legacy) with Content-Digest — Digest should be reported first
+    #[test]
+    fn digest_and_content_digest_combined_reports_digest_deprecation() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.append("digest", HeaderValue::from_static("SHA-256=YWJj"));
+        hm.append(
+            "content-digest",
+            HeaderValue::from_static("sha-256=:dGVzdA==:"),
+        );
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        // Since legacy Digest is checked first, we expect a violation about Digest being obsoleted
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("obsoleted") || msg.contains("prefer Content-Digest"));
+    }
+
+    // Edge-case tests: empty members, missing '=' in structured fields, trailing commas, and content-md5 response
+    #[test]
+    fn legacy_digest_empty_member_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "digest",
+            "SHA-256=YWJj,,SHA-512=ZGVm",
+        )]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[rstest]
+    #[case("content-digest", "sha-256:dGVzdA==:", true)] // missing '=' separator
+    #[case("repr-digest", "sha-256:dGVzdA==:", true)]
+    #[case("content-digest", "sha-256=:dGVzdA==:,", true)] // trailing comma -> empty member
+    fn structured_digest_missing_equals_or_empty(
+        #[case] header: &str,
+        #[case] value: &str,
+        #[case] expect_violation: bool,
+    ) {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(200, &[(header, value)]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        if expect_violation {
+            assert!(v.is_some());
+        } else {
+            assert!(v.is_none());
+        }
+    }
+
+    #[test]
+    fn content_digest_multiple_fields_in_request_are_checked() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        use hyper::header::HeaderValue;
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.append(
+            "content-digest",
+            HeaderValue::from_static("sha-256=:dGVzdA==:"),
+        );
+        hm.append(
+            "content-digest",
+            HeaderValue::from_static("sha-256=:not-base64!:"),
+        );
+        tx.request.headers = hm;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn legacy_digest_trailing_comma_is_empty_member_violation() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("digest", "SHA-256=YWJj,")]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn header_name_case_insensitive_content_digest() {
+        let rule = DigestHeaderSyntax;
+        // Use mixed-case header name to test case-insensitivity
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(
+            "Content-Digest",
+            "sha-256=:dGVzdA==:",
+        )]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn content_digest_multiple_valid_fields_request_and_response_checked() {
+        let rule = DigestHeaderSyntax;
+        use hyper::header::HeaderValue;
+        // Request: multiple valid content-digest fields
+        let mut req = crate::test_helpers::make_test_transaction();
+        let mut hm_req = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm_req.append(
+            "content-digest",
+            HeaderValue::from_static("sha-256=:dGVzdA==:"),
+        );
+        hm_req.append(
+            "content-digest",
+            HeaderValue::from_static("sha-512=:dGVzdA==:"),
+        );
+        req.request.headers = hm_req;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let vreq = rule.check_transaction(
+            &req,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(vreq.is_none());
+
+        // Response: multiple valid content-digest fields
+        let mut resp_tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
+        hm.append(
+            "content-digest",
+            HeaderValue::from_static("sha-256=:dGVzdA==:"),
+        );
+        hm.append(
+            "content-digest",
+            HeaderValue::from_static("sha-512=:dGVzdA==:"),
+        );
+        resp_tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hm,
+
+            body_length: None,
+            trailers: None,
+        });
+        let vresp = rule.check_transaction(
+            &resp_tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(vresp.is_none());
+    }
+
+    #[test]
+    fn repr_digest_trims_spaces_and_is_valid() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("repr-digest", " sha-256 = :dGVzdA==: ")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_none());
+    }
+
+    #[test]
+    fn want_field_space_around_equals_accepted_and_missing_equals_in_multi_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+
+        // space around equals accepted
+        let tx_ok = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha-512 = 2")],
+        );
+        let v_ok = rule.check_transaction(
+            &tx_ok,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v_ok.is_none());
+
+        // missing equals in multi-members is a violation
+        let tx_bad = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha-512=3, sha-256")],
+        );
+        let v_bad = rule.check_transaction(
+            &tx_bad,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v_bad.is_some());
+        let msg = v_bad.unwrap().message;
+        assert!(msg.contains("missing '=' separator") || msg.contains("not an integer"));
+    }
+
+    #[test]
+    fn structured_digest_missing_equals_returns_meaningful_message() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-digest", "sha-256:dGVzdA==:")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("Invalid Content-Digest header") && msg.contains("RFC 9530"));
+    }
+
+    #[test]
+    fn want_field_empty_member_is_violation() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha-256=3, ,sha-512=5")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn want_digest_invalid_char_reports_invalid_char_in_message() {
+        let rule = DigestHeaderSyntax;
+        let tx = make_req_want_digest("sha@1");
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("@") || msg.contains("invalid character"));
+    }
+
+    #[test]
+    fn content_digest_empty_inner_reports_meaningful_message() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-digest", "sha-256=:")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        let msg_lc = msg.to_lowercase();
+        assert!(msg_lc.contains("empty") || msg_lc.contains("byte"));
+    }
+
+    #[test]
+    fn want_field_invalid_alg_char_reports_char_in_message() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("want-content-digest", "sha@1=5")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+        let msg = v.unwrap().message;
+        assert!(msg.contains("@") || msg.contains("invalid character"));
+    }
+
+    #[test]
+    fn content_md5_response_deprecation_is_reported() {
+        let rule = DigestHeaderSyntax;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("content-md5", "dGVzdA==")],
+        );
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn legacy_digest_trailing_comma_is_empty_member_violation_again() {
+        let rule = DigestHeaderSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("digest", "SHA-256=YWJj,")]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert!(v.is_some());
+    }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = DigestHeaderSyntax;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
+}

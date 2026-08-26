@@ -6,7 +6,7 @@
 //! of it.
 //!
 //! Two things live here because they are one thing. The production is what an
-//! HTTP/1.x start-line carries and what `message_http_version_syntax_valid`
+//! HTTP/1.x start-line carries and what `http_version_syntax`
 //! reports against; the *major digit* is what a dozen rules actually want when
 //! they ask "is this an HTTP/3 message" — and asking that by comparing the
 //! whole string against a literal makes every one of those rules depend on the
@@ -151,7 +151,7 @@ pub fn is_major(value: &str, major: u8) -> bool {
 /// version put the request target in a request-line" -- where matching
 /// `Some(2 | 3)` says in one place what two string-prefix tests said in two.
 /// `None` is a value that derives from no production and therefore names no
-/// syntax; `message_http_version_syntax_valid` is the rule that reports it.
+/// syntax; `http_version_syntax` is the rule that reports it.
 // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
 #[inline]
 pub fn major(value: &str) -> Option<u8> {

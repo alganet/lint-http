@@ -336,7 +336,7 @@ mod tests {
     /// declining every coding — a claim about a value the sender did not write.
     /// The member derives from no `codings` and this rule does not say so:
     /// that is the field's syntax and belongs to
-    /// `message_accept_encoding_parameter_validity`.
+    /// `accept_encoding_parameter_valid`.
     #[test]
     fn a_member_of_obs_text_is_a_preference_expressed_not_an_empty_field() {
         let mut tx = req(&[]);

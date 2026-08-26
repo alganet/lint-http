@@ -1,0 +1,394 @@
+// SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+//
+// SPDX-License-Identifier: ISC
+
+use crate::lint::Violation;
+use crate::rules::Rule;
+
+pub struct CacheControlTokenValid;
+
+impl Rule for CacheControlTokenValid {
+    fn id(&self) -> &'static str {
+        "cache_control_token_valid"
+    }
+
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn check_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        cfg: &crate::config::Config,
+    ) -> Option<Violation> {
+        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
+        // Apply to both request and response messages
+        // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
+        for header_val in tx.request.headers.get_all("cache-control").iter() {
+            if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                // An entirely empty Cache-Control value is a zero-element list, which is legal
+                // (`#element => [ 1#element ]`); that is distinct from an empty *element*
+                // within a list, which check_cache_control_value flags. Skip it.
+                if v.is_empty() {
+                    continue;
+                }
+                if let Some(msg) = check_cache_control_value(v) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!("Invalid Cache-Control header in request: {}", msg),
+                    });
+                }
+            } else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: "Cache-Control header contains non-UTF8 value".into(),
+                });
+            }
+        }
+
+        if let Some(resp) = &tx.response {
+            for header_val in resp.headers.get_all("cache-control").iter() {
+                if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                    // An entirely empty Cache-Control value is a zero-element list, which is legal
+                    // (`#element => [ 1#element ]`); that is distinct from an empty *element*
+                    // within a list, which check_cache_control_value flags. Skip it.
+                    if v.is_empty() {
+                        continue;
+                    }
+                    if let Some(msg) = check_cache_control_value(v) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!("Invalid Cache-Control header in response: {}", msg),
+                        });
+                    }
+                } else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Cache-Control header contains non-UTF8 value".into(),
+                    });
+                }
+            }
+        }
+
+        None
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate `Cache-Control` directive names and unquoted values follow the `token` grammar. Values that are quoted-strings are validated as quoted strings. An empty directive member within the list (for example a stray or trailing comma) is flagged; an entirely empty header value is not, because `Cache-Control` is a comma-separated list and an empty value is a legal zero-element list."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[crate::rules::SpecRef {
+            spec: "RFC 9111",
+            section: Some("5.2"),
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
+            note: "Cache-Control directives and general directive syntax",
+        }]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Cache-Control: max-age=3600\nCache-Control: no-cache\nCache-Control: private=\"Set-Cookie, X-Foo\"\nCache-Control: public, max-age=60",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Cache-Control: =abc\nCache-Control: ma x-age=1\nCache-Control: private=Set Cookie\nCache-Control: private=bad@val",
+            },
+        ]
+    }
+}
+
+fn check_cache_control_value(s: &str) -> Option<String> {
+    // Split by top-level commas but ignore commas inside quoted-strings
+    for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
+        // An empty element *within* the list is forbidden, unlike the empty whole
+        // value the callers skip as a zero-element list.
+        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+        if member.is_empty() {
+            return Some("Empty directive in Cache-Control header".into());
+        }
+
+        // The name/value split transcribes the cache-directive grammar. The two
+        // value shapes it names, `token` (§5.6.2) and `quoted-string` (§5.6.4),
+        // stay owned by the helpers this function calls below.
+        // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
+        let mut kv = member.splitn(2, '=');
+        let name = kv.next().unwrap().trim();
+        if name.is_empty() {
+            return Some(format!(
+                "Empty directive name in Cache-Control member: '{}'",
+                member
+            ));
+        }
+
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
+            return Some(format!(
+                "Directive name contains invalid character: '{}'",
+                c
+            ));
+        }
+
+        if let Some(vpart) = kv.next() {
+            let vpart = vpart.trim();
+            // The `( token / quoted-string )` alternation is read by the shared
+            // helper that owns it; what stays here is what this field says about
+            // each answer.
+            match crate::helpers::headers::token_or_quoted_string(vpart) {
+                Ok(_) => {}
+                // Leniency, recorded rather than changed: `foo=` does not match the
+                // grammar above — once "=" is present the optional group requires a
+                // token (`1*tchar`) or a quoted-string, neither of which can be empty.
+                // The rule accepts it anyway, so it under-reports this one shape. That
+                // is the safe direction for a linter, and tightening it would be a
+                // behavior change. (`foo=""` is genuinely valid: quoted-string permits
+                // empty content.)
+                Err(crate::helpers::headers::WordDefect::Empty) => continue,
+                Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
+                    return Some(format!("Invalid quoted-string in directive value: {}", e));
+                }
+                Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
+                    return Some(format!(
+                        "Directive value contains invalid character: '{}'",
+                        c
+                    ));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Registers this rule into the engine's auto-collected catalogue.
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &CacheControlTokenValid;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rstest::rstest;
+
+    fn make_req(val: &str) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("cache-control", val)]);
+        tx
+    }
+
+    fn make_resp(val: &str) -> crate::http_transaction::HttpTransaction {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[("cache-control", val)]),
+            body_length: None,
+            trailers: None,
+        });
+        tx
+    }
+
+    #[rstest]
+    #[case("max-age=3600", false)]
+    #[case("no-cache", false)]
+    #[case("private=\"Set-Cookie, X-Foo\"", false)]
+    #[case("public, max-age=60", false)]
+    #[case("", false)] // empty value = legal zero-element list
+    #[case("=abc", true)]
+    #[case("ma x-age=1", true)]
+    #[case("private=Set Cookie", true)]
+    #[case("private=bad@val", true)]
+    fn request_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let tx = make_req(value);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        if expect_violation {
+            assert!(v.is_some(), "expected violation for '{}'", value);
+        } else {
+            assert!(v.is_none(), "did not expect violation for '{}'", value);
+        }
+        Ok(())
+    }
+
+    #[rstest]
+    #[case("max-age=3600", false)]
+    #[case("no-cache", false)]
+    #[case("private=\"Set-Cookie, X-Foo\"", false)]
+    #[case("public, max-age=60", false)]
+    #[case("", false)] // empty value = legal zero-element list
+    #[case("=abc", true)]
+    fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let tx = make_resp(value);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        if expect_violation {
+            assert!(v.is_some(), "expected violation for '{}'", value);
+        } else {
+            assert!(v.is_none(), "did not expect violation for '{}'", value);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn non_utf8_value_is_violation() -> anyhow::Result<()> {
+        use hyper::header::HeaderValue;
+        let rule = CacheControlTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");
+        let mut hm = hyper::HeaderMap::new();
+        hm.insert("cache-control", bad);
+        tx.request.headers = hm;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_headers_valid() -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("cache-control", "no-cache"),
+            ("cache-control", "max-age=60"),
+        ]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn response_multiple_headers_merged_are_valid() -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("cache-control", "no-cache"),
+            ("cache-control", "max-age=60"),
+        ]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn quoted_string_with_extra_chars_reports_violation() -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let tx = make_req("foo=\"bar\"x");
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn quoted_value_unterminated_reports_violation() -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let tx = make_req("foo=\"unterminated");
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn empty_directive_value_is_accepted() -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let tx = make_req("foo=");
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn response_non_utf8_value_is_violation() -> anyhow::Result<()> {
+        use hyper::header::HeaderValue;
+        let rule = CacheControlTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let bad = HeaderValue::from_bytes(&[0xff])?;
+        let mut hm = hyper::HeaderMap::new();
+        hm.insert("cache-control", bad);
+        tx.response.as_mut().unwrap().headers = hm;
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn empty_member_is_violation() -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("cache-control", ",max-age=1")]);
+        let v = rule.check_transaction(
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn scope_is_both() {
+        let rule = CacheControlTokenValid;
+        assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
+
+    #[test]
+    fn validate_rules_with_valid_config() -> anyhow::Result<()> {
+        let rule = CacheControlTokenValid;
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert("severity".to_string(), toml::Value::String("warn".into()));
+        cfg.rules.insert(
+            "cache_control_token_valid".into(),
+            toml::Value::Table(table),
+        );
+
+        // validate should succeed without error
+        rule.validate(&cfg)?;
+        Ok(())
+    }
+}

@@ -16,7 +16,7 @@ pub fn validate_cookie_path(s: &str) -> Result<(), String> {
     let v = s.trim();
     // Empty and non-`/` values are not a *syntax* error: §5.2.4 has the user
     // agent replace them with the default-path. That semantics is cited at the
-    // sole call site (`message_cookie_path_validity`); here we flag them as the
+    // sole call site (`cookie_path_valid`); here we flag them as the
     // latent misconfiguration they are and go on to enforce the character
     // grammar below.
     if v.is_empty() {

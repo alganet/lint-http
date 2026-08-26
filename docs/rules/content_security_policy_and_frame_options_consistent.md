@@ -1,0 +1,55 @@
+<!--
+SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+
+SPDX-License-Identifier: ISC
+-->
+
+# Content Security Policy And Frame Options Consistent
+
+## Description
+
+Detect contradictory framing directives between `Content-Security-Policy` (the `frame-ancestors` directive) and `X-Frame-Options`. These headers express framing restrictions; when they conflict, they create ambiguity that may cause different user agents to allow or block framing inconsistently.
+
+Note: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement.
+
+## Specifications
+
+- [CSP3 §6.4.2](https://www.w3.org/TR/CSP3/#directive-frame-ancestors): `frame-ancestors` directive. Note: when present and enforceable, `frame-ancestors` overrides `X-Frame-Options` (see §6.4.2.2)
+- [HTML Speculative Loading](https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header): HTML Living Standard — `X-Frame-Options` header and its relation to `frame-ancestors`
+- [MDN X-Frame-Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options): `X-Frame-Options` — legacy header with values `DENY`, `SAMEORIGIN`, and the obsolete `ALLOW-FROM`. Note: `ALLOW-FROM` is deprecated and not supported by most modern browsers — prefer using CSP's `frame-ancestors` for origin-specific framing policies
+
+## Configuration
+
+```toml
+[rules.content_security_policy_and_frame_options_consistent]
+enabled = true
+severity = "warn"
+```
+
+## Examples
+
+### ✅ Good
+
+```http
+Content-Security-Policy: frame-ancestors 'none'
+# No X-Frame-Options header present
+```
+
+```http
+Content-Security-Policy: frame-ancestors https://example.com
+X-Frame-Options: ALLOW-FROM https://example.com
+```
+
+### ❌ Bad
+
+```http
+Content-Security-Policy: frame-ancestors 'none'
+X-Frame-Options: SAMEORIGIN
+# CSP disallows all framing but XFO says allow same origin -> contradiction
+```
+
+```http
+Content-Security-Policy: frame-ancestors 'self'
+X-Frame-Options: DENY
+# CSP allows same-origin framing while XFO denies all framing -> contradiction
+```

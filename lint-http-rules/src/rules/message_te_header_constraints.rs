@@ -175,7 +175,7 @@ impl MessageTeHeaderConstraints {
         // The question is whether the sender listed the option, which is the
         // *recipient's* reading of a list — so the shared list reader is the right one
         // here, empty-element filter and all. Whether the `Connection` value is itself
-        // well formed is `message_connection_header_tokens_valid`'s. Its lines are
+        // well formed is `connection_header_tokens_valid`'s. Its lines are
         // joined first: an option written on a second `Connection` line is listed.
         //
         // cite(RFC 9110 § 10.1.4): "A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field."

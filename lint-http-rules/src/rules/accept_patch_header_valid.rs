@@ -180,7 +180,7 @@ impl AcceptPatchHeaderValid {
 ///
 /// Compared exactly. A member spelled `patch` names a method this specification
 /// does not define, and a resource advertising that one has said nothing about
-/// `PATCH`. `message_allow_header_method_tokens` is the rule that measures this
+/// `PATCH`. `allow_header_method_tokens_valid` is the rule that measures this
 /// value's grammar; this reads it and reports nothing about it.
 ///
 /// cite(RFC 5789 § 3): "A server can advertise its support for the PATCH method by adding it to the listing of allowed methods in the "Allow" OPTIONS response header defined in HTTP/1.1."
@@ -364,7 +364,7 @@ impl Rule for AcceptPatchHeaderValid {
                 spec: "RFC 9110",
                 section: Some("10.2.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
-                note: "`Allow` — the value read to decide whether the OPTIONS response's resource supports PATCH. Its own grammar is `message_allow_header_method_tokens`'s",
+                note: "`Allow` — the value read to decide whether the OPTIONS response's resource supports PATCH. Its own grammar is `allow_header_method_tokens_valid`'s",
             },
         ]
     }

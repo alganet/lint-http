@@ -104,7 +104,7 @@ pub fn version_production_defect(value: &str) -> Option<String> {
 /// above 1, and a major digit beyond them names no wire format.
 ///
 /// A value deriving from no `HTTP-version` names no version, so there is nothing
-/// here to compare against and no handshake to claim; `message_http_version_syntax_valid`
+/// here to compare against and no handshake to claim; `http_version_syntax`
 /// is the rule that reports the value itself.
 // cite(RFC 6455 § 4.1): "The method of the request MUST be GET, and the HTTP version MUST be at least 1.1."
 // cite(RFC 6455 § 4.1): "The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword."

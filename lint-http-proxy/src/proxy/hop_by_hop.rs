@@ -85,7 +85,7 @@ pub(super) fn format_http_version(v: hyper::Version) -> String {
         // as one — a `Host` field demanded, a `TE` connection option demanded,
         // a 204's `Transfer-Encoding` reported. The alternative is to record a
         // value that derives from no production, which
-        // `message_http_version_syntax_valid` would then report; that trades a
+        // `http_version_syntax` would then report; that trades a
         // silent wrong answer for a visible one and costs the invariant that
         // nothing this proxy writes can fail that rule. The guess is kept
         // because the arm is unreachable, and this comment is where the choice

@@ -53,7 +53,7 @@ impl Rule for CharsetPresent {
                     // Saying "missing charset" about such a value would be a
                     // false statement — `text/html; p="x; charset=utf-8` plainly
                     // carries one — so the rule declines to judge instead. The
-                    // malformed value is `message_content_type_well_formed`'s
+                    // malformed value is `content_type_valid`'s
                     // finding; unreadable parameters are not an absent charset.
                     // The check lives beside the splitter it guards, so the two
                     // cannot drift apart over what counts as a quote.
@@ -98,7 +98,7 @@ impl Rule for CharsetPresent {
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\nThe parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `message_content_type_well_formed`'s finding, not an absent charset."
+        "This rule checks if `Content-Type` headers for text-based resources (starting with `text/`) include a `charset` parameter. Responses only, and the type is matched case-insensitively, so `TEXT/HTML` is in scope.\n\nSpecifying the character encoding is crucial for security and correct rendering. If the charset is not explicitly defined, browsers may attempt to guess the encoding (MIME sniffing), which can lead to Cross-Site Scripting (XSS) vulnerabilities or incorrect display of characters.\n\nNo specification requires the parameter — RFC 9110 defines what `charset` means and mandates nothing about sending it — so this rule is a deliberate policy rather than a conformance check. Only the parameter's presence is checked; whether its value names a registered charset is a separate rule's concern.\n\nThe parameter list is read quote-aware, so a `;` inside a quoted value does not start a new parameter and text that merely looks like `charset=` inside another value does not count. If the quoting never closes, the rule declines to judge rather than report a charset missing that the value plainly carries — an unreadable parameter list is `content_type_valid`'s finding, not an absent charset."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {

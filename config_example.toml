@@ -122,7 +122,7 @@ severity = "info"
 # because `config_block_for` reads from a rule's header to the next `[`: a
 # comment written above a header is documented against the rule before it.
 
-[rules.message_connection_upgrade]
+[rules.upgrade_and_connection_consistent]
 enabled = true
 severity = "warn"
 
@@ -139,7 +139,7 @@ severity = "warn"
 enabled = true
 severity = "info"
 
-[rules.message_etag_syntax]
+[rules.etag_syntax]
 enabled = true
 severity = "warn"
 
@@ -228,7 +228,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_content_security_policy_and_frame_options_consistency]
+[rules.content_security_policy_and_frame_options_consistent]
 enabled = true
 severity = "warn"
 
@@ -488,7 +488,7 @@ severity = "warn"
 # the same of it.
 units = ["bytes"]
 
-[rules.message_accept_ranges_and_206_consistency]
+[rules.accept_ranges_and_206_consistent]
 enabled = true
 severity = "warn"
 
@@ -508,11 +508,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_content_type_well_formed]
+[rules.content_type_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_content_type_iana_registered]
+[rules.content_type_registered]
 enabled = true
 severity = "warn"
 # The list has to carry the media types HTTP itself produces, or the rule
@@ -562,12 +562,12 @@ severity = "warn"
 # against the registry they name.
 allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
 
-[rules.message_charset_iana_registered]
+[rules.charset_registered]
 enabled = true
 severity = "warn"
 allowed = ["utf-8", "iso-8859-1", "us-ascii"]
 
-[rules.message_content_encoding_and_type_consistency]
+[rules.content_encoding_and_type_consistent]
 enabled = true
 severity = "warn"
 
@@ -575,7 +575,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_date_and_time_headers_consistency]
+[rules.date_and_time_headers_consistent]
 enabled = true
 severity = "warn"
 
@@ -583,27 +583,27 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_accept_and_content_type_negotiation]
+[rules.accept_and_content_type_negotiation]
 enabled = true
 severity = "warn"
 
-[rules.message_cache_control_token_valid]
+[rules.cache_control_token_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_expires_and_cache_control_consistency]
+[rules.expires_and_cache_control_consistent]
 enabled = true
 severity = "warn"
 
-[rules.message_cache_control_directive_validity]
+[rules.cache_control_directive_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_caching_directive_interaction]
+[rules.caching_directive_interaction]
 enabled = true
 severity = "warn"
 
-[rules.message_cache_control_and_pragma_consistency]
+[rules.cache_control_and_pragma_consistent]
 enabled = true
 severity = "warn"
 
@@ -611,19 +611,19 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_content_disposition_token_valid]
+[rules.content_disposition_token_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_content_disposition_parameter_validity]
+[rules.content_disposition_parameter_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_form_data_content_disposition_valid]
+[rules.form_data_content_disposition_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_accept_header_media_type_syntax]
+[rules.accept_header_media_type_syntax]
 enabled = true
 severity = "warn"
 
@@ -631,11 +631,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_accept_language_weight_validity]
+[rules.accept_language_weight_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_early_data_header_safe_method]
+[rules.early_data_header_safe_method]
 enabled = true
 severity = "warn"
 # The methods this deployment knows to be safe. Safety is a required field of every
@@ -680,7 +680,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_content_location_and_uri_consistency]
+[rules.content_location_and_uri_consistent]
 enabled = true
 severity = "info"
 
@@ -692,15 +692,15 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_from_header_email_syntax]
+[rules.from_header_email_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_access_control_allow_credentials_when_origin]
+[rules.access_control_allow_credentials_when_origin]
 enabled = true
 severity = "warn"
 
-[rules.message_access_control_allow_origin_valid]
+[rules.access_control_allow_origin_valid]
 enabled = true
 severity = "warn"
 
@@ -708,7 +708,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_forwarded_header_validity]
+[rules.forwarded_header_valid]
 enabled = true
 severity = "warn"
 
@@ -716,7 +716,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_cross_origin_opener_policy_valid]
+[rules.cross_origin_opener_policy_valid]
 enabled = true
 severity = "warn"
 [rules.message_sec_fetch_site_value_valid]
@@ -727,20 +727,20 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_cross_origin_resource_policy_valid]
+[rules.cross_origin_resource_policy_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_cross_origin_embedder_policy_valid]
+[rules.cross_origin_embedder_policy_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_content_encoding_iana_registered]
+[rules.content_encoding_registered]
 enabled = true
 severity = "warn"
 allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip", "identity", "pack200-gzip", "x-compress", "x-gzip", "zstd"]
 
-[rules.message_accept_encoding_parameter_validity]
+[rules.accept_encoding_parameter_valid]
 enabled = true
 severity = "warn"
 
@@ -752,11 +752,11 @@ severity = "warn"
 # reported. "trailers" is registered as reserved and is not a coding name.
 allowed = ["chunked", "compress", "gzip", "deflate"]
 
-[rules.message_compression_and_transfer_encoding_consistency]
+[rules.compression_and_transfer_encoding_consistent]
 enabled = true
 severity = "warn"
 
-[rules.message_content_transfer_encoding_valid]
+[rules.content_transfer_encoding_valid]
 enabled = true
 severity = "warn"
 
@@ -772,11 +772,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_digest_header_syntax]
+[rules.digest_header_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_content_md5_vs_digest_preference]
+[rules.content_md5_vs_digest_preference]
 enabled = true
 severity = "warn"
 
@@ -788,56 +788,56 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_auth_scheme_iana_registered]
+[rules.auth_scheme_registered]
 enabled = true
 severity = "warn"
 allowed = ["Basic", "Bearer", "Digest"]
 
-[rules.message_authorization_credentials_present]
+[rules.authorization_credentials_present]
 enabled = true
 severity = "warn"
 
-[rules.message_digest_auth_validity]
+[rules.digest_auth_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_bearer_token_format_validity]
+[rules.bearer_token_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_basic_auth_base64_validity]
+[rules.basic_auth_base64_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_cookie_attribute_consistency]
+[rules.cookie_attribute_consistent]
 enabled = true
 severity = "warn"
 
-[rules.message_cookie_path_validity]
+[rules.cookie_path_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_cookie_domain_validity]
+[rules.cookie_domain_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_if_none_match_etag_syntax]
+[rules.if_none_match_etag_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_if_match_etag_syntax]
+[rules.if_match_etag_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_if_modified_since_date_format]
+[rules.if_modified_since_date_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_if_unmodified_since_date_format]
+[rules.if_unmodified_since_date_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_conditional_headers_consistency]
+[rules.conditional_headers_consistent]
 enabled = true
 severity = "warn"
 
@@ -909,15 +909,15 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_http_version_syntax_valid]
+[rules.http_version_syntax]
 enabled = true
 severity = "error"
 
-[rules.message_http2_pseudo_headers_validity]
+[rules.http2_pseudo_headers_valid]
 enabled = true
 severity = "error"
 
-[rules.message_host_and_authority_consistency]
+[rules.host_and_authority_consistent]
 enabled = true
 severity = "error"
 
@@ -925,7 +925,7 @@ severity = "error"
 enabled = true
 severity = "error"
 
-[rules.message_http3_pseudo_headers_validity]
+[rules.http3_pseudo_headers_valid]
 enabled = true
 severity = "error"
 
@@ -933,11 +933,11 @@ severity = "error"
 enabled = true
 severity = "error"
 
-[rules.message_content_length_vs_transfer_encoding]
+[rules.content_length_vs_transfer_encoding]
 enabled = true
 severity = "warn"
 
-[rules.message_content_length]
+[rules.content_length_valid]
 enabled = true
 severity = "warn"
 
@@ -953,7 +953,7 @@ severity = "error"
 enabled = true
 severity = "warn"
 
-[rules.message_header_field_names_token]
+[rules.header_field_names_token_valid]
 enabled = true
 severity = "warn"
 
@@ -964,14 +964,14 @@ severity = "warn"
 enabled = true
 severity = "error"
 
-[rules.message_context_fields_direction]
+[rules.context_fields_direction]
 # RFC 9110 §10 attaches no BCP 14 keyword to a context field arriving in the
 # direction it is not defined for; the finding is that the field states
 # nothing where it was sent, so it ships as advice.
 enabled = true
 severity = "info"
 
-[rules.message_extension_headers_registered]
+[rules.extension_headers_registered]
 # The 'allowed' array is this rule's only authority: it is not the IANA field
 # name registry, so every field name the deployment expects has to be listed
 # here, including the ones RFC 9110 itself defines. No such list is
@@ -992,7 +992,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_connection_header_tokens_valid]
+[rules.connection_header_tokens_valid]
 enabled = true
 severity = "warn"
 
@@ -1028,11 +1028,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_age_header_numeric]
+[rules.age_header_numeric]
 enabled = true
 severity = "warn"
 
-[rules.message_allow_header_method_tokens]
+[rules.allow_header_method_tokens_valid]
 enabled = true
 severity = "error"
 

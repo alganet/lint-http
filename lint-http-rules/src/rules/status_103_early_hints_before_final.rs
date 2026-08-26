@@ -309,7 +309,7 @@ mod tests {
     }
 
     /// A malformed version is not an HTTP/1.0 one, and must not silence the
-    /// § 15 finding — `parse` failing is `message_http_version_syntax_valid`'s
+    /// § 15 finding — `parse` failing is `http_version_syntax`'s
     /// report to make, not a reason for this rule to say nothing.
     #[rstest]
     #[case("HTTP/1.0.0")]
