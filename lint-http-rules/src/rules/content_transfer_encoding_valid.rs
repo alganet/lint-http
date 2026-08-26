@@ -198,7 +198,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-transfer-encoding", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -228,7 +229,8 @@ mod tests {
 
         // The value cannot be decoded, but presence is what is reported, so a
         // non-UTF-8 value is still a finding rather than a silent skip.
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -250,7 +252,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-transfer-encoding", "8bit")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -265,7 +268,8 @@ mod tests {
             "content-transfer-encoding",
             "xcodec",
         )]);
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -286,7 +290,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-transfer-encoding", " ")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -299,7 +304,8 @@ mod tests {
             // Not `x-bad`: an `x-` name is a conforming private mechanism.
             ("content-transfer-encoding", "no-such-mechanism"),
         ]);
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

@@ -271,7 +271,8 @@ mod tests {
             Section::Request => tx.request.headers = hm,
             Section::Response => tx.response.as_mut().expect("response").headers = hm,
         }
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -469,7 +470,8 @@ mod tests {
 
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -485,7 +487,8 @@ mod tests {
             if pairs.iter().any(|(k, _)| k.eq_ignore_ascii_case("upgrade")) {
                 saw_an_upgrade_field = true;
             }
-            let v = neighbour.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &neighbour,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &neighbour_cfg,

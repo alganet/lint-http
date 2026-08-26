@@ -293,7 +293,7 @@ mod tests {
             }
         };
 
-        AcceptRangesOnPartialContent.check_transaction(&tx, &history, &config())
+        crate::test_helpers::run_rule(&AcceptRangesOnPartialContent, &tx, &history, &config())
     }
 
     const RANGE: &[(&str, &[u8])] = &[("range", b"bytes=0-1".as_slice())];

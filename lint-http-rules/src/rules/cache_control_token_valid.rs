@@ -209,7 +209,8 @@ mod tests {
     fn request_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_req(value);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -232,7 +233,8 @@ mod tests {
     fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_resp(value);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -254,7 +256,8 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("cache-control", bad);
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -271,7 +274,8 @@ mod tests {
             ("cache-control", "no-cache"),
             ("cache-control", "max-age=60"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -288,7 +292,8 @@ mod tests {
             ("cache-control", "no-cache"),
             ("cache-control", "max-age=60"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -301,7 +306,8 @@ mod tests {
     fn quoted_string_with_extra_chars_reports_violation() -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_req("foo=\"bar\"x");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -314,7 +320,8 @@ mod tests {
     fn quoted_value_unterminated_reports_violation() -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_req("foo=\"unterminated");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -327,7 +334,8 @@ mod tests {
     fn empty_directive_value_is_accepted() -> anyhow::Result<()> {
         let rule = CacheControlTokenValid;
         let tx = make_req("foo=");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -345,7 +353,8 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("cache-control", bad);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -360,7 +369,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("cache-control", ",max-age=1")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

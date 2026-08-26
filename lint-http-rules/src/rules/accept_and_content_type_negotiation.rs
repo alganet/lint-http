@@ -383,7 +383,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", ct)]);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -421,7 +422,8 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", content_type)]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -472,7 +474,8 @@ mod tests {
             tx.request.headers = headers(req);
             tx.response.as_mut().unwrap().headers = headers(resp);
 
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -531,7 +534,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -563,7 +567,8 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", accept)]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -595,7 +600,8 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", accept)]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", content_type)]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -616,7 +622,8 @@ mod tests {
         )]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -639,7 +646,8 @@ mod tests {
             ("content-type", "text/html"),
             ("content-type", "application/json"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -661,7 +669,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/plain")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -683,7 +692,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "application/json")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -700,7 +710,8 @@ mod tests {
 
         let tx = crate::test_helpers::make_test_transaction();
         // tx.response is None
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

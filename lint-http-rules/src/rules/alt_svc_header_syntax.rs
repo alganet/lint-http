@@ -564,7 +564,8 @@ mod tests {
     }
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        AltSvcHeaderSyntax.check_transaction(
+        crate::test_helpers::run_rule(
+            &AltSvcHeaderSyntax,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config(),

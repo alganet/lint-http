@@ -261,7 +261,8 @@ mod tests {
             trailers: None,
         });
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -423,7 +424,8 @@ mod tests {
             "clear_site_data_present",
             &["/logout"],
         );
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,

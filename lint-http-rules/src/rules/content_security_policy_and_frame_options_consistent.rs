@@ -330,7 +330,8 @@ mod tests {
             ("x-frame-options", xfo),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -368,7 +369,8 @@ mod tests {
         headers.insert("x-frame-options", bad);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -388,13 +390,13 @@ mod tests {
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
 
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .unwrap();
         assert!(v.message.contains("does not match"));
     }
 
@@ -432,7 +434,8 @@ mod tests {
             ("x-frame-options", "ALLOW-FROM https://a"),
         ]);
         tx.response.as_mut().unwrap().headers = headers;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -451,7 +454,8 @@ mod tests {
             ("x-frame-options", "DENY"),
         ]);
         // since the directive is malformed (no members) we treat as absent and no violation
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -473,7 +477,8 @@ mod tests {
         headers.append("x-frame-options", "DENY".parse().unwrap());
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -491,7 +496,8 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "ALLOW-FROM https://example/"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -509,7 +515,8 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "UNKNOWN https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -530,7 +537,8 @@ mod tests {
             ("x-frame-options", "ALLOW-FROM http://example"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -548,7 +556,8 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://a"),
             ("x-frame-options", "ALLOW-FROM"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -566,7 +575,8 @@ mod tests {
             ("content-security-policy", "frame-ancestors 'none'"),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -586,7 +596,8 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://EXample"),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -607,7 +618,8 @@ mod tests {
             ),
             ("x-frame-options", "ALLOW-FROM https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -625,7 +637,8 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "SAMEORIGIN"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -646,7 +659,8 @@ mod tests {
         ]);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -667,7 +681,8 @@ mod tests {
             ("content-security-policy", "frame-ancestors https://example"),
             ("x-frame-options", "allow-from https://example"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -703,7 +718,8 @@ mod tests {
             ("x-frame-options", "SAMEORIGIN"),
         ]);
         // report-only policies should not affect framing enforcement -> ignore
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -721,7 +737,8 @@ mod tests {
             ("content-security-policy", "frame-ancestors 'self'"),
             ("x-frame-options", "SAMEORIGIN"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -742,7 +759,8 @@ mod tests {
         headers.insert("content-security-policy", bad);
         tx.response.as_mut().unwrap().headers = headers;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -760,7 +778,8 @@ mod tests {
             "content-security-policy",
             "frame-ancestors https://example",
         )]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

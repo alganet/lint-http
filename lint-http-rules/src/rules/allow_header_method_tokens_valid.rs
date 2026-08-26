@@ -387,7 +387,8 @@ mod tests {
             headers.append(hyper::header::ALLOW, HeaderValue::from_bytes(line).unwrap());
         }
 
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -557,13 +558,13 @@ mod tests {
         let rule = AllowHeaderMethodTokensValid;
         let tx = make_test_transaction();
 
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .is_none());
     }
 
     #[test]

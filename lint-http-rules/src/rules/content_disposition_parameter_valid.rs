@@ -369,7 +369,8 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -393,7 +394,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -414,7 +416,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -445,7 +448,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -465,7 +469,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -486,7 +491,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -519,7 +525,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -539,7 +546,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -559,7 +567,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -579,7 +588,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -599,13 +609,13 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap();
         assert!(v.message.contains("filename* extended value invalid"));
     }
 
@@ -621,13 +631,13 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap();
         assert!(v.message.contains("extended parameter 'title*' invalid"));
     }
 
@@ -643,7 +653,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -663,7 +674,8 @@ mod tests {
             "content_disposition_parameter_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,

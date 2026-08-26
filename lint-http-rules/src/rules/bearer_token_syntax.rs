@@ -141,7 +141,8 @@ mod tests {
                 .append("authorization", HeaderValue::from_str(h)?);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -171,7 +172,8 @@ mod tests {
             HeaderValue::from_bytes(b"Bearer \xff").unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -205,7 +207,8 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("bearer abc123"));
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -228,7 +231,8 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Bearer a b"));
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -247,7 +251,8 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Bearer ab=c"));
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -268,7 +273,8 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Bearer =abc"));
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

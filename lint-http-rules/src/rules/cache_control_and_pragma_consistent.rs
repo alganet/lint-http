@@ -162,7 +162,8 @@ mod tests {
         }
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -188,7 +189,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("pragma", "no-cache")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -212,7 +214,8 @@ mod tests {
         tx.request.headers = hm;
 
         // Non-UTF8 values are ignored by this consistency rule; syntax/token rules should report encoding problems.
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -244,7 +247,8 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -269,7 +273,8 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -288,7 +293,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("pragma", "foo")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -316,7 +322,8 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -337,7 +344,8 @@ mod tests {
         hm.append("pragma", hyper::header::HeaderValue::from_static("bar"));
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

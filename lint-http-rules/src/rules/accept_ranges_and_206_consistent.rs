@@ -227,7 +227,8 @@ mod tests {
     }
 
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        AcceptRangesAnd206Consistent.check_transaction(
+        crate::test_helpers::run_rule(
+            &AcceptRangesAnd206Consistent,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config(),

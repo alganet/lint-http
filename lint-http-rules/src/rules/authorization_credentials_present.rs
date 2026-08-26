@@ -140,7 +140,8 @@ mod tests {
                 .append("authorization", HeaderValue::from_str(h)?);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -165,7 +166,8 @@ mod tests {
             HeaderValue::from_bytes(b"Bearer \xff").unwrap(),
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -191,7 +193,8 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Basic"));
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -245,7 +248,8 @@ mod tests {
             let tx = crate::test_helpers::make_test_transaction_with_headers(&published_fields(
                 ex.snippet,
             ));
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -293,7 +297,7 @@ mod tests {
                 ex.snippet,
             ));
             for owner in [&digest as &dyn crate::rules::Rule, &bearer] {
-                let found = owner.check_transaction(&tx, &history, &cfg);
+                let found = crate::test_helpers::run_rule(owner, &tx, &history, &cfg);
                 assert!(
                     found.is_none(),
                     "a Compliant example publishes a credential {} rejects {:?}: {found:?}",

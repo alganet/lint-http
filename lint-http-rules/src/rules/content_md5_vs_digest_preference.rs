@@ -149,7 +149,8 @@ mod tests {
                     200,
                     &[("content-digest", value)],
                 );
-                let v = syntax_rule.check_transaction(
+                let v = crate::test_helpers::run_rule(
+                    &syntax_rule,
                     &tx,
                     &crate::transaction_history::TransactionHistory::empty(),
                     &cfg,
@@ -176,7 +177,8 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -205,7 +207,8 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -226,7 +229,8 @@ mod tests {
             "sha-256=:\tdGVzdA==:",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -246,7 +250,8 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-md5", "dGVzdA==")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -275,7 +280,8 @@ mod tests {
             HeaderValue::from_static("sha-256=:\tdGVzdA==:"),
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -307,7 +313,8 @@ mod tests {
             ("content-md5", "dGVzdA=="),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
