@@ -21,7 +21,7 @@ pub use lint_http_core::{
 };
 
 // Rule catalogue, helpers, query layer, and lint dispatch.
-pub use lint_http_rules::{engine, gendocs, helpers, lint_protocol, queries, rules};
+pub use lint_http_rules::{engine, helpers, lint_protocol, queries, rules};
 
 // Transport / capture / CA layers owned by this crate.
 pub mod ca;
