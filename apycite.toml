@@ -51,7 +51,7 @@ label = "{path}"
 # reason this widening is allowed to happen. Widening to a non-empty baseline
 # would have traded "every file in scope is cited" for "every file in scope is
 # cited eventually", and there is no second mechanism to hold the difference.
-# 221 files, 210 cited, 11 excluded below, 0 to migrate.
+# 222 files, 210 cited, 12 excluded below, 0 to migrate.
 #
 # `lint-http-core` and `lint-http-proxy` are deliberately still out of scope, and
 # not because their cites do not work — they do, and both crates carry some. It is
@@ -84,9 +84,17 @@ baseline = "specs/ratchet.txt"
 # query is a URI prefix filter, so no part of `scheme + host + port` is ever
 # parsed or compared. Real origin matching lives in
 # `rules/origin_matching_for_cors.rs`, and is cited there.
+#
+# `helpers/rule_config.rs` parses the shared `allowed`/`headers` array shape out
+# of TOML — configuration plumbing, enforcing no sentence of any specification.
+# The one normative fact near it, that each rule's entries are matched
+# case-insensitively, is a per-registry claim and is cited in each rule's
+# `prepare` beside the call, which is exactly why the fold's justification did
+# not move here with the parser.
 exclude = [
     "lint-http-rules/src/rules/mod.rs",
     "lint-http-rules/src/helpers/mod.rs",
+    "lint-http-rules/src/helpers/rule_config.rs",
     "lint-http-rules/src/queries/*.rs",
     "lint-http-rules/src/engine.rs",
     "lint-http-rules/src/lib.rs",

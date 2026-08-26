@@ -7,57 +7,6 @@ use crate::rules::Rule;
 
 pub struct MediaTypeSuffixValid;
 
-#[derive(Debug, Clone)]
-pub struct MessageMediaTypeSuffixConfig {
-    pub severity: crate::lint::Severity,
-    pub allowed: Vec<String>,
-}
-
-fn parse_allowed_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<MessageMediaTypeSuffixConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    let rule_cfg = config
-        .get_rule_config(rule_id)
-        .ok_or_else(|| anyhow::anyhow!("missing configuration for '{}'", rule_id))?;
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let allowed_val = table.get("allowed").ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Rule '{}' requires an 'allowed' array listing known structured-syntax suffixes (e.g., ['json','xml'])",
-                    rule_id
-                )
-            })?;
-
-    let arr = allowed_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!("'allowed' must be an array of strings (e.g., ['json','xml'])")
-    })?;
-
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
-    }
-
-    // Folded once here rather than at every comparison; the subtype a suffix
-    // lives in is case-insensitive, so the fold is the matching rule.
-    // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'allowed' array item at index {} must be a string", i)
-        })?;
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(MessageMediaTypeSuffixConfig {
-        severity,
-        allowed: out,
-    })
-}
-
 impl Rule for MediaTypeSuffixValid {
     fn id(&self) -> &'static str {
         "media_type_suffix_valid"
@@ -72,13 +21,24 @@ impl Rule for MediaTypeSuffixValid {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_allowed_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        // Entries are folded once at prepare time rather than at every comparison;
+        // the subtype a suffix lives in is case-insensitive, so the fold is the
+        // matching rule.
+        // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
+        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "allowed",
+            "known structured-syntax suffixes",
+            "['json','xml']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
 
@@ -88,7 +48,7 @@ impl Rule for MediaTypeSuffixValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config: &MessageMediaTypeSuffixConfig = ctx.state();
+        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
         let check_media = |hdr_name: &str, val: &str| -> Option<Violation> {
             // A value that is not a media-type has no subtype to inspect, and
             // saying so is `content_type_valid`'s finding. The
@@ -137,7 +97,7 @@ impl Rule for MediaTypeSuffixValid {
                 if subtype.starts_with('+') {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Media type '{}/{}' in {} is a structured suffix with no base subtype name",
                             parsed.type_, parsed.subtype, hdr_name
@@ -155,7 +115,7 @@ impl Rule for MediaTypeSuffixValid {
                 if suffix.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Media type '{}/{}' in {} has empty structured suffix",
                             parsed.type_, parsed.subtype, hdr_name
@@ -179,7 +139,7 @@ impl Rule for MediaTypeSuffixValid {
                 if !config.allowed.contains(&suffix) {
                     return Some(Violation {
                                 rule: self.id().into(),
-                                severity: config.severity,
+                                severity: ctx.severity,
                                 message: format!(
                                     "Unrecognized structured syntax suffix '+{}' in media type '{}/{}' (header '{}')",
                                     suffix, parsed.type_, parsed.subtype, hdr_name
@@ -778,7 +738,9 @@ mod tests {
             }),
         );
 
-        let parsed = parse_allowed_config(&cfg, "media_type_suffix_valid")?;
+        let parsed = MediaTypeSuffixValid.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
         assert_eq!(parsed.allowed, vec!["ldjson".to_string()]);
         Ok(())
     }
@@ -798,7 +760,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "media_type_suffix_valid");
+        let res = MediaTypeSuffixValid.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -820,7 +782,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "media_type_suffix_valid");
+        let res = MediaTypeSuffixValid.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -828,13 +790,12 @@ mod tests {
     fn parse_config_requires_allowed_array() {
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["media_type_suffix_valid"]);
-        let res = parse_allowed_config(&cfg, "media_type_suffix_valid");
+        let res = MediaTypeSuffixValid.prepare(&cfg);
         assert!(res.is_err());
     }
 
     #[test]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = MediaTypeSuffixValid;
         let mut full_cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["media_type_suffix_valid"]);
         full_cfg.rules.insert(
@@ -851,7 +812,9 @@ mod tests {
             }),
         );
 
-        let arc = parse_allowed_config(&full_cfg, rule.id())?;
+        let arc = MediaTypeSuffixValid.prepare(&full_cfg)?;
+        let arc: &crate::helpers::rule_config::AllowedList =
+            arc.state.downcast_ref().expect("allowed list state");
         assert!(arc.allowed.contains(&"json".to_string()));
         Ok(())
     }

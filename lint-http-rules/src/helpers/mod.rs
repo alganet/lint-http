@@ -50,6 +50,7 @@ pub mod ipv6;
 pub mod language;
 pub mod mailbox;
 pub mod product;
+pub mod rule_config;
 pub mod status;
 pub mod structured_fields;
 pub mod token;

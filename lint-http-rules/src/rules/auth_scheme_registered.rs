@@ -5,57 +5,6 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-#[derive(Debug, Clone)]
-pub struct AuthSchemeConfig {
-    pub severity: crate::lint::Severity,
-    pub allowed: Vec<String>,
-}
-
-fn parse_allowed_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<AuthSchemeConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    let rule_cfg = config.get_rule_config(rule_id).ok_or_else(|| {
-        anyhow::anyhow!(
-            "rule '{}' requires configuration and a named 'allowed' array listing acceptable auth-schemes. Example in config_example.toml",
-            rule_id
-        )
-    })?;
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let allowed_val = table.get("allowed").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires an 'allowed' array listing allowed auth-schemes (e.g., ['Basic','Bearer'])",
-            rule_id
-        )
-    })?;
-
-    let arr = allowed_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!("'allowed' must be an array of strings (e.g., ['Basic','Bearer'])")
-    })?;
-
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
-    }
-
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'allowed' array item at index {} must be a string", i)
-        })?;
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(AuthSchemeConfig {
-        severity,
-        allowed: out,
-    })
-}
-
 pub struct AuthSchemeRegistered;
 
 impl Rule for AuthSchemeRegistered {
@@ -68,13 +17,20 @@ impl Rule for AuthSchemeRegistered {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_allowed_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "allowed",
+            "acceptable auth-schemes",
+            "['Basic','Bearer']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
 
@@ -84,7 +40,7 @@ impl Rule for AuthSchemeRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config: &AuthSchemeConfig = ctx.state();
+        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
         // Helper to check a single scheme token against allowed list
         let check_scheme =
             |hdr_name: &str, scheme: &str, allowed: &Vec<String>| -> Option<Violation> {
@@ -93,7 +49,7 @@ impl Rule for AuthSchemeRegistered {
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(scheme) {
                     return Some(Violation {
                         rule: "auth_scheme_registered".into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Invalid character '{}' in {} auth-scheme", c, hdr_name),
                     });
                 }
@@ -108,7 +64,7 @@ impl Rule for AuthSchemeRegistered {
                 if !allowed.contains(&scheme.to_ascii_lowercase()) {
                     return Some(Violation {
                         rule: "auth_scheme_registered".into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
                     });
                 }
@@ -123,7 +79,7 @@ impl Rule for AuthSchemeRegistered {
                     Err(_) => {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: "WWW-Authenticate header contains non-UTF8 value".into(),
                         })
                     }
@@ -145,7 +101,7 @@ impl Rule for AuthSchemeRegistered {
                     Err(e) => {
                         return Some(Violation {
                             rule: self.id().into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!("Invalid WWW-Authenticate header: {}", e),
                         })
                     }
@@ -160,7 +116,7 @@ impl Rule for AuthSchemeRegistered {
                 if let Err(e) = crate::helpers::auth::validate_authorization_syntax(v) {
                     return Some(Violation {
                         rule: self.id().into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!("Invalid Authorization header: {}", e),
                     });
                 }
@@ -172,7 +128,7 @@ impl Rule for AuthSchemeRegistered {
             } else {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "Authorization header contains non-UTF8 value".into(),
                 });
             }
@@ -438,7 +394,7 @@ mod tests {
         // Missing table
         let mut cfg = crate::config::Config::default();
         crate::test_helpers::enable_rule(&mut cfg, "auth_scheme_registered");
-        assert!(parse_allowed_config(&cfg, "auth_scheme_registered").is_err());
+        assert!(AuthSchemeRegistered.prepare(&cfg).is_err());
 
         // Not a table
         let mut cfg2 = crate::config::Config::default();
@@ -447,7 +403,7 @@ mod tests {
             "auth_scheme_registered".into(),
             toml::Value::String("invalid".into()),
         );
-        assert!(parse_allowed_config(&cfg2, "auth_scheme_registered").is_err());
+        assert!(AuthSchemeRegistered.prepare(&cfg2).is_err());
 
         // allowed not array
         let mut cfg3 = crate::config::Config::default();
@@ -462,7 +418,7 @@ mod tests {
                 t
             }),
         );
-        assert!(parse_allowed_config(&cfg3, "auth_scheme_registered").is_err());
+        assert!(AuthSchemeRegistered.prepare(&cfg3).is_err());
 
         // empty allowed array
         let mut cfg4 = crate::config::Config::default();
@@ -477,7 +433,7 @@ mod tests {
                 t
             }),
         );
-        assert!(parse_allowed_config(&cfg4, "auth_scheme_registered").is_err());
+        assert!(AuthSchemeRegistered.prepare(&cfg4).is_err());
 
         // non-string item
         let mut cfg5 = crate::config::Config::default();
@@ -495,7 +451,7 @@ mod tests {
                 t
             }),
         );
-        assert!(parse_allowed_config(&cfg5, "auth_scheme_registered").is_err());
+        assert!(AuthSchemeRegistered.prepare(&cfg5).is_err());
 
         // normalization to lowercase
         let mut cfg6 = crate::config::Config::default();
@@ -516,7 +472,9 @@ mod tests {
                 t
             }),
         );
-        let parsed = parse_allowed_config(&cfg6, "auth_scheme_registered").unwrap();
+        let parsed = AuthSchemeRegistered.prepare(&cfg6).unwrap();
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
         assert_eq!(
             parsed.allowed,
             vec!["basic".to_string(), "bearer".to_string()]

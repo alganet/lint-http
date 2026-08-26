@@ -5,61 +5,6 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-#[derive(Debug, Clone)]
-pub struct TransferCodingConfig {
-    pub severity: crate::lint::Severity,
-    pub allowed: Vec<String>,
-}
-
-fn parse_allowed_config(
-    config: &crate::config::Config,
-    rule_id: &str,
-) -> anyhow::Result<TransferCodingConfig> {
-    let severity = crate::rules::get_rule_severity_required(config, rule_id)?;
-
-    // get_rule_severity_required/required_enabled already asserts the rule config exists,
-    // so unwrap is safe here and avoids creating an unreachable error branch.
-    let rule_cfg = config
-        .get_rule_config(rule_id)
-        .expect("internal error: rule config missing after validation");
-    let table = rule_cfg
-        .as_table()
-        .ok_or_else(|| anyhow::anyhow!("Configuration for rule '{}' must be a table", rule_id))?;
-
-    let allowed_val = table.get("allowed").ok_or_else(|| {
-        anyhow::anyhow!(
-            "Rule '{}' requires an 'allowed' array listing allowed transfer-coding tokens (e.g., ['chunked','gzip','deflate'])",
-            rule_id
-        )
-    })?;
-
-    let arr = allowed_val.as_array().ok_or_else(|| {
-        anyhow::anyhow!("'allowed' must be an array of strings (e.g., ['chunked','gzip'])")
-    })?;
-
-    if arr.is_empty() {
-        return Err(anyhow::anyhow!("'allowed' array cannot be empty"));
-    }
-
-    let mut out = Vec::new();
-    for (i, item) in arr.iter().enumerate() {
-        let s = item.as_str().ok_or_else(|| {
-            anyhow::anyhow!("'allowed' array item at index {} must be a string", i)
-        })?;
-        // Folded once here so the comparison site can fold the wire value and
-        // be done. The fold is not a convenience: the names are defined to be
-        // case-insensitive, so `GZIP` in a config file and `gzip` on the wire
-        // are the same coding.
-        // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
-        out.push(s.to_ascii_lowercase());
-    }
-
-    Ok(TransferCodingConfig {
-        severity,
-        allowed: out,
-    })
-}
-
 /// Every coding RFC 9112 says defines no parameters. The first five are § 7.2's
 /// compression codings, defined there by reference to the content coding of the
 /// same name -- the two `x-` forms are named as alternates rather than as a
@@ -86,13 +31,25 @@ impl Rule for TransferCodingRegistered {
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
-        let config = parse_allowed_config(cfg, self.id())?;
+        let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
+        // Entries are folded once at prepare time so the comparison site can fold
+        // the wire value and be done. The fold is not a convenience: the names are
+        // defined to be case-insensitive, so `GZIP` in a config file and `gzip` on
+        // the wire are the same coding.
+        // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+        let allowed = crate::helpers::rule_config::parse_lowercased_list(
+            cfg,
+            self.id(),
+            "allowed",
+            "acceptable transfer-coding tokens",
+            "['chunked','gzip','deflate']",
+        )?;
         // The two standard keys, **after** this rule's own options, so a config
         // naming a bad option still fails on that option.
         crate::rules::validate_rule_table(cfg, self.id())?;
         Ok(crate::rules::ResolvedRule {
-            severity: config.severity,
-            state: Box::new(config),
+            severity,
+            state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
     }
 
@@ -102,7 +59,7 @@ impl Rule for TransferCodingRegistered {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let config: &TransferCodingConfig = ctx.state();
+        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
         // check a list-style header value (Transfer-Encoding or TE) against allowed list
         let check_value = |hdr_name: &str, val: &str, allowed: &[String]| -> Option<Violation> {
             // An odd number of unescaped DQUOTEs means the quoting never
@@ -122,7 +79,7 @@ impl Rule for TransferCodingRegistered {
             if !crate::helpers::headers::quoting_is_balanced(val) {
                 return Some(Violation {
                     rule: "transfer_coding_registered".into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "Unterminated quoted-string in {} header: '{}'",
                         hdr_name, val
@@ -185,7 +142,7 @@ impl Rule for TransferCodingRegistered {
                 if token.is_empty() {
                     return Some(Violation {
                         rule: "transfer_coding_registered".into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Missing transfer-coding name in {} header member '{}'",
                             hdr_name, part
@@ -195,7 +152,7 @@ impl Rule for TransferCodingRegistered {
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                     return Some(Violation {
                         rule: "transfer_coding_registered".into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         // The offending character alone does not locate itself
                         // on a field with several members -- `Invalid token
                         // '<'` says nothing about which coding carried it.
@@ -219,7 +176,7 @@ impl Rule for TransferCodingRegistered {
                 if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("chunked") {
                     return Some(Violation {
                         rule: "transfer_coding_registered".into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: "A client must not send the chunked transfer coding name in TE; \
                              chunked is always acceptable for HTTP/1.1 recipients"
                             .into(),
@@ -273,7 +230,7 @@ impl Rule for TransferCodingRegistered {
                         }
                         return Some(Violation {
                             rule: "transfer_coding_registered".into(),
-                            severity: config.severity,
+                            severity: ctx.severity,
                             message: format!(
                                 "Transfer-coding '{}' defines no parameters, but '{}' is \
                                  present in the {} header",
@@ -303,7 +260,7 @@ impl Rule for TransferCodingRegistered {
                 if !allowed.contains(&token.to_ascii_lowercase()) {
                     return Some(Violation {
                         rule: "transfer_coding_registered".into(),
-                        severity: config.severity,
+                        severity: ctx.severity,
                         message: format!(
                             "Unrecognized transfer-coding '{}' in {} header",
                             token, hdr_name
@@ -1069,7 +1026,9 @@ mod tests {
             }),
         );
 
-        let parsed = parse_allowed_config(&cfg, "transfer_coding_registered")?;
+        let parsed = TransferCodingRegistered.prepare(&cfg)?;
+        let parsed: &crate::helpers::rule_config::AllowedList =
+            parsed.state.downcast_ref().expect("allowed list state");
         assert_eq!(parsed.allowed, vec!["x-custom".to_string()]);
         Ok(())
     }
@@ -1090,7 +1049,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "transfer_coding_registered");
+        let res = TransferCodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -1113,7 +1072,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "transfer_coding_registered");
+        let res = TransferCodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -1122,13 +1081,12 @@ mod tests {
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "transfer_coding_registered",
         ]);
-        let res = parse_allowed_config(&cfg, "transfer_coding_registered");
+        let res = TransferCodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
     #[test]
     fn validate_parses_config() -> anyhow::Result<()> {
-        let rule = TransferCodingRegistered;
         let mut full_cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "transfer_coding_registered",
         ]);
@@ -1146,7 +1104,9 @@ mod tests {
             }),
         );
 
-        let arc = parse_allowed_config(&full_cfg, rule.id())?;
+        let arc = TransferCodingRegistered.prepare(&full_cfg)?;
+        let arc: &crate::helpers::rule_config::AllowedList =
+            arc.state.downcast_ref().expect("allowed list state");
         assert!(arc.allowed.contains(&"chunked".to_string()));
         Ok(())
     }
@@ -1264,7 +1224,7 @@ mod tests {
         ]);
         cfg.rules
             .insert("transfer_coding_registered".into(), toml::Value::Integer(1));
-        let res = parse_allowed_config(&cfg, "transfer_coding_registered");
+        let res = TransferCodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -1284,7 +1244,7 @@ mod tests {
             }),
         );
 
-        let res = parse_allowed_config(&cfg, "transfer_coding_registered");
+        let res = TransferCodingRegistered.prepare(&cfg);
         assert!(res.is_err());
     }
 
@@ -1325,7 +1285,7 @@ mod tests {
     fn parse_config_requires_named_rule_cfg() {
         // No rule entry present at all should produce an error stating configuration is required
         let cfg = crate::config::Config::default();
-        let res = parse_allowed_config(&cfg, "transfer_coding_registered");
+        let res = TransferCodingRegistered.prepare(&cfg);
         assert!(res.is_err());
         let e = res.unwrap_err();
         // Depending on which helper fails first the message may reference "missing configuration"
