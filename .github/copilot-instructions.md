@@ -23,11 +23,11 @@ Actionable guidance for AI coding agents working in `lint-http` (TLS-terminating
 - Treat `.cargo/config.toml` as source of truth for lint/coverage aliases and thresholds.
 
 ## Rule implementation workflow (required)
-1. Add `src/rules/<client|server|message|semantic>_<name>.rs`.
-2. Implement `Rule` in `src/rules/mod.rs` style; set `scope()` (`Client`, `Server`, or `Both`).
-3. Register module and add rule to `RULES` in `src/rules/mod.rs`.
-4. If custom config is needed, override `validate_and_box` and fail fast on invalid config.
-5. Add docs in `docs/rules/<rule_id>.md` and link in `docs/rules.md`.
+1. Add `lint-http-rules/src/rules/<subject>_<predicate>.rs`. Ids carry **no** category prefix; see `docs/development.md` for the predicate vocabulary (`_syntax`, `_valid`, `_registered`, `_present`, `_consistent`, `_enforced`). The file stem, the `id()` literal, and the `PascalCase` struct name must be the same name.
+2. Implement `Rule` in `src/rules/mod.rs` style; set `scope()` (`Client`, `Server`, or `Both`). `scope()` is what places the rule in the generated index, so it is metadata and not a comment.
+3. Nothing to register: `build.rs` discovers the file and a `linkme::distributed_slice(REGISTERED_RULES)` static at the bottom of the file adds it to the catalogue.
+4. If custom config is needed, override `validate` and fail fast on invalid config.
+5. Put docs prose in `description()` / `specifications()` / `examples()` and run `cargo run -p lint-http-proxy -- gendocs`. `docs/rules/<rule_id>.md` and `docs/rules.md` are generated; editing them by hand fails `docs_match_generated`.
 6. Add example config in `config_example.toml` (tests assert rule/doc example coverage).
 7. Add tests with `src/test_helpers.rs` helpers (`enable_rule`, `enable_rule_with_paths`, `make_test_transaction_with_response`, `make_test_engine`).
 
@@ -36,7 +36,8 @@ Actionable guidance for AI coding agents working in `lint-http` (TLS-terminating
 - Rules are disabled by default; enabling requires `[rules.<id>] enabled = <bool>` and `severity = "info|warn|error"`.
 - Config validation happens before runtime in `Config::load_from_path` via `validate_rules`; missing `enabled`/`severity` is a startup error.
 - `RuleConfigEngine::get_cached` panics if an enabled rule wasn’t validated/cached; always rely on validated engine instances.
-- `config_example.toml` is canonical; keep it synchronized with `RULES`.
+- `config_example.toml` is canonical; every registered rule must have a `[rules.<id>]` section there, which `config_example_includes_all_rules` asserts.
+- Rule ids are breaking to change and are never aliased: `validate_rules` rejects an unknown `[rules.<id>]` at startup and points at `docs/rules.md`.
 - Prefer existing helpers/utilities (`src/test_helpers.rs`, `src/token.rs`) over custom parsing/fixture code.
 
 ## Integration points to understand before editing

@@ -35,8 +35,6 @@ Scope: this rule reads header sections — a request's and a response's, each ag
 [rules.upgrade_and_connection_consistent]
 enabled = true
 severity = "warn"
-
-# Server Rules
 ```
 
 ## Examples
