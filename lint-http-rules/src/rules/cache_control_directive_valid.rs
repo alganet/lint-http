@@ -279,7 +279,8 @@ mod tests {
     fn request_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req(value);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -308,7 +309,8 @@ mod tests {
     fn response_cases(#[case] value: &str, #[case] expect_violation: bool) -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_resp(value);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -328,7 +330,8 @@ mod tests {
             ("cache-control", "no-cache"),
             ("cache-control", "max-age=60"),
         ]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -346,7 +349,8 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.insert("cache-control", bad);
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -362,7 +366,8 @@ mod tests {
         // zero-element list, exactly like `empty_whole_value_is_allowed_request`.
         let rule = CacheControlDirectiveValid;
         let tx = make_req("   ");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -378,7 +383,8 @@ mod tests {
     fn whitespace_only_response_is_allowed() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_resp("   ");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -394,7 +400,8 @@ mod tests {
     fn private_unterminated_quoted_reports_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("private=\"unterminated");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -412,7 +419,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("cache-control", ",max-age=1")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -427,7 +435,8 @@ mod tests {
         // empty *element* in `empty_member_is_violation`.
         let rule = CacheControlDirectiveValid;
         let tx = make_req("");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -440,7 +449,8 @@ mod tests {
     fn empty_whole_value_is_allowed_response() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_resp("");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -476,7 +486,8 @@ mod tests {
     fn foo_empty_value_allowed() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -489,7 +500,8 @@ mod tests {
     fn foo_quoted_value_allowed() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=\"bar\"");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -502,7 +514,8 @@ mod tests {
     fn directive_value_invalid_token() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=bad@val");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -520,7 +533,8 @@ mod tests {
     fn oversized_delta_seconds_is_valid_syntax(#[case] value: &str) -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req(value);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -533,7 +547,8 @@ mod tests {
     fn empty_directive_name_is_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("=bar");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -546,7 +561,8 @@ mod tests {
     fn private_quoted_empty_field_is_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("private=\"field1,,field3\"");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -559,7 +575,8 @@ mod tests {
     fn private_quoted_invalid_field_char_is_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("private=\"field1,bad@field\"");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -584,7 +601,8 @@ mod tests {
             body_length: None,
             trailers: None,
         });
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -597,7 +615,8 @@ mod tests {
     fn whitespace_around_name_value_accepted() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req(" max-age = 3600 ");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -610,7 +629,8 @@ mod tests {
     fn quoted_string_with_extra_chars_reports_violation() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=\"bar\"x");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -623,7 +643,8 @@ mod tests {
     fn multiple_directives_unquoted_comma_accepted() -> anyhow::Result<()> {
         let rule = CacheControlDirectiveValid;
         let tx = make_req("foo=bar,baz");
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

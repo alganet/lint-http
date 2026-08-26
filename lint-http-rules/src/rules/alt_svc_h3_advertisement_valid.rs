@@ -408,7 +408,8 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -433,13 +434,13 @@ mod tests {
             &[("alt-svc", "h3-29=\":443\"")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap();
         assert!(v.message.contains("h3-29"));
         assert!(v.message.contains("draft"));
     }
@@ -452,13 +453,13 @@ mod tests {
             &[("alt-svc", "h3=\":443\"; ma=0")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap();
         assert!(v.message.contains("ma=0"));
     }
 
@@ -470,13 +471,13 @@ mod tests {
             &[("alt-svc", "h3=\":443\"; ma=99999999")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap();
         assert!(v.message.contains("unreasonably large"));
     }
 
@@ -490,13 +491,13 @@ mod tests {
             &[("alt-svc", "h3=\":443\"; ma=abc")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap();
         assert_eq!(
             v.message,
             "Alt-Svc h3 entry has 'ma=abc', which is no `delta-seconds`: the production is `1*DIGIT` (RFC 9111 §1.2.2), so a sign, a radix point or any other character leaves the freshness lifetime unstated"
@@ -513,13 +514,13 @@ mod tests {
             &[("alt-svc", "h3=\":443\"; ma=+5")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap();
         assert!(v.message.contains("'ma=+5'"), "{}", v.message);
         assert!(v.message.contains("`1*DIGIT`"), "{}", v.message);
         // `parse::<u64>()` reads this as 5 and would have said nothing.
@@ -536,13 +537,13 @@ mod tests {
             &[("alt-svc", "h3=\":443\"; ma=99999999999999999999999")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .unwrap();
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .unwrap();
         assert!(v.message.contains("unreasonably large"), "{}", v.message);
         assert!(!v.message.contains("delta-seconds"), "{}", v.message);
     }
@@ -562,7 +563,8 @@ mod tests {
                 &[("alt-svc", header)],
             );
             let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
@@ -575,7 +577,8 @@ mod tests {
     fn missing_response_returns_none() {
         let rule = AltSvcH3AdvertisementValid;
         let tx = crate::test_helpers::make_test_transaction();
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -591,7 +594,8 @@ mod tests {
             &[("alt-svc", "h2=\":443\""), ("alt-svc", "h3-29=\":443\"")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -607,7 +611,8 @@ mod tests {
             &[("alt-svc", "h2=\":443\"; ma=0")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -632,7 +637,8 @@ mod tests {
                 &[("alt-svc", header)],
             );
             let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,
@@ -666,13 +672,13 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .expect("the draft token is reported");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("the draft token is reported");
         assert!(v.message.contains("h3-29"), "{}", v.message);
         Ok(())
     }
@@ -686,7 +692,8 @@ mod tests {
             &[("alt-svc", "h3example.com:443")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -702,7 +709,8 @@ mod tests {
             &[("alt-svc", "=\":443\"")],
         );
         let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -746,7 +754,8 @@ mod tests {
             let pairs: Vec<(&str, &str)> = fields.iter().map(|v| ("alt-svc", *v)).collect();
             let tx = crate::test_helpers::make_test_transaction_with_response(200, &pairs);
             let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &config,

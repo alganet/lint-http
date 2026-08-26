@@ -137,7 +137,8 @@ mod tests {
                 .append("authorization", HeaderValue::from_str(h)?);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -165,7 +166,8 @@ mod tests {
             HeaderValue::from_str(&format!("Basic {}", enc)).unwrap(),
         );
         let rule = BasicAuthBase64Valid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -186,7 +188,8 @@ mod tests {
             HeaderValue::from_static("Basic not-base64"),
         );
         let rule = BasicAuthBase64Valid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -201,7 +204,8 @@ mod tests {
             .headers
             .append("authorization", HeaderValue::from_static("Basic"));
         let rule = BasicAuthBase64Valid;
-        let v1 = rule.check_transaction(
+        let v1 = crate::test_helpers::run_rule(
+            &rule,
             &tx1,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -213,7 +217,8 @@ mod tests {
         tx2.request
             .headers
             .append("authorization", HeaderValue::from_static("Basic "));
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -230,7 +235,8 @@ mod tests {
             HeaderValue::from_bytes(b"Basic \xff").unwrap(),
         );
         let rule = BasicAuthBase64Valid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -250,7 +256,8 @@ mod tests {
             HeaderValue::from_str(&format!("basic {}", enc)).unwrap(),
         );
         let rule = BasicAuthBase64Valid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -269,7 +276,8 @@ mod tests {
             HeaderValue::from_str(&format!("Basic {}", enc)).unwrap(),
         );
         let rule = BasicAuthBase64Valid;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

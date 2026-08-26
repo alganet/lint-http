@@ -147,7 +147,8 @@ mod tests {
         let tx =
             crate::test_helpers::make_test_transaction_with_headers(&[("content-length", value)]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -180,7 +181,8 @@ mod tests {
             &[("content-length", value)],
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -211,7 +213,8 @@ mod tests {
         let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-length", *v)).collect();
         let tx = crate::test_helpers::make_test_transaction_with_headers(&pairs);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -244,7 +247,8 @@ mod tests {
             trailers: None,
         });
 
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -276,7 +280,8 @@ mod tests {
         hm.insert(hyper::header::CONTENT_LENGTH, bad_value);
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

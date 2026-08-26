@@ -199,7 +199,8 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(req_headers_pairs.as_slice());
         let history = crate::queries::by_resource::by_resource(&store, &client, resource);
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -237,7 +238,8 @@ mod tests {
         tx.request.uri = resource.to_string();
 
         let history = crate::queries::by_resource::by_resource(&store, &client, resource);
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -271,7 +273,8 @@ mod tests {
         tx.request.method = "POST".to_string();
 
         let history = crate::queries::by_resource::by_resource(&store, &client, resource);
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

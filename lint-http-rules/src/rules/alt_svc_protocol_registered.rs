@@ -462,7 +462,8 @@ mod tests {
     }
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        AltSvcProtocolRegistered.check_transaction(
+        crate::test_helpers::run_rule(
+            &AltSvcProtocolRegistered,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &make_cfg(),
@@ -537,13 +538,13 @@ mod tests {
             200,
             &[("alt-svc", "h2=\":443\"")],
         );
-        assert!(AltSvcProtocolRegistered
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &AltSvcProtocolRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg
+        )
+        .is_some());
     }
 
     /// A name is octets, so a decoded one that is not visible US-ASCII is named
@@ -565,13 +566,13 @@ mod tests {
             200,
             &[("alt-svc", &format!("{at_the_bound}=\":443\""))],
         );
-        assert!(AltSvcProtocolRegistered
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &AltSvcProtocolRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg
+        )
+        .is_none());
         let m = message(&format!("{over}=\":443\""));
         assert!(m.contains("256 octets"), "{m}");
         assert!(m.contains("ClientHello"), "{m}");
@@ -604,16 +605,16 @@ mod tests {
             crate::test_helpers::make_test_transaction_with_response(200, &[("alt-svc", header)]);
         let syntax = crate::rules::alt_svc_header_syntax::AltSvcHeaderSyntax;
         assert!(
-            syntax
-                .check_transaction(
-                    &tx,
-                    &crate::transaction_history::TransactionHistory::empty(),
-                    &crate::test_helpers::make_test_config_with_severity(
-                        "alt_svc_header_syntax",
-                        "warn"
-                    ),
-                )
-                .is_some(),
+            crate::test_helpers::run_rule(
+                &syntax,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_severity(
+                    "alt_svc_header_syntax",
+                    "warn"
+                ),
+            )
+            .is_some(),
             "the grammar rule should report {header:?}"
         );
     }

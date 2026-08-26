@@ -293,7 +293,8 @@ mod tests {
             "warn",
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -317,7 +318,8 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -338,7 +340,8 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -360,7 +363,8 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -391,7 +395,8 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -422,7 +427,8 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -444,14 +450,14 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let msg = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .expect("must be reported")
-            .message;
+        let msg = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .expect("must be reported")
+        .message;
         assert!(!msg.contains("RFC 6266"), "{msg}");
         assert!(msg.contains("RFC 9110 §5.3"), "{msg}");
     }
@@ -473,14 +479,14 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let msg = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .expect("must be reported")
-            .message;
+        let msg = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .expect("must be reported")
+        .message;
         assert!(!msg.contains("UTF-8"), "{msg}");
         assert!(msg.contains("US-ASCII"), "{msg}");
     }
@@ -497,7 +503,8 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -516,7 +523,8 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -535,7 +543,8 @@ mod tests {
             "content_disposition_token_valid",
             "warn",
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -589,7 +598,7 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&pairs);
             let history = crate::transaction_history::TransactionHistory::empty();
 
-            let own = rule.check_transaction(&tx, &history, &cfg);
+            let own = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg);
             match ex.compliance {
                 Compliance::Compliant => {
                     assert!(
@@ -598,7 +607,7 @@ mod tests {
                         ex.snippet
                     );
                     for (name, sibling) in siblings {
-                        let other = sibling.check_transaction(&tx, &history, &cfg);
+                        let other = crate::test_helpers::run_rule(sibling, &tx, &history, &cfg);
                         assert!(
                             other.is_none(),
                             "the {name} rule rejects a Compliant example {:?}: {other:?}",

@@ -500,7 +500,8 @@ mod tests {
             b"text/html\xA0".as_slice(),
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -596,7 +597,8 @@ mod tests {
             }
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -642,7 +644,8 @@ mod tests {
                 .unwrap_or_else(|| panic!("example is not `Name: value`: {:?}", ex.snippet));
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(k, v)]);
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -699,13 +702,13 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept", "text/html; charset=")]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("an empty parameter-value derives from neither alternative");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("an empty parameter-value derives from neither alternative");
         assert_eq!(
             v.message,
             "Empty parameter value in 'charset=' of Accept header: a parameter-value is a token or a quoted-string, and neither derives the empty string"
@@ -736,7 +739,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("accept", *v)).collect();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -757,7 +761,8 @@ mod tests {
             "accept",
             HeaderValue::from_bytes(b"*, text/html;foo=\"\xe4\"").unwrap(),
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -777,7 +782,8 @@ mod tests {
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("accept", "text/html; q=1.0000")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

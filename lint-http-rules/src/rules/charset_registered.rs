@@ -394,7 +394,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -487,7 +488,7 @@ mod tests {
             }
             let history = crate::transaction_history::TransactionHistory::empty();
 
-            let v = rule.check_transaction(&tx, &history, &cfg);
+            let v = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg);
             match ex.compliance {
                 Compliance::Compliant => {
                     assert!(
@@ -496,7 +497,7 @@ mod tests {
                         ex.snippet
                     );
                     for (name, sibling) in siblings {
-                        let other = sibling.check_transaction(&tx, &history, &cfg);
+                        let other = crate::test_helpers::run_rule(sibling, &tx, &history, &cfg);
                         assert!(
                             other.is_none(),
                             "the {name} rule rejects a Compliant example {:?}: {other:?}",
@@ -530,7 +531,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", val)]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -540,7 +542,8 @@ mod tests {
         // ...and the sibling that owns malformed values does report it.
         let sibling_cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_valid"]);
-        let other = crate::rules::content_type_valid::ContentTypeValid.check_transaction(
+        let other = crate::test_helpers::run_rule(
+            &crate::rules::content_type_valid::ContentTypeValid,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &sibling_cfg,
@@ -565,7 +568,8 @@ mod tests {
         hm.insert("content-type", HeaderValue::from_bytes(raw).unwrap());
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -593,7 +597,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&pairs);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -623,7 +628,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("content-type", v)]);
         }
 
-        let violation = rule.check_transaction(
+        let violation = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -722,7 +728,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.response.as_mut().unwrap().headers =
             crate::test_helpers::make_headers_from_pairs(&[("content-type", "text")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -739,7 +746,8 @@ mod tests {
             "content-type",
             "text/plain; CHARSET = UTF-8",
         )]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -757,7 +765,8 @@ mod tests {
             "content-type",
             "text/plain; charset",
         )]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -775,7 +784,8 @@ mod tests {
             "content-type",
             "text/plain; charset",
         )]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -793,7 +803,8 @@ mod tests {
             "content-type",
             "text/plain; charset=utf-8;",
         )]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -810,7 +821,8 @@ mod tests {
             "content-type",
             "text/plain; charset=utf-8; charset=unknown-charset",
         )]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -868,14 +880,14 @@ mod tests {
             .headers
             .insert("content-type", bad);
 
-        let msg = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("must be reported")
-            .message;
+        let msg = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("must be reported")
+        .message;
         assert!(msg.contains("invalid character"), "{msg}");
     }
 

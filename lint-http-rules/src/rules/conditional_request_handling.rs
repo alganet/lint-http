@@ -256,7 +256,8 @@ mod tests {
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
 
         let rule = ConditionalRequestHandling;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -276,7 +277,8 @@ mod tests {
         tx1.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
         let prev_empty = make_prev_with_headers(&[]);
-        let v1 = rule.check_transaction(
+        let v1 = crate::test_helpers::run_rule(
+            &rule,
             &tx1,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![
                 prev_empty.clone()
@@ -293,7 +295,8 @@ mod tests {
             "if-modified-since",
             "Wed, 21 Oct 2015 07:28:00 GMT",
         )]);
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![
                 prev_empty.clone()
@@ -308,7 +311,8 @@ mod tests {
         let mut tx3 = crate::test_helpers::make_test_transaction();
         tx3.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-match", "\"a\"")]);
-        let v3 = rule.check_transaction(
+        let v3 = crate::test_helpers::run_rule(
+            &rule,
             &tx3,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![
                 prev_empty.clone()
@@ -325,7 +329,8 @@ mod tests {
             "if-unmodified-since",
             "Wed, 21 Oct 2015 07:28:00 GMT",
         )]);
-        let v4 = rule.check_transaction(
+        let v4 = crate::test_helpers::run_rule(
+            &rule,
             &tx4,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![
                 prev_empty.clone()
@@ -347,7 +352,8 @@ mod tests {
         let prev = make_prev_with_headers(&[("etag", "\"a\"")]);
 
         let rule = ConditionalRequestHandling;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -363,7 +369,8 @@ mod tests {
             "Wed, 21 Oct 2015 07:28:00 GMT",
         )]);
         let prev2 = make_prev_with_headers(&[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")]);
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx2,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev2.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -385,7 +392,8 @@ mod tests {
 
         let rule = ConditionalRequestHandling;
         // previous satisfies validator check
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -413,7 +421,8 @@ mod tests {
         let prev = make_prev_with_headers(&[("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")]);
 
         let rule = ConditionalRequestHandling;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -449,7 +458,8 @@ mod tests {
         ]);
 
         let rule = ConditionalRequestHandling;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -474,7 +484,8 @@ mod tests {
 
         let rule = ConditionalRequestHandling;
         // response ETag doesn't match request conditional -> allowed
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -494,7 +505,8 @@ mod tests {
         let prev = crate::test_helpers::make_test_transaction();
 
         let rule = ConditionalRequestHandling;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[

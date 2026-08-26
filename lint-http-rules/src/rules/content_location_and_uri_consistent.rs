@@ -451,7 +451,8 @@ mod tests {
             "content_location_and_uri_consistent",
         ]);
         let tx = make_tx_with_req_uri(req_uri, status, headers);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -474,7 +475,8 @@ mod tests {
             200,
             &[("content-location", "/bad%2G")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -514,7 +516,8 @@ mod tests {
             HeaderName::from_static("content-location"),
             HeaderValue::from_bytes(value).expect("a test Content-Location value"),
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -541,7 +544,8 @@ mod tests {
             HeaderValue::from_bytes(&[0xff]).unwrap(),
         );
         tx.response.as_mut().unwrap().headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -559,7 +563,8 @@ mod tests {
             200,
             &[("content-location", "")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -578,7 +583,8 @@ mod tests {
             "content_location_and_uri_consistent",
         ]);
         let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", "/foo#frag")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -595,7 +601,8 @@ mod tests {
         // from that rule too, and `#` alone still opens the component.
         for value in ["http://example.com/foo#s", "/foo#"] {
             let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", value)]);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -610,7 +617,8 @@ mod tests {
         // `unreserved` octet, so neither side decodes it and the two spellings
         // match byte for byte.
         let tx = make_tx_with_req_uri("/foo%23bar", 200, &[("content-location", "/foo%23bar")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -655,7 +663,8 @@ mod tests {
             "content_location_and_uri_consistent",
         ]);
         let tx = make_tx_with_req_uri(req_uri, 200, &[("content-location", content_location)]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -689,7 +698,8 @@ mod tests {
         let mut tx = make_tx_with_req_uri("/foo", 200, &[("content-location", content_location)]);
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -735,7 +745,8 @@ mod tests {
             200,
             &[("content-location", "/foo"), ("content-location", "/bar")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -768,7 +779,8 @@ mod tests {
         // schemed URIs, and must not be reported as a malformed scheme.
         for target in ["/users/urn:uuid:1", "/v1/entities/x:batchGet", "/a?x=b:c"] {
             let tx = make_tx_with_req_uri(target, 200, &[("content-location", target)]);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -784,7 +796,8 @@ mod tests {
             "content_location_and_uri_consistent",
         ]);
         let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", "/foo/")]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -803,7 +816,8 @@ mod tests {
             200,
             &[("content-location", "http://example.com/foo")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

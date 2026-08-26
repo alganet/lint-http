@@ -127,7 +127,8 @@ mod tests {
         let history =
             crate::transaction_history::TransactionHistory::from_transactions(vec![tx3, tx2, tx1]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -154,7 +155,8 @@ mod tests {
             tx4, tx3, tx2, tx1,
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -178,7 +180,8 @@ mod tests {
         let history =
             crate::transaction_history::TransactionHistory::from_transactions(vec![tx3, tx2, tx1]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
