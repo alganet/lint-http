@@ -93,7 +93,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
     /// is meaningful in exactly two status codes, and a status code is something
     /// only a response has. The request's `Range` is read as *context* for those
     /// findings, never judged — its syntax belongs to
-    /// `client_range_header_syntax_valid`. `Server` says that in the one place
+    /// `range_header_syntax`. `Server` says that in the one place
     /// the engine reads, and costs nothing: it only skips transactions with no
     /// response, which the first line of the check already returned `None` for.
     // cite(RFC 9110 § 14.4): "The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range."
@@ -125,7 +125,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
         let has_range_request = tx.request.headers.get("range").is_some();
         // What the request asked for, read from its first `Range` field line: the
         // unit it named and the range-set it named it over. A value that is not a
-        // `ranges-specifier` at all is `client_range_header_syntax_valid`'s
+        // `ranges-specifier` at all is `range_header_syntax`'s
         // finding, and leaves this rule knowing less rather than guessing.
         let requested = crate::helpers::headers::get_header_str(&tx.request.headers, "range")
             .and_then(crate::helpers::content_range::split_ranges_specifier);
@@ -376,7 +376,7 @@ impl Rule for MessageRangeAndContentRangeConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `message_content_length`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `client_range_header_syntax_valid`, and leaves this rule knowing less rather than guessing."
+        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `message_content_length`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -1034,7 +1034,7 @@ mod tests {
 
     /// An empty list element is not an element, so `bytes=0-499,` asked for one
     /// range and is reported as one -- the malformed value itself is
-    /// `client_range_header_syntax_valid`'s finding, not this rule's.
+    /// `range_header_syntax`'s finding, not this rule's.
     #[rstest]
     fn empty_range_list_element_does_not_inflate_the_count() {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(

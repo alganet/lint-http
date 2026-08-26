@@ -89,8 +89,8 @@ Rules must declare their intended scope by overriding `scope()` when appropriate
 Example:
 
 ```rust
-impl Rule for ClientHostHeader {
-    fn id(&self) -> &'static str { "client_host_header" }
+impl Rule for HostHeader {
+    fn id(&self) -> &'static str { "host_header" }
     fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Client }
 
     fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, previous: Option<&crate::http_transaction::HttpTransaction>, config: &crate::config::Config) -> Option<Violation> {

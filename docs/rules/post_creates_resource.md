@@ -22,7 +22,7 @@ RFC 9110 §9.3.3 asks an origin server that has created one or more resources wh
 
 **Not reported: a `Location` on a `POST` response that is not a `201`.** This rule previously reported every other 2xx carrying the field, advising the sender to "use 201 Created when a new resource is created" — a claim about what the sender did that no sentence licenses, and one §10.2.2 declines to make by leaving the field's relationship to the response to *"the combination of request method and status code semantics"*. `server_redirect_status_and_location_validity` owns that finding, reports it as advice, and reports it on every status rather than only on the 2xx ones; its description names the `202 Accepted` carrying a status-monitor `Location` as the case that shows why it is advice and not a violation.
 
-**Not reported: a `PUT` that created a resource.** §9.3.4 requires the `201` there with a MUST and asks nothing about `Location`, because the target URI of a `PUT` is already the identifier of what it creates. The method is compared exactly, since §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request, and `client_request_method_token_valid` is the rule that reports it.
+**Not reported: a `PUT` that created a resource.** §9.3.4 requires the `201` there with a MUST and asks nothing about `Location`, because the target URI of a `PUT` is already the identifier of what it creates. The method is compared exactly, since §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request, and `request_method_token_valid` is the rule that reports it.
 
 ## Specifications
 

@@ -3,18 +3,6 @@ sources:
   url: https://fetch.spec.whatwg.org/
   type: text/html
   fragments:
-  - label: client_request_origin_header_present_for_cors
-    section: § 3.2
-    snippet: It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_origin_header_present_for_cors.rs
-      line: 32
-  - label: client_request_origin_header_present_for_cors (2)
-    section: § 3.2
-    snippet: The `Origin` request header indicates where a fetch originates from.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_origin_header_present_for_cors.rs
-      line: 69
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 3.2
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
@@ -91,6 +79,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
       line: 111
+  - label: request_origin_header_present_for_cors
+    section: § 3.2
+    snippet: It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_origin_header_present_for_cors.rs
+      line: 32
+  - label: request_origin_header_present_for_cors (2)
+    section: § 3.2
+    snippet: The `Origin` request header indicates where a fetch originates from.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_origin_header_present_for_cors.rs
+      line: 69
   - label: server_x_content_type_options
     section: § 3.6
     snippet: If values[0] is an ASCII case-insensitive match for "nosniff", then return true.
@@ -1097,60 +1097,6 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc3986.txt
   type: text/plain
   fragments:
-  - label: client_request_target_no_fragment
-    section: § 2.2
-    snippet: If data for a URI component would conflict with a reserved character's purpose as a delimiter, then the conflicting data must be percent-encoded before the URI is formed.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 47
-  - label: URI
-    section: § 3
-    snippet: URI         = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 93
-  - label: client_request_target_no_fragment (2)
-    section: § 3.5
-    snippet: A fragment identifier component is indicated by the presence of a number sign ("#") character and terminated by the end of the URI.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 46
-  - label: client_request_target_no_fragment (3)
-    section: § 3.5
-    snippet: the fragment identifier is separated from the rest of the URI prior to a dereference, and thus the identifying information within the fragment itself is dereferenced solely by the user agent, regardless of the URI scheme
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 113
-  - label: client_request_uri_percent_encoding_valid
-    section: § 2
-    snippet: The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII].
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 110
-  - label: client_request_uri_percent_encoding_valid (2)
-    section: § 2
-    snippet: the integer values used by the ABNF must be mapped back to their corresponding characters via US-ASCII in order to complete the syntax rules.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 111
-  - label: client_request_uri_percent_encoding_valid (3)
-    section: § 2.4
-    snippet: Because the percent ("%") character serves as the indicator for percent-encoded octets, it must be percent-encoded as "%25" for that octet to be used as data within a URI.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 58
-  - label: client_request_uri_percent_encoding_valid (4)
-    section: § 2.4
-    snippet: Once produced, a URI is always in its percent-encoded form.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 59
-  - label: query
-    section: § 3.4
-    snippet: query       = *( pchar / "/" / "?" )
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 106
   - label: IPv4address grammar
     section: § 3.2.2
     snippet: IPv4address = dec-octet "." dec-octet "." dec-octet "." dec-octet
@@ -1179,7 +1125,7 @@ sources:
       line: 49
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1045
-    - file: lint-http-rules/src/rules/client_host_header.rs
+    - file: lint-http-rules/src/rules/host_header.rs
       line: 142
   - label: lint-http-rules/src/helpers/ipv6.rs (2)
     section: § 3.2.2
@@ -1197,10 +1143,10 @@ sources:
       line: 71
     - file: lint-http-rules/src/helpers/uri.rs
       line: 339
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 109
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 118
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 109
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 2.1
     snippet: A percent-encoded octet is encoded as a character triplet, consisting of the percent character "%" followed by the two hexadecimal digits representing that octet's numeric value.
@@ -1213,7 +1159,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 72
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 108
   - label: lint-http-rules/src/helpers/uri.rs (4)
     section: § 2.1
@@ -1303,7 +1249,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 680
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 60
   - label: lint-http-rules/src/helpers/uri.rs (14)
     section: § 3
@@ -1383,12 +1329,12 @@ sources:
       line: 232
     - file: lint-http-rules/src/helpers/uri.rs
       line: 972
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 107
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 204
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
       line: 479
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 107
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 139
   - label: lint-http-rules/src/helpers/uri.rs (23)
@@ -1419,20 +1365,20 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 138
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 105
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 48
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 105
   - label: lint-http-rules/src/helpers/uri.rs (25)
     section: § 4.2
     snippet: A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 139
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 91
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 219
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 91
   - label: lint-http-rules/src/helpers/uri.rs (26)
     section: § 4.2
     snippet: A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used.
@@ -1451,9 +1397,9 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 228
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 65
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 94
   - label: lint-http-rules/src/helpers/uri.rs (27)
     section: § 5.2.3
@@ -1583,6 +1529,60 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 255
+  - label: request_target_no_fragment
+    section: § 2.2
+    snippet: If data for a URI component would conflict with a reserved character's purpose as a delimiter, then the conflicting data must be percent-encoded before the URI is formed.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 47
+  - label: URI
+    section: § 3
+    snippet: URI         = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 93
+  - label: request_target_no_fragment (2)
+    section: § 3.5
+    snippet: A fragment identifier component is indicated by the presence of a number sign ("#") character and terminated by the end of the URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 46
+  - label: request_target_no_fragment (3)
+    section: § 3.5
+    snippet: the fragment identifier is separated from the rest of the URI prior to a dereference, and thus the identifying information within the fragment itself is dereferenced solely by the user agent, regardless of the URI scheme
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 113
+  - label: request_uri_percent_encoding_valid
+    section: § 2
+    snippet: The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII].
+    cited_by:
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 110
+  - label: request_uri_percent_encoding_valid (2)
+    section: § 2
+    snippet: the integer values used by the ABNF must be mapped back to their corresponding characters via US-ASCII in order to complete the syntax rules.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 111
+  - label: request_uri_percent_encoding_valid (3)
+    section: § 2.4
+    snippet: Because the percent ("%") character serves as the indicator for percent-encoded octets, it must be percent-encoded as "%25" for that octet to be used as data within a URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 58
+  - label: request_uri_percent_encoding_valid (4)
+    section: § 2.4
+    snippet: Once produced, a URI is always in its percent-encoded form.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 59
+  - label: query
+    section: § 3.4
+    snippet: query       = *( pchar / "/" / "?" )
+    cited_by:
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 106
   - label: server_location_header_uri_valid
     section: § 4.1
     snippet: URI-reference = URI / relative-ref
@@ -1895,11 +1895,19 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc5789.txt
   type: text/plain
   fragments:
-  - label: client_patch_method_content_type_match
+  - label: options_method_capabilities
+    section: § 3.1
+    snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
+    cited_by:
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 51
+    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
+      line: 298
+  - label: patch_method_content_type_match
     section: § 2.2
     snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
     cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 210
     - file: lint-http-rules/src/rules/patch_partial_update.rs
       line: 98
@@ -1909,40 +1917,32 @@ sources:
     section: § 3.1
     snippet: Accept-Patch = "Accept-Patch" ":" 1#media-type
     cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 86
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 49
-  - label: client_patch_method_content_type_match (2)
+  - label: patch_method_content_type_match (2)
     section: § 3.1
     snippet: The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7.
     cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 87
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 50
-  - label: client_patch_method_content_type_match (3)
+  - label: patch_method_content_type_match (3)
     section: § 3.1
     snippet: The presence of a specific patch document format in this header indicates that that specific format is allowed on the resource identified by the Request-URI.
     cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 179
-  - label: client_patch_method_content_type_match (4)
+  - label: patch_method_content_type_match (4)
     section: § 3.1
     snippet: The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI.
     cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 171
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 231
-  - label: options_method_capabilities
-    section: § 3.1
-    snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
-    cited_by:
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 51
-    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
-      line: 298
   - label: patch_partial_update
     section: § 2
     snippet: Note that entity-headers contained in the request apply only to the contained patch document and MUST NOT be applied to the resource being modified.
@@ -2243,78 +2243,6 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6455.txt
   type: text/plain
   fragments:
-  - label: client_sec_websocket_headers_consistency
-    section: § 4.1
-    snippet: The ABNF for the value of this header field is 1#token, where the definitions of constructs and rules are as given in [RFC2616].
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 116
-  - label: client_sec_websocket_headers_consistency (2)
-    section: § 4.1
-    snippet: The elements that comprise this value MUST be non-empty strings with characters in the range U+0021 to U+007E not including separator characters as defined in [RFC2616] and MUST all be unique strings.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 115
-  - label: client_sec_websocket_headers_consistency (3)
-    section: § 4.1
-    snippet: The request MUST include a header field with the name |Sec-WebSocket-Key|.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 90
-  - label: client_sec_websocket_headers_consistency (4)
-    section: § 4.1
-    snippet: The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 48
-  - label: client_sec_websocket_headers_consistency (5)
-    section: § 4.2.1
-    snippet: A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 25
-  - label: client_sec_websocket_headers_consistency (6)
-    section: § 4.2.1
-    snippet: An HTTP/1.1 or higher GET request
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 208
-  - label: client_sec_websocket_headers_consistency (7)
-    section: § 4.2.1
-    snippet: the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 209
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
-      line: 65
-  - label: Sec-WebSocket-Protocol
-    section: § 4.3
-    snippet: Sec-WebSocket-Protocol-Client = 1#token
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 117
-  - label: Sec-WebSocket-Version-Server
-    section: § 4.3
-    snippet: Sec-WebSocket-Version-Server = 1#version
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 56
-    - file: lint-http-rules/src/rules/server_sec_websocket_version_advertisement.rs
-      line: 38
-  - label: client_sec_websocket_headers_consistency (8)
-    section: § 4.4
-    snippet: If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 76
-    - file: lint-http-rules/src/rules/server_sec_websocket_version_advertisement.rs
-      line: 39
-  - label: client_sec_websocket_headers_consistency (9)
-    section: § 4.4
-    snippet: a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)
-    cited_by:
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 75
   - label: lint-http-core/src/protocol_event.rs
     section: § 5.8
     snippet: The endpoints of a connection MUST negotiate the use of any extensions during the opening handshake.
@@ -2345,7 +2273,7 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket.rs
       line: 38
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 24
   - label: lint-http-proxy/src/proxy/websocket.rs (2)
     section: § 4.1
@@ -2471,6 +2399,78 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_websocket_extensions_syntax.rs
       line: 33
+  - label: sec_websocket_headers_consistent
+    section: § 4.1
+    snippet: The ABNF for the value of this header field is 1#token, where the definitions of constructs and rules are as given in [RFC2616].
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 116
+  - label: sec_websocket_headers_consistent (2)
+    section: § 4.1
+    snippet: The elements that comprise this value MUST be non-empty strings with characters in the range U+0021 to U+007E not including separator characters as defined in [RFC2616] and MUST all be unique strings.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 115
+  - label: sec_websocket_headers_consistent (3)
+    section: § 4.1
+    snippet: The request MUST include a header field with the name |Sec-WebSocket-Key|.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 90
+  - label: sec_websocket_headers_consistent (4)
+    section: § 4.1
+    snippet: The request MUST include a header field with the name |Sec-WebSocket-Version|.  The value of this header field MUST be 13.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 48
+  - label: sec_websocket_headers_consistent (5)
+    section: § 4.2.1
+    snippet: A |Connection| header field that includes the token "Upgrade", treated as an ASCII case-insensitive value.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 25
+  - label: sec_websocket_headers_consistent (6)
+    section: § 4.2.1
+    snippet: An HTTP/1.1 or higher GET request
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 208
+  - label: sec_websocket_headers_consistent (7)
+    section: § 4.2.1
+    snippet: the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 209
+    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+      line: 65
+  - label: Sec-WebSocket-Protocol
+    section: § 4.3
+    snippet: Sec-WebSocket-Protocol-Client = 1#token
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 117
+  - label: Sec-WebSocket-Version-Server
+    section: § 4.3
+    snippet: Sec-WebSocket-Version-Server = 1#version
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 56
+    - file: lint-http-rules/src/rules/server_sec_websocket_version_advertisement.rs
+      line: 38
+  - label: sec_websocket_headers_consistent (8)
+    section: § 4.4
+    snippet: If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field (or multiple |Sec-WebSocket-Version| header fields) containing all versions it is willing to use.
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 76
+    - file: lint-http-rules/src/rules/server_sec_websocket_version_advertisement.rs
+      line: 39
+  - label: sec_websocket_headers_consistent (9)
+    section: § 4.4
+    snippet: a client can initially request the version of the WebSocket Protocol that it prefers (which doesn't necessarily have to be the latest supported by the client)
+    cited_by:
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 75
   - label: server_sec_websocket_version_advertisement
     section: § 11.3.5
     snippet: In such a case, the header field includes the protocol version(s) supported by the server.
@@ -4446,6 +4446,154 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9110.txt
   type: text/plain
   fragments:
+  - label: accept_encoding_present
+    section: § 12.5.3
+    snippet: 'Accept-Encoding = #( codings [ weight ] )'
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 47
+  - label: accept_encoding_present (2)
+    section: § 12.5.3
+    snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 53
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 48
+  - label: accept_encoding_present (3)
+    section: § 12.5.3
+    snippet: If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 46
+  - label: accept_encoding_present (4)
+    section: § 12.5.3
+    snippet: If the representation has no content coding, then it is acceptable by default unless specifically excluded by the Accept-Encoding header field stating either "identity;q=0" or "*;q=0" without a more specific entry for "identity".
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 100
+  - label: accept_encoding_present (5)
+    section: § 12.5.3
+    snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 45
+    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
+      line: 19
+  - label: accept_encoding_present (6)
+    section: § 9.3.6
+    snippet: Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 33
+  - label: accept_encoding_present (7)
+    section: § 9.3.6
+    snippet: The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
+      line: 32
+  - label: accept_ranges_on_partial_content
+    section: § 14
+    snippet: Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 109
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 54
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 38
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 53
+  - label: accept_ranges_on_partial_content (2)
+    section: § 14.2
+    snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 83
+  - label: accept_ranges_on_partial_content (3)
+    section: § 14.2
+    snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 142
+  - label: accept_ranges_on_partial_content (4)
+    section: § 14.2
+    snippet: The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 82
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 20
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 86
+  - label: accept_ranges_on_partial_content (5)
+    section: § 14.3
+    snippet: A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 110
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 55
+  - label: accept_ranges_on_partial_content (6)
+    section: § 14.3
+    snippet: A server that does not support any kind of range request for the target resource MAY send
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 118
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 71
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 125
+  - label: accept_ranges_on_partial_content (7)
+    section: § 14.3
+    snippet: Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 163
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 167
+  - label: accept_ranges_on_partial_content (8)
+    section: § 14.3
+    snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 95
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 31
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 48
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 23
+  - label: accept_ranges_on_partial_content (9)
+    section: § 14.3
+    snippet: to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 92
+    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
+      line: 72
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 126
+  - label: accept_ranges_on_partial_content (10)
+    section: § 15.3.7
+    snippet: A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed.
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 164
+  - label: accept_ranges_on_partial_content (11)
+    section: § A
+    snippet: Range = ranges-specifier
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 27
+  - label: accept_ranges_on_partial_content (12)
+    section: § A
+    snippet: range-unit = token ranges-specifier = range-unit "=" range-set
+    cited_by:
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
+      line: 37
+    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
+      line: 311
   - label: cache_coherence
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
@@ -4470,171 +4618,23 @@ sources:
       line: 54
     - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
       line: 33
-  - label: client_accept_encoding_present
-    section: § 12.5.3
-    snippet: 'Accept-Encoding = #( codings [ weight ] )'
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 47
-  - label: client_accept_encoding_present (2)
-    section: § 12.5.3
-    snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 53
-    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
-      line: 48
-  - label: client_accept_encoding_present (3)
-    section: § 12.5.3
-    snippet: If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 46
-  - label: client_accept_encoding_present (4)
-    section: § 12.5.3
-    snippet: If the representation has no content coding, then it is acceptable by default unless specifically excluded by the Accept-Encoding header field stating either "identity;q=0" or "*;q=0" without a more specific entry for "identity".
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 100
-  - label: client_accept_encoding_present (5)
-    section: § 12.5.3
-    snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 45
-    - file: lint-http-rules/src/rules/message_accept_encoding_parameter_validity.rs
-      line: 19
-  - label: client_accept_encoding_present (6)
-    section: § 9.3.6
-    snippet: Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 33
-  - label: client_accept_encoding_present (7)
-    section: § 9.3.6
-    snippet: The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
-      line: 32
-  - label: client_accept_ranges_on_partial_content
-    section: § 14
-    snippet: Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 109
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 38
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 54
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 53
-  - label: client_accept_ranges_on_partial_content (2)
-    section: § 14.2
-    snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 83
-  - label: client_accept_ranges_on_partial_content (3)
-    section: § 14.2
-    snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 142
-  - label: client_accept_ranges_on_partial_content (4)
-    section: § 14.2
-    snippet: The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 82
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 20
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 86
-  - label: client_accept_ranges_on_partial_content (5)
-    section: § 14.3
-    snippet: A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 110
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 55
-  - label: client_accept_ranges_on_partial_content (6)
-    section: § 14.3
-    snippet: A server that does not support any kind of range request for the target resource MAY send
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 118
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 71
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 125
-  - label: client_accept_ranges_on_partial_content (7)
-    section: § 14.3
-    snippet: Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 163
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 167
-  - label: client_accept_ranges_on_partial_content (8)
-    section: § 14.3
-    snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 95
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 31
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 48
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 23
-  - label: client_accept_ranges_on_partial_content (9)
-    section: § 14.3
-    snippet: to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 92
-    - file: lint-http-rules/src/rules/message_accept_ranges_and_206_consistency.rs
-      line: 72
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 126
-  - label: client_accept_ranges_on_partial_content (10)
-    section: § 15.3.7
-    snippet: A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 164
-  - label: client_accept_ranges_on_partial_content (11)
-    section: § A
-    snippet: Range = ranges-specifier
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 27
-  - label: client_accept_ranges_on_partial_content (12)
-    section: § A
-    snippet: range-unit = token ranges-specifier = range-unit "=" range-set
-    cited_by:
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
-      line: 37
-    - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
-      line: 311
-  - label: client_cache_respect
+  - label: cached_validators_reused
     section: § 13.1.2
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
     cited_by:
-    - file: lint-http-rules/src/rules/client_cache_respect.rs
+    - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 66
-  - label: client_cache_respect (2)
+  - label: cached_validators_reused (2)
     section: § 13.1.3
     snippet: 'If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag'
     cited_by:
-    - file: lint-http-rules/src/rules/client_cache_respect.rs
+    - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 67
-  - label: client_expect_header_valid
+  - label: expect_header_valid
     section: § 10.1
     snippet: The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 32
     - file: lint-http-rules/src/rules/message_context_fields_direction.rs
       line: 14
@@ -4644,84 +4644,70 @@ sources:
       line: 55
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 395
-  - label: client_expect_header_valid (2)
+  - label: expect_header_valid (2)
     section: § 10.1.1
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 127
-  - label: client_expect_header_valid (3)
+  - label: expect_header_valid (3)
     section: § 10.1.1
     snippet: A client MUST NOT generate a 100-continue expectation in a request that does not include content.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 126
-  - label: client_expect_header_valid (4)
+  - label: expect_header_valid (4)
     section: § 10.1.1
     snippet: A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server).
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 145
-  - label: client_expect_header_valid (5)
+  - label: expect_header_valid (5)
     section: § 10.1.1
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 168
-  - label: client_expect_header_valid (6)
+  - label: expect_header_valid (6)
     section: § 10.1.1
     snippet: The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server in order to properly handle this request.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 45
     - file: lint-http-rules/src/rules/message_context_fields_direction.rs
       line: 15
-  - label: client_expect_header_valid (7)
+  - label: expect_header_valid (7)
     section: § 10.1.1
     snippet: The Expect field value is case-insensitive.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 19
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 92
-  - label: client_expect_header_valid (8)
+  - label: expect_header_valid (8)
     section: § 10.1.1
     snippet: The only expectation defined by this specification is "100-continue" (with no defined parameters).
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 18
-  - label: client_expect_header_valid (9)
+  - label: expect_header_valid (9)
     section: § 10.1.1
     snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 304
-  - label: client_expect_header_valid (10)
+  - label: expect_header_valid (10)
     section: § 15.5.18
     snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 144
-  - label: client_expect_header_valid (11)
+  - label: expect_header_valid (11)
     section: § 2.2
     snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 305
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 101
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 171
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 195
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 212
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 305
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 109
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 50
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 172
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
@@ -4742,468 +4728,48 @@ sources:
       line: 165
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
       line: 303
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 101
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 171
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 195
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 212
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 305
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 109
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 50
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 73
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 101
-  - label: client_expect_header_valid (12)
+  - label: expect_header_valid (12)
     section: § 5.6.6
     snippet: '|  *Note:* Parameters do not allow whitespace (not even "bad" |  whitespace) around the "=" character.'
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 444
-  - label: client_expect_header_valid (13)
+  - label: expect_header_valid (13)
     section: § A
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 80
-  - label: client_expect_header_valid (14)
+  - label: expect_header_valid (14)
     section: § B.3
     snippet: List-based grammar for Expect has been restored for compatibility with RFC 2616.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 60
-  - label: client_expect_header_valid (15)
+  - label: expect_header_valid (15)
     section: § B.3
     snippet: Parameters in media type, media range, and expectation can be empty via one or more trailing semicolons.
     cited_by:
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 415
-  - label: client_host_header
-    section: § 7.2
-    snippet: A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_host_header.rs
-      line: 58
-  - label: client_patch_method_content_type_match
-    section: § 12.3
-    snippet: When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 208
-  - label: client_patch_method_content_type_match (2)
-    section: § 12.4.3
-    snippet: If no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 209
-  - label: client_patch_method_content_type_match (3)
-    section: § 12.4.3
-    snippet: Most of these header fields, where indicated, define a wildcard value ("*") to select unspecified values.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 190
-  - label: client_patch_method_content_type_match (4)
-    section: § 12.5.1
-    snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 191
-    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 143
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 99
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 244
-  - label: client_patch_method_content_type_match (5)
-    section: § 8.3
-    snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 139
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 57
-  - label: client_patch_method_content_type_match (6)
-    section: § 8.3
-    snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 140
-    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
-      line: 65
-    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
-      line: 58
-    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
-      line: 79
-    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
-      line: 49
-  - label: client_patch_method_content_type_match (7)
-    section: § 8.3.1
-    snippet: The presence or absence of a parameter might be significant to the processing of a media type, depending on its definition within the media type registry.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 43
-  - label: client_patch_method_content_type_match (8)
-    section: § 8.3.1
-    snippet: media-type = type "/" subtype parameters type       = token subtype    = token
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 42
-    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
-      line: 128
-  - label: client_patch_method_content_type_match (9)
-    section: § 9.1
-    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 125
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 191
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 171
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 75
-    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
-      line: 208
-    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
-      line: 74
-    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
-      line: 165
-    - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
-      line: 203
-    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 186
-    - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 84
-    - file: lint-http-rules/src/rules/patch_partial_update.rs
-      line: 50
-    - file: lint-http-rules/src/rules/post_creates_resource.rs
-      line: 31
-    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
-      line: 70
-    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
-      line: 93
-    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
-      line: 188
-    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
-      line: 241
-    - file: lint-http-rules/src/rules/server_response_405_allow.rs
-      line: 47
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 81
-    - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 78
-  - label: client_proxy_connection_discouraged
-    section: § 7.6.1
-    snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
-      line: 54
-    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
-      line: 60
-    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
-      line: 159
-  - label: client_range_header_syntax_valid
-    section: § 14.1.1
-    snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 107
-  - label: client_range_header_syntax_valid (2)
-    section: § 14.1.1
-    snippet: An int-range is invalid if the last-pos value is present and less than the first-pos.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 349
-  - label: int-range position grammar
-    section: § 14.1.1
-    snippet: first-pos     = 1*DIGIT last-pos      = 1*DIGIT
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 305
-  - label: int-range grammar
-    section: § 14.1.1
-    snippet: int-range     = first-pos "-" [ last-pos ]
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 325
-  - label: other-range grammar
-    section: § 14.1.1
-    snippet: other-range   = 1*( %x21-2B / %x2D-7E )
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 55
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 266
-  - label: range-set grammar
-    section: § 14.1.1
-    snippet: range-set        = 1#range-spec
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 230
-  - label: suffix-length grammar
-    section: § 14.1.1
-    snippet: suffix-length = 1*DIGIT
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 309
-  - label: suffix-range grammar
-    section: § 14.1.1
-    snippet: suffix-range  = "-" suffix-length
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 308
-  - label: client_range_header_syntax_valid (3)
-    section: § 14.1.2
-    snippet: A client can limit the number of bytes requested without knowing the size of the selected representation.  If the last-pos value is absent, or if the value is greater than or equal to the current length of the representation data, the byte range is interpreted as the remainder of the representation
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 341
-  - label: client_range_header_syntax_valid (4)
-    section: § 14.1.2
-    snippet: A client can refer to the last N bytes (N > 0) of the selected representation using a suffix-range.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 313
-  - label: client_range_header_syntax_valid (5)
-    section: § 14.1.2
-    snippet: Each byte range is expressed as an integer range at some offset, relative to either the beginning (int-range) or end (suffix-range) of the representation data.  Byte ranges do not use the other-range specifier.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 300
-  - label: client_range_header_syntax_valid (6)
-    section: § 14.1.2
-    snippet: 'For a GET request, a valid bytes range-spec is satisfiable if it is either:'
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 132
-  - label: client_range_header_syntax_valid (7)
-    section: § 14.1.2
-    snippet: The "bytes" range unit is used to express subranges of a representation data's octet sequence.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 278
-  - label: a bytes range-set the section prints with a leading space
-    section: § 14.1.2
-    snippet: bytes= 0-999, 4500-5499, -1000
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 227
-  - label: client_range_header_syntax_valid (8)
-    section: § 14.2
-    snippet: A client that is requesting multiple ranges SHOULD list those ranges in ascending order (the order in which they would typically be received in a complete representation) unless there is a specific need to request a later part earlier.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 134
-  - label: client_range_header_syntax_valid (9)
-    section: § 14.2
-    snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 133
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 80
-  - label: client_range_header_syntax_valid (10)
-    section: § 14.2
-    snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.  A proxy MAY discard a Range header field that contains a range unit it does not understand.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 226
-  - label: Range grammar
-    section: § 14.2
-    snippet: Range = ranges-specifier
-    cited_by:
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 89
-    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
-      line: 37
-  - label: client_request_method_token_valid
-    section: § 16.1.1
-    snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 26
-    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
-      line: 26
-  - label: client_request_method_token_valid (2)
-    section: § 16.1.1
-    snippet: Values to be added to this namespace require IETF Review
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 27
-    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
-      line: 29
-  - label: client_request_method_token_valid (3)
-    section: § 9.1
-    snippet: All such methods ought to be registered within the "Hypertext Transfer Protocol (HTTP) Method Registry", as described in Section 16.1.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 28
-  - label: client_request_method_token_valid (4)
-    section: § 9.1
-    snippet: An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 199
-  - label: client_request_method_token_valid (5)
-    section: § 9.1
-    snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 192
-  - label: client_request_method_token_valid (6)
-    section: § A
-    snippet: method = token minute = 2DIGIT
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 135
-    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
-      line: 114
-    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 164
-  - label: absolute-path
-    section: § 4.1
-    snippet: absolute-path = 1*( "/" segment )
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 83
-  - label: client_request_target_form_checks
-    section: § 7.1
-    snippet: For CONNECT (Section 9.3.6), the request target is the host name and port number of the tunnel destination, separated by a colon.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 237
-  - label: client_request_target_form_checks (2)
-    section: § 7.1
-    snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 259
-    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 241
-    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 127
-  - label: client_request_target_form_checks (3)
-    section: § 7.1
-    snippet: For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 156
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 37
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 40
-  - label: client_request_target_form_checks (4)
-    section: § 7.1
-    snippet: There are two unusual cases for which the request target components are in a method-specific form
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 229
-  - label: client_request_target_form_checks (5)
-    section: § 7.1
-    snippet: These forms MUST NOT be used with other methods.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 230
-    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 242
-    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
-      line: 128
-  - label: client_request_target_form_checks (6)
-    section: § 7.1
-    snippet: This reconstruction is specific to each major protocol version.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 157
-  - label: client_request_target_no_fragment
-    section: § 4.2.5
-    snippet: Some protocol elements that refer to a URI allow inclusion of a fragment, while others do not.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 91
-  - label: client_request_target_no_fragment (2)
-    section: § 4.2.5
-    snippet: They are distinguished by use of the ABNF rule for elements where fragment is allowed; otherwise, a specific rule that excludes fragments is used.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 92
-  - label: client_request_target_no_fragment (3)
-    section: § 7.1
-    snippet: The target URI excludes the reference's fragment component, if any, since fragment identifiers are reserved for client-side processing
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 112
-  - label: client_request_target_no_fragment (4)
-    section: § 7.1
-    snippet: To perform an action on a "target resource", the client sends a request message containing enough components of its parsed target URI to enable recipients to identify that same resource.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 21
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 21
-  - label: client_request_uri_percent_encoding_valid
-    section: § 4.1
-    snippet: The definitions of "URI-reference", "absolute-URI", "relative-part", "authority", "port", "host", "path-abempty", "segment", and "query" are adopted from the URI generic syntax.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 49
-  - label: client_request_version_method_validity
-    section: § 9.3.1
-    snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 58
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 83
-  - label: client_request_version_method_validity (2)
-    section: § 9.3.1
-    snippet: Although request message framing is independent of the method used, content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 30
-  - label: client_request_version_method_validity (3)
-    section: § 9.3.1
-    snippet: An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 114
-  - label: client_request_version_method_validity (4)
-    section: § 9.3.2
-    snippet: A client SHOULD NOT generate content in a HEAD request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 85
-  - label: client_request_version_method_validity (5)
-    section: § 9.3.5
-    snippet: A client SHOULD NOT generate content in a DELETE request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 87
-  - label: client_request_version_method_validity (6)
-    section: § 9.3.6
-    snippet: A CONNECT request message does not have content.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 93
-  - label: client_request_version_method_validity (7)
-    section: § 9.3.6
-    snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_version_method_validity.rs
-      line: 46
-  - label: client_user_agent_present
-    section: § 10.1.5
-    snippet: A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_user_agent_present.rs
-      line: 40
-  - label: client_user_agent_present (2)
-    section: § 10.1.5
-    snippet: The "User-Agent" header field contains information about the user agent originating the request
-    cited_by:
-    - file: lint-http-rules/src/rules/client_user_agent_present.rs
-      line: 22
-    - file: lint-http-rules/src/rules/message_context_fields_direction.rs
-      line: 19
-    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
-      line: 23
-  - label: client_user_agent_present (3)
-    section: § 3.5
-    snippet: The term "user agent" refers to any of the various client programs that initiate a request.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_user_agent_present.rs
-      line: 23
   - label: head_response_headers_match_get
     section: § 12.5.5
     snippet: A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response.
@@ -5271,24 +4837,66 @@ sources:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 100
   - label: head_response_headers_match_get (10)
+    section: § 9.1
+    snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
+    cited_by:
+    - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
+      line: 208
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 74
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 165
+    - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
+      line: 203
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 186
+    - file: lint-http-rules/src/rules/options_method_capabilities.rs
+      line: 84
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 125
+    - file: lint-http-rules/src/rules/patch_partial_update.rs
+      line: 50
+    - file: lint-http-rules/src/rules/post_creates_resource.rs
+      line: 31
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 191
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 171
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 75
+    - file: lint-http-rules/src/rules/server_200_vs_204_body_consistency.rs
+      line: 70
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 93
+    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
+      line: 188
+    - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
+      line: 241
+    - file: lint-http-rules/src/rules/server_response_405_allow.rs
+      line: 47
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 81
+    - file: lint-http-rules/src/rules/trace_method_echo.rs
+      line: 78
+  - label: head_response_headers_match_get (11)
     section: § 9.2.1
     snippet: Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods are defined to be safe.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 97
-  - label: head_response_headers_match_get (11)
+  - label: head_response_headers_match_get (12)
     section: § 9.3.2
     snippet: However, a server MAY omit header fields for which a value is determined only while generating the content.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 75
-  - label: head_response_headers_match_get (12)
+  - label: head_response_headers_match_get (13)
     section: § 9.3.2
     snippet: Such a response to GET might contain Content-Length and Vary fields, for example, that are not generated within a HEAD response.
     cited_by:
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 76
-  - label: head_response_headers_match_get (13)
+  - label: head_response_headers_match_get (14)
     section: § 9.3.2
     snippet: The HEAD method is identical to GET except that the server MUST NOT send content in the response.
     cited_by:
@@ -5298,7 +4906,7 @@ sources:
       line: 74
     - file: lint-http-rules/src/rules/server_content_type_present.rs
       line: 52
-  - label: head_response_headers_match_get (14)
+  - label: head_response_headers_match_get (15)
     section: § 9.3.2
     snippet: The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET.
     cited_by:
@@ -5306,6 +4914,12 @@ sources:
       line: 202
     - file: lint-http-rules/src/rules/message_response_body_length_accuracy.rs
       line: 67
+  - label: host_header
+    section: § 7.2
+    snippet: A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/host_header.rs
+      line: 58
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -5368,12 +4982,12 @@ sources:
       line: 139
     - file: lint-http-core/src/http_version.rs
       line: 155
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 155
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 89
     - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
       line: 77
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 155
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 89
   - label: lint-http-core/src/http_version.rs (3)
     section: § 2.5
     snippet: The first digit (major version) indicates the messaging syntax, whereas the second digit (minor version) indicates the highest minor version within that major version to which the sender is conformant (able to understand for future communication).
@@ -5470,12 +5084,12 @@ sources:
       line: 52
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 79
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 47
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 223
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 54
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 223
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 164
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
@@ -5488,7 +5102,7 @@ sources:
       line: 103
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 80
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 224
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 277
@@ -5516,7 +5130,7 @@ sources:
       line: 97
     - file: lint-http-rules/src/helpers/headers.rs
       line: 552
-    - file: lint-http-rules/src/rules/client_accept_encoding_present.rs
+    - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 61
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 51
@@ -5540,7 +5154,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 118
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 125
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 285
@@ -5586,12 +5200,12 @@ sources:
       line: 1183
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1212
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 241
     - file: lint-http-rules/src/rules/message_prefer_header_valid.rs
       line: 146
     - file: lint-http-rules/src/rules/message_preference_applied_header_valid.rs
       line: 154
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 241
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 297
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
@@ -5634,7 +5248,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 51
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 225
   - label: ranges-specifier grammar
     section: § 14.1.1
@@ -5642,7 +5256,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 50
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 90
   - label: lint-http-rules/src/helpers/content_range.rs (3)
     section: § 14.1.2
@@ -5650,7 +5264,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 197
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 376
   - label: lint-http-rules/src/helpers/content_range.rs (4)
     section: § 14.4
@@ -5702,7 +5316,7 @@ sources:
       line: 98
     - file: lint-http-rules/src/helpers/product.rs
       line: 69
-    - file: lint-http-rules/src/rules/client_host_header.rs
+    - file: lint-http-rules/src/rules/host_header.rs
       line: 110
     - file: lint-http-rules/src/rules/message_keep_alive_header_validity.rs
       line: 433
@@ -5786,8 +5400,6 @@ sources:
       line: 211
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1639
-    - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
-      line: 73
     - file: lint-http-rules/src/rules/message_if_match_etag_syntax.rs
       line: 36
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
@@ -5798,6 +5410,8 @@ sources:
       line: 215
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 25
+    - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
+      line: 73
     - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
       line: 77
     - file: lint-http-rules/src/rules/status_code_semantics.rs
@@ -5822,10 +5436,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 180
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 81
     - file: lint-http-rules/src/rules/message_transfer_coding_iana_registered.rs
       line: 330
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 81
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 93
   - label: lint-http-rules/src/helpers/headers.rs (9)
@@ -5840,9 +5454,9 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1640
-    - file: lint-http-rules/src/rules/client_accept_ranges_on_partial_content.rs
+    - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 28
-    - file: lint-http-rules/src/rules/client_host_header.rs
+    - file: lint-http-rules/src/rules/host_header.rs
       line: 76
     - file: lint-http-rules/src/rules/message_conditional_headers_consistency.rs
       line: 101
@@ -5914,8 +5528,6 @@ sources:
       line: 212
     - file: lint-http-rules/src/helpers/headers.rs
       line: 247
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 156
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 251
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
@@ -5932,6 +5544,8 @@ sources:
       line: 50
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 70
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 156
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
       line: 180
   - label: lint-http-rules/src/helpers/headers.rs (13)
@@ -5966,10 +5580,8 @@ sources:
       line: 554
     - file: lint-http-rules/src/helpers/headers.rs
       line: 590
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 96
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 250
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 92
     - file: lint-http-rules/src/rules/message_cache_control_directive_validity.rs
@@ -6006,6 +5618,8 @@ sources:
       line: 259
     - file: lint-http-rules/src/rules/message_warning_header_syntax.rs
       line: 329
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 250
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 301
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
@@ -6050,10 +5664,10 @@ sources:
       line: 588
     - file: lint-http-rules/src/helpers/headers.rs
       line: 1702
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 54
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 82
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 54
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 46
   - label: lint-http-rules/src/helpers/headers.rs (20)
@@ -6064,8 +5678,6 @@ sources:
       line: 1703
     - file: lint-http-rules/src/helpers/token.rs
       line: 7
-    - file: lint-http-rules/src/rules/client_sec_websocket_headers_consistency.rs
-      line: 118
     - file: lint-http-rules/src/rules/message_pragma_token_valid.rs
       line: 142
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
@@ -6074,6 +5686,8 @@ sources:
       line: 184
     - file: lint-http-rules/src/rules/message_via_header_syntax_valid.rs
       line: 212
+    - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
+      line: 118
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
       line: 316
     - file: lint-http-rules/src/rules/server_alt_svc_protocol_iana_registered.rs
@@ -6096,10 +5710,8 @@ sources:
       line: 1213
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2040
-    - file: lint-http-rules/src/rules/client_host_header.rs
+    - file: lint-http-rules/src/rules/host_header.rs
       line: 109
-    - file: lint-http-rules/src/rules/client_range_header_syntax_valid.rs
-      line: 242
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 64
     - file: lint-http-rules/src/rules/message_compression_and_transfer_encoding_consistency.rs
@@ -6118,6 +5730,8 @@ sources:
       line: 71
     - file: lint-http-rules/src/rules/message_x_forwarded_consistency.rs
       line: 66
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 242
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 298
     - file: lint-http-rules/src/rules/server_alt_svc_header_syntax.rs
@@ -6214,7 +5828,7 @@ sources:
       line: 2038
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2065
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 380
   - label: lint-http-rules/src/helpers/headers.rs (29)
     section: § 5.6.6
@@ -6226,7 +5840,7 @@ sources:
       line: 2066
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2247
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 381
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 243
@@ -6236,16 +5850,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2261
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 382
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 89
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 290
     - file: lint-http-rules/src/rules/message_charset_iana_registered.rs
       line: 132
     - file: lint-http-rules/src/rules/message_multipart_boundary_syntax.rs
       line: 219
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 89
   - label: lint-http-rules/src/helpers/headers.rs (30)
     section: § 5.6.6
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
@@ -6254,7 +5868,7 @@ sources:
       line: 2037
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2110
-    - file: lint-http-rules/src/rules/client_expect_header_valid.rs
+    - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 379
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 63
@@ -6292,8 +5906,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 917
-    - file: lint-http-rules/src/rules/client_user_agent_present.rs
-      line: 46
     - file: lint-http-rules/src/rules/message_server_header_product_valid.rs
       line: 36
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
@@ -6314,6 +5926,8 @@ sources:
       line: 89
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
       line: 169
+    - file: lint-http-rules/src/rules/user_agent_present.rs
+      line: 46
   - label: lint-http-rules/src/helpers/headers.rs (35)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -6326,8 +5940,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2192
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
-      line: 44
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 203
     - file: lint-http-rules/src/rules/message_content_type_iana_registered.rs
@@ -6342,6 +5954,8 @@ sources:
       line: 93
     - file: lint-http-rules/src/rules/message_range_and_content_range_consistency.rs
       line: 73
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 44
     - file: lint-http-rules/src/rules/server_charset_specification.rs
       line: 40
     - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
@@ -6352,7 +5966,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2211
-    - file: lint-http-rules/src/rules/client_patch_method_content_type_match.rs
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 88
   - label: media-type grammar
     section: § 8.3.1
@@ -6420,10 +6034,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
       line: 87
-    - file: lint-http-rules/src/rules/client_user_agent_present.rs
-      line: 53
     - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
       line: 38
+    - file: lint-http-rules/src/rules/user_agent_present.rs
+      line: 53
   - label: lint-http-rules/src/helpers/product.rs (2)
     section: § 10.2.4
     snippet: Each product identifier consists of a name and optional version, as defined in Section 10.1.5.
@@ -6484,7 +6098,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 381
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 111
     - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
       line: 161
@@ -6494,7 +6108,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1113
-    - file: lint-http-rules/src/rules/client_host_header.rs
+    - file: lint-http-rules/src/rules/host_header.rs
       line: 161
     - file: lint-http-rules/src/rules/message_forwarded_header_validity.rs
       line: 54
@@ -6506,7 +6120,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 383
-    - file: lint-http-rules/src/rules/client_host_header.rs
+    - file: lint-http-rules/src/rules/host_header.rs
       line: 23
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 164
@@ -6580,11 +6194,23 @@ sources:
       line: 20
   - label: message_accept_and_content_type_negotiation (10)
     section: § 12.5.1
+    snippet: The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 143
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 99
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 244
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 191
+  - label: message_accept_and_content_type_negotiation (11)
+    section: § 12.5.1
     snippet: The media-range can include media type parameters that are applicable to that range.
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 201
-  - label: message_accept_and_content_type_negotiation (11)
+  - label: message_accept_and_content_type_negotiation (12)
     section: § 12.5.1
     snippet: media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters
     cited_by:
@@ -6592,12 +6218,26 @@ sources:
       line: 142
     - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
       line: 98
-  - label: message_accept_and_content_type_negotiation (12)
+  - label: message_accept_and_content_type_negotiation (13)
     section: § 15.5.7
     snippet: The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent
     cited_by:
     - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
       line: 76
+  - label: message_accept_and_content_type_negotiation (14)
+    section: § 8.3
+    snippet: Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_and_content_type_negotiation.rs
+      line: 65
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 58
+    - file: lint-http-rules/src/rules/message_problem_details_structure.rs
+      line: 79
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 140
+    - file: lint-http-rules/src/rules/server_problem_details_content_type.rs
+      line: 49
   - label: message_accept_encoding_parameter_validity
     section: § 12.4.2
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
@@ -6712,6 +6352,14 @@ sources:
       line: 81
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 71
+  - label: message_accept_header_media_type_syntax (7)
+    section: § 8.3.1
+    snippet: media-type = type "/" subtype parameters type       = token subtype    = token
+    cited_by:
+    - file: lint-http-rules/src/rules/message_accept_header_media_type_syntax.rs
+      line: 128
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 42
   - label: message_accept_language_weight_validity
     section: § 12.5.4
     snippet: 'Accept-Language = #( language-range [ weight ] )'
@@ -6814,6 +6462,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
       line: 66
+  - label: message_allow_header_method_tokens (6)
+    section: § A
+    snippet: method = token minute = 2DIGIT
+    cited_by:
+    - file: lint-http-rules/src/rules/message_allow_header_method_tokens.rs
+      line: 114
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 164
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 135
   - label: message_auth_scheme_iana_registered
     section: § 11.1
     snippet: New and existing authentication schemes are specified independently and ought to be registered
@@ -7000,13 +6658,23 @@ sources:
       line: 94
   - label: message_connection_upgrade (2)
     section: § 7.6.1
+    snippet: Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_connection_upgrade.rs
+      line: 60
+    - file: lint-http-rules/src/rules/message_te_header_constraints.rs
+      line: 159
+    - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
+      line: 54
+  - label: message_connection_upgrade (3)
+    section: § 7.6.1
     snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_connection_upgrade.rs
       line: 42
     - file: lint-http-rules/src/rules/message_trailer_fields_validity.rs
       line: 239
-  - label: message_connection_upgrade (3)
+  - label: message_connection_upgrade (4)
     section: § 7.8
     snippet: A sender of Upgrade MUST also send an "Upgrade" connection option in the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
     cited_by:
@@ -7140,6 +6808,14 @@ sources:
       line: 115
   - label: message_content_type_well_formed
     section: § 8.3
+    snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
+      line: 57
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 139
+  - label: message_content_type_well_formed (2)
+    section: § 8.3
     snippet: Content-Type = media-type
     cited_by:
     - file: lint-http-rules/src/rules/message_content_type_well_formed.rs
@@ -7177,6 +6853,16 @@ sources:
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 396
   - label: message_context_fields_direction (4)
+    section: § 10.1.5
+    snippet: The "User-Agent" header field contains information about the user agent originating the request
+    cited_by:
+    - file: lint-http-rules/src/rules/message_context_fields_direction.rs
+      line: 19
+    - file: lint-http-rules/src/rules/message_user_agent_token_valid.rs
+      line: 23
+    - file: lint-http-rules/src/rules/user_agent_present.rs
+      line: 22
+  - label: message_context_fields_direction (5)
     section: § 10.2.2
     snippet: The "Location" header field is used in some responses to refer to a specific resource in relation to the response.
     cited_by:
@@ -7186,7 +6872,7 @@ sources:
       line: 70
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 99
-  - label: message_context_fields_direction (5)
+  - label: message_context_fields_direction (6)
     section: § 10.2.3
     snippet: Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request.
     cited_by:
@@ -7198,7 +6884,7 @@ sources:
       line: 67
     - file: lint-http-rules/src/rules/server_retry_after_status_validity.rs
       line: 91
-  - label: message_context_fields_direction (6)
+  - label: message_context_fields_direction (7)
     section: § 10.2.4
     snippet: The "Server" header field contains information about the software used by the origin server to handle the request
     cited_by:
@@ -7223,6 +6909,22 @@ sources:
     - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
       line: 28
   - label: message_early_data_header_safe_method (3)
+    section: § 16.1.1
+    snippet: The "Hypertext Transfer Protocol (HTTP) Method Registry", maintained by IANA at <https://www.iana.org/assignments/http-methods>, registers method names.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 26
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 26
+  - label: message_early_data_header_safe_method (4)
+    section: § 16.1.1
+    snippet: Values to be added to this namespace require IETF Review
+    cited_by:
+    - file: lint-http-rules/src/rules/message_early_data_header_safe_method.rs
+      line: 29
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 27
+  - label: message_early_data_header_safe_method (5)
     section: § 9.2.1
     snippet: Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource.
     cited_by:
@@ -7307,18 +7009,38 @@ sources:
     - file: lint-http-rules/src/rules/message_referer_uri_valid.rs
       line: 274
   - label: message_http2_pseudo_headers_validity
+    section: § 7.1
+    snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 241
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 127
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 259
+  - label: message_http2_pseudo_headers_validity (2)
+    section: § 7.1
+    snippet: These forms MUST NOT be used with other methods.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 242
+    - file: lint-http-rules/src/rules/message_http3_pseudo_headers_validity.rs
+      line: 128
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 230
+  - label: message_http2_pseudo_headers_validity (3)
     section: § 9.3.6
     snippet: A server MUST reject a CONNECT request that targets an empty or invalid port number, typically by responding with a 400 (Bad Request) status code.
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 24
-  - label: message_http2_pseudo_headers_validity (2)
+  - label: message_http2_pseudo_headers_validity (4)
     section: § 9.3.6
     snippet: CONNECT uses a special form of request target, unique to this method, consisting of only the host and port number of the tunnel destination, separated by a colon.
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 22
-  - label: message_http2_pseudo_headers_validity (3)
+  - label: message_http2_pseudo_headers_validity (5)
     section: § 9.3.6
     snippet: There is no default port; a client MUST send the port number even if the CONNECT request is based on a URI reference that contains an authority component with an elided port (Section 4.1).
     cited_by:
@@ -7846,6 +7568,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
       line: 38
+  - label: Range grammar
+    section: § 14.2
+    snippet: Range = ranges-specifier
+    cited_by:
+    - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
+      line: 37
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 89
   - label: the exception's shape
     section: § 5.3
     snippet: 'such as an ABNF rule of #(values) defined in Section 5.6.1'
@@ -8164,6 +7894,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 83
+  - label: patch_method_content_type_match
+    section: § 12.3
+    snippet: When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 208
+  - label: patch_method_content_type_match (2)
+    section: § 12.4.3
+    snippet: If no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable.
+    cited_by:
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 209
+  - label: patch_method_content_type_match (3)
+    section: § 12.4.3
+    snippet: Most of these header fields, where indicated, define a wildcard value ("*") to select unspecified values.
+    cited_by:
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 190
+  - label: patch_method_content_type_match (4)
+    section: § 8.3.1
+    snippet: The presence or absence of a parameter might be significant to the processing of a media type, depending on its definition within the media type registry.
+    cited_by:
+    - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
+      line: 43
   - label: patch_partial_update
     section: § 12.3
     snippet: Similarly, Section 3.1 of [RFC5789] defines the "Accept-Patch" response header field, which allows discovery of which content types are accepted in PATCH requests.
@@ -8220,6 +7974,240 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 75
+  - label: range_header_syntax
+    section: § 14.1.1
+    snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 107
+  - label: range_header_syntax (2)
+    section: § 14.1.1
+    snippet: An int-range is invalid if the last-pos value is present and less than the first-pos.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 349
+  - label: int-range position grammar
+    section: § 14.1.1
+    snippet: first-pos     = 1*DIGIT last-pos      = 1*DIGIT
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 305
+  - label: int-range grammar
+    section: § 14.1.1
+    snippet: int-range     = first-pos "-" [ last-pos ]
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 325
+  - label: other-range grammar
+    section: § 14.1.1
+    snippet: other-range   = 1*( %x21-2B / %x2D-7E )
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 55
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 266
+  - label: range-set grammar
+    section: § 14.1.1
+    snippet: range-set        = 1#range-spec
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 230
+  - label: suffix-length grammar
+    section: § 14.1.1
+    snippet: suffix-length = 1*DIGIT
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 309
+  - label: suffix-range grammar
+    section: § 14.1.1
+    snippet: suffix-range  = "-" suffix-length
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 308
+  - label: range_header_syntax (3)
+    section: § 14.1.2
+    snippet: A client can limit the number of bytes requested without knowing the size of the selected representation.  If the last-pos value is absent, or if the value is greater than or equal to the current length of the representation data, the byte range is interpreted as the remainder of the representation
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 341
+  - label: range_header_syntax (4)
+    section: § 14.1.2
+    snippet: A client can refer to the last N bytes (N > 0) of the selected representation using a suffix-range.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 313
+  - label: range_header_syntax (5)
+    section: § 14.1.2
+    snippet: Each byte range is expressed as an integer range at some offset, relative to either the beginning (int-range) or end (suffix-range) of the representation data.  Byte ranges do not use the other-range specifier.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 300
+  - label: range_header_syntax (6)
+    section: § 14.1.2
+    snippet: 'For a GET request, a valid bytes range-spec is satisfiable if it is either:'
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 132
+  - label: range_header_syntax (7)
+    section: § 14.1.2
+    snippet: The "bytes" range unit is used to express subranges of a representation data's octet sequence.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 278
+  - label: a bytes range-set the section prints with a leading space
+    section: § 14.1.2
+    snippet: bytes= 0-999, 4500-5499, -1000
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 227
+  - label: range_header_syntax (8)
+    section: § 14.2
+    snippet: A client that is requesting multiple ranges SHOULD list those ranges in ascending order (the order in which they would typically be received in a complete representation) unless there is a specific need to request a later part earlier.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 134
+  - label: range_header_syntax (9)
+    section: § 14.2
+    snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 133
+    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+      line: 80
+  - label: range_header_syntax (10)
+    section: § 14.2
+    snippet: An origin server MUST ignore a Range header field that contains a range unit it does not understand.  A proxy MAY discard a Range header field that contains a range unit it does not understand.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_header_syntax.rs
+      line: 226
+  - label: request_method_token_valid
+    section: § 9.1
+    snippet: All such methods ought to be registered within the "Hypertext Transfer Protocol (HTTP) Method Registry", as described in Section 16.1.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 28
+  - label: request_method_token_valid (2)
+    section: § 9.1
+    snippet: An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 199
+  - label: request_method_token_valid (3)
+    section: § 9.1
+    snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 192
+  - label: absolute-path
+    section: § 4.1
+    snippet: absolute-path = 1*( "/" segment )
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 83
+  - label: request_target_form_valid
+    section: § 7.1
+    snippet: For CONNECT (Section 9.3.6), the request target is the host name and port number of the tunnel destination, separated by a colon.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 237
+  - label: request_target_form_valid (2)
+    section: § 7.1
+    snippet: For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 156
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 37
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 40
+  - label: request_target_form_valid (3)
+    section: § 7.1
+    snippet: There are two unusual cases for which the request target components are in a method-specific form
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 229
+  - label: request_target_form_valid (4)
+    section: § 7.1
+    snippet: This reconstruction is specific to each major protocol version.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 157
+  - label: request_target_no_fragment
+    section: § 4.2.5
+    snippet: Some protocol elements that refer to a URI allow inclusion of a fragment, while others do not.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 91
+  - label: request_target_no_fragment (2)
+    section: § 4.2.5
+    snippet: They are distinguished by use of the ABNF rule for elements where fragment is allowed; otherwise, a specific rule that excludes fragments is used.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 92
+  - label: request_target_no_fragment (3)
+    section: § 7.1
+    snippet: The target URI excludes the reference's fragment component, if any, since fragment identifiers are reserved for client-side processing
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 112
+  - label: request_target_no_fragment (4)
+    section: § 7.1
+    snippet: To perform an action on a "target resource", the client sends a request message containing enough components of its parsed target URI to enable recipients to identify that same resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 21
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 21
+  - label: request_uri_percent_encoding_valid
+    section: § 4.1
+    snippet: The definitions of "URI-reference", "absolute-URI", "relative-part", "authority", "port", "host", "path-abempty", "segment", and "query" are adopted from the URI generic syntax.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 49
+  - label: request_version_method_valid
+    section: § 9.3.1
+    snippet: A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 58
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 83
+  - label: request_version_method_valid (2)
+    section: § 9.3.1
+    snippet: Although request message framing is independent of the method used, content received in a GET request has no generally defined semantics, cannot alter the meaning or target of the request
+    cited_by:
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 30
+  - label: request_version_method_valid (3)
+    section: § 9.3.1
+    snippet: An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 114
+  - label: request_version_method_valid (4)
+    section: § 9.3.2
+    snippet: A client SHOULD NOT generate content in a HEAD request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 85
+  - label: request_version_method_valid (5)
+    section: § 9.3.5
+    snippet: A client SHOULD NOT generate content in a DELETE request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 87
+  - label: request_version_method_valid (6)
+    section: § 9.3.6
+    snippet: A CONNECT request message does not have content.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 93
+  - label: request_version_method_valid (7)
+    section: § 9.3.6
+    snippet: The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_version_method_valid.rs
+      line: 46
   - label: server_200_vs_204_body_consistency
     section: § 15.3.1
     snippet: Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length.
@@ -8964,6 +8952,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 30
+  - label: user_agent_present
+    section: § 10.1.5
+    snippet: A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.
+    cited_by:
+    - file: lint-http-rules/src/rules/user_agent_present.rs
+      line: 40
+  - label: user_agent_present (2)
+    section: § 3.5
+    snippet: The term "user agent" refers to any of the various client programs that initiate a request.
+    cited_by:
+    - file: lint-http-rules/src/rules/user_agent_present.rs
+      line: 23
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.txt
   type: text/plain
@@ -9340,158 +9340,6 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9112.txt
   type: text/plain
   fragments:
-  - label: client_host_header
-    section: § 3.2
-    snippet: A client MUST send a Host header field (Section 7.2 of [HTTP]) in all HTTP/1.1 request messages.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_host_header.rs
-      line: 59
-  - label: client_host_header (2)
-    section: § 3.2
-    snippet: If the authority component is missing or undefined for the target URI, then a client MUST send a Host header field with an empty field value.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_host_header.rs
-      line: 116
-  - label: client_host_header (3)
-    section: § 3.2
-    snippet: If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP]).
-    cited_by:
-    - file: lint-http-rules/src/rules/client_host_header.rs
-      line: 125
-  - label: client_proxy_connection_discouraged
-    section: § C.2.2
-    snippet: As a result, clients are encouraged not to send the Proxy-Connection header field in any requests.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
-      line: 28
-  - label: client_proxy_connection_discouraged (2)
-    section: § C.2.2
-    snippet: One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_proxy_connection_discouraged.rs
-      line: 84
-  - label: client_request_target_form_checks
-    section: § 3.2
-    snippet: A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 194
-  - label: client_request_target_form_checks (2)
-    section: § 3.2
-    snippet: No whitespace is allowed in the request-target.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 192
-  - label: client_request_target_form_checks (3)
-    section: § 3.2
-    snippet: Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 213
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 306
-  - label: client_request_target_form_checks (4)
-    section: § 3.2
-    snippet: Unfortunately, some user agents fail to properly encode or exclude whitespace found in hypertext references, resulting in those disallowed characters being sent as the request-target in a malformed request-line.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 193
-  - label: client_request_target_form_checks (5)
-    section: § 3.2.1
-    snippet: When making a request directly to an origin server, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send only the absolute path and query components of the target URI as the request-target.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 297
-  - label: origin-form
-    section: § 3.2.1
-    snippet: origin-form    = absolute-path [ "?" query ]
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 62
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 96
-  - label: client_request_target_form_checks (6)
-    section: § 3.2.2
-    snippet: A server MUST accept the absolute-form in requests even though most HTTP/1.1 clients will only send the absolute-form to a proxy.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 299
-  - label: client_request_target_form_checks (7)
-    section: § 3.2.2
-    snippet: When making a request to a proxy, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send the target URI in "absolute-form" as the request-target.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 298
-  - label: absolute-form
-    section: § 3.2.2
-    snippet: absolute-form  = absolute-URI
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 63
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 95
-  - label: client_request_target_form_checks (8)
-    section: § 3.2.3
-    snippet: It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":").
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 238
-  - label: client_request_target_form_checks (9)
-    section: § 3.2.3
-    snippet: The "authority-form" of request-target is only used for CONNECT requests
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 270
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 283
-  - label: client_request_target_form_checks (10)
-    section: § 3.2.3
-    snippet: The client obtains the host and port from the target URI's authority component, except that it sends the scheme's default port if the target URI elides the port.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 246
-  - label: client_request_target_form_checks (11)
-    section: § 3.2.3
-    snippet: When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 239
-  - label: authority-form
-    section: § 3.2.3
-    snippet: authority-form = uri-host ":" port
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 64
-    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 21
-  - label: client_request_target_form_checks (12)
-    section: § 3.2.4
-    snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 260
-  - label: client_request_target_form_checks (13)
-    section: § 3.2.4
-    snippet: When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 261
-  - label: asterisk-form
-    section: § A
-    snippet: asterisk-form = "*" authority = <authority, see [URI], Section 3.2>
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 71
-  - label: client_request_target_no_fragment
-    section: § 1.1
-    snippet: Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP].
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 110
-    - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
-      line: 154
-    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 100
   - label: head_response_headers_match_get
     section: § 6.1
     snippet: This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed.
@@ -9508,6 +9356,24 @@ sources:
       line: 214
     - file: lint-http-rules/src/rules/server_no_body_for_1xx_204_304.rs
       line: 173
+  - label: host_header
+    section: § 3.2
+    snippet: A client MUST send a Host header field (Section 7.2 of [HTTP]) in all HTTP/1.1 request messages.
+    cited_by:
+    - file: lint-http-rules/src/rules/host_header.rs
+      line: 59
+  - label: host_header (2)
+    section: § 3.2
+    snippet: If the authority component is missing or undefined for the target URI, then a client MUST send a Host header field with an empty field value.
+    cited_by:
+    - file: lint-http-rules/src/rules/host_header.rs
+      line: 116
+  - label: host_header (3)
+    section: § 3.2
+    snippet: If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/host_header.rs
+      line: 125
   - label: HTTP-version
     section: § 2.3
     snippet: HTTP-version  = HTTP-name "/" DIGIT "." DIGIT
@@ -9516,9 +9382,9 @@ sources:
       line: 48
     - file: lint-http-core/src/http_version.rs
       line: 103
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 159
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 90
   - label: lint-http-core/src/http_version.rs
     section: § 2.3
@@ -9534,10 +9400,10 @@ sources:
       line: 18
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 63
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 158
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 145
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 158
   - label: HTTP-name
     section: § A
     snippet: HTTP-name = %x48.54.54.50 ; HTTP
@@ -9558,7 +9424,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 387
-    - file: lint-http-rules/src/rules/client_host_header.rs
+    - file: lint-http-rules/src/rules/host_header.rs
       line: 77
   - label: request-target forms
     section: § 3.2
@@ -9568,10 +9434,10 @@ sources:
       line: 419
     - file: lint-http-rules/src/helpers/uri.rs
       line: 492
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 13
     - file: lint-http-rules/src/rules/message_well_known_uri_format.rs
       line: 136
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 13
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 3.3
     snippet: If the request-target is in authority-form, the target URI's authority component is the request-target.  Otherwise, the target URI's authority component is the field value of the Host header field.
@@ -9682,13 +9548,31 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 165
+  - label: authority-form
+    section: § 3.2.3
+    snippet: authority-form = uri-host ":" port
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 21
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 64
   - label: message_http_version_syntax_valid
+    section: § 1.1
+    snippet: Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP].
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
+      line: 154
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 110
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 100
+  - label: message_http_version_syntax_valid (2)
     section: § 3
     snippet: A request-line begins with a method token, followed by a single space (SP), the request-target, and another single space (SP), and ends with the protocol version.
     cited_by:
     - file: lint-http-rules/src/rules/message_http_version_syntax_valid.rs
       line: 36
-  - label: message_http_version_syntax_valid (2)
+  - label: message_http_version_syntax_valid (3)
     section: § 4
     snippet: The first line of a response message is the status-line, consisting of the protocol version, a space (SP), the status code, and another space and ending with an OPTIONAL textual phrase describing the status code.
     cited_by:
@@ -9894,6 +9778,122 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 87
+  - label: proxy_connection_discouraged
+    section: § C.2.2
+    snippet: As a result, clients are encouraged not to send the Proxy-Connection header field in any requests.
+    cited_by:
+    - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
+      line: 28
+  - label: proxy_connection_discouraged (2)
+    section: § C.2.2
+    snippet: One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above.
+    cited_by:
+    - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
+      line: 84
+  - label: request_target_form_valid
+    section: § 3.2
+    snippet: A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 194
+  - label: request_target_form_valid (2)
+    section: § 3.2
+    snippet: No whitespace is allowed in the request-target.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 192
+  - label: request_target_form_valid (3)
+    section: § 3.2
+    snippet: Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 213
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 306
+  - label: request_target_form_valid (4)
+    section: § 3.2
+    snippet: Unfortunately, some user agents fail to properly encode or exclude whitespace found in hypertext references, resulting in those disallowed characters being sent as the request-target in a malformed request-line.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 193
+  - label: request_target_form_valid (5)
+    section: § 3.2.1
+    snippet: When making a request directly to an origin server, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send only the absolute path and query components of the target URI as the request-target.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 297
+  - label: origin-form
+    section: § 3.2.1
+    snippet: origin-form    = absolute-path [ "?" query ]
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 62
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 96
+  - label: request_target_form_valid (6)
+    section: § 3.2.2
+    snippet: A server MUST accept the absolute-form in requests even though most HTTP/1.1 clients will only send the absolute-form to a proxy.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 299
+  - label: request_target_form_valid (7)
+    section: § 3.2.2
+    snippet: When making a request to a proxy, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send the target URI in "absolute-form" as the request-target.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 298
+  - label: absolute-form
+    section: § 3.2.2
+    snippet: absolute-form  = absolute-URI
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 63
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 95
+  - label: request_target_form_valid (8)
+    section: § 3.2.3
+    snippet: It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":").
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 238
+  - label: request_target_form_valid (9)
+    section: § 3.2.3
+    snippet: The "authority-form" of request-target is only used for CONNECT requests
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 270
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 283
+  - label: request_target_form_valid (10)
+    section: § 3.2.3
+    snippet: The client obtains the host and port from the target URI's authority component, except that it sends the scheme's default port if the target URI elides the port.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 246
+  - label: request_target_form_valid (11)
+    section: § 3.2.3
+    snippet: When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 239
+  - label: request_target_form_valid (12)
+    section: § 3.2.4
+    snippet: The "asterisk-form" of request-target is only used for a server-wide OPTIONS request
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 260
+  - label: request_target_form_valid (13)
+    section: § 3.2.4
+    snippet: When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 261
+  - label: asterisk-form
+    section: § A
+    snippet: asterisk-form = "*" authority = <authority, see [URI], Section 3.2>
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 71
   - label: server_no_body_for_1xx_204_304
     section: § 6.1
     snippet: A server MUST NOT send a Transfer-Encoding header field in any response with a status code of 1xx (Informational) or 204 (No Content).
@@ -9928,38 +9928,6 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain
   fragments:
-  - label: client_request_method_token_valid
-    section: § 8.3.1
-    snippet: The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP]).
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 136
-    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 160
-  - label: client_request_target_form_checks
-    section: § 8.3.1
-    snippet: A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field.
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 160
-    - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
-      line: 202
-    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
-      line: 240
-  - label: client_request_target_form_checks (2)
-    section: § 8.3.1
-    snippet: Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 161
-  - label: client_request_target_no_fragment
-    section: § 8.3.1
-    snippet: The ":path" pseudo-header field includes the path and query parts of the target URI
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 97
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 41
   - label: lint-http-core/src/http_version.rs
     section: § 8.3.1
     snippet: All HTTP/2 requests implicitly have a protocol version of "2.0"
@@ -10018,17 +9986,27 @@ sources:
       line: 131
   - label: message_host_and_authority_consistency
     section: § 8.3.1
+    snippet: A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
+      line: 202
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 240
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 160
+  - label: message_host_and_authority_consistency (2)
+    section: § 8.3.1
     snippet: A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the ":authority" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 327
-  - label: message_host_and_authority_consistency (2)
+  - label: message_host_and_authority_consistency (3)
     section: § 8.3.1
     snippet: An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields.
     cited_by:
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 305
-  - label: message_host_and_authority_consistency (3)
+  - label: message_host_and_authority_consistency (4)
     section: § 8.3.1
     snippet: Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field.
     cited_by:
@@ -10036,7 +10014,7 @@ sources:
       line: 142
     - file: lint-http-rules/src/rules/message_host_and_authority_consistency.rs
       line: 326
-  - label: message_host_and_authority_consistency (4)
+  - label: message_host_and_authority_consistency (5)
     section: § 8.3.1
     snippet: The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP]).
     cited_by:
@@ -10044,7 +10022,7 @@ sources:
       line: 185
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 280
-  - label: message_host_and_authority_consistency (5)
+  - label: message_host_and_authority_consistency (6)
     section: § 8.3.1
     snippet: The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986]).
     cited_by:
@@ -10082,41 +10060,49 @@ sources:
       line: 256
   - label: message_http2_pseudo_headers_validity (6)
     section: § 8.3.1
+    snippet: The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP]).
+    cited_by:
+    - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
+      line: 160
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 136
+  - label: message_http2_pseudo_headers_validity (7)
+    section: § 8.3.1
     snippet: The ":scheme" pseudo-header field includes the scheme portion of the request target.
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 279
-  - label: message_http2_pseudo_headers_validity (7)
+  - label: message_http2_pseudo_headers_validity (8)
     section: § 8.3.1
     snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of '/'.
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 255
-  - label: message_http2_pseudo_headers_validity (8)
+  - label: message_http2_pseudo_headers_validity (9)
     section: § 8.3.2
     snippet: For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 371
-  - label: message_http2_pseudo_headers_validity (9)
+  - label: message_http2_pseudo_headers_validity (10)
     section: § 8.3.2
     snippet: This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 372
-  - label: message_http2_pseudo_headers_validity (10)
+  - label: message_http2_pseudo_headers_validity (11)
     section: § 8.5
     snippet: A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 208
-  - label: message_http2_pseudo_headers_validity (11)
+  - label: message_http2_pseudo_headers_validity (12)
     section: § 8.5
     snippet: A proxy that supports CONNECT establishes a TCP connection [TCP] to the host and port identified in the ":authority" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 99
-  - label: message_http2_pseudo_headers_validity (12)
+  - label: message_http2_pseudo_headers_validity (13)
     section: § 8.5
     snippet: The ":authority" pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 3.2.3 of [HTTP/1.1]).
     cited_by:
@@ -10124,7 +10110,7 @@ sources:
       line: 20
     - file: lint-http-rules/src/rules/message_http2_pseudo_headers_validity.rs
       line: 207
-  - label: message_http2_pseudo_headers_validity (13)
+  - label: message_http2_pseudo_headers_validity (14)
     section: § 8.5
     snippet: The ":method" pseudo-header field is set to CONNECT.
     cited_by:
@@ -10156,6 +10142,20 @@ sources:
       line: 175
     - file: lint-http-rules/src/rules/message_te_header_constraints.rs
       line: 161
+  - label: request_target_form_valid
+    section: § 8.3.1
+    snippet: Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 161
+  - label: request_target_no_fragment
+    section: § 8.3.1
+    snippet: The ":path" pseudo-header field includes the path and query parts of the target URI
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 97
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 41
   - label: stateful_101_switching_protocols
     section: § 8.6
     snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
@@ -10166,26 +10166,6 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9114.txt
   type: text/plain
   fragments:
-  - label: client_request_method_token_valid
-    section: § 4.3.1
-    snippet: '":method":  Contains the HTTP method (Section 9 of [HTTP])'
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_method_token_valid.rs
-      line: 137
-  - label: client_request_target_form_checks
-    section: § 4.3.1
-    snippet: An OPTIONS request that does not include a path component includes the value * (ASCII 0x2a) for the :path pseudo-header field
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_form_checks.rs
-      line: 162
-  - label: client_request_target_no_fragment
-    section: § 4.3.1
-    snippet: Contains the path and query parts of the target URI
-    cited_by:
-    - file: lint-http-rules/src/rules/client_request_target_no_fragment.rs
-      line: 98
-    - file: lint-http-rules/src/rules/client_request_uri_percent_encoding_valid.rs
-      line: 42
   - label: lint-http-core/src/http_version.rs
     section: § 4.3.1
     snippet: HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line.
@@ -10352,6 +10332,26 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_no_connection_specific_fields.rs
       line: 176
+  - label: request_method_token_valid
+    section: § 4.3.1
+    snippet: '":method":  Contains the HTTP method (Section 9 of [HTTP])'
+    cited_by:
+    - file: lint-http-rules/src/rules/request_method_token_valid.rs
+      line: 137
+  - label: request_target_form_valid
+    section: § 4.3.1
+    snippet: An OPTIONS request that does not include a path component includes the value * (ASCII 0x2a) for the :path pseudo-header field
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_form_valid.rs
+      line: 162
+  - label: request_target_no_fragment
+    section: § 4.3.1
+    snippet: Contains the path and query parts of the target URI
+    cited_by:
+    - file: lint-http-rules/src/rules/request_target_no_fragment.rs
+      line: 98
+    - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
+      line: 42
   - label: server_alt_svc_h3_advertisement_valid
     section: § 3.1.1
     snippet: An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token.

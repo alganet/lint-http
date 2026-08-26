@@ -376,7 +376,7 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
 /// `Host` is a singleton, and §3.3's *"empty or invalid"* is where two field
 /// lines land: a message carrying them is one a server must answer with a 400,
 /// and reading the first of the two would pick a host by position rather than by
-/// anything the sender said. `client_host_header` reports the message; this
+/// anything the sender said. `host_header` reports the message; this
 /// helper reports that the authority is unknown, which is what it is.
 // cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
 // cite(RFC 9110 § 7.2): "The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names."
@@ -1066,7 +1066,7 @@ pub fn split_host_and_port(value: &str) -> (&str, Option<&str>) {
 /// **This is not `port`'s grammar and must never be confused for it.**
 /// `port = *DIGIT` bounds nothing at either end, which is why
 /// [`validate_host_and_optional_port`] declines the range and why
-/// `client_host_header` reports no port for being out of range. What this
+/// `host_header` reports no port for being out of range. What this
 /// answers is the *other* question — whether the number lands in the sixteen-bit
 /// namespace a transport registers its ports in — and **the licence to ask it is
 /// the caller's**, because it takes a sentence naming the transport or the type.

@@ -19,9 +19,9 @@ Checks the `Accept-Patch` response header field — its grammar wherever it appe
 
 **Not reported: a successful `PATCH` response with no `Accept-Patch`.** This rule used to report every response to a `PATCH` that lacked the field. Nothing asks for it there. RFC 5789 §2.1's own worked example is a successful `PATCH` answered `204 No Content` with `Content-Location` and `ETag` and no `Accept-Patch`, so the document's first illustration of the method was a finding; a test runs it.
 
-**Not reported: an asterisk.** `*` is a `tchar`, so `Accept-Patch: */*` derives from `media-type`, and this field's grammar contains no `media-range` for a wildcard to mean anything in. A server writing it has advertised a media type spelled with an asterisk. `client_patch_method_content_type_match` reports the request that reads it as permission.
+**Not reported: an asterisk.** `*` is a `tchar`, so `Accept-Patch: */*` derives from `media-type`, and this field's grammar contains no `media-range` for a wildcard to mean anything in. A server writing it has advertised a media type spelled with an asterisk. `patch_method_content_type_match` reports the request that reads it as permission.
 
-**Not reported: which formats are advertised.** RFC 5789 defines no default patch document format and no registry of them, so no list of media types is the right one. Whether a `PATCH` request's `Content-Type` is among those advertised is `client_patch_method_content_type_match`'s question; whether a `PATCH` carrying content names its format at all is `patch_partial_update`'s.
+**Not reported: which formats are advertised.** RFC 5789 defines no default patch document format and no registry of them, so no list of media types is the right one. Whether a `PATCH` request's `Content-Type` is among those advertised is `patch_method_content_type_match`'s question; whether a `PATCH` carrying content names its format at all is `patch_partial_update`'s.
 
 Scope: responses only — §3.1 defines `Accept-Patch` as a response header, and an `Accept-Patch` in a request is measured by nothing here. A trailer section is not read: whether a field name may arrive as a trailer at all is §6.5.1's question, asked of every name at once by `message_trailer_fields_validity`. Method comparisons are exact, because the method token is case-sensitive (§9.1).
 

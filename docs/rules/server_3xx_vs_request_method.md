@@ -20,7 +20,7 @@ SPDX-License-Identifier: ISC
 
 **No method other than `POST` is reported.** The two notes name `POST`, and §15.4's history records that `301` and `302` "have been adjusted to allow a POST request to be redirected as GET" — a `PUT`, `PATCH` or `DELETE` following one of them keeps its method, so there is nothing ambiguous to report. This rule previously reported every method not known to be safe.
 
-**The method is compared exactly**, because §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request. `client_request_method_token_valid` is the rule that reports it.
+**The method is compared exactly**, because §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request. `request_method_token_valid` is the rule that reports it.
 
 **Not reported:** a `301` or `302` carrying no `Location`. With nothing to follow there is no redirected request whose method could differ, and the missing field is `server_response_location_on_redirect`'s finding.
 

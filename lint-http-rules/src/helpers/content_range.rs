@@ -42,7 +42,7 @@ impl ContentRange {
 ///
 /// The range-set is returned untouched. Which specifiers are legal is decided
 /// per unit, so there is nothing generic to check here; the `bytes` ones belong
-/// to `client_range_header_syntax_valid`. Splitting on the *first* `=` is what
+/// to `range_header_syntax`. Splitting on the *first* `=` is what
 /// the grammar says and not a shortcut: `range-unit` is a token, which cannot
 /// contain `=`, while an `other-range` may.
 ///

@@ -15,7 +15,7 @@ use crate::rules::Rule;
 /// The server's half of a WebSocket opening handshake, measured against the
 /// request it answers.
 ///
-/// `client_sec_websocket_headers_consistency` measures the request; this rule
+/// `sec_websocket_headers_consistent` measures the request; this rule
 /// measures what came back, and the two share the gate deciding which exchanges
 /// are a handshake at all.
 ///
@@ -49,7 +49,7 @@ impl StatefulWebsocketHandshakeValidity {
     /// the same reading `Sec-WebSocket-Accept` is derived through, so the exchange
     /// is judged from one reading of the key rather than two.
     ///
-    /// `client_sec_websocket_headers_consistency` reports the same value, and the
+    /// `sec_websocket_headers_consistent` reports the same value, and the
     /// two findings are not duplicates: there the sender at fault is the client and
     /// the defect is the value; here it is the server, and the defect is that it
     /// completed the handshake anyway.
@@ -105,7 +105,7 @@ impl StatefulWebsocketHandshakeValidity {
     ///
     /// The two directions of this field are one list item apart and they do not ask
     /// the same thing. The request's *"MUST include the "websocket" keyword"* — some
-    /// member is `websocket`, which is what `client_sec_websocket_headers_consistency`
+    /// member is `websocket`, which is what `sec_websocket_headers_consistent`
     /// asks. The response's has the client fail the connection when the field
     /// *"contains a value that is not an ASCII case-insensitive match for the value
     /// "websocket""* — **some member is not**, which is the negation of the other
@@ -440,7 +440,7 @@ impl Rule for StatefulWebsocketHandshakeValidity {
     }
 
     fn description(&self) -> &'static str {
-        "Measures the server's half of a WebSocket opening handshake against the request it answers, following the list RFC 6455 § 4.1 gives a client for validating that response:\n\n- `Upgrade` is `websocket`. In a response that is one value, not a list: § 4.1 has the client fail the connection when the field *contains a value that is not an ASCII case-insensitive match* for `websocket`, and § 4.2.2 asks for the field *with value \"websocket\"*. The request's `Upgrade`, by contrast, need only *include the \"websocket\" keyword*, and `client_sec_websocket_headers_consistency` reads it that way.\n- `Connection` names the `Upgrade` connection-option — a list, one item later in the same numbered list.\n- `Sec-WebSocket-Accept` is the base64 SHA-1 of the request's `Sec-WebSocket-Key` concatenated with the well-known GUID. The finding names the value the server should have written.\n- `Sec-WebSocket-Extensions`, when present, names only extensions the request offered.\n- `Sec-WebSocket-Protocol`, when present, is a single `token` — the server's production, where the client's is a list — that is not the empty string and that the request offered. A server agreeing to no subprotocol sends no field.\n\nOne finding is about the request rather than the response, and it is one only a rule holding both halves can make: a `101` answering a handshake whose `Sec-WebSocket-Key` is absent or is not a sixteen-octet nonce. RFC 6455 § 4.2.1 requires a server to stop processing such a handshake and answer with an error status, so completing it is the server's defect; the value itself is reported separately, against the client, by `client_sec_websocket_headers_consistency`.\n\n**Only `101` responses are measured.** RFC 6455 § 4.2.2 lists what a server sends *if the server chooses to accept the incoming connection*, and names five things it does instead — a `401` challenge, a `3xx` redirect, a `403` for an origin it will not serve, a `404` for a resource it does not have, a `426` for a version it does not speak. § 4.1 hands all of them to ordinary HTTP processing, where the rest of this catalogue measures them, so a non-`101` answer is a refusal rather than a malformed handshake.\n\nOnly HTTP/1.x exchanges are measured: over HTTP/2 and HTTP/3 the handshake is an extended CONNECT carrying `:protocol` (RFC 8441, RFC 9220), where `Connection` and `Upgrade` are forbidden and `Sec-WebSocket-Accept` is not sent at all.\n\nTwo neighbours own the sentences this rule does not. The obligation to send an `Upgrade` in *any* `101`, and to name in it only protocols the client offered, is RFC 9110's and belongs to `stateful_101_switching_protocols`. `Sec-WebSocket-Version: 13` is asked of the request by `client_sec_websocket_headers_consistency` and is deliberately not asked of the server here: RFC 6455 § 4.2.1's list makes every one of its items a MUST-refuse, while § 4.2.2 aborts a handshake only for a version *that does not match a version understood by the server* — a fact about the server, which a `101` is that server asserting. `Sec-WebSocket-Extensions` is measured here only against what the request offered; its own grammar (`extension-list`, `extension-param`) is `message_sec_websocket_extensions_syntax`'s, in both directions."
+        "Measures the server's half of a WebSocket opening handshake against the request it answers, following the list RFC 6455 § 4.1 gives a client for validating that response:\n\n- `Upgrade` is `websocket`. In a response that is one value, not a list: § 4.1 has the client fail the connection when the field *contains a value that is not an ASCII case-insensitive match* for `websocket`, and § 4.2.2 asks for the field *with value \"websocket\"*. The request's `Upgrade`, by contrast, need only *include the \"websocket\" keyword*, and `sec_websocket_headers_consistent` reads it that way.\n- `Connection` names the `Upgrade` connection-option — a list, one item later in the same numbered list.\n- `Sec-WebSocket-Accept` is the base64 SHA-1 of the request's `Sec-WebSocket-Key` concatenated with the well-known GUID. The finding names the value the server should have written.\n- `Sec-WebSocket-Extensions`, when present, names only extensions the request offered.\n- `Sec-WebSocket-Protocol`, when present, is a single `token` — the server's production, where the client's is a list — that is not the empty string and that the request offered. A server agreeing to no subprotocol sends no field.\n\nOne finding is about the request rather than the response, and it is one only a rule holding both halves can make: a `101` answering a handshake whose `Sec-WebSocket-Key` is absent or is not a sixteen-octet nonce. RFC 6455 § 4.2.1 requires a server to stop processing such a handshake and answer with an error status, so completing it is the server's defect; the value itself is reported separately, against the client, by `sec_websocket_headers_consistent`.\n\n**Only `101` responses are measured.** RFC 6455 § 4.2.2 lists what a server sends *if the server chooses to accept the incoming connection*, and names five things it does instead — a `401` challenge, a `3xx` redirect, a `403` for an origin it will not serve, a `404` for a resource it does not have, a `426` for a version it does not speak. § 4.1 hands all of them to ordinary HTTP processing, where the rest of this catalogue measures them, so a non-`101` answer is a refusal rather than a malformed handshake.\n\nOnly HTTP/1.x exchanges are measured: over HTTP/2 and HTTP/3 the handshake is an extended CONNECT carrying `:protocol` (RFC 8441, RFC 9220), where `Connection` and `Upgrade` are forbidden and `Sec-WebSocket-Accept` is not sent at all.\n\nTwo neighbours own the sentences this rule does not. The obligation to send an `Upgrade` in *any* `101`, and to name in it only protocols the client offered, is RFC 9110's and belongs to `stateful_101_switching_protocols`. `Sec-WebSocket-Version: 13` is asked of the request by `sec_websocket_headers_consistent` and is deliberately not asked of the server here: RFC 6455 § 4.2.1's list makes every one of its items a MUST-refuse, while § 4.2.2 aborts a handshake only for a version *that does not match a version understood by the server* — a fact about the server, which a `101` is that server asserting. `Sec-WebSocket-Extensions` is measured here only against what the request offered; its own grammar (`extension-list`, `extension-param`) is `message_sec_websocket_extensions_syntax`'s, in both directions."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -614,7 +614,7 @@ mod tests {
     /// § 4.2.1 makes every item of its description a MUST-refuse and § 4.2.2 aborts
     /// only over a version the server does not understand — so a 101 is that server
     /// saying it did, and this rule does not argue with it. The request's own field
-    /// is `client_sec_websocket_headers_consistency`'s.
+    /// is `sec_websocket_headers_consistent`'s.
     #[rstest]
     fn a_version_other_than_thirteen_is_not_this_rules_finding() {
         let mut req = handshake_request();

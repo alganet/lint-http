@@ -1999,7 +1999,7 @@ pub struct Parameter<'a> {
     /// **This is the "Known leniency" six rules describe in prose, returned as a
     /// fact instead.** § 5.6.6's Note forbids whitespace there in as many words
     /// — *"not even 'bad' whitespace"* — and six rules trim it and say so in
-    /// their `description()`, while `client_expect_header_valid` reports it. A
+    /// their `description()`, while `expect_header_valid` reports it. A
     /// walk that trimmed silently would have to pick one of those; a walk that
     /// hands back what it found lets each caller keep the answer its own audit
     /// reached, and turns a paragraph of prose into a branch a reader can see.
@@ -2186,7 +2186,7 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
 /// reads it and drops it; that is what makes the "Known leniency" paragraph six
 /// rules publish a true statement about the code rather than a plausible one.
 /// Changing the answer changes those rules' verdicts, so it stays theirs.
-/// `client_expect_header_valid` is the one caller in the tree that reports it.
+/// `expect_header_valid` is the one caller in the tree that reports it.
 ///
 /// cite(RFC 9110 § 8.3.1): "type       = token subtype    = token"
 /// cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
@@ -2995,7 +2995,7 @@ mod tests {
 
     /// § 5.6.6's Note forbids whitespace beside the `=` and six rules tolerate
     /// it anyway. The walk reports the fact rather than picking a side, which is
-    /// what lets `client_expect_header_valid` enforce the Note while the media
+    /// what lets `expect_header_valid` enforce the Note while the media
     /// type readers keep the leniency their descriptions publish.
     #[test]
     fn parameters_returns_the_whitespace_beside_the_equals_rather_than_deciding_it() {

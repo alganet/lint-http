@@ -27,7 +27,7 @@ use crate::rules::Rule;
 /// (for example, only unvalidated 200 responses were seen); in that case there
 /// is nothing useful a cache could supply and no violation is reported.  The
 /// presence or absence of conditional headers on otherwise-cacheable requests
-/// is covered by the separate `client_cache_respect` rule.
+/// is covered by the separate `cached_validators_reused` rule.
 pub struct StatefulCacheValidationChain;
 
 impl Rule for StatefulCacheValidationChain {

@@ -32,7 +32,7 @@ Reads the request target's path component against RFC 8615's definition of a wel
 - **The port.** *"Typically, applications will use the default port for the given scheme; if an alternative port is used, it MUST be explicitly specified by the application in question."* Deciding it means reading the registration that named the port, which no capture carries.
 - **Whether a resource exists at the prefix.** §3's *"clients should not expect a resource to exist at that location"* is lowercase, and §2 makes the BCP 14 keywords apply *"when, and only when, they appear in all capitals"*.
 
-**What other rules own.** A malformed percent-encoding anywhere in the request target, and any character outside the set a URI is composed from, are `client_request_uri_percent_encoding_valid`'s findings, asked of the whole target; the `pchar` check here is the same question at a narrower width, and within a path segment the only characters it adds are `[` and `]`. A fragment on the request target is `client_request_target_no_fragment`'s, and which of the four request-target forms may carry a path is `client_request_target_form_checks`'.
+**What other rules own.** A malformed percent-encoding anywhere in the request target, and any character outside the set a URI is composed from, are `request_uri_percent_encoding_valid`'s findings, asked of the whole target; the `pchar` check here is the same question at a narrower width, and within a path segment the only characters it adds are `[` and `]`. A fragment on the request target is `request_target_no_fragment`'s, and which of the four request-target forms may carry a path is `request_target_form_valid`'.
 
 ## Specifications
 

@@ -13,7 +13,7 @@ use crate::rules::Rule;
 /// It does not judge the media type's *value*. No document defines a naming convention
 /// for patch formats; RFC 5789's own examples use `application/example` and `text/example`,
 /// and which formats a server accepts is discovered from `Accept-Patch`
-/// (`client_patch_method_content_type_match`).
+/// (`patch_method_content_type_match`).
 pub struct PatchPartialUpdate;
 
 impl Rule for PatchPartialUpdate {
@@ -45,7 +45,7 @@ impl Rule for PatchPartialUpdate {
         // The method token is case-sensitive, so the comparison is exact: a
         // request whose method is `patch` did not use PATCH, it used a method
         // with no defined semantics, and RFC 5789 § 2 is not a sentence about
-        // it. `client_request_method_token_valid` is the rule that reports the
+        // it. `request_method_token_valid` is the rule that reports the
         // spelling.
         // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
         // cite(RFC 5789 § 2): "The PATCH method requests that a set of changes described in the request entity be applied to the resource identified by the Request-URI."
@@ -79,7 +79,7 @@ impl Rule for PatchPartialUpdate {
             // own examples are `application/example` and `text/example`. What a
             // particular server accepts is discovered rather than spelled, and
             // RFC 9110 names the mechanism, which is a *response* field.
-            // `client_patch_method_content_type_match` is the rule that holds
+            // `patch_method_content_type_match` is the rule that holds
             // one and can therefore ask the question.
             // cite(RFC 5789 § 2): "Therefore, there is no single default patch document format that implementations are required to support."
             // cite(RFC 9110 § 12.3): "Similarly, Section 3.1 of [RFC5789] defines the "Accept-Patch" response header field, which allows discovery of which content types are accepted in PATCH requests."
@@ -107,7 +107,7 @@ impl Rule for PatchPartialUpdate {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a `PATCH` request that carries content without a `Content-Type` naming the patch document format.\n\n**Why the field is load-bearing here.** A `PATCH` request's content is not a new representation of the resource — it is a set of instructions for changing one, and RFC 5789 §2 says that set \"is represented in a format called a *patch document* identified by a media type\". The media type is what tells the server which instructions it is holding, which is why §2 can require that \"[s]ervers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI\" and why §2.2 offers `415 (Unsupported Media Type)` — permissively, \"can be specified\" — for one it does not support.\n\n**This is a SHOULD, and it has a stated exception.** The requirement is RFC 9110 §8.3's: a sender generating a message containing content \"SHOULD generate a Content-Type header field in that message *unless the intended media type of the enclosed representation is unknown to the sender*\". Nothing on the wire separates a sender that did not know from one that did not bother — but a client that built a patch document chose its format, so the exception is at its least plausible on this method. Without the field, §8.3 leaves the recipient two ways to proceed: assume `application/octet-stream`, or sniff the data.\n\n**The value is not judged.** A media type does not have to be *named* like a patch format to be one: RFC 5789's own examples are `application/example` and `text/example`, and §2 says outright that \"there is no single default patch document format that implementations are required to support\". There is no registry of patch formats and no naming convention, so nothing in a lone request says whether the type is one. What a particular server accepts is *discovered*, from the `Accept-Patch` it advertises (RFC 5789 §3.1) — `client_patch_method_content_type_match` is the rule that compares a request against it. This rule previously reported any media type whose type or subtype did not contain the string `patch`, which reported RFC 5789's own example.\n\n**Content, not framing.** The condition is that the message *contains content*, so the captured octet count decides it; a `Transfer-Encoding` is how octets were delimited, not evidence that there were any, and a chunked request whose only chunk is the terminator carries none. Only where nothing was captured does the rule fall back to the sender's declared `Content-Length`.\n\n**The method is compared exactly**, because RFC 9110 §9.1 says the method token is case-sensitive: a request whose method is `patch` is not a `PATCH` request, and `client_request_method_token_valid` is the rule that reports the spelling. A `Content-Type` whose octets are not visible ASCII counts as present here; `message_content_type_well_formed` reports what is wrong with it."
+        "Reports a `PATCH` request that carries content without a `Content-Type` naming the patch document format.\n\n**Why the field is load-bearing here.** A `PATCH` request's content is not a new representation of the resource — it is a set of instructions for changing one, and RFC 5789 §2 says that set \"is represented in a format called a *patch document* identified by a media type\". The media type is what tells the server which instructions it is holding, which is why §2 can require that \"[s]ervers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI\" and why §2.2 offers `415 (Unsupported Media Type)` — permissively, \"can be specified\" — for one it does not support.\n\n**This is a SHOULD, and it has a stated exception.** The requirement is RFC 9110 §8.3's: a sender generating a message containing content \"SHOULD generate a Content-Type header field in that message *unless the intended media type of the enclosed representation is unknown to the sender*\". Nothing on the wire separates a sender that did not know from one that did not bother — but a client that built a patch document chose its format, so the exception is at its least plausible on this method. Without the field, §8.3 leaves the recipient two ways to proceed: assume `application/octet-stream`, or sniff the data.\n\n**The value is not judged.** A media type does not have to be *named* like a patch format to be one: RFC 5789's own examples are `application/example` and `text/example`, and §2 says outright that \"there is no single default patch document format that implementations are required to support\". There is no registry of patch formats and no naming convention, so nothing in a lone request says whether the type is one. What a particular server accepts is *discovered*, from the `Accept-Patch` it advertises (RFC 5789 §3.1) — `patch_method_content_type_match` is the rule that compares a request against it. This rule previously reported any media type whose type or subtype did not contain the string `patch`, which reported RFC 5789's own example.\n\n**Content, not framing.** The condition is that the message *contains content*, so the captured octet count decides it; a `Transfer-Encoding` is how octets were delimited, not evidence that there were any, and a chunked request whose only chunk is the terminator carries none. Only where nothing was captured does the rule fall back to the sender's declared `Content-Length`.\n\n**The method is compared exactly**, because RFC 9110 §9.1 says the method token is case-sensitive: a request whose method is `patch` is not a `PATCH` request, and `request_method_token_valid` is the rule that reports the spelling. A `Content-Type` whose octets are not visible ASCII counts as present here; `message_content_type_well_formed` reports what is wrong with it."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -128,7 +128,7 @@ impl Rule for PatchPartialUpdate {
                 spec: "RFC 5789",
                 section: Some("3.1"),
                 url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
-                note: "The `Accept-Patch` header — how a server says which patch formats it takes. It is a response field, so a lone request cannot be measured against it; `client_patch_method_content_type_match` is the rule that has one",
+                note: "The `Accept-Patch` header — how a server says which patch formats it takes. It is a response field, so a lone request cannot be measured against it; `patch_method_content_type_match` is the rule that has one",
             },
             crate::rules::SpecRef {
                 spec: "RFC 9110",

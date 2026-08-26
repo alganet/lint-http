@@ -172,7 +172,7 @@ mod tests {
         let cfg = make_test_config_with_enabled_rules(&[
             "server_cache_control_present", // Server
             "server_etag_or_last_modified", // Server
-            "client_user_agent_present",    // Client (survives into request-only)
+            "user_agent_present",           // Client (survives into request-only)
         ]);
         let engine = PreparedEngine::new(&cfg);
 
@@ -197,7 +197,7 @@ mod tests {
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&[
             "server_cache_control_present",
-            "client_user_agent_present",
+            "user_agent_present",
         ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
 
@@ -229,10 +229,8 @@ mod tests {
     #[test]
     fn lint_request_rules_emit_when_enabled() {
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&[
-            "client_user_agent_present",
-            "client_accept_encoding_present",
-        ]);
+        let cfg =
+            make_test_config_with_enabled_rules(&["user_agent_present", "accept_encoding_present"]);
         use crate::http_transaction::{HttpTransaction, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -243,8 +241,8 @@ mod tests {
 
         let v = lint_transaction(&tx, &cfg, &state);
 
-        assert!(v.iter().any(|x| x.rule == "client_user_agent_present"));
-        assert!(v.iter().any(|x| x.rule == "client_accept_encoding_present"));
+        assert!(v.iter().any(|x| x.rule == "user_agent_present"));
+        assert!(v.iter().any(|x| x.rule == "accept_encoding_present"));
     }
 
     #[test]
@@ -271,7 +269,7 @@ mod tests {
     fn lint_transaction_handles_both_client_and_server_rules() {
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&[
-            "client_user_agent_present",
+            "user_agent_present",
             "server_cache_control_present",
         ]);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
@@ -295,7 +293,7 @@ mod tests {
 
         let client_violations: Vec<_> = violations
             .iter()
-            .filter(|v| v.rule == "client_user_agent_present")
+            .filter(|v| v.rule == "user_agent_present")
             .collect();
         let server_violations: Vec<_> = violations
             .iter()
@@ -415,7 +413,7 @@ mod tests {
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&[
             "server_cache_control_present",
-            "client_user_agent_present",
+            "user_agent_present",
         ]);
         use crate::http_transaction::{HttpTransaction, TimingInfo};
         let mut tx = HttpTransaction::new(
@@ -429,7 +427,7 @@ mod tests {
         let v = lint_transaction(&tx, &cfg, &state);
 
         assert!(
-            v.iter().any(|x| x.rule == "client_user_agent_present"),
+            v.iter().any(|x| x.rule == "user_agent_present"),
             "client-scoped rule should still run on request-only tx",
         );
         assert!(

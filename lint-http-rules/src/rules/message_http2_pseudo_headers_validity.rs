@@ -85,7 +85,7 @@ fn connect_authority_finding(authority: &str) -> Option<String> {
 /// The one numeric bound a port in a CONNECT `:authority` has, and where it
 /// comes from.
 ///
-/// `port = *DIGIT` states none, which is why `client_host_header` reports no
+/// `port = *DIGIT` states none, which is why `host_header` reports no
 /// port for being out of range and says so in its `description()`. What is
 /// different here is that a sentence names the transport: the proxy opens a TCP
 /// connection to this host and port, TCP's port namespace is sixteen bits wide,
@@ -154,7 +154,7 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
         // whitespace for a trim to find and no empty string, so a value failing
         // it derives from no `method` and names nothing for the branches below
         // to turn on -- neither the CONNECT restrictions nor the asterisk's one
-        // method. `client_request_method_token_valid` reports it, of every
+        // method. `request_method_token_valid` reports it, of every
         // version, and reported it here too: trimming this value hid the
         // leading space from *this* rule without hiding it from that one.
         // cite(RFC 9113 § 8.3.1): "The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP])."
@@ -171,7 +171,7 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
         // The target as the transport reassembled it, read as written for the
         // same reason: a `:path` or `:authority` with whitespace around it
         // derives from no field value, and the character is
-        // `client_request_uri_percent_encoding_valid`'s finding on every
+        // `request_uri_percent_encoding_valid`'s finding on every
         // version.
         // cite(RFC 9113 § 8.2.1): "A field value MUST NOT start or end with an ASCII whitespace character (ASCII SP or HTAB, 0x20 or 0x09)."
         let target = tx.request.uri.as_str();
@@ -181,7 +181,7 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
         // none of CONNECT's restrictions. The fold this replaced *suppressed*
         // findings -- a lowercase `connect` took the tunnel branch and skipped
         // the `:path` requirement, and a lowercase `options` was handed the
-        // asterisk -- and `client_request_target_form_checks` had already
+        // asterisk -- and `request_target_form_valid` had already
         // settled the same question the same way one iteration earlier.
         // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
         // cite(RFC 9113 § 8.5): "The ":method" pseudo-header field is set to CONNECT."
@@ -379,7 +379,7 @@ impl Rule for MessageHttp2PseudoHeadersValidity {
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `:scheme`, `:authority` and `:path` — and this rule reads what each of them conveyed. **It runs on HTTP/2 requests only.** It had no version gate at all until this audit, so every finding below was also made of HTTP/1.1 and HTTP/3 messages, described as HTTP/2, alongside the report from whichever rule owns the question on those versions.\n\n**The fields are not in the captured field section.** A transport that carries control data as pseudo-headers hands its library a method and a target URI reassembled from `:scheme`, `:authority` and `:path`, and that is what a capture records. So each check reads the component the pseudo-header conveyed, and the checks are shaped by which of the request-target forms the reassembly produced.\n\n- **A non-CONNECT request sends exactly one `:path`.** `*` is that value for a server-wide OPTIONS request and for no other method (RFC 9110 §7.1: \"These forms MUST NOT be used with other methods\"). Otherwise a target with no path at all is reported: an `http` or `https` URI without a path component sends `/`.\n- **A basic CONNECT's `:authority` is a host and a port.** `authority-form = uri-host \":\" port` requires neither — both halves are `*`-quantified — so the prose is what asks for them: RFC 9110 §9.3.6 has no default port, requires the client to send one even when the URI reference elided it, and requires a server to reject an empty or invalid port number.\n- **A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port = *DIGIT` has none, which is why `client_host_header` reports no port for being out of range. It is that RFC 9113 §8.5 has the proxy open a *TCP* connection to this host and port and TCP's port namespace is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n- **The reassembled `:scheme` and `:authority` are read when the target is in absolute form**: the scheme against `scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, the authority against `uri-host [ \":\" port ]`, and — for an `http` or `https` target only, because that is how §8.3.1 writes the MUST NOT — a userinfo subcomponent. `:scheme` is deliberately not restricted to `http` and `https`, so nothing here asks whether it is a scheme anybody serves.\n\n**What this rule declines, and why.**\n\n- **Which CONNECT this is, when the target is in absolute form.** RFC 8441's extended CONNECT is marked by a `:protocol` pseudo-header, and on such a request `:scheme` and `:path` MUST be included — exactly what a basic CONNECT MUST omit. A capture records no `:protocol`, so a `CONNECT https://example.com/ws` is a conforming extended CONNECT and a malformed basic one with nothing to choose between them. It is accepted. An *origin-form* CONNECT target is reported when no `Host` field accompanies it, because that is neither CONNECT: it is a `:path` with no `:scheme` and no authority anywhere.\n- **The method token itself.** `method = token` admits no whitespace and no empty string, and a value failing it names nothing for the branches above to turn on, so the rule stops. `client_request_method_token_valid` reports it, on every version. The method is compared as written throughout — `connect` is not CONNECT and `options` is not OPTIONS (RFC 9110 §9.1) — where the case-folding this replaced *suppressed* findings.\n- **The characters inside the target.** Whitespace and a malformed percent-encoding triplet were both reported here and by `client_request_uri_percent_encoding_valid`, which reads the whole target on every version. Both duplicates are gone.\n- **Where the pseudo-headers sat, and how many there were.** RFC 9113 §8.3 requires them to precede every regular field line and forbids a repeated name. The capture holds no pseudo-header fields and no field order, so neither has a representation to check.\n- **Whether a `Host` field agrees with `:authority`.** §8.3.1 forbids a client from generating a request where they differ. `message_host_and_authority_consistency` asks it, of this version and of HTTP/3, and keeps the two documents apart on what comparing the values means.\n\n**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `server_status_code_valid_range`."
+        "HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `:scheme`, `:authority` and `:path` — and this rule reads what each of them conveyed. **It runs on HTTP/2 requests only.** It had no version gate at all until this audit, so every finding below was also made of HTTP/1.1 and HTTP/3 messages, described as HTTP/2, alongside the report from whichever rule owns the question on those versions.\n\n**The fields are not in the captured field section.** A transport that carries control data as pseudo-headers hands its library a method and a target URI reassembled from `:scheme`, `:authority` and `:path`, and that is what a capture records. So each check reads the component the pseudo-header conveyed, and the checks are shaped by which of the request-target forms the reassembly produced.\n\n- **A non-CONNECT request sends exactly one `:path`.** `*` is that value for a server-wide OPTIONS request and for no other method (RFC 9110 §7.1: \"These forms MUST NOT be used with other methods\"). Otherwise a target with no path at all is reported: an `http` or `https` URI without a path component sends `/`.\n- **A basic CONNECT's `:authority` is a host and a port.** `authority-form = uri-host \":\" port` requires neither — both halves are `*`-quantified — so the prose is what asks for them: RFC 9110 §9.3.6 has no default port, requires the client to send one even when the URI reference elided it, and requires a server to reject an empty or invalid port number.\n- **A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port = *DIGIT` has none, which is why `host_header` reports no port for being out of range. It is that RFC 9113 §8.5 has the proxy open a *TCP* connection to this host and port and TCP's port namespace is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n- **The reassembled `:scheme` and `:authority` are read when the target is in absolute form**: the scheme against `scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, the authority against `uri-host [ \":\" port ]`, and — for an `http` or `https` target only, because that is how §8.3.1 writes the MUST NOT — a userinfo subcomponent. `:scheme` is deliberately not restricted to `http` and `https`, so nothing here asks whether it is a scheme anybody serves.\n\n**What this rule declines, and why.**\n\n- **Which CONNECT this is, when the target is in absolute form.** RFC 8441's extended CONNECT is marked by a `:protocol` pseudo-header, and on such a request `:scheme` and `:path` MUST be included — exactly what a basic CONNECT MUST omit. A capture records no `:protocol`, so a `CONNECT https://example.com/ws` is a conforming extended CONNECT and a malformed basic one with nothing to choose between them. It is accepted. An *origin-form* CONNECT target is reported when no `Host` field accompanies it, because that is neither CONNECT: it is a `:path` with no `:scheme` and no authority anywhere.\n- **The method token itself.** `method = token` admits no whitespace and no empty string, and a value failing it names nothing for the branches above to turn on, so the rule stops. `request_method_token_valid` reports it, on every version. The method is compared as written throughout — `connect` is not CONNECT and `options` is not OPTIONS (RFC 9110 §9.1) — where the case-folding this replaced *suppressed* findings.\n- **The characters inside the target.** Whitespace and a malformed percent-encoding triplet were both reported here and by `request_uri_percent_encoding_valid`, which reads the whole target on every version. Both duplicates are gone.\n- **Where the pseudo-headers sat, and how many there were.** RFC 9113 §8.3 requires them to precede every regular field line and forbids a repeated name. The capture holds no pseudo-header fields and no field order, so neither has a representation to check.\n- **Whether a `Host` field agrees with `:authority`.** §8.3.1 forbids a client from generating a request where they differ. `message_host_and_authority_consistency` asks it, of this version and of HTTP/3, and keeps the two documents apart on what comparing the values means.\n\n**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `server_status_code_valid_range`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -582,7 +582,7 @@ mod tests {
         tx.request.version = "HTTP/1.1".into();
         tx.request.method = method.into();
         tx.request.uri = target.into();
-        let owner = crate::rules::client_request_target_form_checks::ClientRequestTargetFormChecks;
+        let owner = crate::rules::request_target_form_valid::RequestTargetFormValid;
         assert!(judge_by(&owner, &tx).is_some(), "{method} {target}");
     }
 
@@ -604,7 +604,7 @@ mod tests {
         let mut tx = h2();
         tx.request.method = method.into();
         tx.request.uri = target.into();
-        let owner = crate::rules::client_request_method_token_valid::ClientRequestMethodTokenValid;
+        let owner = crate::rules::request_method_token_valid::RequestMethodTokenValid;
         // That rule reads a required `registered_methods` array, and an absent
         // one stops the whole rule rather than only its case finding — so the
         // handover has to be exercised with a configuration a deployment would
@@ -852,7 +852,7 @@ mod tests {
         tx.request.method = "GET".into();
         tx.request.uri = target.into();
         let owner =
-            crate::rules::client_request_uri_percent_encoding_valid::ClientRequestUriPercentEncodingValid;
+            crate::rules::request_uri_percent_encoding_valid::RequestUriPercentEncodingValid;
         assert!(
             judge_by(&owner, &tx).is_some(),
             "target {target} is reported by nobody"
