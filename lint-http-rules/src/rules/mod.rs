@@ -77,6 +77,50 @@ pub fn validate_rule_table(cfg: &crate::config::Config, rule_id: &str) -> anyhow
     Ok(())
 }
 
+/// Everything a rule derives from its configuration, resolved once when the
+/// engine is built. What [`Rule::prepare`] returns.
+///
+/// `state` is the rule's own resolved shape — an allowed-list, a set of
+/// header names — behind `dyn Any` so the trait stays object-safe (the
+/// catalogue is dispatched through `&'static dyn Rule`, which rules out an
+/// associated type). Rules that read only their severity return `Box::new(())`.
+pub struct ResolvedRule {
+    pub severity: crate::lint::Severity,
+    pub state: Box<dyn std::any::Any + Send + Sync>,
+}
+
+/// One rule's resolved configuration, borrowed for one dispatch.
+///
+/// This is what replaces `cfg: &Config` at the check sites: two words on the
+/// stack, no hashing, no TOML, no allocation. The severity is read directly;
+/// rule-specific state comes back out through [`RuleContext::state`], typed
+/// by the rule that put it in.
+pub struct RuleContext<'a> {
+    pub severity: crate::lint::Severity,
+    state: &'a (dyn std::any::Any + Send + Sync),
+}
+
+impl<'a> RuleContext<'a> {
+    /// Borrow a prepared rule's resolved configuration for one dispatch.
+    pub fn new(resolved: &'a ResolvedRule) -> Self {
+        Self {
+            severity: resolved.severity,
+            state: &*resolved.state,
+        }
+    }
+
+    /// The rule-specific state this rule's own `prepare` returned.
+    ///
+    /// # Panics
+    ///
+    /// Panics on a type mismatch. The engine builds each context from the
+    /// same rule's [`ResolvedRule`], so a mismatch means a rule asked for a
+    /// type its `prepare` does not produce — a wiring bug, not a config one.
+    pub fn state<T: 'static>(&self) -> &T {
+        self.state.downcast_ref().expect("rule state wiring")
+    }
+}
+
 /// The `Rule` trait defines a single hook that runs on the canonical
 /// `HttpTransaction`. All rules must implement `check_transaction`.
 /// Scope of a rule: whether it applies to client-only traffic (requests),
@@ -172,6 +216,22 @@ pub trait Rule: Send + Sync {
     /// a custom config section override this to validate their own fields.
     fn validate(&self, cfg: &crate::config::Config) -> anyhow::Result<()> {
         validate_rule_table(cfg, self.id())
+    }
+
+    /// Resolve this rule's configuration once, when the engine is built.
+    ///
+    /// Validation *is* successful preparation: what `validate` answers with
+    /// `Ok(())`, this answers with the resolved values themselves, so the
+    /// same parse cannot run again — typed or untyped — on the lint path.
+    /// The default resolves what every rule needs (the table's two required
+    /// keys, of which severity is the one carried forward); a rule with a
+    /// custom config section overrides this to parse it into its own `state`.
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<ResolvedRule> {
+        validate_rule_table(cfg, self.id())?;
+        Ok(ResolvedRule {
+            severity: get_rule_severity_required(cfg, self.id())?,
+            state: Box::new(()),
+        })
     }
 
     /// The scope where the rule should be executed. Default is `Both`;
@@ -430,6 +490,16 @@ pub trait ProtocolRule: Send + Sync {
     /// [`Rule::validate`] for the contract.
     fn validate(&self, cfg: &crate::config::Config) -> anyhow::Result<()> {
         validate_rule_table(cfg, self.id())
+    }
+
+    /// Resolve this rule's configuration once, when the engine is built. See
+    /// [`Rule::prepare`] for the contract.
+    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<ResolvedRule> {
+        validate_rule_table(cfg, self.id())?;
+        Ok(ResolvedRule {
+            severity: get_rule_severity_required(cfg, self.id())?,
+            state: Box::new(()),
+        })
     }
 
     /// Evaluate a single protocol event against this rule. Rules parse
@@ -1234,6 +1304,70 @@ severity = "warn"
         // Also verify through a trait object (now object-safe).
         let v: &dyn Rule = &r;
         assert_eq!(v.scope(), RuleScope::Both);
+    }
+
+    #[test]
+    fn default_prepare_resolves_severity_and_unit_state() -> anyhow::Result<()> {
+        let cfg = crate::test_helpers::make_test_config_with_severity("host_header", "error");
+        let rule = RULES
+            .iter()
+            .find(|r| r.id() == "host_header")
+            .expect("host_header registered");
+        let resolved = rule.prepare(&cfg)?;
+        assert_eq!(resolved.severity, crate::lint::Severity::Error);
+        let ctx = RuleContext::new(&resolved);
+        assert_eq!(ctx.severity, crate::lint::Severity::Error);
+        // The default prepare carries no rule-specific state.
+        let _: &() = ctx.state::<()>();
+        Ok(())
+    }
+
+    #[test]
+    fn default_prepare_rejects_missing_severity() {
+        let mut cfg = crate::config::Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        cfg.rules
+            .insert("host_header".to_string(), toml::Value::Table(table));
+        let rule = RULES
+            .iter()
+            .find(|r| r.id() == "host_header")
+            .expect("host_header registered");
+        assert!(rule.prepare(&cfg).is_err());
+    }
+
+    #[test]
+    fn rule_context_state_roundtrips_the_prepared_type() {
+        let resolved = ResolvedRule {
+            severity: crate::lint::Severity::Info,
+            state: Box::new(vec!["utf-8".to_string()]),
+        };
+        let ctx = RuleContext::new(&resolved);
+        assert_eq!(ctx.state::<Vec<String>>(), &vec!["utf-8".to_string()]);
+    }
+
+    #[test]
+    #[should_panic(expected = "rule state wiring")]
+    fn rule_context_state_mismatch_panics() {
+        let resolved = ResolvedRule {
+            severity: crate::lint::Severity::Warn,
+            state: Box::new(()),
+        };
+        let ctx = RuleContext::new(&resolved);
+        let _ = ctx.state::<Vec<String>>();
+    }
+
+    #[test]
+    fn protocol_rule_default_prepare_resolves_severity() -> anyhow::Result<()> {
+        let cfg =
+            crate::test_helpers::make_test_config_with_severity("websocket_frame_masking", "warn");
+        let rule = PROTOCOL_RULES
+            .iter()
+            .find(|r| r.id() == "websocket_frame_masking")
+            .expect("websocket_frame_masking registered");
+        let resolved = rule.prepare(&cfg)?;
+        assert_eq!(resolved.severity, crate::lint::Severity::Warn);
+        Ok(())
     }
 
     #[test]

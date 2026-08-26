@@ -16,6 +16,14 @@ use crate::config::Config;
 use crate::lint::Violation;
 use crate::rules::{ProtocolRule, Rule};
 
+/// One enabled rule with everything the engine resolved about it at
+/// construction. `query` is the [`crate::rules::STATEFUL_RULES`] lookup,
+/// answered once here instead of hashing the rule id on every transaction.
+struct PreparedRule {
+    rule: &'static dyn Rule,
+    query: Option<crate::queries::QueryType>,
+}
+
 /// The enabled rule set for one [`Config`], precomputed once so per-transaction
 /// dispatch cost is proportional to the *enabled* rules rather than the full
 /// catalogue. `is_enabled` is a pure function of the (immutable) config, so the
@@ -23,9 +31,9 @@ use crate::rules::{ProtocolRule, Rule};
 /// transaction. Build once and reuse for the lifetime of the config.
 pub struct PreparedEngine {
     /// Enabled rules for a full transaction (response collected).
-    enabled_full: Vec<&'static dyn Rule>,
+    enabled_full: Vec<PreparedRule>,
     /// Enabled rules for a request-only transaction (Server-scoped excluded).
-    enabled_request_only: Vec<&'static dyn Rule>,
+    enabled_request_only: Vec<PreparedRule>,
     /// Enabled protocol-event rules (consumed by `lint_protocol_event`).
     pub(crate) enabled_protocol: Vec<&'static dyn ProtocolRule>,
 }
@@ -49,18 +57,19 @@ impl PreparedEngine {
     /// is dispatched.
     pub fn new(cfg: &Config) -> anyhow::Result<Self> {
         crate::rules::validate_rules(cfg)?;
-        let enabled = |r: &&'static dyn Rule| cfg.is_enabled(r.id());
+        let prepare_enabled = |rules: &[&'static dyn Rule]| {
+            rules
+                .iter()
+                .filter(|r| cfg.is_enabled(r.id()))
+                .map(|&rule| PreparedRule {
+                    rule,
+                    query: crate::rules::query_type_for(rule.id()),
+                })
+                .collect()
+        };
         Ok(Self {
-            enabled_full: crate::rules::RULES
-                .iter()
-                .copied()
-                .filter(enabled)
-                .collect(),
-            enabled_request_only: crate::rules::REQUEST_ONLY_RULES
-                .iter()
-                .copied()
-                .filter(enabled)
-                .collect(),
+            enabled_full: prepare_enabled(&crate::rules::RULES),
+            enabled_request_only: prepare_enabled(&crate::rules::REQUEST_ONLY_RULES),
             enabled_protocol: crate::rules::PROTOCOL_RULES
                 .iter()
                 .copied()
@@ -105,8 +114,9 @@ impl PreparedEngine {
         } else {
             &self.enabled_request_only
         };
-        for rule in scoped {
-            let history = match crate::rules::query_type_for(rule.id()) {
+        for prepared in scoped {
+            let rule = prepared.rule;
+            let history = match prepared.query {
                 Some(crate::queries::QueryType::ByResource) => history_by_resource
                     .get_or_insert_with(|| {
                         crate::queries::by_resource::by_resource(state, &tx.client, &tx.request.uri)
@@ -186,14 +196,17 @@ mod tests {
         let engine = PreparedEngine::new(&cfg).unwrap();
 
         assert_eq!(engine.enabled_full.len(), 3);
-        assert!(engine.enabled_full.iter().all(|r| cfg.is_enabled(r.id())));
+        assert!(engine
+            .enabled_full
+            .iter()
+            .all(|p| cfg.is_enabled(p.rule.id())));
         // Only the non-Server rule survives into the request-only set; the
         // assertion is non-vacuous because that set is non-empty here.
         assert_eq!(engine.enabled_request_only.len(), 1);
         assert!(engine
             .enabled_request_only
             .iter()
-            .all(|r| !matches!(r.scope(), crate::rules::RuleScope::Server)));
+            .all(|p| !matches!(p.rule.scope(), crate::rules::RuleScope::Server)));
 
         // An empty config enables nothing.
         let empty = PreparedEngine::new(&Config::default()).unwrap();
