@@ -134,7 +134,7 @@ fn selected_representation_changed(prev: &hyper::HeaderMap, cur: &hyper::HeaderM
 /// or it is HTTP/2 or HTTP/3, where there is no framing field to declare — the
 /// captured octets are the same count measured rather than claimed, so the
 /// requirement is still decidable. A GET whose declaration and delivery
-/// disagree is `message_response_body_length_accuracy`'s finding, not this
+/// disagree is `response_body_length_accuracy`'s finding, not this
 /// rule's, and it is left to it — that rule cites this same sentence as the
 /// reason it exempts a HEAD response from its own comparison, and hands the
 /// requirement here by name: it has one transaction and this one has two.

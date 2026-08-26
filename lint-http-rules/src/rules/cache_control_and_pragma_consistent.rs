@@ -33,7 +33,7 @@ impl Rule for CacheControlAndPragmaConsistent {
                 Ok(v) => v,
                 Err(_) => {
                     // Ignore non-UTF8 header values here and let dedicated
-                    // syntax/token rules (e.g., `message_pragma_token_valid`) handle encoding errors.
+                    // syntax/token rules (e.g., `pragma_token_valid`) handle encoding errors.
                     continue;
                 }
             };

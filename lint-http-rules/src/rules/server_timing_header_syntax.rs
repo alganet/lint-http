@@ -48,7 +48,7 @@ const ESTABLISHED_PARAM_NAMES: [&str; 2] = ["dur", "desc"];
 ///
 /// **Written privately, and that is a decision rather than a deferral.** It has
 /// one caller. The tree's other five WHATWG transcriptions are all in
-/// `message_refresh_header_syntax_valid` -- the URL Standard's *URL code points*
+/// `refresh_header_syntax` -- the URL Standard's *URL code points*
 /// and *URL units*, Infra's *ASCII whitespace*, HTML's *valid non-negative
 /// integer* and its two-form authoring requirement for the field -- and each of
 /// those has one caller too. Four documents, six transcriptions, no two of them
@@ -431,7 +431,7 @@ fn check_metric(metric: &str) -> Option<String> {
 /// and this rule's three sentences about the answers are below. That reader was
 /// the **seventh** copy in the tree when it was made, not the sixth: the count
 /// this comment used to carry came from
-/// `message_keep_alive_header_validity::validate_param_value`'s list of five and
+/// `keep_alive_header_valid::validate_param_value`'s list of five and
 /// added one, and the list had not been extended when Alt-Svc's audit wrote the
 /// sixth. **A copy count quoted from a neighbour is a copy count one short.**
 // cite(Server Timing § 2, label: server-timing-param grammar): "server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value"

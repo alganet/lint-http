@@ -136,7 +136,7 @@ pub fn content_evidence(headers: &HeaderMap, body_length: Option<u64>) -> Option
 ///
 /// A value that does not parse leaves no number and `content_length_valid`
 /// reports it; a declared length that disagrees with the captured octets is
-/// `message_request_body_length_accuracy`'s finding.
+/// `request_body_length_accuracy`'s finding.
 // cite(RFC 9110 § 8.6): "When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing"
 pub fn declared_content_length(headers: &HeaderMap) -> Option<u128> {
     validate_content_length(headers).ok().flatten()
@@ -2306,7 +2306,7 @@ pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
 /// the strength of a value the grammar does not generate. Both alternatives now
 /// go through [`token_or_quoted_string`], so the function does what its own
 /// second bullet says. What the sender meant by a malformed boundary is not
-/// recoverable, and `message_multipart_boundary_syntax` is the rule that reports
+/// recoverable, and `multipart_boundary_syntax` is the rule that reports
 /// it.
 pub fn extract_multipart_boundary(val: &str) -> Option<String> {
     let parsed = parse_media_type(val).ok()?;

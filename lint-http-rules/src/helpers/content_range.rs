@@ -273,7 +273,7 @@ mod tests {
     /// A range unit this parser does not model is still a legal range unit:
     /// `range-unit = token`, and the set is extensible. Parsing it is not the
     /// same as agreeing to apply byte semantics to it -- that is the caller's
-    /// call, and `message_range_and_content_range_consistency` makes it.
+    /// call, and `range_and_content_range_consistent` makes it.
     #[test]
     fn unmodelled_unit_parses_and_is_reported() {
         let v = parse_content_range("items 0-1/3").unwrap();

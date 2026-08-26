@@ -393,7 +393,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_keep_alive_header_validity]
+[rules.keep_alive_header_valid]
 enabled = true
 severity = "warn"
 # No document states a maximum for the `timeout` parameter, so this bound is
@@ -413,7 +413,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_origin_isolated_header_validity]
+[rules.origin_isolated_header_valid]
 enabled = true
 severity = "warn"
 
@@ -455,7 +455,7 @@ allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
 enabled = true
 severity = "warn"
 
-[rules.message_problem_details_structure]
+[rules.problem_details_structure_valid]
 enabled = true
 severity = "warn"
 
@@ -475,7 +475,7 @@ severity = "error"
 enabled = true
 severity = "warn"
 
-[rules.message_range_and_content_range_consistency]
+[rules.range_and_content_range_consistent]
 enabled = true
 severity = "warn"
 # Range units whose first-pos/last-pos may be read as octet offsets and checked
@@ -550,7 +550,7 @@ allowed = [
   "+json",
 ]
 
-[rules.message_media_type_suffix_validity]
+[rules.media_type_suffix_valid]
 enabled = true
 severity = "warn"
 # Six names from IANA's Structured Syntax Suffix registry. The list used to
@@ -571,7 +571,7 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
 enabled = true
 severity = "warn"
 
-[rules.message_multipart_boundary_syntax]
+[rules.multipart_boundary_syntax]
 enabled = true
 severity = "warn"
 
@@ -607,7 +607,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_pragma_token_valid]
+[rules.pragma_token_valid]
 enabled = true
 severity = "warn"
 
@@ -627,7 +627,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_language_tag_format_valid]
+[rules.language_tag_syntax]
 enabled = true
 severity = "warn"
 
@@ -658,7 +658,7 @@ safe_methods = [
   "TRACE",
 ]
 
-[rules.message_priority_header_syntax]
+[rules.priority_header_syntax]
 enabled = true
 severity = "warn"
 
@@ -672,11 +672,11 @@ severity = "warn"
 # more precisely, and listing it here only doubles the finding.
 headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
 
-[rules.message_permissions_policy_directives_valid]
+[rules.permissions_policy_directives_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_referer_uri_valid]
+[rules.referer_uri_valid]
 enabled = true
 severity = "warn"
 
@@ -688,7 +688,7 @@ severity = "info"
 enabled = true
 severity = "warn"
 
-[rules.message_link_header_validity]
+[rules.link_header_valid]
 enabled = true
 severity = "warn"
 
@@ -921,7 +921,7 @@ severity = "error"
 enabled = true
 severity = "error"
 
-[rules.message_no_connection_specific_fields]
+[rules.no_connection_specific_fields]
 enabled = true
 severity = "error"
 
@@ -941,15 +941,15 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_response_body_length_accuracy]
+[rules.response_body_length_accuracy]
 enabled = true
 severity = "error"
 
-[rules.message_request_body_length_accuracy]
+[rules.request_body_length_accuracy]
 enabled = true
 severity = "error"
 
-[rules.message_multipart_content_type_and_body_consistency]
+[rules.multipart_content_type_and_body_consistent]
 enabled = true
 severity = "warn"
 
@@ -1000,7 +1000,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_retry_after_date_or_delay]
+[rules.retry_after_date_or_delay]
 enabled = true
 severity = "warn"
 
@@ -1008,15 +1008,15 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_refresh_header_syntax_valid]
+[rules.refresh_header_syntax]
 enabled = true
 severity = "warn"
 
-[rules.message_prefer_header_valid]
+[rules.prefer_header_valid]
 enabled = true
 severity = "warn"
 
-[rules.message_preference_applied_header_valid]
+[rules.preference_applied_header_valid]
 enabled = true
 severity = "warn"
 
@@ -1024,7 +1024,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.message_max_forwards_numeric]
+[rules.max_forwards_numeric]
 enabled = true
 severity = "warn"
 

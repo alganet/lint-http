@@ -45,7 +45,7 @@ impl Rule for ContentLocationAndUriConsistent {
         // does not apply and a message carries at most one Content-Location field line.
         //
         // The preamble is `helpers::headers::singleton_field_preamble`'s, and the
-        // sentence appended to it is the one `message_referer_uri_valid` appends,
+        // sentence appended to it is the one `referer_uri_valid` appends,
         // word for word, because the two fields carry the same production and the
         // comma is the same character in it. That sentence used to live in this
         // comment while the four neighbours put theirs in the message, so the

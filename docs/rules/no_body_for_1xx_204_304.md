@@ -19,7 +19,7 @@ A `1xx (Informational)`, `204 (No Content)` or `304 (Not Modified)` response *"i
 
 **The `304` is exempt from both field checks, by name, in both documents.** §8.6 says a server *"MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request"*, and RFC 9112 §6.1 says *"Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response … to a GET request"*. In a 304 both fields describe the `200` that was not sent. Each MAY carries a MUST NOT of its own — the value must equal what the unsent `200` would have had — and **that requirement is not enforced here and cannot be**: the octets it compares against were never transferred, so no single exchange holds them.
 
-**Versions.** §8.6 is RFC 9110's and applies to every version, so the `Content-Length` check is not gated. RFC 9112 §6.1 is HTTP/1.1's, and HTTP/2 and HTTP/3 do not have `Transfer-Encoding` at all — there the field's *presence* is the defect and the status is beside the point, so this rule declines: `message_no_connection_specific_fields` reports it on both, against whichever version carried the field section it is in.
+**Versions.** §8.6 is RFC 9110's and applies to every version, so the `Content-Length` check is not gated. RFC 9112 §6.1 is HTTP/1.1's, and HTTP/2 and HTTP/3 do not have `Transfer-Encoding` at all — there the field's *presence* is the defect and the status is beside the point, so this rule declines: `no_connection_specific_fields` reports it on both, against whichever version carried the field section it is in.
 
 **`205 (Reset Content)` is not in this set.** Its prohibition (§15.3.6, *"a server MUST NOT generate content in a 205 response"*) is about generating content, and its framing is ordinary — so `Content-Length: 0` on a `205` is conforming where the same field on a `204` violates a MUST NOT. It needs its own rule, not a fourth status here.
 
@@ -34,7 +34,7 @@ A `1xx (Informational)`, `204 (No Content)` or `304 (Not Modified)` response *"i
 - [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): Message body length, item 1 — these responses end at the first empty line "regardless of the header fields present", which is why a field's presence is its own defect rather than evidence of a body
 - [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer-Encoding — a MUST NOT on 1xx and 204, and a MAY on a 304 to a GET. HTTP/1.1's document, so the check does not run on later versions
 - [RFC 9113 §8.2.2](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2): HTTP/2 — Transfer-Encoding is connection-specific and must not appear at all, whatever the status. No rule reports it yet
-- [RFC 9114 §4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1): HTTP/3 — transfer codings are not defined and the field must not be used; message_no_connection_specific_fields reports it. The same section repeats the trailers half for interim responses
+- [RFC 9114 §4.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1): HTTP/3 — transfer codings are not defined and the field must not be used; no_connection_specific_fields reports it. The same section repeats the trailers half for interim responses
 
 ## Configuration
 

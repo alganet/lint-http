@@ -186,7 +186,7 @@ pub fn split_userinfo(authority: &str) -> (Option<&str>, &str) {
 /// an empty tail, so `user:@host` has nothing to elide and `user:s3cret@host`
 /// becomes `user:...@host`.
 ///
-/// Shared on its second caller: `message_referer_uri_valid` wrote this for the
+/// Shared on its second caller: `referer_uri_valid` wrote this for the
 /// field whose MUST NOT names the component, and the two pseudo-header rules
 /// print an authority rather than a whole reference — the elision is the same
 /// decision in both shapes, so the authority form lives here and the
