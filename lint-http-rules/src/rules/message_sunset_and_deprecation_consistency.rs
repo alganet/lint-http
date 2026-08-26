@@ -48,14 +48,14 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
 
         // Get Deprecation header (structured '@<seconds>' form) if present and parseable
         // We intentionally only consider the structured '@' form here; legacy forms are
-        // validated by `server_deprecation_header_syntax` and we avoid duplicate errors.
+        // validated by `deprecation_header_syntax` and we avoid duplicate errors.
         let deprecation_opt = match resp.headers.get_all("deprecation").iter().next() {
             Some(hv) => match hv.to_str() {
                 Ok(s_raw) => {
                     let s = s_raw.trim();
                     // Deprecation is a Structured Field Date (`@` + integer epoch
                     // seconds); this recognises exactly that form and defers the
-                    // legacy/invalid forms to `server_deprecation_header_syntax`.
+                    // legacy/invalid forms to `deprecation_header_syntax`.
                     // (The previous cites here were mis-anchored — a Sunset
                     // *definition* and an Abstract blurb, neither governing this parse.)
                     // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
@@ -121,7 +121,7 @@ impl Rule for MessageSunsetAndDeprecationConsistency {
     }
 
     fn description(&self) -> &'static str {
-        "When both `Sunset` and `Deprecation` response headers are present they must be logically consistent: `Deprecation` (a Structured Field Date, `@<seconds>`, RFC 9745 §2.1) marks when a resource was or will be deprecated, and `Sunset` (an HTTP-date, RFC 8594 §3) marks the removal date. RFC 9745 §4 requires that the Sunset timestamp not be earlier than the Deprecation timestamp; this rule flags the reverse (subject to a small clock-skew tolerance). It also validates the `Sunset` syntax: a `Sunset` header that is not a parseable HTTP-date is reported even when `Deprecation` is absent. Legacy/non-structured `Deprecation` forms are left to `server_deprecation_header_syntax`."
+        "When both `Sunset` and `Deprecation` response headers are present they must be logically consistent: `Deprecation` (a Structured Field Date, `@<seconds>`, RFC 9745 §2.1) marks when a resource was or will be deprecated, and `Sunset` (an HTTP-date, RFC 8594 §3) marks the removal date. RFC 9745 §4 requires that the Sunset timestamp not be earlier than the Deprecation timestamp; this rule flags the reverse (subject to a small clock-skew tolerance). It also validates the `Sunset` syntax: a `Sunset` header that is not a parseable HTTP-date is reported even when `Deprecation` is absent. Legacy/non-structured `Deprecation` forms are left to `deprecation_header_syntax`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -227,7 +227,7 @@ mod tests {
 
     #[rstest]
     fn legacy_deprecation_ignored_by_this_rule() {
-        // Deprecation legacy 'true' is handled by server_deprecation_header_syntax; this rule should not duplicate it
+        // Deprecation legacy 'true' is handled by deprecation_header_syntax; this rule should not duplicate it
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn parseable_but_non_structured_deprecation_ignored() {
-        // Deprecation as HTTP-date is parsed as legacy by server_deprecation_header_syntax;
+        // Deprecation as HTTP-date is parsed as legacy by deprecation_header_syntax;
         // this rule only checks structured '@' values, so it should not error here.
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn structured_deprecation_nondigits_ignored_here() {
-        // server_deprecation_header_syntax flags '@abc' as invalid; this rule ignores non-structured forms
+        // deprecation_header_syntax flags '@abc' as invalid; this rule ignores non-structured forms
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
             &[

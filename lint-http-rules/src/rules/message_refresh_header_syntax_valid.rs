@@ -11,7 +11,7 @@ pub struct MessageRefreshHeaderSyntaxValid;
 // Standard's *URL code points* and *URL units* below, Infra's *ASCII
 // whitespace*, and HTML's *valid non-negative integer* inside
 // `refresh_value_error`, whose own two-form authoring requirement is the fifth.
-// The sixth is `server_server_timing_header_syntax`'s *valid floating-point
+// The sixth is `server_timing_header_syntax`'s *valid floating-point
 // number*.
 //
 // **All six stay private, and the reason is written at `helpers/mod.rs`**: that

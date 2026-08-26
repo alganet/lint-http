@@ -136,7 +136,7 @@ impl Rule for MessageRefererUriValid {
             // nothing in a message says where the target URI came from — so the
             // finding names the sentence without claiming it was broken.
             //
-            // `server_location_header_uri_valid` and
+            // `location_header_uri_valid` and
             // `message_content_location_and_uri_consistency` reach the same
             // answer on their fields for the first reason alone; recorded here so
             // that a later harmonising commit does not upgrade one of the three.

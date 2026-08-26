@@ -539,8 +539,8 @@ fn validate_keepalive_param(member: &str, max_timeout_seconds: u64) -> Result<()
 /// P2 gave it a home**, here and in `message_pragma_token_valid`,
 /// `message_cache_control_token_valid`,
 /// `message_accept_header_media_type_syntax`,
-/// `server_alt_svc_header_syntax::check_parameter`,
-/// `server_server_timing_header_syntax::check_param` and privately inside
+/// `alt_svc_header_syntax::check_parameter`,
+/// `server_timing_header_syntax::check_param` and privately inside
 /// [`parse_token_bws_word`]. What could not be shared and is not shared is the
 /// wording, and the verdict on an empty value: two of the seven tolerate it on
 /// the record and five do not.

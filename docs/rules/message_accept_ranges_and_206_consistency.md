@@ -18,7 +18,7 @@ Advice about one field, and one contradiction. `Accept-Ranges` tells a client wh
 
 **The trailer section counts.** §14.3 permits `Accept-Ranges` in a trailer section — the rule reads both sections, so a response that advertises after its content is not reported for advertising nothing.
 
-**Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `server_accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `message_range_and_content_range_consistency`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field.
+**Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `message_range_and_content_range_consistency`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field.
 
 ## Specifications
 

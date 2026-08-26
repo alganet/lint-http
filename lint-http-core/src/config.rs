@@ -349,7 +349,7 @@ mod tests {
         let tmp_toml =
             std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
-    [rules.server_cache_control_present]
+    [rules.cache_control_present]
     enabled = true
     severity = "warn"
 
@@ -364,7 +364,7 @@ enabled = false
 "#;
         fs::write(&tmp_toml, toml).await?;
         let cfg = Config::load_from_path(&tmp_toml).await?;
-        assert!(cfg.is_enabled("server_cache_control_present"));
+        assert!(cfg.is_enabled("cache_control_present"));
         fs::remove_file(&tmp_toml).await?;
         Ok(())
     }

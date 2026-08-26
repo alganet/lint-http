@@ -1154,10 +1154,10 @@ pub fn vary_nomination(response_headers: &HeaderMap) -> VaryNomination {
 /// opening a quoted-string makes the *next comma* data when the grammar has no
 /// quoted-string for it to be data in. `Accept-Ranges: by"tes,none` is two
 /// members to that field's production and one to this walk. So a `#token` list
-/// keeps its naive split, and [`server_accept_ranges_values_valid`] says so at
+/// keeps its naive split, and [`accept_ranges_values_valid`] says so at
 /// its own walk.
 ///
-/// [`server_accept_ranges_values_valid`]: crate::rules::server_accept_ranges_values_valid
+/// [`accept_ranges_values_valid`]: crate::rules::accept_ranges_values_valid
 ///
 /// The trim is `OWS` and not `str::trim`, for [`list_members`]'s reason: every
 /// caller reads its field through [`combined_field_value_as_written`], where

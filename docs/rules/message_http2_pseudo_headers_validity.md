@@ -25,7 +25,7 @@ HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `
 - **Where the pseudo-headers sat, and how many there were.** RFC 9113 §8.3 requires them to precede every regular field line and forbids a repeated name. The capture holds no pseudo-header fields and no field order, so neither has a representation to check.
 - **Whether a `Host` field agrees with `:authority`.** §8.3.1 forbids a client from generating a request where they differ. `message_host_and_authority_consistency` asks it, of this version and of HTTP/3, and keeps the two documents apart on what comparing the values means.
 
-**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `server_status_code_valid_range`.
+**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `status_code_valid_range`.
 
 ## Specifications
 

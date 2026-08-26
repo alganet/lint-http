@@ -84,7 +84,7 @@ pub fn read_advertisement(resp: &crate::http_transaction::ResponseInfo) -> Adver
             // `to_str` rejects every octet outside visible US-ASCII, which is
             // wider than this field's production allows in the first place, so
             // the failure is never a false alarm here -- but it is also not a
-            // finding either caller reports: `server_accept_ranges_values_valid`
+            // finding either caller reports: `accept_ranges_values_valid`
             // owns the field's syntax.
             //
             // cite(RFC 9110 § 14.3, label: Accept-Ranges grammar): "Accept-Ranges     = acceptable-ranges acceptable-ranges = 1#range-unit"
@@ -112,7 +112,7 @@ pub fn read_advertisement(resp: &crate::http_transaction::ResponseInfo) -> Adver
 
             // A list whose elements are all empty is a list of no range units,
             // and the production asks for at least one. That is
-            // `server_accept_ranges_values_valid`'s finding; here it only means
+            // `accept_ranges_values_valid`'s finding; here it only means
             // the line advertised nothing.
             //
             // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production"

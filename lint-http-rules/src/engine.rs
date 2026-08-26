@@ -170,9 +170,9 @@ mod tests {
         // set keeps all three; the request-only set keeps just the Client rule —
         // exercising both the enabled filter and the Server-scope exclusion.
         let cfg = make_test_config_with_enabled_rules(&[
-            "server_cache_control_present", // Server
-            "server_etag_or_last_modified", // Server
-            "user_agent_present",           // Client (survives into request-only)
+            "cache_control_present",         // Server
+            "etag_or_last_modified_present", // Server
+            "user_agent_present",            // Client (survives into request-only)
         ]);
         let engine = PreparedEngine::new(&cfg);
 
@@ -195,10 +195,8 @@ mod tests {
     #[test]
     fn prepared_and_free_dispatch_agree() {
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&[
-            "server_cache_control_present",
-            "user_agent_present",
-        ]);
+        let cfg =
+            make_test_config_with_enabled_rules(&["cache_control_present", "user_agent_present"]);
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
 
         let via_free = lint_transaction(&tx, &cfg, &state);
@@ -216,14 +214,14 @@ mod tests {
     fn lint_response_rules_emit_when_enabled() {
         let state = crate::state::StateStore::new(300, 10);
         let cfg = make_test_config_with_enabled_rules(&[
-            "server_cache_control_present",
-            "server_etag_or_last_modified",
+            "cache_control_present",
+            "etag_or_last_modified_present",
         ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let v = lint_transaction(&tx, &cfg, &state);
 
-        assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
-        assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
+        assert!(v.iter().any(|x| x.rule == "cache_control_present"));
+        assert!(v.iter().any(|x| x.rule == "etag_or_last_modified_present"));
     }
 
     #[test]
@@ -249,29 +247,27 @@ mod tests {
     fn rule_toggles_disable_rules() {
         let state = crate::state::StateStore::new(300, 10);
         let cfg_enabled = make_test_config_with_enabled_rules(&[
-            "server_cache_control_present",
-            "server_etag_or_last_modified",
+            "cache_control_present",
+            "etag_or_last_modified_present",
         ]);
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let v = lint_transaction(&tx, &cfg_enabled, &state);
-        assert!(v.iter().any(|x| x.rule == "server_cache_control_present"));
-        assert!(v.iter().any(|x| x.rule == "server_etag_or_last_modified"));
+        assert!(v.iter().any(|x| x.rule == "cache_control_present"));
+        assert!(v.iter().any(|x| x.rule == "etag_or_last_modified_present"));
 
         let mut cfg_disabled = Config::default();
-        disable_rule(&mut cfg_disabled, "server_cache_control_present");
-        disable_rule(&mut cfg_disabled, "server_etag_or_last_modified");
+        disable_rule(&mut cfg_disabled, "cache_control_present");
+        disable_rule(&mut cfg_disabled, "etag_or_last_modified_present");
         let v2 = lint_transaction(&tx, &cfg_disabled, &state);
-        assert!(!v2.iter().any(|x| x.rule == "server_cache_control_present"));
-        assert!(!v2.iter().any(|x| x.rule == "server_etag_or_last_modified"));
+        assert!(!v2.iter().any(|x| x.rule == "cache_control_present"));
+        assert!(!v2.iter().any(|x| x.rule == "etag_or_last_modified_present"));
     }
 
     #[test]
     fn lint_transaction_handles_both_client_and_server_rules() {
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&[
-            "user_agent_present",
-            "server_cache_control_present",
-        ]);
+        let cfg =
+            make_test_config_with_enabled_rules(&["user_agent_present", "cache_control_present"]);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -297,7 +293,7 @@ mod tests {
             .collect();
         let server_violations: Vec<_> = violations
             .iter()
-            .filter(|v| v.rule == "server_cache_control_present")
+            .filter(|v| v.rule == "cache_control_present")
             .collect();
 
         assert!(!client_violations.is_empty() || !server_violations.is_empty());
@@ -308,7 +304,7 @@ mod tests {
         // Exercises the lazy ByOrigin and general flow with a transaction
         // that has connection_id set (used by ByConnection queries).
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&["server_cache_control_present"]);
+        let cfg = make_test_config_with_enabled_rules(&["cache_control_present"]);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -327,9 +323,7 @@ mod tests {
         });
 
         let violations = lint_transaction(&tx, &cfg, &state);
-        assert!(violations
-            .iter()
-            .any(|v| v.rule == "server_cache_control_present"));
+        assert!(violations.iter().any(|v| v.rule == "cache_control_present"));
     }
 
     #[test]
@@ -411,10 +405,8 @@ mod tests {
         // this test would also pass by accident if a Server rule self-guarded
         // on `tx.response.is_none()`, so it carries no load alone.
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&[
-            "server_cache_control_present",
-            "user_agent_present",
-        ]);
+        let cfg =
+            make_test_config_with_enabled_rules(&["cache_control_present", "user_agent_present"]);
         use crate::http_transaction::{HttpTransaction, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),
@@ -431,7 +423,7 @@ mod tests {
             "client-scoped rule should still run on request-only tx",
         );
         assert!(
-            !v.iter().any(|x| x.rule == "server_cache_control_present"),
+            !v.iter().any(|x| x.rule == "cache_control_present"),
             "server-scoped rule must not emit on request-only tx",
         );
     }
@@ -440,7 +432,7 @@ mod tests {
     fn lint_transaction_with_no_origin() {
         // Transaction with a relative/invalid URI to exercise the ByOrigin None path
         let state = crate::state::StateStore::new(300, 10);
-        let cfg = make_test_config_with_enabled_rules(&["server_cache_control_present"]);
+        let cfg = make_test_config_with_enabled_rules(&["cache_control_present"]);
         use crate::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
         let mut tx = HttpTransaction::new(
             crate::test_helpers::make_test_client(),

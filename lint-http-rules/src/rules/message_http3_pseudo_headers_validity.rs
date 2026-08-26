@@ -203,8 +203,8 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
         // HTTP status code; see Section 15 of [HTTP]" and states no range of its
         // own. Behind the major-version gate above, the same out-of-range
         // status over HTTP/1.1 or HTTP/2 went unreported here and the HTTP/3 one was
-        // reported twice — `server_status_code_valid_range` asks it of every
-        // version. Same shape as the three checks `server_http3_status_code_validity`
+        // reported twice — `status_code_valid_range` asks it of every
+        // version. Same shape as the three checks `http3_status_code_valid`
         // surrendered for RFC 9110 § 15.2.
         //
         // What RFC 9114 § 4.3.2 does require of a response — that the field be
@@ -223,7 +223,7 @@ impl Rule for MessageHttp3PseudoHeadersValidity {
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `message_http2_pseudo_headers_validity`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `server_status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
+        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `message_http2_pseudo_headers_validity`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -772,7 +772,7 @@ mod tests {
     }
 
     /// The status range is RFC 9110 § 15's and holds for every version, so it is
-    /// `server_status_code_valid_range`'s finding and not this rule's. These cases
+    /// `status_code_valid_range`'s finding and not this rule's. These cases
     /// pin the decline: each was asserted as a violation here until the branch was
     /// removed, and each is still reported — over HTTP/3 as over every other
     /// version — by the rule that owns the question.
@@ -793,7 +793,7 @@ mod tests {
         );
         assert!(v.is_none(), "{v:?}");
 
-        let owner = crate::rules::server_status_code_valid_range::ServerStatusCodeValidRange;
+        let owner = crate::rules::status_code_valid_range::StatusCodeValidRange;
         assert!(
             owner
                 .check_transaction(
@@ -1109,7 +1109,7 @@ mod tests {
     fn connect_with_invalid_response_status_is_not_this_rules_finding() {
         // A valid CONNECT request whose response carries an out-of-range status.
         // The request is what this rule reads, and it is well formed; the status is
-        // `server_status_code_valid_range`'s finding on every version.
+        // `status_code_valid_range`'s finding on every version.
         let rule = MessageHttp3PseudoHeadersValidity;
         let mut tx = make_h3_transaction_with_response(0, &[]);
         tx.request.method = "CONNECT".into();

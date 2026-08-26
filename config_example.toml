@@ -106,7 +106,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_sec_websocket_version_advertisement]
+[rules.sec_websocket_version_advertised]
 enabled = true
 severity = "warn"
 
@@ -127,15 +127,15 @@ enabled = true
 severity = "warn"
 
 # Server Rules
-[rules.server_cache_control_present]
+[rules.cache_control_present]
 enabled = true
 severity = "warn"
 
-[rules.server_status_and_caching_semantics]
+[rules.status_and_caching_semantics]
 enabled = true
 severity = "warn"
 
-[rules.server_etag_or_last_modified]
+[rules.etag_or_last_modified_present]
 enabled = true
 severity = "info"
 
@@ -143,19 +143,19 @@ severity = "info"
 enabled = true
 severity = "warn"
 
-[rules.server_last_modified_rfc1123_format]
+[rules.last_modified_rfc1123_syntax]
 enabled = true
 severity = "warn"
 
-[rules.server_location_header_uri_valid]
+[rules.location_header_uri_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_response_location_on_redirect]
+[rules.location_on_redirect_present]
 enabled = true
 severity = "warn"
 
-[rules.server_redirect_status_and_location_validity]
+[rules.redirect_status_and_location_valid]
 enabled = true
 severity = "warn"
 
@@ -199,7 +199,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_quic_transport_parameters]
+[rules.quic_transport_parameters_valid]
 enabled = true
 severity = "warn"
 
@@ -207,24 +207,24 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_3xx_vs_request_method]
+[rules.status_3xx_vs_request_method]
 enabled = true
 severity = "warn"
 
-[rules.server_x_content_type_options]
+[rules.x_content_type_options_present]
 enabled = true
 severity = "warn"
 content_types = ["text/html", "application/javascript", "application/json"]
 
-[rules.server_x_frame_options_value_valid]
+[rules.x_frame_options_value_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_x_xss_protection_value_valid]
+[rules.x_xss_protection_value_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_content_security_policy_validity]
+[rules.content_security_policy_valid]
 enabled = true
 severity = "warn"
 
@@ -236,19 +236,19 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_response_405_allow]
+[rules.status_405_allow_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_response_426_upgrade]
+[rules.status_426_upgrade_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_charset_specification]
+[rules.charset_present]
 enabled = true
 severity = "warn"
 
-[rules.server_clear_site_data]
+[rules.clear_site_data_present]
 enabled = true
 severity = "warn"
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
@@ -344,31 +344,31 @@ severity = "error"
 enabled = true
 severity = "error"
 
-[rules.server_accept_ranges_values_valid]
+[rules.accept_ranges_values_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_vary_header_valid]
+[rules.vary_header_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_vary_and_cache_consistency]
+[rules.vary_and_cache_consistent]
 enabled = true
 severity = "warn"
 
-[rules.server_patch_accept_patch_header]
+[rules.accept_patch_header_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_server_timing_header_syntax]
+[rules.server_timing_header_syntax]
 enabled = true
 severity = "warn"
 
-[rules.server_priority_and_cacheability_consistency]
+[rules.priority_and_cacheability_consistent]
 enabled = true
 severity = "warn"
 
-[rules.server_authentication_challenge_validity]
+[rules.authentication_challenge_valid]
 enabled = true
 severity = "warn"
 
@@ -401,7 +401,7 @@ severity = "warn"
 # default for that reason; a value the rule cannot read stops the whole rule.
 max_timeout_seconds = 3600
 
-[rules.server_200_vs_204_body_consistency]
+[rules.status_200_vs_204_body_consistent]
 enabled = true
 severity = "warn"
 
@@ -417,19 +417,19 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_deprecation_header_syntax]
+[rules.deprecation_header_syntax]
 enabled = true
 severity = "warn"
 
-[rules.server_alt_svc_h3_advertisement_valid]
+[rules.alt_svc_h3_advertisement_valid]
 enabled = true
 severity = "warn"
 
-[rules.server_alt_svc_header_syntax]
+[rules.alt_svc_header_syntax]
 enabled = true
 severity = "warn"
 
-[rules.server_alt_svc_protocol_iana_registered]
+[rules.alt_svc_protocol_registered]
 enabled = true
 severity = "warn"
 # ALPN protocol names — the octets IANA registers in the "TLS Application-Layer
@@ -446,12 +446,12 @@ severity = "warn"
 # `h3-29` is listed because the draft-29 identifier is still advertised
 # alongside `h3` by large operators, and this rule is not the one that has an
 # opinion about that: naming a draft identifier where the final one exists
-# belongs to `server_alt_svc_h3_advertisement_valid`, which reports it with the
+# belongs to `alt_svc_h3_advertisement_valid`, which reports it with the
 # advice to use `h3`. Leaving `h3-29` out here made both rules report the same
 # token on the same response, saying two different things about it.
 allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
 
-[rules.server_problem_details_content_type]
+[rules.problem_details_content_type]
 enabled = true
 severity = "warn"
 
@@ -459,7 +459,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_immutable_requires_freshness]
+[rules.immutable_requires_freshness]
 enabled = true
 severity = "warn"
 
@@ -504,7 +504,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_content_type_present]
+[rules.content_type_present]
 enabled = true
 severity = "warn"
 
@@ -929,7 +929,7 @@ severity = "error"
 enabled = true
 severity = "error"
 
-[rules.server_http3_status_code_validity]
+[rules.http3_status_code_valid]
 enabled = true
 severity = "error"
 
@@ -1004,7 +1004,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_retry_after_status_validity]
+[rules.retry_after_status_valid]
 enabled = true
 severity = "warn"
 
@@ -1020,7 +1020,7 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.server_prefer_header_and_preference_applied]
+[rules.prefer_header_and_preference_applied]
 enabled = true
 severity = "warn"
 
@@ -1036,10 +1036,10 @@ severity = "warn"
 enabled = true
 severity = "error"
 
-[rules.server_no_body_for_1xx_204_304]
+[rules.no_body_for_1xx_204_304]
 enabled = true
 severity = "error"
 
-[rules.server_status_code_valid_range]
+[rules.status_code_valid_range]
 enabled = true
 severity = "error"

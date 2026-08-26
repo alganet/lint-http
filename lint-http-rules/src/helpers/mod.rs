@@ -22,7 +22,7 @@
 //! Standard's *URL code points* and *URL units*, Infra's *ASCII whitespace*,
 //! HTML's *valid non-negative integer* and its two-form authoring requirement
 //! for `Refresh`, and HTML's *valid floating-point number* in
-//! `server_server_timing_header_syntax`. Two character-class sets, a whitespace
+//! `server_timing_header_syntax`. Two character-class sets, a whitespace
 //! set, two number productions and a prose shape; not one is a subroutine of
 //! another, and each has exactly one caller. **The rule for arriving here is
 //! unchanged and is what decides it: a shared answer moves on the second caller,

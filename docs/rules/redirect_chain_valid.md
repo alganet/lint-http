@@ -22,7 +22,7 @@ Reports a redirect whose `Location` resolves to the target URI of the request it
 
 **Longer cycles are not detected, and the rule reads no history.** A cycle spanning two or more resources needs a history that spans resources; the state layer's origin-scoped query derives that origin from the request-target alone, so it is empty for the origin-form target an HTTP/1.1 request carries. Only the one-step cycle is reported.
 
-The field's grammar, an empty value, and a response carrying more than one `Location` field line are `server_location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `server_redirect_status_and_location_validity`'s; a redirect status carrying *no* `Location` is `server_response_location_on_redirect`'s.
+The field's grammar, an empty value, and a response carrying more than one `Location` field line are `location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `redirect_status_and_location_valid`'s; a redirect status carrying *no* `Location` is `location_on_redirect_present`'s.
 
 ## Specifications
 

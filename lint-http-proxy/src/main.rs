@@ -618,10 +618,10 @@ severity = "warn"
         Ok(tmp)
     }
 
-    // Enables `server_cache_control_present` (fires on a 200 response without a
+    // Enables `cache_control_present` (fires on a 200 response without a
     // Cache-Control header).
     async fn write_cache_control_config() -> anyhow::Result<std::path::PathBuf> {
-        write_config_enabling("server_cache_control_present").await
+        write_config_enabling("cache_control_present").await
     }
 
     // Serialize transactions into a JSONL capture file (one versioned envelope per
@@ -956,7 +956,7 @@ severity = "warn"
 
     fn sample_violation() -> lint::Violation {
         lint::Violation {
-            rule: "server_cache_control_present".to_string(),
+            rule: "cache_control_present".to_string(),
             severity: lint::Severity::Warn,
             message: "missing Cache-Control".to_string(),
         }
@@ -979,10 +979,7 @@ severity = "warn"
         assert_eq!(parsed[0]["kind"], "http_transaction");
         assert_eq!(parsed[0]["method"], "GET");
         assert_eq!(parsed[0]["status"], 200);
-        assert_eq!(
-            parsed[0]["violations"][0]["rule"],
-            "server_cache_control_present"
-        );
+        assert_eq!(parsed[0]["violations"][0]["rule"], "cache_control_present");
         assert_eq!(parsed[0]["violations"][0]["severity"], "warn");
         Ok(())
     }
@@ -1005,7 +1002,7 @@ severity = "warn"
     fn render_lint_report_text_has_summary_line() -> anyhow::Result<()> {
         let out = render_lint_report(&sample_findings(), 3, 0, OutputFormat::Text)?;
         assert!(out.contains("GET http://example.test/ -> 200"));
-        assert!(out.contains("warn  server_cache_control_present"));
+        assert!(out.contains("warn  cache_control_present"));
         // No websocket sessions in the capture → summary is the pure-HTTP form.
         assert!(out.ends_with("1 violation(s) in 3 transaction(s)\n"));
         Ok(())
@@ -1179,7 +1176,7 @@ severity = "warn"
     fn rules_list_text_includes_a_known_rule() -> anyhow::Result<()> {
         let out = rules_list(OutputFormat::Text, None)?;
         // The catalogue lists transaction and protocol rules with a scope label.
-        assert!(out.contains("server_cache_control_present"));
+        assert!(out.contains("cache_control_present"));
         assert!(out.contains("[server]"));
         // Protocol rules are labelled `protocol`.
         assert!(out.contains("[protocol]"));
@@ -1195,7 +1192,7 @@ severity = "warn"
         assert!(!parsed.is_empty());
         let cc = parsed
             .iter()
-            .find(|v| v["id"] == "server_cache_control_present")
+            .find(|v| v["id"] == "cache_control_present")
             .expect("known rule present in JSON output");
         assert_eq!(cc["scope"], "server");
         assert_eq!(cc["kind"], "transaction");
@@ -1226,14 +1223,14 @@ severity = "warn"
 
     #[tokio::test]
     async fn rules_list_with_config_annotates_enabled() -> anyhow::Result<()> {
-        // The fixture config enables exactly `server_cache_control_present`.
+        // The fixture config enables exactly `cache_control_present`.
         let cfg_path = write_cache_control_config().await?;
         let cfg = load_validated_config(cfg_path.to_str().unwrap()).await?;
 
         let text = rules_list(OutputFormat::Text, Some(&cfg))?;
         let line = text
             .lines()
-            .find(|l| l.starts_with("server_cache_control_present"))
+            .find(|l| l.starts_with("cache_control_present"))
             .expect("rule line present");
         assert!(line.contains(" enabled "));
         assert!(text.contains(" disabled "));
@@ -1242,7 +1239,7 @@ severity = "warn"
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
         let cc = parsed
             .iter()
-            .find(|v| v["id"] == "server_cache_control_present")
+            .find(|v| v["id"] == "cache_control_present")
             .expect("known rule present");
         assert_eq!(cc["enabled"], true);
         assert!(parsed.iter().any(|v| v["enabled"] == false));
@@ -1285,7 +1282,7 @@ severity = "warn"
     async fn main_cli_config_loads_toml() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir().join(format!("lint_main_cli_cfg_{}.toml", Uuid::new_v4()));
         let toml = r#"[rules]
-    [rules.server_cache_control_present]
+    [rules.cache_control_present]
     enabled = false
     severity = "warn"
 
@@ -1305,7 +1302,7 @@ severity = "warn"
 
         let cfg = config::Config::load_from_path(config_path).await?;
 
-        assert!(!cfg.is_enabled("server_cache_control_present"));
+        assert!(!cfg.is_enabled("cache_control_present"));
         assert_eq!(cfg.general.listen, "127.0.0.1:3000");
 
         fs::remove_file(&tmp).await?;
@@ -1323,7 +1320,7 @@ captures = "captures.jsonl"
 [tls]
 enabled = false
 
- [rules.server_clear_site_data]
+ [rules.clear_site_data_present]
  enabled = true
  severity = "warn"
  paths = []  # Invalid: empty paths array
@@ -1337,7 +1334,7 @@ enabled = false
 
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("server_clear_site_data"));
+        assert!(err_msg.contains("clear_site_data_present"));
         assert!(err_msg.contains("cannot be empty"));
 
         fs::remove_file(&tmp).await?;
@@ -1356,7 +1353,7 @@ enabled = false
         let capture_path = std::env::temp_dir().join(format!("captures_{}.jsonl", Uuid::new_v4()));
         let toml = format!(
             r#"[rules]
-[rules.server_cache_control_present]
+[rules.cache_control_present]
 enabled = false
 severity = "warn"
 
@@ -1410,7 +1407,7 @@ enabled = false
         let capture_path = std::env::temp_dir().join(format!("captures_{}.jsonl", Uuid::new_v4()));
         let toml = format!(
             r#"[rules]
-[rules.server_cache_control_present]
+[rules.cache_control_present]
 enabled = false
 severity = "warn"
 

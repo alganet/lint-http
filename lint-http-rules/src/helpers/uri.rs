@@ -648,7 +648,7 @@ pub fn remove_dot_segments(path: &str) -> String {
 /// caller handing a whole path to a decoder that took every triplet would get
 /// back a string whose structure the sender never wrote. That is the exact
 /// inverse of the decision at
-/// `server_alt_svc_protocol_iana_registered::alpn_protocol_name`, which decodes
+/// `alt_svc_protocol_registered::alpn_protocol_name`, which decodes
 /// **every** triplet because RFC 7301 § 3.1 makes an ALPN protocol name an
 /// opaque octet sequence with no components for a delimiter to bound. One
 /// question, two answers, both cited; the two functions must not be folded.

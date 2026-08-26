@@ -51,5 +51,5 @@ Notes
 - Keep the doc concise and focused; do not include long protocol digressions.
 - Use fenced code blocks with language markers (`toml`, `http`).
 - Use this file as the canonical structure for new rule docs so tooling and tests can rely on consistent layout.
-- Titles should be human-readable (e.g., "Server Cache-Control Present" not "server_cache_control_present").
+- Titles should be human-readable (e.g., "Server Cache-Control Present" not "cache_control_present").
 - RFC references should use modern HTTP specifications (RFC 9110, RFC 9111, RFC 9112) instead of obsoleted ones (RFC 7230-7234).

@@ -324,7 +324,7 @@ impl Rule for HeadResponseHeadersMatchGet {
                         // `list_members` drops empty members, which is the
                         // recipient's reading and the right one for a question
                         // about what was advertised; a sender that writes
-                        // `Accept, , Accept-Encoding` is `server_vary_header_valid`'s.
+                        // `Accept, , Accept-Encoding` is `vary_header_valid`'s.
                         let members = |v: &str| {
                             let mut m: Vec<String> = crate::helpers::headers::list_members(v)
                                 .map(|s| s.to_ascii_lowercase())

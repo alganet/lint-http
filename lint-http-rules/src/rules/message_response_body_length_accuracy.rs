@@ -80,7 +80,7 @@ impl Rule for MessageResponseBodyLengthAccuracy {
             // body at all*.
             //
             // Item 1 names two things, though, and only one of them is this
-            // rule's to report now. `server_no_body_for_1xx_204_304` reads the
+            // rule's to report now. `no_body_for_1xx_204_304` reads the
             // captured octets for the three statuses, and reads them without
             // needing a `Content-Length` first -- which this rule does need, its
             // whole entry point being a declared length. So the statuses are
@@ -539,7 +539,7 @@ mod tests {
 
         let sibling = crate::rules::REGISTERED_RULES
             .iter()
-            .find(|r| r.id() == "server_no_body_for_1xx_204_304")
+            .find(|r| r.id() == "no_body_for_1xx_204_304")
             .expect("the sibling rule is registered");
         let found = sibling.check_transaction(
             &tx,
