@@ -140,8 +140,8 @@ impl Rule for SingletonFieldsNotRepeated {
          trailers together — its second clause forbids *appending* a field line where one \
          already exists — so a `Date` in the header section and another in the trailer section \
          are two field lines of one message and are reported. (Most of these fields are also \
-         forbidden in trailers outright by other sentences; that is `message_trailer_fields_\
-         validity`'s question and does not change this one.)\
+         forbidden in trailers outright by other sentences; that is \
+         `trailer_fields_valid`'s question and does not change this one.)\
          \n\n\
          **A field absent from the table draws nothing.** The exception clause turns on the \
          field's *definition*, which a linter cannot read off the wire — so only fields whose \
