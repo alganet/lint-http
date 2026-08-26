@@ -50,7 +50,7 @@ impl ProtocolRule for QuicTransportParametersValid {
         &self,
         event: &ProtocolEvent,
         _history: &ProtocolEventHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The event carries the contents of the quic_transport_parameters TLS
         // extension (this cite was re-homed here from the bidi check below, where
@@ -61,13 +61,6 @@ impl ProtocolRule for QuicTransportParametersValid {
             _ => return None,
         };
 
-        // Read after the match, not before it: every protocol rule sees every
-        // event on the connection, and this extension arrives once per
-        // connection, so the discriminant ends the rule for very nearly all of
-        // them; `parse_rule_config` looks the rule id up twice (its doc comment
-        // costs it).
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
-
         // "number of permitted streams" half of §6.1's SHOULD. §18.2: a 0 (or
         // absent) grant only defers stream opening until a MAX_STREAMS frame, so
         // this is a SHOULD-level reasonableness check, not a hard requirement; it
@@ -76,7 +69,7 @@ impl ProtocolRule for QuicTransportParametersValid {
         if params.initial_max_streams_bidi == Some(0) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "QUIC initial_max_streams_bidi is 0; HTTP/3 requires at least one \
                      bidirectional stream for request/response exchange (RFC 9114 §6.1)"
                     .into(),
@@ -91,7 +84,7 @@ impl ProtocolRule for QuicTransportParametersValid {
         if params.initial_max_data == Some(0) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "QUIC initial_max_data is 0; no data can be transferred on this \
                      connection (RFC 9000 §18.2)"
                     .into(),
@@ -107,7 +100,7 @@ impl ProtocolRule for QuicTransportParametersValid {
         if params.initial_max_stream_data_bidi_local == Some(0) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "QUIC initial_max_stream_data_bidi_local is 0; bidirectional streams \
                      cannot carry data (RFC 9000 §18.2)"
                     .into(),
@@ -121,7 +114,7 @@ impl ProtocolRule for QuicTransportParametersValid {
         if params.initial_max_stream_data_bidi_remote == Some(0) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "QUIC initial_max_stream_data_bidi_remote is 0; request streams \
                      cannot carry data (RFC 9114 §6.1)"
                     .into(),
@@ -134,7 +127,7 @@ impl ProtocolRule for QuicTransportParametersValid {
         if params.initial_max_stream_data_uni == Some(0) {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: "QUIC initial_max_stream_data_uni is 0; HTTP/3 unidirectional streams \
                      (control, QPACK) cannot carry data (RFC 9114 §6.2)"
                     .into(),
@@ -149,7 +142,7 @@ impl ProtocolRule for QuicTransportParametersValid {
             Some(0) | None => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: "QUIC max_idle_timeout is 0 or absent; connections may remain \
                          idle indefinitely, consuming server resources (RFC 9000 §18.2)"
                         .into(),
@@ -158,7 +151,7 @@ impl ProtocolRule for QuicTransportParametersValid {
             Some(ms) if ms > MAX_REASONABLE_IDLE_TIMEOUT_MS => {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "QUIC max_idle_timeout is {}ms (>{} ms); excessively large idle \
                          timeouts waste server resources (RFC 9000 §18.2)",
@@ -284,7 +277,12 @@ mod tests {
     fn reasonable_params_pass() {
         let rule = QuicTransportParametersValid;
         let evt = make_event(reasonable_params());
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -296,7 +294,12 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_streams_bidi = Some(0);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("initial_max_streams_bidi"));
     }
@@ -307,7 +310,12 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_streams_bidi = Some(1);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -317,7 +325,12 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_streams_bidi = None;
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -329,7 +342,12 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_data = Some(0);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("initial_max_data"));
     }
@@ -340,7 +358,12 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_data = None;
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -352,7 +375,12 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_stream_data_bidi_local = Some(0);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result
             .unwrap()
@@ -368,7 +396,12 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_stream_data_bidi_remote = Some(0);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result
             .unwrap()
@@ -384,7 +417,12 @@ mod tests {
         let mut p = reasonable_params();
         p.initial_max_stream_data_uni = Some(0);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result
             .unwrap()
@@ -400,7 +438,12 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = Some(0);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("max_idle_timeout"));
     }
@@ -411,7 +454,12 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = None;
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("max_idle_timeout"));
     }
@@ -422,7 +470,12 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = Some(MAX_REASONABLE_IDLE_TIMEOUT_MS + 1);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         let msg = result.unwrap().message;
         assert!(msg.contains("excessively large"));
@@ -434,7 +487,12 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = Some(MAX_REASONABLE_IDLE_TIMEOUT_MS);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -444,7 +502,12 @@ mod tests {
         let mut p = reasonable_params();
         p.max_idle_timeout_ms = Some(1);
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -458,7 +521,12 @@ mod tests {
             connection_id: Uuid::new_v4(),
             kind: ProtocolEventKind::H3StreamOpened { stream_id: 0 },
         };
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -479,7 +547,12 @@ mod tests {
                 payload_length: 10,
             },
         };
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -507,7 +580,12 @@ mod tests {
             initial_max_stream_data_uni: None,
         };
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         // Only max_idle_timeout triggers because None means no timeout
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("max_idle_timeout"));
@@ -527,7 +605,12 @@ mod tests {
             initial_max_stream_data_uni: Some(0),
         };
         let evt = make_event(p);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         // First check is initial_max_streams_bidi
         assert!(result.unwrap().message.contains("initial_max_streams_bidi"));

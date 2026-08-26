@@ -502,13 +502,14 @@ pub trait ProtocolRule: Send + Sync {
         })
     }
 
-    /// Evaluate a single protocol event against this rule. Rules parse
-    /// whatever configuration they need directly from `cfg: &Config`.
+    /// Evaluate a single protocol event against this rule. Everything the
+    /// rule derived from its configuration arrives resolved in `ctx` — its
+    /// own `prepare` ran when the engine was built.
     fn check_event(
         &self,
         event: &crate::protocol_event::ProtocolEvent,
         history: &crate::protocol_event::ProtocolEventHistory,
-        cfg: &crate::config::Config,
+        ctx: &RuleContext<'_>,
     ) -> Option<Violation>;
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).

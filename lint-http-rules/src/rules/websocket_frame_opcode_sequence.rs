@@ -329,7 +329,7 @@ impl ProtocolRule for WebsocketFrameOpcodeSequence {
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let ProtocolEventKind::WebSocketFrame {
             session_id,
@@ -364,11 +364,10 @@ impl ProtocolRule for WebsocketFrameOpcodeSequence {
         // Every gate above ends the rule, and reading the configuration is
         // several map probes and a hash of the id — so only a frame about to be
         // reported pays for it.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!("A WebSocket frame the {} sent {}", frame.sender(), defect),
         })
     }
@@ -545,9 +544,13 @@ mod tests {
     }
 
     fn judge(event: &ProtocolEvent, history: &ProtocolEventHistory) -> Option<String> {
-        WebsocketFrameOpcodeSequence
-            .check_event(event, history, &make_config())
-            .map(|v| v.message)
+        crate::test_helpers::run_protocol_rule(
+            &WebsocketFrameOpcodeSequence,
+            event,
+            history,
+            &make_config(),
+        )
+        .map(|v| v.message)
     }
 
     #[test]

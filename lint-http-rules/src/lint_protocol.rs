@@ -16,11 +16,13 @@ use crate::protocol_event_store::ProtocolEventStore;
 
 impl PreparedEngine {
     /// Lint a single protocol event against the enabled protocol rules
-    /// (disabled rules were filtered out when the engine was built).
+    /// (disabled rules were filtered out when the engine was built; each
+    /// rule's configuration was resolved by its own `prepare` there too, so
+    /// dispatch hands out borrowed [`crate::rules::RuleContext`]s and reads
+    /// no config).
     pub fn lint_protocol_event(
         &self,
         event: &ProtocolEvent,
-        cfg: &Config,
         event_store: &ProtocolEventStore,
     ) -> Vec<Violation> {
         let mut out = Vec::new();
@@ -28,13 +30,14 @@ impl PreparedEngine {
         // Lazily computed history for this connection.
         let mut history_by_connection: Option<ProtocolEventHistory> = None;
 
-        for rule in &self.enabled_protocol {
+        for prepared in &self.enabled_protocol {
             let history = history_by_connection.get_or_insert_with(|| {
                 let entries = event_store.get_history_for_connection(event.connection_id);
                 ProtocolEventHistory::new(entries)
             });
 
-            out.extend(rule.check_event(event, history, cfg));
+            let ctx = crate::rules::RuleContext::new(&prepared.resolved);
+            out.extend(prepared.rule.check_event(event, history, &ctx));
         }
 
         out
@@ -56,7 +59,7 @@ pub fn lint_protocol_event(
 ) -> Vec<Violation> {
     PreparedEngine::new(cfg)
         .expect("config failed rule validation")
-        .lint_protocol_event(event, cfg, event_store)
+        .lint_protocol_event(event, event_store)
 }
 
 #[cfg(test)]

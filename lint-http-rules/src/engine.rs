@@ -24,6 +24,14 @@ struct PreparedRule {
     query: Option<crate::queries::QueryType>,
 }
 
+/// One enabled protocol rule with its configuration resolved by its own
+/// `prepare` at construction. Dispatch borrows `resolved` into a
+/// [`crate::rules::RuleContext`] per event — no per-event config reads.
+pub(crate) struct PreparedProtocolRule {
+    pub(crate) rule: &'static dyn ProtocolRule,
+    pub(crate) resolved: crate::rules::ResolvedRule,
+}
+
 /// The enabled rule set for one [`Config`], precomputed once so per-transaction
 /// dispatch cost is proportional to the *enabled* rules rather than the full
 /// catalogue. `is_enabled` is a pure function of the (immutable) config, so the
@@ -35,7 +43,7 @@ pub struct PreparedEngine {
     /// Enabled rules for a request-only transaction (Server-scoped excluded).
     enabled_request_only: Vec<PreparedRule>,
     /// Enabled protocol-event rules (consumed by `lint_protocol_event`).
-    pub(crate) enabled_protocol: Vec<&'static dyn ProtocolRule>,
+    pub(crate) enabled_protocol: Vec<PreparedProtocolRule>,
 }
 
 impl PreparedEngine {
@@ -74,7 +82,13 @@ impl PreparedEngine {
                 .iter()
                 .copied()
                 .filter(|r| cfg.is_enabled(r.id()))
-                .collect(),
+                .map(|rule| {
+                    Ok(PreparedProtocolRule {
+                        rule,
+                        resolved: rule.prepare(cfg)?,
+                    })
+                })
+                .collect::<anyhow::Result<_>>()?,
         })
     }
 
