@@ -12,3 +12,7 @@ coverage = "tarpaulin --workspace --engine llvm --out Xml --skip-clean --fail-un
 # Run clippy with all features and targets across every workspace crate,
 # treating warnings as errors
 lint = "clippy --workspace --all-features --all-targets -- -D warnings"
+# Repository maintenance tasks (`cargo xtask gendocs`). The tasks live in their
+# own unpublished crate so the delivered binary carries none of them; `--package`
+# is explicit so the alias works from any subdirectory.
+xtask = "run --package xtask --"

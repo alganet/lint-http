@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "2"
-members = ["lint-http-core", "lint-http-rules", "lint-http-proxy"]
+members = ["lint-http-core", "lint-http-rules", "lint-http-proxy", "xtask"]
 
 [workspace.package]
 version = "0.1.0"

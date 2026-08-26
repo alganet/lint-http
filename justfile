@@ -42,6 +42,11 @@ citations:
     "$apy" extract --frozen
     "$apy" ratchet
 
+# Regenerate docs/rules/ and docs/rules.md from rule metadata — the fixer for the
+# `docs_match_generated` gate. Not part of `check`: it writes into the tree.
+gendocs:
+    cargo xtask gendocs
+
 # Third-party licensing + advisories (needs `reuse` and `cargo-deny` installed).
 supply-chain:
     reuse lint
