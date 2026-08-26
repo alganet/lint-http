@@ -44,12 +44,19 @@ impl PreparedEngine {
 /// Lint a single protocol event against all enabled protocol rules.
 /// Convenience one-shot: builds a [`PreparedEngine`] for `cfg`; hot paths build
 /// one once and call [`PreparedEngine::lint_protocol_event`] instead.
+///
+/// # Panics
+///
+/// Panics when `cfg` fails rule validation — see
+/// [`lint_transaction`](crate::engine::lint_transaction) for the contract.
 pub fn lint_protocol_event(
     event: &ProtocolEvent,
     cfg: &Config,
     event_store: &ProtocolEventStore,
 ) -> Vec<Violation> {
-    PreparedEngine::new(cfg).lint_protocol_event(event, cfg, event_store)
+    PreparedEngine::new(cfg)
+        .expect("config failed rule validation")
+        .lint_protocol_event(event, cfg, event_store)
 }
 
 #[cfg(test)]

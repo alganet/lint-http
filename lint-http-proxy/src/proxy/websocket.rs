@@ -737,7 +737,7 @@ mod tests {
 
     fn test_pe_pipeline() -> ProtocolEventPipeline {
         let cfg = StdArc::new(crate::config::Config::default());
-        let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg));
+        let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg).unwrap());
         ProtocolEventPipeline::new(
             engine,
             cfg,

@@ -307,7 +307,7 @@ async fn run_proxy_inner(
     };
 
     // Precompute the enabled rule set once; cfg is immutable from here on.
-    let engine = Arc::new(crate::engine::PreparedEngine::new(&cfg));
+    let engine = Arc::new(crate::engine::PreparedEngine::new(&cfg)?);
 
     let shared = Arc::new(Shared {
         upstream,

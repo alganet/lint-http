@@ -31,8 +31,8 @@ pub struct PreparedEngine {
 }
 
 impl PreparedEngine {
-    /// Intersect the catalogue's precomputed scope views with `cfg.is_enabled`,
-    /// once.
+    /// Validate the config, then intersect the catalogue's precomputed scope
+    /// views with `cfg.is_enabled`, once.
     ///
     /// **This is the only place `enabled` is read, and it is why the per-rule
     /// reading went.** Each rule's `parse_rule_config` used to ask the same
@@ -40,17 +40,17 @@ impl PreparedEngine {
     /// decided here, when the engine is built, and a rule that is not in one of
     /// these three vectors is never dispatched.
     ///
-    /// **`cfg` is expected to have passed `rules::validate_rules` first.** Every
-    /// binary entry point does that — they all go through
-    /// `load_validated_config` — and nothing here enforces it, so a library
-    /// caller that skips it gets a config whose rule tables were never checked
-    /// for their two required keys. What that costs is now one thing rather than
-    /// two: `is_enabled` reads a missing `enabled` as `false`, and a rule whose
-    /// table carries a `severity` and no `enabled` is filtered out here, so the
-    /// severity-only reading downstream never runs for it.
-    pub fn new(cfg: &Config) -> Self {
+    /// Construction runs [`crate::rules::validate_rules`] itself, so an engine
+    /// cannot exist over a config whose rule tables were never checked. This
+    /// used to be a caller obligation that nothing enforced: a library caller
+    /// that skipped it got rules silently filtered out (`is_enabled` reads a
+    /// missing `enabled` as `false`) instead of the error naming the malformed
+    /// table. A config that fails validation now fails here, before anything
+    /// is dispatched.
+    pub fn new(cfg: &Config) -> anyhow::Result<Self> {
+        crate::rules::validate_rules(cfg)?;
         let enabled = |r: &&'static dyn Rule| cfg.is_enabled(r.id());
-        Self {
+        Ok(Self {
             enabled_full: crate::rules::RULES
                 .iter()
                 .copied()
@@ -66,7 +66,7 @@ impl PreparedEngine {
                 .copied()
                 .filter(|r| cfg.is_enabled(r.id()))
                 .collect(),
-        }
+        })
     }
 
     /// Lint an entire `HttpTransaction` against the enabled rule set.
@@ -150,12 +150,21 @@ impl PreparedEngine {
 /// [`PreparedEngine`] for `cfg` and dispatches once. Hot paths (the proxy
 /// pipeline, the offline `lint` subcommand) build a `PreparedEngine` once and
 /// reuse it; this wrapper is for tests and one-off callers.
+///
+/// # Panics
+///
+/// Panics when `cfg` fails rule validation. A one-shot caller has no startup
+/// phase to surface the error in, and a rule table that is malformed must not
+/// degrade into that rule silently not running — callers that need to handle
+/// the error build a [`PreparedEngine`] themselves.
 pub fn lint_transaction(
     tx: &crate::http_transaction::HttpTransaction,
     cfg: &Config,
     state: &crate::state::StateStore,
 ) -> Vec<Violation> {
-    PreparedEngine::new(cfg).lint_transaction(tx, cfg, state)
+    PreparedEngine::new(cfg)
+        .expect("config failed rule validation")
+        .lint_transaction(tx, cfg, state)
 }
 
 #[cfg(test)]
@@ -174,7 +183,7 @@ mod tests {
             "etag_or_last_modified_present", // Server
             "user_agent_present",            // Client (survives into request-only)
         ]);
-        let engine = PreparedEngine::new(&cfg);
+        let engine = PreparedEngine::new(&cfg).unwrap();
 
         assert_eq!(engine.enabled_full.len(), 3);
         assert!(engine.enabled_full.iter().all(|r| cfg.is_enabled(r.id())));
@@ -187,9 +196,38 @@ mod tests {
             .all(|r| !matches!(r.scope(), crate::rules::RuleScope::Server)));
 
         // An empty config enables nothing.
-        let empty = PreparedEngine::new(&Config::default());
+        let empty = PreparedEngine::new(&Config::default()).unwrap();
         assert_eq!(empty.enabled_full.len(), 0);
         assert_eq!(empty.enabled_protocol.len(), 0);
+    }
+
+    #[test]
+    fn construction_rejects_malformed_enabled_rule_config() {
+        // An enabled rule whose table lacks `severity` used to be a lint-time
+        // silence (`parse_rule_config(...).ok()?`); construction now refuses
+        // the config outright.
+        let mut cfg = Config::default();
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        cfg.rules.insert(
+            "cache_control_present".to_string(),
+            toml::Value::Table(table),
+        );
+        let err = PreparedEngine::new(&cfg)
+            .err()
+            .expect("construction must fail")
+            .to_string();
+        assert!(err.contains("severity"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn construction_rejects_unknown_rule_name() {
+        let cfg = make_test_config_with_enabled_rules(&["no_such_rule_zzz"]);
+        let err = PreparedEngine::new(&cfg)
+            .err()
+            .expect("construction must fail")
+            .to_string();
+        assert!(err.contains("does not exist"), "unexpected error: {err}");
     }
 
     #[test]
@@ -200,7 +238,9 @@ mod tests {
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
 
         let via_free = lint_transaction(&tx, &cfg, &state);
-        let via_prepared = PreparedEngine::new(&cfg).lint_transaction(&tx, &cfg, &state);
+        let via_prepared = PreparedEngine::new(&cfg)
+            .unwrap()
+            .lint_transaction(&tx, &cfg, &state);
 
         let ids = |vs: &[Violation]| {
             let mut v: Vec<_> = vs.iter().map(|x| x.rule.clone()).collect();

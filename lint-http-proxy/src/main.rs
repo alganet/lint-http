@@ -299,7 +299,7 @@ async fn lint_app(
     let records = capture::load_capture_records(captures_path).await?;
     let state = state::StateStore::new(cfg.general.ttl_seconds, cfg.general.max_history);
     // Precompute the enabled rule set once, then reuse it across the replay.
-    let engine = engine::PreparedEngine::new(&cfg);
+    let engine = engine::PreparedEngine::new(&cfg)?;
 
     let mut findings = Vec::new();
     let mut tx_count = 0usize;
