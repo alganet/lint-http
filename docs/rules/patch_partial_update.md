@@ -4,7 +4,7 @@ SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
 SPDX-License-Identifier: ISC
 -->
 
-# Semantic Patch Partial Update
+# Patch Partial Update
 
 ## Description
 
@@ -33,7 +33,7 @@ Reports a `PATCH` request that carries content without a `Content-Type` naming t
 ## Configuration
 
 ```toml
-[rules.semantic_patch_partial_update]
+[rules.patch_partial_update]
 enabled = true
 severity = "warn"
 ```

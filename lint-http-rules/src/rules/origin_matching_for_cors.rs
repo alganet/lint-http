@@ -5,11 +5,11 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-pub struct SemanticOriginMatchingForCors;
+pub struct OriginMatchingForCors;
 
-impl Rule for SemanticOriginMatchingForCors {
+impl Rule for OriginMatchingForCors {
     fn id(&self) -> &'static str {
-        "semantic_origin_matching_for_cors"
+        "origin_matching_for_cors"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -193,7 +193,7 @@ impl Rule for SemanticOriginMatchingForCors {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &SemanticOriginMatchingForCors;
+static REGISTRATION: &dyn crate::rules::Rule = &OriginMatchingForCors;
 
 #[cfg(test)]
 mod tests {
@@ -206,7 +206,7 @@ mod tests {
 
     #[rstest]
     fn no_origin_header_ignored() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let tx = make_test_transaction_with_response(200, &[]);
         let v = rule.check_transaction(
             &tx,
@@ -218,7 +218,7 @@ mod tests {
 
     #[rstest]
     fn no_acao_header_ignored() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction();
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
         // response has no ACAO
@@ -232,7 +232,7 @@ mod tests {
 
     #[rstest]
     fn valid_matching_origin_ok() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction_with_response(
             200,
             &[("access-control-allow-origin", "https://example.com")],
@@ -248,7 +248,7 @@ mod tests {
 
     #[rstest]
     fn wildcard_without_credentials_ok() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "*")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
@@ -262,7 +262,7 @@ mod tests {
 
     #[rstest]
     fn wildcard_with_credentials_violation() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction_with_response(
             200,
             &[
@@ -283,7 +283,7 @@ mod tests {
 
     #[rstest]
     fn acao_mismatch_violation() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction_with_response(
             200,
             &[("access-control-allow-origin", "https://other.com")],
@@ -301,7 +301,7 @@ mod tests {
 
     #[rstest]
     fn origin_null_matches_null() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "null")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "null")]);
@@ -315,7 +315,7 @@ mod tests {
 
     #[rstest]
     fn wildcard_with_credentials_case_insensitive_violation() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction_with_response(
             200,
             &[
@@ -336,7 +336,7 @@ mod tests {
 
     #[rstest]
     fn acao_comma_list_violation() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction_with_response(
             200,
             &[("access-control-allow-origin", "https://a, https://b")],
@@ -354,7 +354,7 @@ mod tests {
 
     #[rstest]
     fn multiple_header_fields_violation() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx = make_test_transaction();
         tx.request.headers = make_headers_from_pairs(&[("origin", "https://a")]);
         let mut hdrs = make_headers_from_pairs(&[("access-control-allow-origin", "https://a")]);
@@ -381,7 +381,7 @@ mod tests {
 
     #[rstest]
     fn uppercase_null_origin_is_invalid() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "null")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "NULL")]);
@@ -394,7 +394,7 @@ mod tests {
     }
     #[rstest]
     fn uppercase_null_acao_does_not_match_null_origin() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "NULL")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "null")]);
@@ -408,7 +408,7 @@ mod tests {
     }
     #[rstest]
     fn lowercase_null_matches_null_origin() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "null")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "null")]);
@@ -421,7 +421,7 @@ mod tests {
     }
     #[rstest]
     fn invalid_origin_header_violation() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut tx =
             make_test_transaction_with_response(200, &[("access-control-allow-origin", "*")]);
         tx.request.headers = make_headers_from_pairs(&[("origin", "bad://")]);
@@ -439,21 +439,19 @@ mod tests {
 
     #[test]
     fn scope_is_server() {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
     }
 
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
-        let rule = SemanticOriginMatchingForCors;
+        let rule = OriginMatchingForCors;
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
         table.insert("severity".to_string(), toml::Value::String("warn".into()));
-        cfg.rules.insert(
-            "semantic_origin_matching_for_cors".into(),
-            toml::Value::Table(table),
-        );
+        cfg.rules
+            .insert("origin_matching_for_cors".into(), toml::Value::Table(table));
         rule.validate(&cfg)?;
         Ok(())
     }

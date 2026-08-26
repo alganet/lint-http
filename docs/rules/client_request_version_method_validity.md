@@ -16,7 +16,7 @@ Reports a request that carries content under a method whose definition gives con
 
 **Content, not framing.** Each of the three paragraphs opens "Although request message framing is independent of the method used", so a `Transfer-Encoding` is not by itself content: a chunked request whose first chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured, its octet count is what decides; otherwise the request's own `Content-Length` is.
 
-**Not checked here.** TRACE's §9.3.8 MUST NOT is `semantic_trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it — that is `semantic_options_method_capabilities`'s finding, not this rule's. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id.
+**Not checked here.** TRACE's §9.3.8 MUST NOT is `trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it — that is `options_method_capabilities`'s finding, not this rule's. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id.
 
 ## Specifications
 

@@ -30,7 +30,7 @@ This check applies to server responses (RuleScope::Server).
 ## Configuration
 
 ```toml
-[rules.semantic_origin_matching_for_cors]
+[rules.origin_matching_for_cors]
 enabled = true
 severity = "warn"
 ```

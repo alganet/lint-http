@@ -30,7 +30,7 @@ Reports a TRACE request that carries content, and a TRACE request that carries o
 ## Configuration
 
 ```toml
-[rules.semantic_trace_method_echo]
+[rules.trace_method_echo]
 enabled = true
 severity = "warn"
 ```

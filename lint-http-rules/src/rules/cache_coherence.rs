@@ -16,11 +16,11 @@ use crate::rules::Rule;
 /// that, the `Date` header (RFC 9110 §6.6.1, only the message's origination
 /// time, a coarser proxy).  It examines neither validators such as `ETag` nor the Vary
 /// secondary key, so URI identity is itself an approximation of the cache key.
-pub struct SemanticCacheCoherence;
+pub struct CacheCoherence;
 
-impl Rule for SemanticCacheCoherence {
+impl Rule for CacheCoherence {
     fn id(&self) -> &'static str {
-        "semantic_cache_coherence"
+        "cache_coherence"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -182,7 +182,7 @@ impl Rule for SemanticCacheCoherence {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &SemanticCacheCoherence;
+static REGISTRATION: &dyn crate::rules::Rule = &CacheCoherence;
 
 #[cfg(test)]
 mod tests {
@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn no_violation_without_history() {
-        let rule = SemanticCacheCoherence;
+        let rule = CacheCoherence;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let tx = make_resp_tx(
             "https://example.com/foo",
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn increasing_date_ok() {
-        let rule = SemanticCacheCoherence;
+        let rule = CacheCoherence;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx(
             "https://example.com/foo",
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn out_of_order_date_flagged() {
-        let rule = SemanticCacheCoherence;
+        let rule = CacheCoherence;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx(
             "https://example.com/foo",
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn last_modified_decrease_flagged() {
-        let rule = SemanticCacheCoherence;
+        let rule = CacheCoherence;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx(
             "https://example.com/foo",
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn no_time_headers_no_violation() {
-        let rule = SemanticCacheCoherence;
+        let rule = CacheCoherence;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let prev = make_resp_tx("https://example.com/foo", 200, &[]);
         let mut curr = make_resp_tx("https://example.com/foo", 200, &[]);
@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
-        crate::test_helpers::enable_rule(&mut cfg, "semantic_cache_coherence");
+        crate::test_helpers::enable_rule(&mut cfg, "cache_coherence");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
     }

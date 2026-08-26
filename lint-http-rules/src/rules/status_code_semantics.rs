@@ -5,7 +5,7 @@
 use crate::lint::Violation;
 use crate::rules::Rule;
 
-pub struct SemanticStatusCodeSemantics;
+pub struct StatusCodeSemantics;
 
 /// True when the field's combined value carries at least one non-empty list element.
 ///
@@ -41,9 +41,9 @@ fn carries_a_challenge(headers: &hyper::HeaderMap, name: &str) -> bool {
     })
 }
 
-impl Rule for SemanticStatusCodeSemantics {
+impl Rule for StatusCodeSemantics {
     fn id(&self) -> &'static str {
-        "semantic_status_code_semantics"
+        "status_code_semantics"
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
@@ -281,7 +281,7 @@ impl Rule for SemanticStatusCodeSemantics {
 
 /// Registers this rule into the engine's auto-collected catalogue.
 #[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
-static REGISTRATION: &dyn crate::rules::Rule = &SemanticStatusCodeSemantics;
+static REGISTRATION: &dyn crate::rules::Rule = &StatusCodeSemantics;
 
 #[cfg(test)]
 mod tests {
@@ -289,7 +289,7 @@ mod tests {
     use hyper::header::HeaderValue;
 
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        let rule = SemanticStatusCodeSemantics;
+        let rule = StatusCodeSemantics;
         rule.check_transaction(
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -306,8 +306,8 @@ mod tests {
 
     #[test]
     fn id_and_scope() {
-        let r = SemanticStatusCodeSemantics;
-        assert_eq!(r.id(), "semantic_status_code_semantics");
+        let r = StatusCodeSemantics;
+        assert_eq!(r.id(), "status_code_semantics");
         assert_eq!(r.scope(), crate::rules::RuleScope::Server);
     }
 
@@ -496,7 +496,7 @@ mod tests {
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
         use crate::rules::{Compliance, Rule as _};
-        let rule = SemanticStatusCodeSemantics;
+        let rule = StatusCodeSemantics;
 
         for ex in rule.examples() {
             let mut status = None;
@@ -536,9 +536,8 @@ mod tests {
 
     #[test]
     fn validate_rules_with_valid_config() -> anyhow::Result<()> {
-        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
-            "semantic_status_code_semantics",
-        ]);
+        let cfg =
+            crate::test_helpers::make_test_config_with_enabled_rules(&["status_code_semantics"]);
         crate::rules::validate_rules(&cfg)?;
         Ok(())
     }

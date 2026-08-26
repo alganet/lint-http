@@ -18,7 +18,7 @@ Five status codes name a `Location` header field in their own definition — fou
 
 **`300 Multiple Choices` is not reported.** §15.4.1's SHOULD is conditioned on the server *having* a preferred choice, which no field on the wire records; a 300 that offers alternatives with no preference among them is the status working as defined, and §15.4.1 asks that server for content listing the alternatives rather than for a `Location`.
 
-**`201 Created` is not reported either.** §15.3.2 describes the response without the field rather than discouraging it — with no `Location`, the resource created is the target URI. The one sentence that asks a 201 for the field is §9.3.3's, which is about `POST`; `semantic_post_creates_resource` knows the request method and reports that case.
+**`201 Created` is not reported either.** §15.3.2 describes the response without the field rather than discouraging it — with no `Location`, the resource created is the target URI. The one sentence that asks a 201 for the field is §9.3.3's, which is about `POST`; `post_creates_resource` knows the request method and reports that case.
 
 `304`, the deprecated `305` and `306`, and any unregistered 3xx are not reported: no sentence asks them for the field.
 
@@ -67,7 +67,7 @@ HTTP/1.1 300 Multiple Choices
 Content-Type: text/html
 ```
 
-### ✅ Good 201 with no Location: the resource created is the target URI. A POST that created one is `semantic_post_creates_resource`'s question
+### ✅ Good 201 with no Location: the resource created is the target URI. A POST that created one is `post_creates_resource`'s question
 
 ```http
 HTTP/1.1 201 Created

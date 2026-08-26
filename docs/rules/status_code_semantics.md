@@ -33,7 +33,7 @@ The response status and those two fields are the whole input — whether a chall
 ## Configuration
 
 ```toml
-[rules.semantic_status_code_semantics]
+[rules.status_code_semantics]
 enabled = true
 severity = "warn"
 ```
