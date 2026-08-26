@@ -89,7 +89,6 @@ passthrough_domains = ["example.com"]
 suppress_headers = ["X-Sensitive-Header"]
 
 
-# Client Rules
 [rules.accept_encoding_present]
 enabled = true
 severity = "info"
@@ -126,7 +125,6 @@ severity = "info"
 enabled = true
 severity = "warn"
 
-# Server Rules
 [rules.cache_control_present]
 enabled = true
 severity = "warn"

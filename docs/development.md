@@ -51,11 +51,44 @@ Adding a new lint rule involves several steps.
 
 ### 1. Naming Convention
 
-Rules should be named using `snake_case` and prefixed with their category:
-- Client rules: `client_<name>`
-- Server rules: `server_<name>`
+Rule ids are `snake_case` and carry no category prefix. The file stem, the id
+returned by `id()`, and the `PascalCase` struct name are the same name in three
+spellings — `cache_control_present.rs`, `"cache_control_present"`,
+`CacheControlPresent` — and `build.rs` and the citation store both derive from
+the stem, so they must agree.
 
-Example: `cache_control_present`
+The shape is `<subject>[_<qualifier>]_<predicate>`: name the thing being read,
+then the property asserted about it.
+
+| Meaning | Ending | Example |
+| --- | --- | --- |
+| Conforms to the field's ABNF grammar | `_syntax` | `etag_syntax` |
+| Value acceptable beyond grammar (in range, well-formed, permitted) | `_valid` | `link_header_valid` |
+| Value appears in an IANA registry | `_registered` | `charset_registered` |
+| Field or value must be present | `_present` | `cache_control_present` |
+| Two things must agree | `_consistent` | `conditional_headers_consistent` |
+| A directive must be honoured | `_enforced` | `no_store_enforced` |
+
+`_syntax` and `_valid` are not alternatives to pick between: `_syntax` is
+conformance to the grammar, `_valid` is acceptability past it. A rule checking
+only the grammar takes `_syntax`, never `_syntax_valid`.
+
+Do not bolt a predicate onto an id that names a relation, an event, or a subject
+area rather than a claim — `status_3xx_vs_request_method`, `cookie_lifecycle`,
+`websocket_frame_rsv_bits`, `retry_after_date_or_delay` are correct as they
+stand.
+
+Include `_header` only where the subject is also a common noun and would read as
+one without it (`host_header`, `prefer_header_valid`); leave it out where the
+field name is already unmistakable (`etag_syntax`, `content_type_registered`).
+
+An id must be a valid Rust identifier, because `build.rs` emits `pub mod
+<stem>;`. A rule keyed on a status code therefore takes a `status_` subject
+rather than leading with the number: `status_426_upgrade_valid`.
+
+Renaming an existing rule is a breaking change for every configuration naming
+it, and this catalogue does not alias: `validate_rules` fails at startup on an
+id it does not recognise, pointing the operator at `docs/rules.md`.
 
 ### 2. Implementation
 
@@ -69,7 +102,7 @@ pub struct MyRule;
 
 impl Rule for MyRule {
     fn id(&self) -> &'static str {
-        "category_my_rule_name"
+        "my_rule_name"
     }
 
     fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, previous: Option<&crate::http_transaction::HttpTransaction>, config: &crate::config::Config) -> Option<Violation> {
@@ -104,7 +137,18 @@ Being explicit prevents accidental evaluation on the wrong side and improves rea
 
 ### 3. Registration
 
-Register the new rule in `src/rules/mod.rs` by adding it to the `RULES` list.
+Nothing to edit. `build.rs` lists `src/rules/*.rs` and emits a `pub mod` for each
+stem, and the rule registers itself into the catalogue with a `linkme`
+distributed slice at the bottom of its own file:
+
+```rust
+#[linkme::distributed_slice(crate::rules::REGISTERED_RULES)]
+static REGISTRATION: &dyn crate::rules::Rule = &MyRule;
+```
+
+Use `REGISTERED_PROTOCOL_RULES` and `&dyn ProtocolRule` for a rule that reads
+protocol events rather than transactions. Creating the file is the whole of the
+registration.
 
 ### 4. Testing
 
@@ -114,12 +158,23 @@ You must include unit tests in your rule file covering:
 
 ### 5. Documentation
 
-Create a markdown file in `docs/rules/<rule_name>.md` explaining:
+`docs/rules/<rule_name>.md` and the `docs/rules.md` index are **generated** — do
+not write them by hand. Put the prose on the rule itself, in `description()`,
+`specifications()` and `examples()`, covering:
+
 - What the rule checks.
 - Why it is important (best practice justification).
 - Examples of compliant and non-compliant headers/behavior.
 
-Finally, add a link to your new rule in `docs/rules.md`.
+Then regenerate:
+
+```bash
+cargo run -p lint-http-proxy -- gendocs
+```
+
+The `docs_match_generated` test diffs the checked-in tree against freshly
+rendered output, so a rule whose metadata changed without a regeneration fails
+CI. The index places the rule by its `scope()`, so there is no link to add.
 
 ### 6. Configurable Rules Guidelines
 

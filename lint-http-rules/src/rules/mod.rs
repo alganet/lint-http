@@ -369,17 +369,22 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
     // section under an unknown name used to validate fine and configure
     // nothing — which is a rule the operator believes is on and is not. Both
     // ways of arriving here deserve the error: a typo, and a configuration
-    // that predates a rule rename (this catalogue has had three breaking
-    // renames, decided each time against silent aliasing).
+    // written against ids this catalogue no longer uses. Renames here are
+    // breaking by decision, never aliased, so this is the only place a
+    // configuration hears about one.
+    //
+    // The message names `docs/rules.md` rather than any particular old id. It
+    // used to carry the most recent rename as a worked example, which is a
+    // shape that only survives while renames arrive one at a time; every id in
+    // the catalogue was rewritten at once, and a hint listing 193 pairs is a
+    // document, not an error message.
     for rule_name in config.rules.keys() {
         let known = RULES.iter().any(|r| r.id() == rule_name)
             || PROTOCOL_RULES.iter().any(|r| r.id() == rule_name);
         if !known {
             return Err(anyhow::anyhow!(
-                "Configuration names a rule '{}' that does not exist. Rule ids are listed in \
-                 docs/rules.md; if this configuration predates a rename, update the id \
-                 (most recently, 'client_prefer_header_and_preference_applied' became \
-                 'prefer_header_and_preference_applied')",
+                "Configuration names a rule '{}' that does not exist. Every rule id is listed \
+                 in docs/rules.md",
                 rule_name
             ));
         }
@@ -966,27 +971,30 @@ severity = "warn"
         }
     }
 
-    /// A configured name matching no registered rule fails validation, and the
-    /// error points at the rename that most recently made an id stale. The
-    /// stale id used here is the real one: the rule whose prefix contradicted
-    /// its scope was renamed without an alias (RULECITES P39, the user's
-    /// call), and a deployment carrying the old section must hear about it at
-    /// startup rather than run with the rule silently unconfigured.
+    /// A configured name matching no registered rule fails validation, so a
+    /// deployment carrying a stale section hears about it at startup rather
+    /// than running with the rule silently unconfigured. Renames in this
+    /// catalogue are breaking by decision and never aliased, which is what
+    /// makes this the load-bearing check rather than a courtesy.
+    ///
+    /// Both ids below are invented. The test used to assert on a real id the
+    /// catalogue had just retired, and on the error naming its replacement —
+    /// which tied it to one rename and made it a record of catalogue history.
+    /// What is being tested is that an unregistered name fails, and a name that
+    /// never existed says that without dating the test.
     #[test]
     fn validate_rules_rejects_a_rule_id_that_does_not_exist() {
         let mut cfg = crate::config::Config::default();
-        enable_rule(&mut cfg, "client_prefer_header_and_preference_applied");
+        enable_rule(&mut cfg, "no_such_rule_was_ever_registered");
         let err = validate_rules(&cfg).expect_err("an unknown rule id must fail validation");
         let msg = err.to_string();
         assert!(msg.contains("does not exist"), "{msg}");
-        assert!(
-            msg.contains("'prefer_header_and_preference_applied'"),
-            "{msg}"
-        );
+        assert!(msg.contains("no_such_rule_was_ever_registered"), "{msg}");
+        assert!(msg.contains("docs/rules.md"), "{msg}");
 
-        // A typo is the same failure.
+        // A typo in a real id is the same failure.
         let mut cfg = crate::config::Config::default();
-        enable_rule(&mut cfg, "server_cache_control_presnet");
+        enable_rule(&mut cfg, "cache_control_presnet");
         assert!(validate_rules(&cfg).is_err());
     }
 
