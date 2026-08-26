@@ -279,7 +279,7 @@ mod tests {
 
     /// A captured count of zero outranks a `Content-Length` that claims
     /// otherwise: the octets are what the sentence is about, and the
-    /// disagreement is `message_request_body_length_accuracy`'s finding.
+    /// disagreement is `request_body_length_accuracy`'s finding.
     #[test]
     fn captured_zero_length_outranks_a_declared_length() {
         let rule = PatchPartialUpdate;

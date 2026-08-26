@@ -16,7 +16,7 @@
 //! contents.
 //!
 //! Counted by *what transcribes a production into code* — not by what cites a
-//! WHATWG document, which `message_link_header_validity` also does, for three
+//! WHATWG document, which `link_header_valid` also does, for three
 //! algorithm steps that license a gate and transcribe nothing — the tree holds
 //! **six** such transcriptions, in two rules, from four documents: the URL
 //! Standard's *URL code points* and *URL units*, Infra's *ASCII whitespace*,

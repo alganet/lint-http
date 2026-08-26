@@ -14,7 +14,7 @@ Reports a message context field arriving in the direction it is not defined for:
 
 **This is the placement question, not the value question.** Each of the nine fields has a rule reading its value in the direction it is defined for, and each of those rules correctly declines the other direction — there is no sentence to measure the value against there. That decline is what left the arrival itself unreported: a `Server` field in a request was walked past by every rule in the catalogue.
 
-**`TE` is also a connection-specific field**, so over HTTP/2 and HTTP/3 `message_no_connection_specific_fields` reports its presence in either direction under a different and stronger sentence (RFC 9113 §8.2.2). The two findings answer different questions — that one is about hop-by-hop fields surviving into a multiplexed protocol, this one is about a field defined for the other direction — and only this one exists over HTTP/1.1.
+**`TE` is also a connection-specific field**, so over HTTP/2 and HTTP/3 `no_connection_specific_fields` reports its presence in either direction under a different and stronger sentence (RFC 9113 §8.2.2). The two findings answer different questions — that one is about hop-by-hop fields surviving into a multiplexed protocol, this one is about a field defined for the other direction — and only this one exists over HTTP/1.1.
 
 **Only header sections are read.** A context field in a *trailer* section is a different fault with its own sentences, and `message_trailer_fields_validity` owns them.
 

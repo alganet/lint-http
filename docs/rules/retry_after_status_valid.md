@@ -21,7 +21,7 @@ A `Retry-After` in a **request** is not reported either. §10.2 places the field
 
 The list is what is written down, not a grammar — a future status definition can name the field the way §15.5.14 does, and this rule would have to learn it.
 
-The status the field arrived on is all this rule reads. The value's syntax (`Retry-After = HTTP-date / delay-seconds`) and a repeated `Retry-After` field line belong to `message_retry_after_date_or_delay`, which reports both.
+The status the field arrived on is all this rule reads. The value's syntax (`Retry-After = HTTP-date / delay-seconds`) and a repeated `Retry-After` field line belong to `retry_after_date_or_delay`, which reports both.
 
 ## Specifications
 

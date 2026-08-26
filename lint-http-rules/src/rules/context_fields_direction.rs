@@ -136,7 +136,7 @@ impl Rule for ContextFieldsDirection {
          field in a request was walked past by every rule in the catalogue.\
          \n\n\
          **`TE` is also a connection-specific field**, so over HTTP/2 and HTTP/3 \
-         `message_no_connection_specific_fields` reports its presence in either direction under \
+         `no_connection_specific_fields` reports its presence in either direction under \
          a different and stronger sentence (RFC 9113 §8.2.2). The two findings answer different \
          questions — that one is about hop-by-hop fields surviving into a multiplexed protocol, \
          this one is about a field defined for the other direction — and only this one exists \
