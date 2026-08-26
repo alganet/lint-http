@@ -27,7 +27,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::future::poll_fn;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, Weak};
 use std::task::{Context, Poll};
@@ -229,14 +229,33 @@ impl H3UpstreamClient {
         ));
         client_config.transport_config(Arc::new(transport));
 
-        let bind: SocketAddr = cfg
-            .general
-            .h3_upstream_bind
-            .as_deref()
-            .unwrap_or("0.0.0.0:0")
-            .parse()
-            .map_err(|e| anyhow::anyhow!("h3_upstream_bind: {e}"))?;
-        let mut endpoint = quinn::Endpoint::client(bind)?;
+        // The default binds the IPv6 wildcard, not the IPv4 one, because quinn
+        // makes a v6 endpoint dual-stack on purpose: it clears `only_v6` on the
+        // socket, and maps an IPv4 peer to a v4-mapped address before dialing.
+        // A v4 endpoint has no such reverse path -- it *rejects* a v6 peer
+        // outright -- so binding v4 silently loses every origin whose first
+        // resolved address is AAAA, which on a dual-stack host is most of the
+        // ones worth speaking H3 to.
+        //
+        // A host with IPv6 compiled out cannot bind `[::]` at all, so that case
+        // falls back to the v4 wildcard and `lookup_endpoint` then filters the
+        // resolved addresses to what this endpoint can actually reach.
+        let mut endpoint = match cfg.general.h3_upstream_bind.as_deref() {
+            Some(configured) => {
+                let bind: SocketAddr = configured
+                    .parse()
+                    .map_err(|e| anyhow::anyhow!("h3_upstream_bind: {e}"))?;
+                quinn::Endpoint::client(bind)?
+            }
+            None => match quinn::Endpoint::client(SocketAddr::from((Ipv6Addr::UNSPECIFIED, 0))) {
+                Ok(ep) => ep,
+                Err(e) => {
+                    warn!(error = %e, "h3 upstream: no IPv6 socket; binding IPv4 only, \
+                          IPv6-only origins will not be reachable over H3");
+                    quinn::Endpoint::client(SocketAddr::from((Ipv4Addr::UNSPECIFIED, 0)))?
+                }
+            },
+        };
         endpoint.set_default_client_config(client_config);
 
         // Canonicalize the configured authorities so an operator's intent matches
@@ -408,7 +427,12 @@ impl H3UpstreamClient {
     /// `server_quic_transport_parameters` activation would need a different
     /// source than this path.
     async fn connect(&self, route: &H3Route, shared: &Arc<Shared>) -> anyhow::Result<PooledConn> {
-        let addr = lookup_endpoint(&route.dial_host, route.dial_port).await?;
+        let local_is_ipv6 = self
+            .endpoint
+            .local_addr()
+            .map(|a| a.is_ipv6())
+            .unwrap_or(false);
+        let addr = lookup_endpoint(&route.dial_host, route.dial_port, local_is_ipv6).await?;
         let connection_id = crate::connection::ConnectionMetadata::new_quic(addr).id;
 
         let weak = Arc::downgrade(shared);
@@ -738,12 +762,47 @@ fn pre_request(error: anyhow::Error, request: Request<ClientBody>) -> H3Failure 
     }
 }
 
-/// Resolve `host:port` to a socket address for dialing the QUIC endpoint.
-async fn lookup_endpoint(host: &str, port: u16) -> anyhow::Result<SocketAddr> {
-    tokio::net::lookup_host((host, port))
-        .await?
-        .next()
-        .ok_or_else(|| anyhow::anyhow!("h3 upstream: could not resolve {host}:{port}"))
+/// Resolve `host:port` to a socket address this endpoint can actually dial.
+///
+/// `local_is_ipv6` is the family of the bound QUIC endpoint. A v6 endpoint is
+/// dual-stack (quinn clears `only_v6` and v4-maps the peer), so it can reach
+/// every resolved address and the first one wins. A v4 endpoint cannot reach a
+/// v6 peer at all -- quinn rejects it with `InvalidRemoteAddress` -- so the v6
+/// results are skipped rather than dialed and failed.
+///
+/// Taking the first address unconditionally is what made the whole H3 upstream
+/// leg unusable on a dual-stack host: resolution routinely returns AAAA first,
+/// and every such origin fell back to H1/H2 with only a warning to show for it.
+fn select_endpoint_addr<I>(
+    addrs: I,
+    local_is_ipv6: bool,
+    host: &str,
+    port: u16,
+) -> anyhow::Result<SocketAddr>
+where
+    I: IntoIterator<Item = SocketAddr>,
+{
+    let mut saw_unreachable = false;
+    for addr in addrs {
+        if local_is_ipv6 || addr.is_ipv4() {
+            return Ok(addr);
+        }
+        saw_unreachable = true;
+    }
+    if saw_unreachable {
+        anyhow::bail!(
+            "h3 upstream: {host}:{port} resolves only to IPv6 addresses, \
+             which the IPv4 h3_upstream_bind cannot reach"
+        );
+    }
+    anyhow::bail!("h3 upstream: could not resolve {host}:{port}")
+}
+
+/// Resolve `host:port` to a socket address for dialing the QUIC endpoint,
+/// filtered to what `local_is_ipv6` can reach (see [`select_endpoint_addr`]).
+async fn lookup_endpoint(host: &str, port: u16, local_is_ipv6: bool) -> anyhow::Result<SocketAddr> {
+    let addrs = tokio::net::lookup_host((host, port)).await?;
+    select_endpoint_addr(addrs, local_is_ipv6, host, port)
 }
 
 /// Split an `host[:port]` authority into its bracket-stripped host and port,
@@ -994,6 +1053,101 @@ mod tests {
         H3UpstreamClient::build(&cfg, &roots)
             .expect("build h3 client")
             .expect("h3 client is Some when enabled")
+    }
+
+    const V4: SocketAddr =
+        SocketAddr::new(std::net::IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34)), 443);
+    const V6: SocketAddr = SocketAddr::new(
+        std::net::IpAddr::V6(Ipv6Addr::new(0x2606, 0x4700, 0, 0, 0, 0, 0x6810, 0x7c60)),
+        443,
+    );
+
+    /// The regression this whole family-awareness exists for: resolution puts an
+    /// AAAA first for most H3-capable origins, and the dual-stack endpoint must
+    /// dial it rather than skip past it.
+    #[test]
+    fn ipv6_endpoint_dials_an_ipv6_first_result() {
+        let got = select_endpoint_addr([V6, V4], true, "origin.example", 443)
+            .expect("dual-stack endpoint reaches a v6 origin");
+        assert_eq!(got, V6);
+    }
+
+    #[test]
+    fn ipv6_endpoint_also_dials_ipv4_only_origins() {
+        let got = select_endpoint_addr([V4], true, "origin.example", 443)
+            .expect("quinn v4-maps an IPv4 peer on a dual-stack endpoint");
+        assert_eq!(got, V4);
+    }
+
+    /// A v4 endpoint cannot reach a v6 peer -- quinn rejects it outright -- so
+    /// the v6 result is skipped instead of dialed and failed.
+    #[test]
+    fn ipv4_endpoint_skips_ipv6_results() {
+        let got = select_endpoint_addr([V6, V4], false, "origin.example", 443)
+            .expect("v4 endpoint falls through to the A record");
+        assert_eq!(got, V4);
+    }
+
+    /// And when skipping leaves nothing, the error names the real cause rather
+    /// than surfacing quinn's opaque "invalid remote address".
+    #[test]
+    fn ipv4_endpoint_reports_an_ipv6_only_origin_clearly() {
+        let err = select_endpoint_addr([V6], false, "origin.example", 443)
+            .expect_err("v4 endpoint cannot reach a v6-only origin");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("resolves only to IPv6"),
+            "error should name the address-family mismatch, got: {msg}"
+        );
+        assert!(
+            msg.contains("origin.example"),
+            "error should name the origin"
+        );
+    }
+
+    #[test]
+    fn empty_resolution_is_distinct_from_a_family_mismatch() {
+        let err =
+            select_endpoint_addr([], false, "origin.example", 443).expect_err("nothing resolved");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("could not resolve"),
+            "empty resolution keeps its own message, got: {msg}"
+        );
+    }
+
+    /// The default bind must be the IPv6 wildcard: quinn makes a v6 endpoint
+    /// dual-stack, while a v4 one rejects every v6 peer. Binding v4 by default
+    /// is what made the upstream leg unusable on a dual-stack host.
+    #[tokio::test]
+    async fn default_bind_is_dual_stack() {
+        let client = test_client(30);
+        let local = client
+            .endpoint
+            .local_addr()
+            .expect("client endpoint is bound");
+        assert!(
+            local.is_ipv6(),
+            "default h3_upstream_bind should be the IPv6 wildcard, got {local}"
+        );
+    }
+
+    /// An explicit bind is still honoured verbatim, so an operator can pin the
+    /// leg to a v4 source address.
+    #[tokio::test]
+    async fn configured_bind_is_honoured() {
+        let mut cfg = Config::default();
+        cfg.general.h3_upstream_enabled = true;
+        cfg.general.h3_upstream_bind = Some("127.0.0.1:0".to_string());
+        let roots = rustls::RootCertStore::empty();
+        let client = H3UpstreamClient::build(&cfg, &roots)
+            .expect("build h3 client")
+            .expect("h3 client is Some when enabled");
+        let local = client.endpoint.local_addr().expect("bound");
+        assert!(
+            local.is_ipv4(),
+            "configured v4 bind should win, got {local}"
+        );
     }
 
     #[tokio::test]

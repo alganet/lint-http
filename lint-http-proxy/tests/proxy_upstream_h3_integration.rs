@@ -12,7 +12,7 @@
 //! field discipline (a connection-specific field is stripped before it reaches
 //! the origin).
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -411,6 +411,63 @@ async fn upstream_h3_connect_failure_falls_back_to_h1() -> anyhow::Result<()> {
 
     proxy_handle.abort();
     let _ = tokio::fs::remove_file(&captures_path).await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn upstream_h3_reaches_an_ipv6_origin() -> anyhow::Result<()> {
+    // An origin reachable only over IPv6 is the ordinary case on the real web:
+    // resolution usually sorts AAAA first, so the address the leg dials is a v6
+    // one. A QUIC endpoint bound to the IPv4 wildcard *rejects* such a peer
+    // outright, and the leg then falls back to H1/H2 with only a warning — which
+    // made the whole H3 upstream path unusable on a dual-stack host. Binding the
+    // IPv6 wildcard by default is what fixes it, and this asserts the end-to-end
+    // consequence rather than the binding.
+    use rcgen::SanType;
+
+    let Ok(udp) = std::net::UdpSocket::bind("[::1]:0") else {
+        eprintln!("skipping: host has no IPv6 loopback");
+        return Ok(());
+    };
+
+    let pki = gen_test_pki_san(SanType::IpAddress(IpAddr::V6(Ipv6Addr::LOCALHOST)))?;
+    let ca_pem_path =
+        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
+
+    let (origin_addr, _captured, origin_task) = start_h3_origin(&pki, udp)?;
+    let authority = format!("[::1]:{}", origin_addr.port());
+
+    let mut cfg = Config::default();
+    cfg.general.h3_upstream_enabled = true;
+    cfg.general.h3_upstream_authorities = vec![authority.clone()];
+    cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
+    cfg.general.h3_upstream_connect_timeout_ms = 3000;
+    // Left as None on purpose: this asserts the *default* bind is dual-stack.
+    assert!(cfg.general.h3_upstream_bind.is_none());
+
+    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let (status, headers, body) = proxy_get(proxy_addr, &authority, "/v6", &[]).await?;
+    assert_eq!(status, 200, "the v6 origin should be reached over H3");
+    assert_eq!(body, b"world");
+    assert!(
+        headers.iter().any(|(k, v)| k == "x-origin" && v == "h3"),
+        "the response should come from the H3 origin, not a fall-back"
+    );
+
+    let caps = read_captures(&captures_path).await?;
+    assert_eq!(
+        caps[0]["response"]["version"].as_str(),
+        Some("HTTP/3.0"),
+        "the capture must record the origin leg as H3; HTTP/1.1 here means the \
+         v6 peer was rejected and the request silently fell back"
+    );
+
+    proxy_handle.abort();
+    origin_task.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
