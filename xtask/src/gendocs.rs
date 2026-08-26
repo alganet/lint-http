@@ -4,23 +4,25 @@
 
 //! Documentation generator: renders `docs/rules/<id>.md` and the
 //! `docs/rules.md` index from rule metadata
-//! ([`Rule::description`](crate::rules::Rule::description),
-//! [`specifications`](crate::rules::Rule::specifications),
-//! [`examples`](crate::rules::Rule::examples),
-//! [`title`](crate::rules::Rule::title)) plus the per-rule `[rules.<id>]`
-//! section pulled from `config_example.toml`.
+//! ([`Rule::description`](lint_http_rules::rules::Rule::description),
+//! [`specifications`](lint_http_rules::rules::Rule::specifications),
+//! [`examples`](lint_http_rules::rules::Rule::examples),
+//! [`title`](lint_http_rules::rules::Rule::title)) plus the per-rule
+//! `[rules.<id>]` section pulled from `config_example.toml`.
 //!
 //! The render functions are pure and deterministic so the #11d CI gate
 //! (`docs_match_generated` test) can diff regenerated output against the
 //! checked-in docs.
 
-use crate::rules::{Compliance, Example, ProtocolRule, Rule, RuleScope, SpecRef};
+use lint_http_rules::rules::{
+    Compliance, Example, ProtocolRule, Rule, RuleScope, SpecRef, PROTOCOL_RULES, RULES,
+};
 use std::path::{Path, PathBuf};
 
 /// The workspace root, derived from this crate's manifest dir. `config_example.toml`
 /// and the `docs/` tree live there, so reads are anchored here rather than to the
 /// process CWD (which varies between `cargo run` at the root and `cargo test -p`).
-fn repo_root() -> PathBuf {
+pub fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("crate manifest dir has a parent (the workspace root)")
@@ -228,15 +230,15 @@ pub fn config_block_for(id: &str, config_toml: &str) -> Option<String> {
 
 /// Render every rule to disk under `out_dir`: `<out_dir>/rules/<id>.md` per
 /// rule plus `<out_dir>/rules.md`. Configuration sections are sourced from
-/// `config_example.toml` (read from the current working directory — the repo
-/// root). Creates directories as needed.
+/// [`repo_root`]`/config_example.toml`, never from the working directory.
+/// Creates directories as needed.
 pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
     let rules_dir = out_dir.join("rules");
     std::fs::create_dir_all(&rules_dir)?;
 
     let config_toml = std::fs::read_to_string(repo_root().join("config_example.toml"))?;
 
-    for rule in crate::rules::RULES.iter() {
+    for rule in RULES.iter() {
         let doc = render_doc(
             rule.id(),
             rule.title(),
@@ -247,7 +249,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
         );
         std::fs::write(rules_dir.join(format!("{}.md", rule.id())), doc)?;
     }
-    for rule in crate::rules::PROTOCOL_RULES.iter() {
+    for rule in PROTOCOL_RULES.iter() {
         let doc = render_doc(
             rule.id(),
             rule.title(),
@@ -259,7 +261,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
         std::fs::write(rules_dir.join(format!("{}.md", rule.id())), doc)?;
     }
 
-    let index = render_index(&crate::rules::RULES, &crate::rules::PROTOCOL_RULES);
+    let index = render_index(&RULES, &PROTOCOL_RULES);
     std::fs::write(out_dir.join("rules.md"), index)?;
     Ok(())
 }
@@ -267,6 +269,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lint_http_rules::rules::REGISTERED_RULES;
 
     #[test]
     fn title_from_id_capitalizes_each_word() {
@@ -360,7 +363,7 @@ mod tests {
                 config_block_for(id, &config_toml).as_deref(),
             )
         };
-        for rule in crate::rules::RULES.iter() {
+        for rule in RULES.iter() {
             let doc = render(
                 rule.id(),
                 rule.title(),
@@ -379,7 +382,7 @@ mod tests {
                 rule.id()
             );
         }
-        for rule in crate::rules::PROTOCOL_RULES.iter() {
+        for rule in PROTOCOL_RULES.iter() {
             let doc = render(
                 rule.id(),
                 rule.title(),
@@ -416,9 +419,9 @@ mod tests {
     /// both, which a `contains` check on its own would not.
     #[test]
     fn render_index_mentions_every_rule() {
-        let index = render_index(&crate::rules::RULES, &crate::rules::PROTOCOL_RULES);
+        let index = render_index(&RULES, &PROTOCOL_RULES);
         assert!(index.contains("# Lint Rules"));
-        for rule in crate::rules::RULES.iter() {
+        for rule in RULES.iter() {
             assert_eq!(
                 index
                     .matches(&format!("[{0}](rules/{0}.md)", rule.id()))
@@ -428,7 +431,7 @@ mod tests {
                 rule.id()
             );
         }
-        for rule in crate::rules::PROTOCOL_RULES.iter() {
+        for rule in PROTOCOL_RULES.iter() {
             assert!(
                 index.contains(&format!("[{0}](rules/{0}.md)", rule.id())),
                 "index missing protocol rule {}",
@@ -443,7 +446,7 @@ mod tests {
         write_all(&dir).expect("write_all should succeed");
 
         assert!(dir.join("rules.md").is_file());
-        let first = crate::rules::RULES.first().expect("catalogue is non-empty");
+        let first = RULES.first().expect("catalogue is non-empty");
         assert!(dir
             .join("rules")
             .join(format!("{}.md", first.id()))
@@ -526,10 +529,10 @@ mod tests {
                 }
             }
         };
-        for rule in crate::rules::RULES.iter() {
+        for rule in RULES.iter() {
             check(rule.id(), rule.specifications());
         }
-        for rule in crate::rules::PROTOCOL_RULES.iter() {
+        for rule in PROTOCOL_RULES.iter() {
             check(rule.id(), rule.specifications());
         }
     }
@@ -538,8 +541,21 @@ mod tests {
     /// `gendocs` regenerates from rule metadata. This makes the docs a verified
     /// generated artifact — editing a rule (or `config_example.toml`) without
     /// regenerating fails CI. Run `cargo xtask gendocs` to fix drift.
+    ///
+    /// The gate is a loop over `RULES`, so an empty catalogue would satisfy it
+    /// over nothing at all — and the catalogue reaches this crate across an rlib
+    /// boundary, which is exactly where linkme can come up empty. The floor
+    /// assertion is what keeps a link failure from reading as 194 files in
+    /// agreement; `catalogue_collected_in_xtask_link_config` in `main.rs` says
+    /// the same thing where a reader will look for it.
     #[test]
     fn docs_match_generated() {
+        assert_eq!(RULES.len(), REGISTERED_RULES.len());
+        assert!(
+            !RULES.is_empty(),
+            "catalogue did not collect in the xtask link config — this gate would pass vacuously",
+        );
+
         let root = repo_root();
         let config_toml =
             std::fs::read_to_string(root.join("config_example.toml")).expect("config_example.toml");
@@ -553,7 +569,7 @@ mod tests {
                 id
             );
         };
-        for rule in crate::rules::RULES.iter() {
+        for rule in RULES.iter() {
             check(
                 rule.id(),
                 render_doc(
@@ -566,7 +582,7 @@ mod tests {
                 ),
             );
         }
-        for rule in crate::rules::PROTOCOL_RULES.iter() {
+        for rule in PROTOCOL_RULES.iter() {
             check(
                 rule.id(),
                 render_doc(
@@ -579,7 +595,7 @@ mod tests {
                 ),
             );
         }
-        let index = render_index(&crate::rules::RULES, &crate::rules::PROTOCOL_RULES);
+        let index = render_index(&RULES, &PROTOCOL_RULES);
         let on_disk = std::fs::read_to_string(root.join("docs/rules.md")).expect("docs/rules.md");
         assert!(
             on_disk == index,
