@@ -23,8 +23,6 @@ subcommand using the `--config` CLI argument.
   catalogue. With `--config`, each rule is additionally annotated with whether
   that config enables it (an `enabled`/`disabled` text column, an `enabled`
   JSON field).
-- `gendocs [--out <DIR>]`: Regenerate the per-rule docs (`rules.md` index +
-  `rules/<id>.md`) from rule metadata under `<DIR>` (default `docs`).
 - `-h, --help`: Print help (works on the binary and on each subcommand)
 - `-V, --version`: Print version
 

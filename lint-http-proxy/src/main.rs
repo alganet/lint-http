@@ -5,9 +5,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
-use lint_http::{
-    capture, config, engine, gendocs, lint, protocol_event_store, proxy, rules, state,
-};
+use lint_http::{capture, config, engine, lint, protocol_event_store, proxy, rules, state};
 
 #[derive(Parser, Debug)]
 #[command(name = "lint-http", version, about = "HTTP-linting forward proxy")]
@@ -29,8 +27,6 @@ enum Command {
     Lint(LintArgs),
     /// Inspect the rule catalogue.
     Rules(RulesArgs),
-    /// Regenerate the rule documentation under <out>/ from rule metadata.
-    Gendocs(GendocsArgs),
 }
 
 #[derive(clap::Args, Debug)]
@@ -103,13 +99,6 @@ struct RulesListArgs {
 enum OutputFormat {
     Text,
     Json,
-}
-
-#[derive(clap::Args, Debug)]
-struct GendocsArgs {
-    /// Output directory; `rules.md` and `rules/<id>.md` are written under it.
-    #[arg(long, default_value = "docs")]
-    out: std::path::PathBuf,
 }
 
 /// Load the config and validate every enabled rule's section, failing fast on a
@@ -527,11 +516,6 @@ async fn dispatch(cli: Cli) -> anyhow::Result<u8> {
                 Ok(0)
             }
         },
-        Some(Command::Gendocs(args)) => {
-            gendocs::write_all(&args.out)?;
-            eprintln!("Wrote rule docs to {}", args.out.display());
-            Ok(0)
-        }
         // No subcommand: accept a bare `--config` as a deprecated alias for
         // `run`, otherwise point the user at the new form.
         None => {
@@ -1155,17 +1139,6 @@ severity = "warn"
     }
 
     #[test]
-    fn cli_gendocs_parses_out() {
-        let cli = Cli::parse_from(["lint-http", "gendocs", "--out", "/tmp/x"]);
-        match cli.command {
-            Some(Command::Gendocs(args)) => {
-                assert_eq!(args.out, std::path::PathBuf::from("/tmp/x"))
-            }
-            other => panic!("expected Gendocs, got {other:?}"),
-        }
-    }
-
-    #[test]
     fn scope_label_covers_all_variants() {
         assert_eq!(scope_label(rules::RuleScope::Client), "client");
         assert_eq!(scope_label(rules::RuleScope::Server), "server");
@@ -1263,18 +1236,6 @@ severity = "warn"
     async fn dispatch_rules_list_returns_0() -> anyhow::Result<()> {
         let cli = Cli::parse_from(["lint-http", "rules", "list"]);
         assert_eq!(dispatch(cli).await?, 0);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn dispatch_gendocs_writes_and_returns_0() -> anyhow::Result<()> {
-        let out = std::env::temp_dir().join(format!("lint_gendocs_{}", Uuid::new_v4()));
-        let cli = Cli::parse_from(["lint-http", "gendocs", "--out", out.to_str().unwrap()]);
-        assert_eq!(dispatch(cli).await?, 0);
-        // gendocs writes the index + per-rule files under <out>/.
-        assert!(out.join("rules.md").exists());
-        assert!(out.join("rules").is_dir());
-        let _ = fs::remove_dir_all(&out).await;
         Ok(())
     }
 

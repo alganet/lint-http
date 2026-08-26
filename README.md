@@ -80,8 +80,9 @@ lint-http rules list                 # human-readable: id, scope, title
 lint-http rules list --format json   # full metadata (description, spec refs) for tooling
 ```
 
-Regenerate the per-rule documentation from rule metadata with
-`lint-http gendocs [--out docs]`.
+The per-rule pages under `docs/rules/` are generated from that same metadata.
+Regenerating them is a repository task rather than something the binary does —
+see `docs/development.md`.
 
 ## Lint recorded captures (CI)
 
