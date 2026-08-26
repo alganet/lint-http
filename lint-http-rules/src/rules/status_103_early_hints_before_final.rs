@@ -212,7 +212,8 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        Status103EarlyHintsBeforeFinal.check_transaction(
+        crate::test_helpers::run_rule(
+            &Status103EarlyHintsBeforeFinal,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
@@ -272,7 +273,8 @@ mod tests {
         prev.request.uri = "/resource".to_string();
 
         let tx = tx_with(103, "HTTP/1.1");
-        let with_history = Status103EarlyHintsBeforeFinal.check_transaction(
+        let with_history = crate::test_helpers::run_rule(
+            &Status103EarlyHintsBeforeFinal,
             &tx,
             &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &cfg(),

@@ -564,7 +564,8 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        WebsocketHandshakeValid.check_transaction(
+        crate::test_helpers::run_rule(
+            &WebsocketHandshakeValid,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[

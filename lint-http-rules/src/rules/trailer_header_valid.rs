@@ -289,7 +289,8 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        TrailerHeaderValid.check_transaction(
+        crate::test_helpers::run_rule(
+            &TrailerHeaderValid,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
@@ -562,7 +563,8 @@ mod tests {
                 );
             }
             tx.response.as_mut().unwrap().trailers = Some(trailers);
-            let v = owner.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &owner,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &owner_cfg,

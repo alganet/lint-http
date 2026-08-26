@@ -219,7 +219,8 @@ mod tests {
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = TraceMethodEcho;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -386,13 +387,13 @@ mod tests {
             .iter()
             .find(|r| r.id() == "content_type_present")
             .expect("the neighbour is registered");
-        assert!(neighbour
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[neighbour.id()]),
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            *neighbour,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[neighbour.id()]),
+        )
+        .is_some());
     }
 
     /// Every published snippet is run through the rule.

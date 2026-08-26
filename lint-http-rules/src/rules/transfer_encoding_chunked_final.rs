@@ -331,7 +331,8 @@ mod tests {
             value,
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -351,7 +352,8 @@ mod tests {
 
         let tx = crate::test_helpers::make_test_transaction();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -376,7 +378,8 @@ mod tests {
             &[("transfer-encoding", value)],
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -404,7 +407,8 @@ mod tests {
             value,
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -425,7 +429,8 @@ mod tests {
             "chunked",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -477,7 +482,8 @@ mod tests {
                 tx.request.headers = headers;
             }
 
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -522,7 +528,8 @@ mod tests {
             value,
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -551,7 +558,8 @@ mod tests {
         );
         tx.request.method = method.to_string();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -570,7 +578,8 @@ mod tests {
         )]);
         tx.request.method = "HEAD".to_string();
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -591,7 +600,8 @@ mod tests {
             ],
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -611,7 +621,8 @@ mod tests {
             ("transfer-encoding", "chunked"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -632,7 +643,8 @@ mod tests {
             &[("transfer-encoding", te), ("connection", "close")],
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -661,7 +673,8 @@ mod tests {
                 ("connection", b"close\xA0".as_slice()),
             ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -682,7 +695,8 @@ mod tests {
             b"chunked\xA0".as_slice(),
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -710,7 +724,8 @@ mod tests {
             ],
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -728,7 +743,8 @@ mod tests {
             ("connection", "close"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -746,7 +762,8 @@ mod tests {
             ("transfer-encoding", "gzip"),
         ]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -774,7 +791,8 @@ mod tests {
         );
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -800,7 +818,8 @@ mod tests {
             value,
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -818,7 +837,8 @@ mod tests {
             "gzip;ext=\"a,b\", chunked",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -837,7 +857,8 @@ mod tests {
             "chunked;ext=\"a, gzip",
         )]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

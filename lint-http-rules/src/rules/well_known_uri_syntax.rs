@@ -421,7 +421,8 @@ mod tests {
         tx.request.uri = uri.into();
         let config =
             crate::test_helpers::make_test_config_with_severity("well_known_uri_syntax", "warn");
-        WellKnownUriSyntax.check_transaction(
+        crate::test_helpers::run_rule(
+            &WellKnownUriSyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,

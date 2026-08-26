@@ -654,7 +654,8 @@ mod tests {
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
-        ServerTimingHeaderSyntax.check_transaction(
+        crate::test_helpers::run_rule(
+            &ServerTimingHeaderSyntax,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[

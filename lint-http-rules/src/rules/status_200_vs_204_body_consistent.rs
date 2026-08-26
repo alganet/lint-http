@@ -284,7 +284,8 @@ mod tests {
 
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -317,7 +318,8 @@ mod tests {
         let rule = Status200Vs204BodyConsistent;
         let tx = crate::test_helpers::make_test_transaction();
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -331,13 +333,13 @@ mod tests {
         let rule = Status200Vs204BodyConsistent;
         let tx = make_tx_with_response(200, "GET", &[("content-length", "0")]);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("expected violation");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("expected violation");
         assert!(v.message.contains("Content-Length: 0"));
         Ok(())
     }
@@ -351,13 +353,13 @@ mod tests {
             resp.body_length = Some(0);
         }
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("expected violation");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("expected violation");
         assert!(v.message.contains("captured length 0"));
         Ok(())
     }
@@ -444,7 +446,8 @@ mod tests {
         let mut saw_a_finding = false;
 
         for ex in rule.examples() {
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx_from_snippet(ex.snippet),
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -486,7 +489,8 @@ mod tests {
         });
 
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

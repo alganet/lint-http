@@ -589,7 +589,8 @@ mod tests {
             );
         }
         tx.request.headers = hm;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -607,7 +608,8 @@ mod tests {
         let mut hm = hyper::HeaderMap::new();
         hm.append("te", HeaderValue::from_bytes(te).expect("field value"));
         tx.response.as_mut().expect("response").headers = hm;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -862,7 +864,8 @@ mod tests {
         resp.version = version.to_string();
         resp.headers = crate::test_helpers::make_headers_from_pairs(&[("te", "trailers")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -887,7 +890,8 @@ mod tests {
         resp.version = response_version.to_string();
         resp.headers = crate::test_helpers::make_headers_from_pairs(&[("te", "trailers")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -899,7 +903,8 @@ mod tests {
     fn a_response_without_te_is_not_a_finding() {
         let rule = TeHeaderValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -963,7 +968,8 @@ mod tests {
                     );
                 }
                 resp.headers = hm;
-                rule.check_transaction(
+                crate::test_helpers::run_rule(
+                    &rule,
                     &tx,
                     &crate::transaction_history::TransactionHistory::empty(),
                     &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -1052,7 +1058,8 @@ mod tests {
                 }
                 let mut tx = crate::test_helpers::make_test_transaction();
                 tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("te", value)]);
-                let found = owner.check_transaction(
+                let found = crate::test_helpers::run_rule(
+                    &owner,
                     &tx,
                     &crate::transaction_history::TransactionHistory::empty(),
                     &cfg,

@@ -411,7 +411,8 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
         );
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -476,7 +477,8 @@ mod tests {
             200,
             &[("x-struct", "\"unterminated")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -860,7 +862,8 @@ mod tests {
             tx.response.as_mut().unwrap().headers =
                 crate::test_helpers::make_headers_from_pairs(&pairs);
 
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -906,7 +909,8 @@ mod tests {
             hyper::header::HeaderValue::from_static("\"unterminated"),
         );
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -932,7 +936,8 @@ mod tests {
         if let Some(resp) = &mut tx.response {
             resp.headers = rh;
         }
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1203,7 +1208,8 @@ mod tests {
         hm.append("x-struct", hyper::header::HeaderValue::from_static("\"foo"));
         hm.append("x-struct", hyper::header::HeaderValue::from_static("bar\""));
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1226,7 +1232,8 @@ mod tests {
             hyper::header::HeaderValue::from_static("BadKey=2"),
         );
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -1242,13 +1249,13 @@ mod tests {
             200,
             &[("x-struct", "\"unterminated")],
         );
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("should report");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("should report");
         assert!(
             v.message.contains("discards the whole field"),
             "{}",
@@ -1274,13 +1281,13 @@ mod tests {
             hyper::header::HeaderValue::from_bytes("caf\u{e9}".as_bytes()).unwrap(),
         );
         tx.request.headers = hm;
-        let v = rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("should report");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("should report");
         assert!(v.message.contains("outside ASCII"), "{}", v.message);
         assert!(!v.message.contains("UTF-8"), "{}", v.message);
     }

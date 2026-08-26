@@ -171,7 +171,8 @@ mod tests {
                 crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", v)]);
         }
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -204,7 +205,8 @@ mod tests {
             "sec_fetch_site_value_valid",
         ]);
         // get_header_str will return None for non-utf8 and this rule treats non-UTF8 as violation
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -224,7 +226,8 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", "b@d")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -245,7 +248,8 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("sec-fetch-site", " same-origin ")]);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -273,7 +277,8 @@ mod tests {
         tx.request.headers = hm;
 
         // Multiple header fields are always a violation (potential header injection)
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -303,7 +308,8 @@ mod tests {
         hm.append("sec-fetch-site", HeaderValue::from_static("bad2"));
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -330,7 +336,8 @@ mod tests {
         hm.append("sec-fetch-site", HeaderValue::from_static("cross-site"));
         tx.request.headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

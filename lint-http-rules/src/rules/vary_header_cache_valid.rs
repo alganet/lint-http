@@ -293,15 +293,13 @@ mod tests {
         let rule = VaryHeaderCacheValid;
         let tx = make_tx_with_req("https://example.com/foo");
         let history = crate::transaction_history::TransactionHistory::empty();
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "vary_header_cache_valid"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -323,15 +321,13 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "vary_header_cache_valid"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
+        )
+        .is_none());
     }
 
     /// The two ways the walk this rule used to hold could not read its `Vary`.
@@ -360,7 +356,8 @@ mod tests {
             ]);
             let history =
                 crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-            VaryHeaderCacheValid.check_transaction(
+            crate::test_helpers::run_rule(
+                &VaryHeaderCacheValid,
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -412,7 +409,8 @@ mod tests {
             }
             let history =
                 crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-            VaryHeaderCacheValid.check_transaction(
+            crate::test_helpers::run_rule(
+                &VaryHeaderCacheValid,
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -485,7 +483,8 @@ mod tests {
             }
             let history =
                 crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-            VaryHeaderCacheValid.check_transaction(
+            crate::test_helpers::run_rule(
+                &VaryHeaderCacheValid,
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -529,7 +528,8 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
@@ -561,15 +561,13 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "vary_header_cache_valid"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -587,15 +585,13 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "vary_header_cache_valid"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -612,15 +608,13 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "vary_header_cache_valid"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -642,7 +636,8 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
@@ -670,7 +665,8 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
@@ -705,7 +701,8 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
@@ -732,7 +729,8 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
@@ -759,15 +757,13 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &history,
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                    "vary_header_cache_valid"
-                ]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
+        )
+        .is_none());
     }
 
     #[test]
@@ -789,7 +785,8 @@ mod tests {
         ]);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![past]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),
@@ -833,7 +830,8 @@ mod tests {
         // newest-first: later matching entry (good) must come first
         let history =
             crate::transaction_history::TransactionHistory::from_transactions(vec![good, old]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_cache_valid"]),

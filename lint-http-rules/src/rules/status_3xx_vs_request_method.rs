@@ -232,7 +232,8 @@ mod tests {
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = Status3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -361,13 +362,13 @@ mod tests {
     fn the_configured_severity_is_carried() {
         let rule = Status3xxVsRequestMethod;
         let cfg = crate::test_helpers::make_test_config_with_severity(rule.id(), "error");
-        let v = rule
-            .check_transaction(
-                &exchange("POST", 302, Some("/new")),
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .expect("expected a finding");
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &exchange("POST", 302, Some("/new")),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("expected a finding");
         assert_eq!(v.severity, crate::lint::Severity::Error);
     }
 

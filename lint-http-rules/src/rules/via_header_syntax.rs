@@ -608,17 +608,15 @@ mod tests {
 
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers = headers(&[("via", "1.1 example.com")]);
-        assert!(rule.check_transaction(&tx, &history, &cfg).is_none());
+        assert!(crate::test_helpers::run_rule(&rule, &tx, &history, &cfg).is_none());
 
         tx.request.headers = headers(&[("via", "1.1")]);
-        let v = rule
-            .check_transaction(&tx, &history, &cfg)
+        let v = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg)
             .expect("the request field is judged");
         assert!(v.message.starts_with("Request Via header:"), "{v:?}");
 
         let tx = crate::test_helpers::make_test_transaction_with_response(200, &[("via", "1.1")]);
-        let v = rule
-            .check_transaction(&tx, &history, &cfg)
+        let v = crate::test_helpers::run_rule(&rule, &tx, &history, &cfg)
             .expect("the response field is judged");
         assert!(v.message.starts_with("Response Via header:"), "{v:?}");
         Ok(())

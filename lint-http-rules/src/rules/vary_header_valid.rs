@@ -185,7 +185,8 @@ mod tests {
 
         let config = crate::test_helpers::make_test_config_with_severity(rule.id(), "warn");
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &config,
@@ -211,7 +212,8 @@ mod tests {
             &[("vary", "Accept-Encoding"), ("vary", "User-Agent")],
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -230,7 +232,8 @@ mod tests {
             &[("vary", "*"), ("vary", "Accept-Encoding")],
         );
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -257,7 +260,8 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -286,7 +290,8 @@ mod tests {
     fn no_response_returns_none() {
         let rule = VaryHeaderValid;
         let tx = crate::test_helpers::make_test_transaction(); // request-only, no response
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

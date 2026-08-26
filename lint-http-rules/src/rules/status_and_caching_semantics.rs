@@ -171,7 +171,8 @@ mod tests {
         use crate::test_helpers::make_test_transaction_with_response;
         let tx = make_test_transaction_with_response(status, &hdrs);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -202,7 +203,8 @@ mod tests {
         hm.insert("cache-control", bad);
         tx.response.as_mut().unwrap().headers = hm;
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

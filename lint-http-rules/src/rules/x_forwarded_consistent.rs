@@ -283,7 +283,8 @@ mod tests {
                 HeaderValue::from_bytes(value).expect("a field value"),
             );
         }
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -474,13 +475,13 @@ mod tests {
                 ("x-forwarded-host", "user@host"),
             ],
         );
-        assert!(rule
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-            )
-            .is_none());
+        assert!(crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .is_none());
     }
 
     #[test]
