@@ -163,7 +163,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = version.to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(headers);
-        RULE.check_transaction(
+        crate::test_helpers::run_rule(
+            &RULE,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
@@ -235,13 +236,13 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(&[0xff]).expect("obs-text is a field-content"),
         );
 
-        let v = RULE
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg(),
-            )
-            .expect("violation");
+        let v = crate::test_helpers::run_rule(
+            &RULE,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+        .expect("violation");
         // The comma is § 5.2's join, and the `char` after it is the octet %xFF
         // standing for itself — `escape_debug` leaves a printable one alone,
         // which is how every as-written value in the tree is spelled.
@@ -257,7 +258,8 @@ mod tests {
             &[("proxy-connection", "keep-alive")],
         );
         tx.request.version = "HTTP/1.1".into();
-        let v = RULE.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &RULE,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),

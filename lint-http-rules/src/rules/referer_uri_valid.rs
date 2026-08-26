@@ -504,13 +504,13 @@ mod tests {
         tx.request.headers = headers;
         let config =
             crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn");
-        RefererUriValid
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .map(|v| v.message)
+        crate::test_helpers::run_rule(
+            &RefererUriValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .map(|v| v.message)
     }
 
     fn judge(referer: &str) -> Option<String> {
@@ -668,14 +668,14 @@ mod tests {
         tx.request.headers = headers;
         let config =
             crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn");
-        let m = RefererUriValid
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &config,
-            )
-            .expect("an obs-text octet is reported")
-            .message;
+        let m = crate::test_helpers::run_rule(
+            &RefererUriValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .expect("an obs-text octet is reported")
+        .message;
         assert!(
             m.contains("holds 0xE9, which no part of a URI is composed from"),
             "{m}"

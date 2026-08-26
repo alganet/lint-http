@@ -289,7 +289,8 @@ mod tests {
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<crate::lint::Violation> {
         let rule = ProblemDetailsStructureValid;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -405,7 +406,8 @@ mod tests {
             Some(b"not json"),
             Some(8),
         );
-        let v = owner.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &owner,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),

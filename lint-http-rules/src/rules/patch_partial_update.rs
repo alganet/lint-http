@@ -222,7 +222,8 @@ mod tests {
         let rule = PatchPartialUpdate;
         let tx = make_tx_with_req(headers);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -251,7 +252,8 @@ mod tests {
         );
         tx.request.body_length = Some(1);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -268,7 +270,8 @@ mod tests {
         tx.request.body_length = Some(5);
         tx.request_body = Some(Bytes::from("hello"));
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -286,7 +289,8 @@ mod tests {
         let mut tx = make_tx_with_req(vec![("content-length", "5")]);
         tx.request.body_length = Some(0);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -303,7 +307,8 @@ mod tests {
         tx.request.method = "patch".into();
         tx.request.body_length = Some(5);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -320,7 +325,8 @@ mod tests {
         let mut tx = make_tx_with_req(vec![("transfer-encoding", "chunked")]);
         tx.request.body_length = Some(0);
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
@@ -338,7 +344,8 @@ mod tests {
         let tx = make_tx_with_req(vec![("content-length", "10")]);
         assert!(tx.request.body_length.is_none());
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

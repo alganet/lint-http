@@ -353,7 +353,7 @@ mod tests {
             .collect();
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(entries);
-        rule.check_transaction(&tx, &history, &cfg)
+        crate::test_helpers::run_rule(&rule, &tx, &history, &cfg)
     }
 
     #[rstest]
@@ -496,13 +496,13 @@ mod tests {
         );
         hm.append("content-type", HeaderValue::from_static("application/json"));
         tx.request.headers = hm;
-        assert!(neighbour
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &neighbour,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     /// `type` and `subtype` are `token`, so a value carrying an octet outside
@@ -527,13 +527,13 @@ mod tests {
         tx.request.method = "PATCH".into();
         tx.request.headers = HeaderMap::new();
         tx.request.body_length = Some(12);
-        assert!(neighbour
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg,
-            )
-            .is_some());
+        assert!(crate::test_helpers::run_rule(
+            &neighbour,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .is_some());
     }
 
     /// The octets of an advertisement are kept, so a member outside US-ASCII

@@ -216,7 +216,8 @@ mod tests {
             trailers: None,
         });
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -249,7 +250,8 @@ mod tests {
         let pairs: Vec<(&str, &str)> = values.iter().map(|v| ("content-type", *v)).collect();
         let tx = crate::test_helpers::make_test_transaction_with_response(500, &pairs);
 
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -270,7 +272,8 @@ mod tests {
                 ("content-type", "application/problem+json"),
             ],
         );
-        let v = owner.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &owner,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]),
@@ -315,7 +318,8 @@ mod tests {
                 .collect();
 
             let tx = crate::test_helpers::make_test_transaction_with_response(status, &headers);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

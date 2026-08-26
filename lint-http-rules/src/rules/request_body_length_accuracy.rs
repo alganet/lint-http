@@ -197,7 +197,8 @@ mod tests {
         };
 
         let rule = RequestBodyLengthAccuracy;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -218,7 +219,8 @@ mod tests {
         };
 
         let rule = RequestBodyLengthAccuracy;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -240,7 +242,8 @@ mod tests {
         };
 
         let rule = RequestBodyLengthAccuracy;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -261,7 +264,8 @@ mod tests {
         };
 
         let rule = RequestBodyLengthAccuracy;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -286,7 +290,8 @@ mod tests {
         };
 
         let rule = RequestBodyLengthAccuracy;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -307,7 +312,8 @@ mod tests {
         };
 
         let rule = RequestBodyLengthAccuracy;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -333,7 +339,8 @@ mod tests {
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<crate::lint::Violation> {
         let rule = RequestBodyLengthAccuracy;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -376,7 +383,8 @@ mod tests {
             // is never measured -- the Transfer-Encoding sees to it.
             tx.request.body_length = Some(body.len() as u64);
 
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,

@@ -419,7 +419,8 @@ mod tests {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.version = version.to_string();
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(headers);
-        RULE.check_transaction(
+        crate::test_helpers::run_rule(
+            &RULE,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
@@ -439,7 +440,8 @@ mod tests {
         if let Some(resp) = tx.response.as_mut() {
             resp.version = response_version.to_string();
         }
-        RULE.check_transaction(
+        crate::test_helpers::run_rule(
+            &RULE,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
@@ -658,13 +660,13 @@ mod tests {
             .headers
             .append("te", hyper::header::HeaderValue::from_static("gzip"));
 
-        let v = RULE
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg(),
-            )
-            .expect("violation");
+        let v = crate::test_helpers::run_rule(
+            &RULE,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+        .expect("violation");
         assert!(v.message.contains("holds 'gzip'"), "{}", v.message);
     }
 
@@ -682,13 +684,13 @@ mod tests {
             hyper::header::HeaderValue::from_bytes(&[0xff]).expect("obs-text is a field-content"),
         );
 
-        let v = RULE
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg(),
-            )
-            .expect("violation");
+        let v = crate::test_helpers::run_rule(
+            &RULE,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+        .expect("violation");
         assert!(v.message.contains("TE header field holds"), "{}", v.message);
         assert!(!v.message.contains("UTF-8"), "{}", v.message);
     }

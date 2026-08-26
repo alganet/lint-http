@@ -234,7 +234,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(30);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -257,7 +258,8 @@ mod tests {
 
         let history =
             crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -277,7 +279,8 @@ mod tests {
         let history2 =
             crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(
-            rule.check_transaction(
+            crate::test_helpers::run_rule(
+                &rule,
                 &tx2,
                 &history2,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -304,7 +307,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -328,7 +332,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -349,7 +354,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -370,7 +376,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(5);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -390,7 +397,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -411,7 +419,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(10);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -437,7 +446,8 @@ mod tests {
         tx.timestamp = base + chrono::Duration::seconds(30);
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -465,7 +475,8 @@ mod tests {
         tx.timestamp = base;
 
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -492,7 +503,8 @@ mod tests {
             crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]);
         // age == max-age should be treated as stale; unconditional request
         // should therefore be flagged since validator exists.
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),
@@ -509,7 +521,8 @@ mod tests {
         let history2 =
             crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         assert!(
-            rule.check_transaction(
+            crate::test_helpers::run_rule(
+                &rule,
                 &tx2,
                 &history2,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -535,7 +548,8 @@ mod tests {
         tx.timestamp = base - chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![prev]);
         // age computed from elapsed clamped to 0 yields fresh state; no violation expected
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &history,
             &crate::test_helpers::make_test_config_with_enabled_rules(&["max_age_directive_valid"]),

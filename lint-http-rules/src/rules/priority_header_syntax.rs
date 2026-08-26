@@ -374,7 +374,8 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(
             &values.iter().map(|v| ("priority", *v)).collect::<Vec<_>>(),
         );
-        PriorityHeaderSyntax.check_transaction(
+        crate::test_helpers::run_rule(
+            &PriorityHeaderSyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
@@ -384,7 +385,8 @@ mod tests {
     fn check_resp(value: &str) -> Option<Violation> {
         let tx =
             crate::test_helpers::make_test_transaction_with_response(200, &[("priority", value)]);
-        PriorityHeaderSyntax.check_transaction(
+        crate::test_helpers::run_rule(
+            &PriorityHeaderSyntax,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
@@ -509,13 +511,13 @@ mod tests {
         tx.request
             .headers
             .append("priority", HeaderValue::from_bytes(&[0xff])?);
-        let v = PriorityHeaderSyntax
-            .check_transaction(
-                &tx,
-                &crate::transaction_history::TransactionHistory::empty(),
-                &cfg(),
-            )
-            .expect("a non-ASCII byte fails § 4.2 step 1");
+        let v = crate::test_helpers::run_rule(
+            &PriorityHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+        .expect("a non-ASCII byte fails § 4.2 step 1");
         assert!(v.message.contains("outside ASCII"), "{}", v.message);
         Ok(())
     }
@@ -560,7 +562,8 @@ mod tests {
                 let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
                 tx.response.as_mut().unwrap().headers =
                     crate::test_helpers::make_headers_from_pairs(&pairs);
-                rule.check_transaction(
+                crate::test_helpers::run_rule(
+                    &rule,
                     &tx,
                     &crate::transaction_history::TransactionHistory::empty(),
                     &cfg(),
@@ -568,7 +571,8 @@ mod tests {
             } else {
                 let mut tx = crate::test_helpers::make_test_transaction();
                 tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-                rule.check_transaction(
+                crate::test_helpers::run_rule(
+                    &rule,
                     &tx,
                     &crate::transaction_history::TransactionHistory::empty(),
                     &cfg(),

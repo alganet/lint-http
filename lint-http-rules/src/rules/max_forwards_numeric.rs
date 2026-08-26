@@ -236,7 +236,8 @@ mod tests {
             );
         }
         tx.request.headers = hm;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -367,7 +368,8 @@ mod tests {
             HeaderValue::from_bytes(value).expect("field value"),
         );
         tx.request.headers = hm;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -406,7 +408,8 @@ mod tests {
 
             let mut tx = crate::test_helpers::make_test_transaction();
             tx.request.headers = crate::test_helpers::make_headers_from_pairs(&pairs);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),

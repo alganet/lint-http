@@ -493,7 +493,8 @@ mod tests {
             .insert("range", "bytes=0-499".parse().unwrap());
 
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -508,7 +509,8 @@ mod tests {
             .headers
             .insert("range", "bytes=0-1".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -527,7 +529,8 @@ mod tests {
             .headers
             .insert("range", "bytes=5-3".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -542,7 +545,8 @@ mod tests {
             &[("content-range", "bytes 0-1/10")],
         );
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -567,7 +571,8 @@ mod tests {
             .headers
             .insert("range", "bytes=0-499".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -592,21 +597,24 @@ mod tests {
     #[rstest]
     fn test_416_requires_unsatisfiable_content_range() {
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx_416("bytes=0-499", &[("content-range", "bytes */1234")]),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
         );
         assert!(v.is_none(), "conforming 416 reported: {:?}", v);
 
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx_416("bytes=0-499", &[("content-range", "bytes 0-0/1234")]),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
         );
         assert!(v2.unwrap().message.contains("'*/complete-length' form"));
 
-        let v3 = rule.check_transaction(
+        let v3 = crate::test_helpers::run_rule(
+            &rule,
             &tx_416("bytes=0-499", &[]),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -622,7 +630,8 @@ mod tests {
     #[rstest]
     fn missing_content_range_on_a_non_byte_range_416_is_not_reported() {
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx_416("pages=1-2", &[]),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -631,7 +640,8 @@ mod tests {
 
         // ...but a form the status cannot mean is still reported, because the
         // server chose to send that field.
-        let v2 = rule.check_transaction(
+        let v2 = crate::test_helpers::run_rule(
+            &rule,
             &tx_416("pages=1-2", &[("content-range", "pages 1-2/9")]),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -655,7 +665,8 @@ mod tests {
         tx.request
             .headers
             .insert("content-range", "bytes 100-199/*".parse().unwrap());
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -671,7 +682,8 @@ mod tests {
         tx.request
             .headers
             .insert("content-range", "bytes 100-199/*".parse().unwrap());
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -688,7 +700,8 @@ mod tests {
             416,
             &[("content-range", "bytes */1234")],
         );
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -706,7 +719,8 @@ mod tests {
             .headers
             .insert("range", "bytes=0-1".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -728,7 +742,8 @@ mod tests {
             .headers
             .insert("range", "bytes=0-1".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -739,7 +754,8 @@ mod tests {
         );
 
         let owner = crate::rules::content_length_valid::ContentLengthValid;
-        let found = owner.check_transaction(
+        let found = crate::test_helpers::run_rule(
+            &owner,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[crate::rules::Rule::id(
@@ -768,7 +784,8 @@ mod tests {
             .headers
             .insert("range", "bytes=0-499".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -846,7 +863,8 @@ mod tests {
         let mut saw_a_finding = false;
         for ex in rule.examples() {
             let tx = transaction_from_example(ex.snippet);
-            let found = rule.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg,
@@ -885,7 +903,8 @@ mod tests {
             let history = crate::transaction_history::TransactionHistory::empty();
 
             let boundary = MultipartBoundarySyntax;
-            let found = boundary.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &boundary,
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[boundary.id()]),
@@ -897,7 +916,8 @@ mod tests {
             );
 
             let length = ContentLengthValid;
-            let found = length.check_transaction(
+            let found = crate::test_helpers::run_rule(
+                &length,
                 &tx,
                 &history,
                 &crate::test_helpers::make_test_config_with_enabled_rules(&[length.id()]),
@@ -937,7 +957,8 @@ mod tests {
     #[rstest]
     fn unconfigured_unit_is_not_reported() {
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx_206_with_unit("items 0-1/3", "items=0-1"),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -950,7 +971,8 @@ mod tests {
     #[rstest]
     fn configured_unit_is_checked() {
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx_206_with_unit("items 0-5/9", "items=0-5"),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes", "items"]),
@@ -976,7 +998,8 @@ mod tests {
             .headers
             .insert("range", "bytes=500-999,7000-7999".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -999,7 +1022,8 @@ mod tests {
             .headers
             .insert("range", "bytes=500-999,7000-7999".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -1023,7 +1047,8 @@ mod tests {
             .headers
             .insert("range", "bytes=0-499".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -1045,7 +1070,8 @@ mod tests {
             .headers
             .insert("range", "bytes=0-499,".parse().unwrap());
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),
@@ -1066,7 +1092,8 @@ mod tests {
             vec![("content-type", "multipart/byteranges; boundary=SEP")],
         ] {
             let tx = crate::test_helpers::make_test_transaction_with_response(206, &headers);
-            let v = rule.check_transaction(
+            let v = crate::test_helpers::run_rule(
+                &rule,
                 &tx,
                 &crate::transaction_history::TransactionHistory::empty(),
                 &cfg_with_units(&["bytes"]),
@@ -1082,7 +1109,8 @@ mod tests {
     #[rstest]
     fn non_token_unit_is_reported() {
         let rule = RangeAndContentRangeConsistent;
-        let v = rule.check_transaction(
+        let v = crate::test_helpers::run_rule(
+            &rule,
             &tx_206_with_unit("by(tes 0-1/3", "bytes=0-1"),
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg_with_units(&["bytes"]),

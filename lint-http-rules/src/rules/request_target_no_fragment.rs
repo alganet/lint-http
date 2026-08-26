@@ -230,7 +230,8 @@ mod tests {
         tx.request.uri = uri.to_string();
         tx.request.version = version.to_string();
 
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),

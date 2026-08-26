@@ -326,7 +326,8 @@ mod tests {
         tx.request.method = method.to_string();
         tx.request.headers = headers(req);
         tx.response.as_mut().unwrap().headers = headers(resp);
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,

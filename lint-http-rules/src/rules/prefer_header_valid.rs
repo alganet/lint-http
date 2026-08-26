@@ -449,7 +449,8 @@ mod tests {
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = PreferHeaderValid;
-        rule.check_transaction(
+        crate::test_helpers::run_rule(
+            &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
@@ -634,7 +635,7 @@ mod tests {
             "the request's own syntax is clean, so this rule says nothing"
         );
         assert!(
-            neighbour.check_transaction(&tx, &hist, &cfg).is_some(),
+            crate::test_helpers::run_rule(*neighbour, &tx, &hist, &cfg).is_some(),
             "the neighbour is the rule that compares the two fields"
         );
     }
