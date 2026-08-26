@@ -4,36 +4,43 @@ sources:
   type: text/html
   fragments:
   - label: client_request_origin_header_present_for_cors
+    section: § 3.2
     snippet: It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_origin_header_present_for_cors.rs
       line: 32
   - label: client_request_origin_header_present_for_cors (2)
+    section: § 3.2
     snippet: The `Origin` request header indicates where a fetch originates from.
     cited_by:
     - file: lint-http-rules/src/rules/client_request_origin_header_present_for_cors.rs
       line: 69
   - label: lint-http-rules/src/helpers/headers.rs
+    section: § 3.2
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2413
   - label: lint-http-rules/src/helpers/headers.rs (2)
+    section: § 3.2
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2408
   - label: lint-http-rules/src/helpers/headers.rs (3)
+    section: § 3.2
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2407
   - label: message_access_control_allow_credentials_when_origin
+    section: § 4.10
     snippet: If credentials is `true`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/message_access_control_allow_credentials_when_origin.rs
       line: 88
   - label: message_access_control_allow_credentials_when_origin (2)
+    section: § 4.10
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/message_access_control_allow_credentials_when_origin.rs
@@ -41,6 +48,7 @@ sources:
     - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
       line: 91
   - label: message_access_control_allow_origin_valid
+    section: § 3.3.3
     snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.
     cited_by:
     - file: lint-http-rules/src/rules/message_access_control_allow_origin_valid.rs
@@ -48,75 +56,89 @@ sources:
     - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
       line: 62
   - label: message_cross_origin_resource_policy_valid
+    section: § 3.7
     snippet: Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/message_cross_origin_resource_policy_valid.rs
       line: 78
   - label: message_cross_origin_resource_policy_valid (2)
+    section: § 3.7
     snippet: If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null.
     cited_by:
     - file: lint-http-rules/src/rules/message_cross_origin_resource_policy_valid.rs
       line: 79
   - label: message_refresh_header_syntax_valid
+    section: § 2.2.2
     snippet: Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 220
   - label: message_sec_fetch_dest_value_valid
+    section: § 2.2.5
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 99
   - label: message_timing_allow_origin_validity
+    section: § 3.2
     snippet: origin-or-null = serialized-origin / %s"null" ; case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
       line: 94
   - label: semantic_origin_matching_for_cors
+    section: § 4.10
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/semantic_origin_matching_for_cors.rs
       line: 111
   - label: server_x_content_type_options
+    section: § 3.6
     snippet: If values[0] is an ASCII case-insensitive match for "nosniff", then return true.
     cited_by:
     - file: lint-http-rules/src/rules/server_x_content_type_options.rs
       line: 95
   - label: server_x_content_type_options (2)
-    snippet: Only request destinations that are script-like or "style" are considered as any exploits pertain to them.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_x_content_type_options.rs
-      line: 127
-  - label: server_x_content_type_options (3)
+    section: § 3.6
     snippet: The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request.
     cited_by:
     - file: lint-http-rules/src/rules/server_x_content_type_options.rs
       line: 121
-  - label: server_x_content_type_options (4)
+  - label: server_x_content_type_options (3)
+    section: § 3.6
     snippet: X-Content-Type-Options = "nosniff" ; case-insensitive
     cited_by:
     - file: lint-http-rules/src/rules/server_x_content_type_options.rs
       line: 94
+  - label: server_x_content_type_options (4)
+    section: § 3.6.1
+    snippet: Only request destinations that are script-like or "style" are considered as any exploits pertain to them.
+    cited_by:
+    - file: lint-http-rules/src/rules/server_x_content_type_options.rs
+      line: 127
 - label: HTML
   url: https://html.spec.whatwg.org/multipage/browsers.html
   type: text/html
   fragments:
   - label: message_cross_origin_embedder_policy_valid
+    section: § 7.1.4
     snippet: An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners.
     cited_by:
     - file: lint-http-rules/src/rules/message_cross_origin_embedder_policy_valid.rs
       line: 78
   - label: message_cross_origin_opener_policy_valid
+    section: § 7.1.3.1
     snippet: Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list.
     cited_by:
     - file: lint-http-rules/src/rules/message_cross_origin_opener_policy_valid.rs
       line: 75
   - label: message_origin_isolated_header_validity
+    section: § 7.1.2
     snippet: This header is a structured header whose value must be a boolean.
     cited_by:
     - file: lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
       line: 60
   - label: message_origin_isolated_header_validity (2)
+    section: § 7.1.2
     snippet: values that are not the structured header boolean true value (i.e., `?1`) will be ignored.
     cited_by:
     - file: lint-http-rules/src/rules/message_origin_isolated_header_validity.rs
@@ -126,11 +148,13 @@ sources:
   type: text/html
   fragments:
   - label: message_link_header_validity
+    section: § 4.6.8.20
     snippet: A preload destination is "fetch", "font", "image", "script", "style", or "track".
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 854
   - label: message_link_header_validity (2)
+    section: § 4.6.8.20
     snippet: If destination is not a preload destination, then return null.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
@@ -140,41 +164,49 @@ sources:
   type: text/html
   fragments:
   - label: message_content_security_policy_and_frame_options_consistency
+    section: § 7.7
     snippet: The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
       line: 100
   - label: message_refresh_header_syntax_valid
+    section: § 7.8
     snippet: It takes the same value and works largely the same.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 253
   - label: message_refresh_header_syntax_valid (2)
+    section: § 7.8
     snippet: The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 200
   - label: server_x_frame_options_value_valid
+    section: § 7.7
     snippet: For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions.
     cited_by:
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
       line: 66
   - label: server_x_frame_options_value_valid (2)
+    section: § 7.7
     snippet: HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable
     cited_by:
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
       line: 29
   - label: server_x_frame_options_value_valid (3)
+    section: § 7.7
     snippet: In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented.
     cited_by:
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
       line: 76
   - label: server_x_frame_options_value_valid (4)
+    section: § 7.7
     snippet: It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document.
     cited_by:
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
       line: 28
   - label: server_x_frame_options_value_valid (5)
+    section: § 7.7
     snippet: X-Frame-Options = "DENY" / "SAMEORIGIN"
     cited_by:
     - file: lint-http-rules/src/rules/server_x_frame_options_value_valid.rs
@@ -184,56 +216,67 @@ sources:
   type: text/html
   fragments:
   - label: message_link_header_validity
+    section: § 4.2.4.4
     snippet: Apply link options from parsed header attributes to options given attribs
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 810
   - label: message_link_header_validity (2)
+    section: § 4.2.4.4
     snippet: If attribs["as"] does not exist, then return false.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 811
   - label: message_link_header_validity (3)
+    section: § 4.2.4.4
     snippet: If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 831
   - label: message_link_header_validity (4)
+    section: § 4.2.4.4
     snippet: If destination is null, then return false.
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 830
   - label: message_link_header_validity (5)
+    section: § 4.2.4.4
     snippet: Let destination be the result of translating attribs["as"].
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 829
   - label: message_link_header_validity (6)
+    section: § 4.2.4.4
     snippet: To process link headers given a Document doc, a response response, and a "pre-media" or "media" phase
     cited_by:
     - file: lint-http-rules/src/rules/message_link_header_validity.rs
       line: 809
   - label: message_refresh_header_syntax_valid
+    section: § 4.2.5.3
     snippet: 'For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:'
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 119
   - label: message_refresh_header_syntax_valid (2)
+    section: § 4.2.5.3
     snippet: If quote is not the empty string, and there is a code point in urlString equal to quote, then truncate urlString at that code point, so that it and all subsequent code points are removed.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 181
   - label: message_refresh_header_syntax_valid (3)
+    section: § 4.2.5.3
     snippet: a valid non-negative integer, followed by a U+003B SEMICOLON character (;), followed by one or more ASCII whitespace, followed by a substring that is an ASCII case-insensitive match for the string "URL", followed by a U+003D EQUALS SIGN character (=), followed by a valid URL string
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 121
   - label: message_refresh_header_syntax_valid (4)
+    section: § 4.2.5.3
     snippet: just a valid non-negative integer, or
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 120
   - label: message_refresh_header_syntax_valid (5)
+    section: § 4.2.5.3
     snippet: that does not start with a literal U+0027 APOSTROPHE (') or U+0022 QUOTATION MARK
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
@@ -243,6 +286,7 @@ sources:
   type: text/html
   fragments:
   - label: message_refresh_header_syntax_valid
+    section: § 2.3.4.2
     snippet: A string is a valid non-negative integer if it consists of one or more ASCII digits.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
@@ -276,11 +320,13 @@ sources:
   type: text/html
   fragments:
   - label: message_refresh_header_syntax_valid
+    section: § 7.5.1
     snippet: Let value be the isomorphic decoding of the value of the header.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 239
   - label: message_refresh_header_syntax_valid (2)
+    section: § 7.5.1
     snippet: We do not currently have a spec for how to handle multiple `Refresh` headers.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
@@ -290,36 +336,43 @@ sources:
   type: text/html
   fragments:
   - label: lint-http-rules/src/helpers/headers.rs
+    section: § 4.1
     snippet: A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 2473
   - label: message_refresh_header_syntax_valid
+    section: § 1.1
     snippet: A code point is found that is not a URL unit.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 95
   - label: message_refresh_header_syntax_valid (2)
-    snippet: A valid URL string must be either a relative-URL-with-fragment string or an absolute-URL-with-fragment string.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 187
-  - label: message_refresh_header_syntax_valid (3)
+    section: § 3.4
     snippet: 'A valid host string must be a valid domain string, a valid IPv4-address string, or: U+005B ([), followed by a valid IPv6-address string, followed by U+005D (]).'
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 90
+  - label: message_refresh_header_syntax_valid (3)
+    section: § 4.3
+    snippet: A valid URL string must be either a relative-URL-with-fragment string or an absolute-URL-with-fragment string.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
+      line: 187
   - label: message_refresh_header_syntax_valid (4)
+    section: § 4.3
     snippet: An absolute-URL-with-fragment string must be an absolute-URL string, optionally followed by U+0023 (#) and a URL-fragment string.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 89
   - label: message_refresh_header_syntax_valid (5)
+    section: § 4.3
     snippet: The URL code points are ASCII alphanumeric, U+0021 (!), U+0024 ($), U+0026 (&), U+0027 ('), U+0028 LEFT PARENTHESIS, U+0029 RIGHT PARENTHESIS, U+002A (*), U+002B (+), U+002C (,), U+002D (-), U+002E (.), U+002F (/), U+003A (:), U+003B (;), U+003D (=), U+003F (?), U+0040 (@), U+005F (_), U+007E (~), and code points in the range U+00A0 to U+10FFFD, inclusive, excluding surrogates and noncharacters.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 36
   - label: message_refresh_header_syntax_valid (6)
+    section: § 4.3
     snippet: URL units are URL code points and percent-encoded bytes.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
@@ -329,30 +382,35 @@ sources:
   type: text/html
   fragments:
   - label: message_refresh_header_syntax_valid
-    snippet: ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
-      line: 108
-  - label: message_refresh_header_syntax_valid (2)
+    section: § 4.5
     snippet: To isomorphic decode a byte sequence input, return a string whose code point length is equal to input’s length and whose code points have the same values as the values of input’s bytes, in the same order.
     cited_by:
     - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
       line: 240
+  - label: message_refresh_header_syntax_valid (2)
+    section: § 4.6
+    snippet: ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_refresh_header_syntax_valid.rs
+      line: 108
 - label: CSP3
   url: https://www.w3.org/TR/CSP3/
   type: text/html
   fragments:
   - label: message_content_security_policy_and_frame_options_consistency
+    section: § 6.4.2
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
       line: 99
   - label: message_content_security_policy_and_frame_options_consistency (2)
+    section: § 6.4.2.2
     snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/message_content_security_policy_and_frame_options_consistency.rs
       line: 98
   - label: server_content_security_policy_validity
+    section: § 2.3
     snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/server_content_security_policy_validity.rs
@@ -367,6 +425,7 @@ sources:
     - file: lint-http-rules/src/rules/server_clear_site_data.rs
       line: 126
   - label: server_clear_site_data (2)
+    section: § 3.1
     snippet: The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types.
     cited_by:
     - file: lint-http-rules/src/rules/server_clear_site_data.rs
@@ -376,16 +435,19 @@ sources:
   type: text/html
   fragments:
   - label: message_sec_fetch_dest_value_valid
+    section: § 2.1
     snippet: HTTP request header exposes a request’s destination to a server
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 34
   - label: message_sec_fetch_dest_value_valid (2)
+    section: § 2.1
     snippet: If r’s destination is the empty string, set header’s value to the string "empty"
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 102
   - label: message_sec_fetch_dest_value_valid (3)
+    section: § 2.1
     snippet: In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value.
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
@@ -395,6 +457,7 @@ sources:
     - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
       line: 92
   - label: message_sec_fetch_dest_value_valid (4)
+    section: § 2.1
     snippet: It is a Structured Field whose value MUST be a token.
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
@@ -406,26 +469,31 @@ sources:
     - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
       line: 76
   - label: message_sec_fetch_dest_value_valid (5)
+    section: § 2.1
     snippet: Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch].
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_dest_value_valid.rs
       line: 98
   - label: message_sec_fetch_mode_value_valid
+    section: § 2.2
     snippet: HTTP request header exposes a request’s mode to a server
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
       line: 31
   - label: message_sec_fetch_mode_value_valid (2)
+    section: § 2.2
     snippet: Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket".
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_mode_value_valid.rs
       line: 92
   - label: message_sec_fetch_site_value_valid
+    section: § 2.3
     snippet: HTTP request header exposes the relationship between a request initiator’s origin and its target’s origin
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
       line: 31
   - label: message_sec_fetch_site_value_valid (2)
+    section: § 2.3
     snippet: It is a Structured Field whose value is a token.
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
@@ -433,88 +501,71 @@ sources:
     - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
       line: 77
   - label: message_sec_fetch_site_value_valid (3)
+    section: § 2.3
     snippet: Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none".
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_site_value_valid.rs
       line: 93
   - label: message_sec_fetch_user_value_valid
-    snippet: HTTP request header exposes whether or not a navigation request was triggered by user activation.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
-      line: 31
-  - label: message_sec_fetch_user_value_valid (2)
-    snippet: It is a Structured Field whose value is a boolean.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
-      line: 63
-  - label: message_sec_fetch_user_value_valid (3)
     snippet: 'Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true.'
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
       line: 75
+  - label: message_sec_fetch_user_value_valid (2)
+    section: § 2.4
+    snippet: HTTP request header exposes whether or not a navigation request was triggered by user activation.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
+      line: 31
+  - label: message_sec_fetch_user_value_valid (3)
+    section: § 2.4
+    snippet: It is a Structured Field whose value is a boolean.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_sec_fetch_user_value_valid.rs
+      line: 63
 - label: Resource Timing
   url: https://www.w3.org/TR/resource-timing/
   type: text/html
   fragments:
   - label: message_timing_allow_origin_validity
-    snippet: Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
-      line: 28
-  - label: message_timing_allow_origin_validity (2)
-    snippet: 'The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):'
-    cited_by:
-    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
-      line: 71
-  - label: message_timing_allow_origin_validity (3)
-    snippet: The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
-      line: 42
-  - label: message_timing_allow_origin_validity (4)
-    snippet: The sender MAY generate multiple Timing-Allow-Origin header fields.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
-      line: 41
-  - label: message_timing_allow_origin_validity (5)
     snippet: Timing-Allow-Origin = 1#( origin-or-null / wildcard )
     cited_by:
     - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
       line: 59
+  - label: message_timing_allow_origin_validity (2)
+    section: § 3.5.2
+    snippet: Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 28
+  - label: message_timing_allow_origin_validity (3)
+    section: § 3.5.2
+    snippet: 'The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):'
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 71
+  - label: message_timing_allow_origin_validity (4)
+    section: § 3.5.2
+    snippet: The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 42
+  - label: message_timing_allow_origin_validity (5)
+    section: § 3.5.2
+    snippet: The sender MAY generate multiple Timing-Allow-Origin header fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_timing_allow_origin_validity.rs
+      line: 41
 - label: Server Timing
   url: https://www.w3.org/TR/server-timing/
   type: text/html
   fragments:
   - label: metric-name grammar
+    section: § 2
     snippet: '*( OWS ";" OWS server-timing-param ) metric-name = token'
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
       line: 365
-  - label: Server-Timing grammar
-    snippet: 'Server-Timing = #server-timing-metric'
-    cited_by:
-    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 335
-  - label: server-timing-metric grammar
-    snippet: server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )
-    cited_by:
-    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 364
-  - label: server-timing-param grammar
-    snippet: server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value
-    cited_by:
-    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 437
-  - label: server-timing-param-name grammar
-    snippet: server-timing-param-name = token
-    cited_by:
-    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 438
-  - label: server-timing-param-value grammar
-    snippet: server-timing-param-value = token / quoted-string
-    cited_by:
-    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
-      line: 542
   - label: server_server_timing_header_syntax
     section: § 2
     snippet: A user agent that does not recognize particular server-timing-param-name in the Server-Timing header field of a response MUST ignore those tokens and continue processing instead of signaling an error.
@@ -539,6 +590,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
       line: 336
+  - label: Server-Timing grammar
+    section: § 2
+    snippet: 'Server-Timing = #server-timing-metric'
+    cited_by:
+    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
+      line: 335
   - label: server_server_timing_header_syntax (5)
     section: § 2
     snippet: The Server-Timing header field is used to communicate one or more metrics and descriptions for the given request-response cycle.
@@ -563,6 +620,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
       line: 512
+  - label: server-timing-metric grammar
+    section: § 2
+    snippet: server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )
+    cited_by:
+    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
+      line: 364
+  - label: server-timing-param grammar
+    section: § 2
+    snippet: server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value
+    cited_by:
+    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
+      line: 437
+  - label: server-timing-param-name grammar
+    section: § 2
+    snippet: server-timing-param-name = token
+    cited_by:
+    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
+      line: 438
+  - label: server-timing-param-value grammar
+    section: § 2
+    snippet: server-timing-param-value = token / quoted-string
+    cited_by:
+    - file: lint-http-rules/src/rules/server_server_timing_header_syntax.rs
+      line: 542
   - label: server_server_timing_header_syntax (9)
     section: § 3.2
     snippet: If dur is an error, return 0; Otherwise return dur.
@@ -586,17 +667,12 @@ sources:
   type: text/html
   fragments:
   - label: message_permissions_policy_directives_valid
-    snippet: The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
-      line: 99
-  - label: message_permissions_policy_directives_valid (2)
     section: § 5.2
     snippet: Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present.
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 331
-  - label: message_permissions_policy_directives_valid (3)
+  - label: message_permissions_policy_directives_valid (2)
     section: § 5.2
     snippet: Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps.
     cited_by:
@@ -604,43 +680,54 @@ sources:
       line: 95
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 315
-  - label: message_permissions_policy_directives_valid (4)
+  - label: message_permissions_policy_directives_valid (3)
     section: § 5.2
     snippet: The Member Names must be Tokens.
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 423
-  - label: message_permissions_policy_directives_valid (5)
+  - label: message_permissions_policy_directives_valid (4)
     section: § 5.2
     snippet: 'The Member Values represent allowlists, and must be one of:'
     cited_by:
     - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
       line: 314
+  - label: message_permissions_policy_directives_valid (5)
+    section: § 6.1
+    snippet: The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_permissions_policy_directives_valid.rs
+      line: 99
 - label: draft-ietf-httpbis-rfc6265bis
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
   fragments:
   - label: message_cookie_attribute_consistency
-    snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
-    cited_by:
-    - file: lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
-      line: 262
-  - label: message_cookie_attribute_consistency (2)
+    section: § 4.1.1
     snippet: samesite-value = "Strict" / "Lax" / "None"
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
       line: 125
+  - label: message_cookie_attribute_consistency (2)
+    section: § 5.7
+    snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
+    cited_by:
+    - file: lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
+      line: 262
   - label: stateful_cookie_same_site_enforcement
+    section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
       line: 133
   - label: stateful_cookie_same_site_enforcement (2)
+    section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
       line: 125
   - label: stateful_cookie_same_site_enforcement (3)
+    section: § 4.1.2.7
     snippet: If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1.
     cited_by:
     - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs

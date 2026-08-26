@@ -25,8 +25,8 @@ impl Rule for ServerXFrameOptionsValueValid {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // It is a response header, so only the response side is inspected. RFC 7034
         // originally defined it; the HTML Standard's §7.7 definition governs now.
-        // cite(HTML Speculative Loading): "It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document."
-        // cite(HTML Speculative Loading): "HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable"
+        // cite(HTML Speculative Loading § 7.7): "It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document."
+        // cite(HTML Speculative Loading § 7.7): "HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable"
         let resp = tx.response.as_ref()?;
 
         let headers = &resp.headers;
@@ -62,8 +62,8 @@ impl Rule for ServerXFrameOptionsValueValid {
 
         // The two conforming values; the match is case-insensitive because the
         // processing model lowercases each value before comparing.
-        // cite(HTML Speculative Loading): "X-Frame-Options = "DENY" / "SAMEORIGIN""
-        // cite(HTML Speculative Loading): "For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions."
+        // cite(HTML Speculative Loading § 7.7): "X-Frame-Options = "DENY" / "SAMEORIGIN""
+        // cite(HTML Speculative Loading § 7.7): "For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions."
         if val.eq_ignore_ascii_case("DENY") || val.eq_ignore_ascii_case("SAMEORIGIN") {
             return None;
         }
@@ -73,7 +73,7 @@ impl Rule for ServerXFrameOptionsValueValid {
         // it as an unrecognized value, leaving the resource unprotected while the
         // sender believes otherwise. Flag it with a targeted message rather than
         // the generic unsupported-value one.
-        // cite(HTML Speculative Loading): "In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented."
+        // cite(HTML Speculative Loading § 7.7): "In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented."
         if val.len() >= 10 && val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
             return Some(Violation {
                 rule: self.id().into(),

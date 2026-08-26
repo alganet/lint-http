@@ -28,7 +28,7 @@ impl Rule for MessageSecFetchUserValueValid {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // A request header; absence is the normal case (it rides only user-activated
         // navigations).
-        // cite(Fetch Metadata): "HTTP request header exposes whether or not a navigation request was triggered by user activation."
+        // cite(Fetch Metadata § 2.4): "HTTP request header exposes whether or not a navigation request was triggered by user activation."
         let headers = &tx.request.headers;
         let count = headers.get_all("sec-fetch-user").iter().count();
         if count == 0 {
@@ -60,7 +60,7 @@ impl Rule for MessageSecFetchUserValueValid {
         };
 
         // An empty value cannot be an sf-boolean.
-        // cite(Fetch Metadata): "It is a Structured Field whose value is a boolean."
+        // cite(Fetch Metadata § 2.4): "It is a Structured Field whose value is a boolean."
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),

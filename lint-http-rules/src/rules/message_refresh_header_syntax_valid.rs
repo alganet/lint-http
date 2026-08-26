@@ -33,7 +33,7 @@ pub struct MessageRefreshHeaderSyntaxValid;
 /// here: the caller's input is isomorphic-decoded field octets, so every code
 /// point is U+0000 to U+00FF.
 fn is_url_code_point(c: char) -> bool {
-    // cite(URL): "The URL code points are ASCII alphanumeric, U+0021 (!), U+0024 ($), U+0026 (&), U+0027 ('), U+0028 LEFT PARENTHESIS, U+0029 RIGHT PARENTHESIS, U+002A (*), U+002B (+), U+002C (,), U+002D (-), U+002E (.), U+002F (/), U+003A (:), U+003B (;), U+003D (=), U+003F (?), U+0040 (@), U+005F (_), U+007E (~), and code points in the range U+00A0 to U+10FFFD, inclusive, excluding surrogates and noncharacters."
+    // cite(URL § 4.3): "The URL code points are ASCII alphanumeric, U+0021 (!), U+0024 ($), U+0026 (&), U+0027 ('), U+0028 LEFT PARENTHESIS, U+0029 RIGHT PARENTHESIS, U+002A (*), U+002B (+), U+002C (,), U+002D (-), U+002E (.), U+002F (/), U+003A (:), U+003B (;), U+003D (=), U+003F (?), U+0040 (@), U+005F (_), U+007E (~), and code points in the range U+00A0 to U+10FFFD, inclusive, excluding surrogates and noncharacters."
     c.is_ascii_alphanumeric()
         || matches!(
             c,
@@ -72,7 +72,7 @@ fn is_url_code_point(c: char) -> bool {
 fn find_invalid_url_unit(s: &str) -> Option<String> {
     for (i, c) in s.char_indices() {
         if c == '%' {
-            // cite(URL): "URL units are URL code points and percent-encoded bytes."
+            // cite(URL § 4.3): "URL units are URL code points and percent-encoded bytes."
             // A percent-encoded byte is `%` and exactly two hex digits, so a `%`
             // that does not open one is the code point itself, unescaped.
             let mut rest = s[i + 1..].chars();
@@ -86,13 +86,13 @@ fn find_invalid_url_unit(s: &str) -> Option<String> {
             }
             continue;
         }
-        // cite(URL): "An absolute-URL-with-fragment string must be an absolute-URL string, optionally followed by U+0023 (#) and a URL-fragment string."
-        // cite(URL): "A valid host string must be a valid domain string, a valid IPv4-address string, or: U+005B ([), followed by a valid IPv6-address string, followed by U+005D (])."
+        // cite(URL § 4.3): "An absolute-URL-with-fragment string must be an absolute-URL string, optionally followed by U+0023 (#) and a URL-fragment string."
+        // cite(URL § 3.4): "A valid host string must be a valid domain string, a valid IPv4-address string, or: U+005B ([), followed by a valid IPv6-address string, followed by U+005D (])."
         // `#`, `[` and `]` are named by the grammar as the delimiters they are.
         if is_url_code_point(c) || matches!(c, '#' | '[' | ']') {
             continue;
         }
-        // cite(URL): "A code point is found that is not a URL unit."
+        // cite(URL § 1.1): "A code point is found that is not a URL unit."
         return Some(format!("contains {c:?}, which is not a URL unit"));
     }
     None
@@ -105,7 +105,7 @@ fn find_invalid_url_unit(s: &str) -> Option<String> {
 /// sentence has to have somewhere to attach: a call to std carries no
 /// transcription, so there would be nothing for the cite to sit on.
 fn is_ascii_whitespace(c: char) -> bool {
-    // cite(Infra): "ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE."
+    // cite(Infra § 4.6): "ASCII whitespace is U+0009 TAB, U+000A LF, U+000C FF, U+000D CR, or U+0020 SPACE."
     matches!(c, '\t' | '\n' | '\u{C}' | '\r' | ' ')
 }
 
@@ -116,9 +116,9 @@ fn is_ascii_whitespace(c: char) -> bool {
 /// conformance requirement for the `meta` pragma, which § 7.8 makes this field's
 /// too — two forms, and everything else is a finding.
 fn refresh_value_error(s: &str) -> Option<String> {
-    // cite(HTML Semantics): "For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:"
-    // cite(HTML Semantics): "just a valid non-negative integer, or"
-    // cite(HTML Semantics): "a valid non-negative integer, followed by a U+003B SEMICOLON character (;), followed by one or more ASCII whitespace, followed by a substring that is an ASCII case-insensitive match for the string "URL", followed by a U+003D EQUALS SIGN character (=), followed by a valid URL string"
+    // cite(HTML Semantics § 4.2.5.3): "For meta elements with an http-equiv attribute in the Refresh state, the content attribute must have a value consisting either of:"
+    // cite(HTML Semantics § 4.2.5.3): "just a valid non-negative integer, or"
+    // cite(HTML Semantics § 4.2.5.3): "a valid non-negative integer, followed by a U+003B SEMICOLON character (;), followed by one or more ASCII whitespace, followed by a substring that is an ASCII case-insensitive match for the string "URL", followed by a U+003D EQUALS SIGN character (=), followed by a valid URL string"
     // The sentence runs on into the quote clause, which is cited at the check
     // that enforces it below: the trailing `(")` leaves this fragment's
     // quotation marks unpaired, and the cite grammar has no escape for that.
@@ -132,7 +132,7 @@ fn refresh_value_error(s: &str) -> Option<String> {
         None => (s, None),
     };
 
-    // cite(HTML Common Microsyntaxes): "A string is a valid non-negative integer if it consists of one or more ASCII digits."
+    // cite(HTML Common Microsyntaxes § 2.3.4.2): "A string is a valid non-negative integer if it consists of one or more ASCII digits."
     // One or more ASCII digits and nothing else — no sign, no radix point. This
     // is why the check is not `parse::<u64>()`, which accepts a leading `+`.
     if time.is_empty() || !time.chars().all(|c| c.is_ascii_digit()) {
@@ -173,18 +173,18 @@ fn refresh_value_error(s: &str) -> Option<String> {
     if url.is_empty() {
         return Some("`URL=` carries no URL".into());
     }
-    // cite(HTML Semantics): "that does not start with a literal U+0027 APOSTROPHE (') or U+0022 QUOTATION MARK"
+    // cite(HTML Semantics § 4.2.5.3): "that does not start with a literal U+0027 APOSTROPHE (') or U+0022 QUOTATION MARK"
     // The rest of the second form's sentence, above. A quoted URL is not a
     // conforming value even though the processing model reads one, and the
     // reading is why: the closing quote and everything after it are discarded,
     // so a sender who quotes a URL loses whatever followed the second mark.
-    // cite(HTML Semantics): "If quote is not the empty string, and there is a code point in urlString equal to quote, then truncate urlString at that code point, so that it and all subsequent code points are removed."
+    // cite(HTML Semantics § 4.2.5.3): "If quote is not the empty string, and there is a code point in urlString equal to quote, then truncate urlString at that code point, so that it and all subsequent code points are removed."
     if url.starts_with('\'') || url.starts_with('"') {
         return Some(format!(
             "the URL {url:?} starts with a quote character, which the value may not do"
         ));
     }
-    // cite(URL): "A valid URL string must be either a relative-URL-with-fragment string or an absolute-URL-with-fragment string."
+    // cite(URL § 4.3): "A valid URL string must be either a relative-URL-with-fragment string or an absolute-URL-with-fragment string."
     // Relative is a conforming form, which is why nothing here asks for a
     // scheme: `1http://example/` names none and is an ordinary relative path,
     // not a malformed absolute URL.
@@ -197,7 +197,7 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
     }
 
     fn scope(&self) -> crate::rules::RuleScope {
-        // cite(HTML Speculative Loading): "The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state."
+        // cite(HTML Speculative Loading § 7.8): "The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state."
         crate::rules::RuleScope::Server
     }
 
@@ -216,8 +216,8 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
             return None;
         }
 
-        // cite(HTML Document Lifecycle): "We do not currently have a spec for how to handle multiple `Refresh` headers."
-        // cite(Fetch): "Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20"
+        // cite(HTML Document Lifecycle § 7.5.1): "We do not currently have a spec for how to handle multiple `Refresh` headers."
+        // cite(Fetch § 2.2.2): "Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20"
         // The processing model is handed one string, and that string is the
         // combination of every field line — so HTML's note is not about a choice
         // between the lines, it is about a value none of them carries. Nothing is
@@ -236,8 +236,8 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
         }
 
         let raw = lines.iter().next()?.as_bytes();
-        // cite(HTML Document Lifecycle): "Let value be the isomorphic decoding of the value of the header."
-        // cite(Infra): "To isomorphic decode a byte sequence input, return a string whose code point length is equal to input’s length and whose code points have the same values as the values of input’s bytes, in the same order."
+        // cite(HTML Document Lifecycle § 7.5.1): "Let value be the isomorphic decoding of the value of the header."
+        // cite(Infra § 4.5): "To isomorphic decode a byte sequence input, return a string whose code point length is equal to input’s length and whose code points have the same values as the values of input’s bytes, in the same order."
         // Not `to_str()`. Every octet becomes the code point of the same value,
         // so an `obs-text` byte reaches the check that owns it — `%xE9` is a URL
         // code point and `%x85` is not, and a UTF-8 decode cannot tell them
@@ -250,7 +250,7 @@ impl Rule for MessageRefreshHeaderSyntaxValid {
         // and belongs to the value.
         let value = decoded.trim_matches(|c| c == ' ' || c == '\t');
 
-        // cite(HTML Speculative Loading): "It takes the same value and works largely the same."
+        // cite(HTML Speculative Loading § 7.8): "It takes the same value and works largely the same."
         // The conformance requirement `refresh_value_error` implements is written
         // for the `meta` pragma's content attribute; this is the sentence that
         // makes it this field's requirement too.

@@ -122,7 +122,7 @@ impl Rule for MessageCookieAttributeConsistency {
                         }
                     };
                     // Accept Strict, Lax, None (case-insensitive)
-                    // cite(draft-ietf-httpbis-rfc6265bis): "samesite-value = "Strict" / "Lax" / "None""
+                    // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1): "samesite-value = "Strict" / "Lax" / "None""
                     let vnorm = v.trim().to_ascii_lowercase();
                     if vnorm != "strict" && vnorm != "lax" && vnorm != "none" {
                         return Some(Violation {
@@ -259,7 +259,7 @@ impl Rule for MessageCookieAttributeConsistency {
             // `SameSite=None` without `Secure` is not a cookie with a weaker policy — it is
             // a cookie the user agent throws away. That is why this is a violation and not
             // a suggestion.
-            // cite(draft-ietf-httpbis-rfc6265bis): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
+            // cite(draft-ietf-httpbis-rfc6265bis § 5.7): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
             if let Some(sv) = samesite_value {
                 if sv == "none" && !secure_present {
                     return Some(Violation {

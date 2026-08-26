@@ -28,7 +28,7 @@ impl Rule for MessageSecFetchSiteValueValid {
     ) -> Option<Violation> {
         let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         // Sec-Fetch-* are request-sent headers; check only requests
-        // cite(Fetch Metadata): "HTTP request header exposes the relationship between a request initiator’s origin and its target’s origin"
+        // cite(Fetch Metadata § 2.3): "HTTP request header exposes the relationship between a request initiator’s origin and its target’s origin"
         let headers = &tx.request.headers;
         let count = headers.get_all("sec-fetch-site").iter().count();
         if count == 0 {
@@ -61,7 +61,7 @@ impl Rule for MessageSecFetchSiteValueValid {
 
         // An empty value cannot be a token (§2.3 words it without the MUST its
         // sibling sections carry, but the constraint is the same).
-        // cite(Fetch Metadata): "It is a Structured Field whose value is a token."
+        // cite(Fetch Metadata § 2.3): "It is a Structured Field whose value is a token."
         if val.is_empty() {
             return Some(Violation {
                 rule: self.id().into(),
@@ -74,7 +74,7 @@ impl Rule for MessageSecFetchSiteValueValid {
         // grammar, slightly looser than sf-token; the closed value match below is
         // what actually gates acceptance, so the difference only picks which
         // message a bad value gets.
-        // cite(Fetch Metadata): "It is a Structured Field whose value is a token."
+        // cite(Fetch Metadata § 2.3): "It is a Structured Field whose value is a token."
         if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
             return Some(Violation {
                 rule: self.id().into(),
@@ -89,8 +89,8 @@ impl Rule for MessageSecFetchSiteValueValid {
         // The spec tells servers to ignore unknown values for forward compatibility;
         // this rule lints the sender, where an unknown value means a non-conforming
         // (or non-browser) origin of the header, so it flags instead.
-        // cite(Fetch Metadata): "In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value."
-        // cite(Fetch Metadata): "Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none"."
+        // cite(Fetch Metadata § 2.1): "In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value."
+        // cite(Fetch Metadata § 2.3): "Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none"."
         match val {
             "cross-site" | "same-origin" | "same-site" | "none" => None,
             _ => Some(Violation {

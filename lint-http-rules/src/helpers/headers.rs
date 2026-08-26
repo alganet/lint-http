@@ -2404,13 +2404,13 @@ pub fn media_type_subtype_suffix(subtype: &str) -> Option<&str> {
 // Both callers (Timing-Allow-Origin, Access-Control-Allow-Origin) take their value
 // grammar from Fetch, whose production supplants RFC 6454's. The two agree on the
 // shape checked here — an authority and nothing after it — so both are quoted.
-// cite(Fetch): "serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]"
-// cite(Fetch): "This supplants the definition in The Web Origin Concept"
+// cite(Fetch § 3.2): "serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]"
+// cite(Fetch § 3.2): "This supplants the definition in The Web Origin Concept"
 // cite(RFC 6454 § 7.1): "serialized-origin = scheme "://" host [ ":" port ]"
 // Where they differ, Fetch is the stricter of the two, which is the direction this
 // validator is deliberately permissive in: it accepts host shapes (IDNA, label
 // syntax) that Fetch's serialization would reject.
-// cite(Fetch): "The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways."
+// cite(Fetch § 3.2): "The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways."
 pub fn is_valid_serialized_origin(val: &str) -> bool {
     let s = val.trim();
     if s.is_empty() {
@@ -2470,7 +2470,7 @@ pub fn is_valid_serialized_origin(val: &str) -> bool {
     // digits that happens to reach a TCP port, it is declared to be an integer
     // of that width. `0` is one of them, so an origin naming it is a serialized
     // origin; the shared reader rejected it until this was read.
-    // cite(URL): "A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port."
+    // cite(URL § 4.1): "A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port."
     match port {
         Some(port) => crate::helpers::uri::port_number(port).is_some(),
         None => true,

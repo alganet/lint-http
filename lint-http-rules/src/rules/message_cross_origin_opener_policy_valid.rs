@@ -72,7 +72,7 @@ impl Rule for MessageCrossOriginOpenerPolicyValid {
         // token combined with a compatible COEP, never from a token of its own, so a response
         // literally carrying `same-origin-plus-COEP` *is* wrong. The header value is a single
         // structured-field item (token), which is also why the list check above applies.
-        // cite(HTML): "Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list."
+        // cite(HTML § 7.1.3.1): "Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list."
         if val.eq_ignore_ascii_case("same-origin")
             || val.eq_ignore_ascii_case("same-origin-allow-popups")
             || val.eq_ignore_ascii_case("noopener-allow-popups")

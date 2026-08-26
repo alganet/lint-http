@@ -96,7 +96,7 @@ impl Rule for MessagePermissionsPolicyDirectivesValid {
             //
             // Either way the finding is that something the server wrote will
             // not be enforced, which is what the message says now.
-            // cite(Permissions Policy): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
+            // cite(Permissions Policy § 6.1): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
             if let Some(msg) = validate_permissions_policy(s) {
                 return Some(Violation {
                     rule: self.id().into(),

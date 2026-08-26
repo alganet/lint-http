@@ -78,7 +78,7 @@ impl Rule for ServerContentSecurityPolicyValidity {
                 // A CSP directive-name is narrower than the HTTP `token`: only
                 // letters, digits and `-`. Enforcing `token` here let typos like
                 // `default_src` (underscore is a legal tchar) pass unflagged.
-                // cite(CSP3): "directive-name = 1*( ALPHA / DIGIT / "-" )"
+                // cite(CSP3 § 2.3): "directive-name = 1*( ALPHA / DIGIT / "-" )"
                 if let Some(c) = name
                     .chars()
                     .find(|c| !(c.is_ascii_alphanumeric() || *c == '-'))

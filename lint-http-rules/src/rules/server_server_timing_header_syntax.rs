@@ -332,7 +332,7 @@ fn check_field_value(value: &str) -> Option<String> {
         return None;
     }
 
-    // cite(Server Timing, label: Server-Timing grammar): "Server-Timing = #server-timing-metric"
+    // cite(Server Timing § 2, label: Server-Timing grammar): "Server-Timing = #server-timing-metric"
     // cite(Server Timing § 2): "See [RFC7230] for definitions of #, *, OWS, token, and quoted-string."
     // The empty-preserving walk, because the empty member *is* the finding below
     // -- and the `OWS` trim in it is `trim_ows` rather than `str::trim`, because
@@ -361,8 +361,8 @@ fn check_field_value(value: &str) -> Option<String> {
 }
 
 /// One `server-timing-metric`.
-// cite(Server Timing, label: server-timing-metric grammar): "server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )"
-// cite(Server Timing, label: metric-name grammar): "*( OWS ";" OWS server-timing-param ) metric-name = token"
+// cite(Server Timing § 2, label: server-timing-metric grammar): "server-timing-metric = metric-name *( OWS ";" OWS server-timing-param )"
+// cite(Server Timing § 2, label: metric-name grammar): "*( OWS ";" OWS server-timing-param ) metric-name = token"
 fn check_metric(metric: &str) -> Option<String> {
     // Quote-aware, and the segments come back `OWS`-trimmed: the semicolon
     // splitter trims where the comma splitter does not. A bare `split(';')`
@@ -434,8 +434,8 @@ fn check_metric(metric: &str) -> Option<String> {
 /// `message_keep_alive_header_validity::validate_param_value`'s list of five and
 /// added one, and the list had not been extended when Alt-Svc's audit wrote the
 /// sixth. **A copy count quoted from a neighbour is a copy count one short.**
-// cite(Server Timing, label: server-timing-param grammar): "server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value"
-// cite(Server Timing, label: server-timing-param-name grammar): "server-timing-param-name = token"
+// cite(Server Timing § 2, label: server-timing-param grammar): "server-timing-param = server-timing-param-name OWS "=" OWS server-timing-param-value"
+// cite(Server Timing § 2, label: server-timing-param-name grammar): "server-timing-param-name = token"
 fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Option<String> {
     // The repetition is `*( OWS ";" OWS server-timing-param )`: every semicolon
     // it generates owes a parameter behind it, so a trailing `;` and a `; ;`
@@ -539,7 +539,7 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
     // rule that decided it by omission would be one capture format away from
     // being wrong.
     //
-    // cite(Server Timing, label: server-timing-param-value grammar): "server-timing-param-value = token / quoted-string"
+    // cite(Server Timing § 2, label: server-timing-param-value grammar): "server-timing-param-value = token / quoted-string"
     let text = match token_or_quoted_string(value) {
         Ok(content) => content,
         // Neither alternative derives the empty string: `token = 1*tchar`, and

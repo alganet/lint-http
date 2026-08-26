@@ -84,8 +84,8 @@ impl Rule for MessageAccessControlAllowCredentialsWhenOrigin {
         // returns success on `*` for a request whose credentials mode is *not* "include",
         // and a credentialed request must instead match the byte-serialized origin — which
         // `*` is not. A server sending both is advertising a sharing it will never get.
-        // cite(Fetch): "If request’s credentials mode is not "include" and origin is `*`, then return success."
-        // cite(Fetch): "If credentials is `true`, then return success."
+        // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
+        // cite(Fetch § 4.10): "If credentials is `true`, then return success."
         if acc_val.eq_ignore_ascii_case("true") && acao_has_star {
             return Some(Violation {
                 rule: self.id().into(),
