@@ -413,7 +413,7 @@ mod tests {
     /// rule accepts but a sibling rejects would ship in the docs as the
     /// recommended spelling. Four families have now published one.
     ///
-    /// Deliberately not in the list: `server_content_type_present`, which fires
+    /// Deliberately not in the list: `content_type_present`, which fires
     /// on a request-side example only because the synthetic response carries no
     /// Content-Type — a fixture artefact, not a disagreement about the snippet.
     #[test]
@@ -430,9 +430,9 @@ mod tests {
             toml::from_str(&toml_src).expect("config_example.toml must parse");
         let siblings: [(&str, &dyn Rule); 4] = [
             ("well-formed", &crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed),
-            ("charset presence", &crate::rules::server_charset_specification::ServerCharsetSpecification),
+            ("charset presence", &crate::rules::charset_present::CharsetPresent),
             ("media-type allowlist", &crate::rules::message_content_type_iana_registered::MessageContentTypeIanaRegistered),
-            ("nosniff", &crate::rules::server_x_content_type_options::ServerXContentTypeOptions),
+            ("nosniff", &crate::rules::x_content_type_options_present::XContentTypeOptionsPresent),
         ];
 
         for ex in rule.examples() {

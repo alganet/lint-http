@@ -138,7 +138,7 @@ Example (abbreviated):
   "timing": { "duration_ms": 145 },
   "violations": [
     {
-      "rule": "server_cache_control_present",
+      "rule": "cache_control_present",
       "severity": "warn",
       "message": "Response is missing Cache-Control header"
     }

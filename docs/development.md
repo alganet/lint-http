@@ -55,7 +55,7 @@ Rules should be named using `snake_case` and prefixed with their category:
 - Client rules: `client_<name>`
 - Server rules: `server_<name>`
 
-Example: `server_cache_control_present`
+Example: `cache_control_present`
 
 ### 2. Implementation
 

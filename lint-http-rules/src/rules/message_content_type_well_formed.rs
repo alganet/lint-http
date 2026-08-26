@@ -155,7 +155,7 @@ impl Rule for MessageContentTypeWellFormed {
         // contradicts, since stacked Content-Type lines in one message are
         // themselves the defect the last example illustrates.
         &[
-            // Not a bare `text/*`: `server_charset_specification` reports a
+            // Not a bare `text/*`: `charset_present` reports a
             // text media type with no charset, so publishing one here as
             // compliant would contradict a sibling in the same catalogue.
             Example {
@@ -258,7 +258,7 @@ fn check_content_type(
     // `media-type` — four checks that used to stand here and now live beside the
     // split, with § 8.3.1's and § 5.6.6's productions on them. They moved when a
     // second field turned out to need the same question asked: `Accept-Patch` is
-    // `1#media-type`, so `server_patch_accept_patch_header` measures every one of
+    // `1#media-type`, so `accept_patch_header_valid` measures every one of
     // its members against this production, and a copy here would have been the
     // grammar transcribed twice.
     //
@@ -508,7 +508,7 @@ mod tests {
         let rule = MessageContentTypeWellFormed;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "message_content_type_well_formed",
-            "server_charset_specification",
+            "charset_present",
         ]);
 
         for ex in rule.examples() {
@@ -542,14 +542,13 @@ mod tests {
                         ex.snippet
                     );
                     // A Compliant snippet must also survive the siblings that
-                    // read this header. `server_charset_specification` reports
+                    // read this header. `charset_present` reports
                     // any `text/*` carrying no charset, so a bare `text/plain`
                     // published here as good would contradict it. (The
                     // IANA-registry siblings are allowlist-driven and so depend
                     // on the operator's config, not on the example.)
-                    let other =
-                        crate::rules::server_charset_specification::ServerCharsetSpecification
-                            .check_transaction(&tx, &history, &cfg);
+                    let other = crate::rules::charset_present::CharsetPresent
+                        .check_transaction(&tx, &history, &cfg);
                     assert!(
                         other.is_none(),
                         "the charset rule rejects a Compliant example {:?}: {other:?}",

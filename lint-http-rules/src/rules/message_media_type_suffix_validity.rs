@@ -359,8 +359,8 @@ mod tests {
         let siblings: [(&str, &dyn Rule); 5] = [
             ("well-formed", &crate::rules::message_content_type_well_formed::MessageContentTypeWellFormed),
             ("media-type allowlist", &crate::rules::message_content_type_iana_registered::MessageContentTypeIanaRegistered),
-            ("charset presence", &crate::rules::server_charset_specification::ServerCharsetSpecification),
-            ("nosniff", &crate::rules::server_x_content_type_options::ServerXContentTypeOptions),
+            ("charset presence", &crate::rules::charset_present::CharsetPresent),
+            ("nosniff", &crate::rules::x_content_type_options_present::XContentTypeOptionsPresent),
             ("header-name allowlist", &crate::rules::message_extension_headers_registered::MessageExtensionHeadersRegistered),
         ];
 

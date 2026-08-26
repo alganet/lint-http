@@ -116,8 +116,8 @@ mod tests {
     #[tokio::test]
     async fn commit_populates_violations_and_writes_capture() -> anyhow::Result<()> {
         let cfg_inner = make_test_config_with_enabled_rules(&[
-            "server_cache_control_present",
-            "server_etag_or_last_modified",
+            "cache_control_present",
+            "etag_or_last_modified_present",
         ]);
         let (shared, tmp, cw) = make_shared_with_cfg(Arc::new(cfg_inner), None).await?;
 
@@ -141,8 +141,8 @@ mod tests {
     #[tokio::test]
     async fn commit_records_to_state_after_lint() -> anyhow::Result<()> {
         let cfg_inner = make_test_config_with_enabled_rules(&[
-            "server_cache_control_present",
-            "server_etag_or_last_modified",
+            "cache_control_present",
+            "etag_or_last_modified_present",
         ]);
         let (shared, tmp, _cw) = make_shared_with_cfg(Arc::new(cfg_inner), None).await?;
 

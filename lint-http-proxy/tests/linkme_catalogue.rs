@@ -39,5 +39,5 @@ fn registered_rules_collected_in_binary_link_config() {
         .any(|r| r.id() == "host_header"));
     assert!(lint_http::rules::PROTOCOL_RULES
         .iter()
-        .any(|r| r.id() == "server_quic_transport_parameters"));
+        .any(|r| r.id() == "quic_transport_parameters_valid"));
 }

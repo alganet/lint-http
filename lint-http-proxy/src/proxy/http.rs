@@ -119,7 +119,7 @@ where
 ///
 /// The `Content-Type` is not decoration. These responses carry a line of US-ASCII
 /// text and used to carry no media type at all, which is exactly what
-/// `server_content_type_present` reports -- RFC 9110 § 8.3 leaves such a
+/// `content_type_present` reports -- RFC 9110 § 8.3 leaves such a
 /// recipient to assume `application/octet-stream` or to sniff the bytes. A proxy
 /// that lints for a missing Content-Type should not be answering with one.
 pub(super) fn error_resp(status: u16, msg: &str) -> Response<ResponseBody> {
@@ -371,8 +371,8 @@ mod tests {
 
         use crate::test_helpers::make_test_config_with_enabled_rules;
         let cfg_inner = make_test_config_with_enabled_rules(&[
-            "server_cache_control_present",
-            "server_etag_or_last_modified",
+            "cache_control_present",
+            "etag_or_last_modified_present",
         ]);
         let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg_inner), None).await?;
 
@@ -971,21 +971,21 @@ mod tests {
 
         let mock = MockServer::start().await;
 
-        // 1) 200 with no content-type -> should trigger server_content_type_present
+        // 1) 200 with no content-type -> should trigger content_type_present
         Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/no-content-type"))
             .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
             .mount(&mock)
             .await;
 
-        // 2) 200 with no etag/last-modified -> should trigger server_etag_or_last_modified
+        // 2) 200 with no etag/last-modified -> should trigger etag_or_last_modified_present
         Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/no-etag"))
             .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
             .mount(&mock)
             .await;
 
-        // 3) 405 with no Allow -> should trigger server_response_405_allow
+        // 3) 405 with no Allow -> should trigger status_405_allow_valid
         Mock::given(wiremock::matchers::method("GET"))
             .and(wiremock::matchers::path("/405-no-allow"))
             .respond_with(ResponseTemplate::new(405).set_body_string("not allowed"))
@@ -993,9 +993,9 @@ mod tests {
             .await;
 
         let cfg_inner = make_test_config_with_enabled_rules(&[
-            "server_content_type_present",
-            "server_etag_or_last_modified",
-            "server_response_405_allow",
+            "content_type_present",
+            "etag_or_last_modified_present",
+            "status_405_allow_valid",
         ]);
         let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg_inner), None).await?;
 

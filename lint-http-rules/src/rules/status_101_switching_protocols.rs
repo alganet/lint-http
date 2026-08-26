@@ -14,7 +14,7 @@ use crate::rules::Rule;
 /// Additionally:
 /// - HTTP/1.0 does not support the Upgrade mechanism (RFC 9110 §7.8).
 /// - HTTP/2 forbids 101 entirely (RFC 9113 §8.6).
-/// - HTTP/3 forbids 101 (already covered by `server_http3_status_code_validity`
+/// - HTTP/3 forbids 101 (already covered by `http3_status_code_valid`
 ///   but checked here for completeness).
 /// - After a successful 101 exchange on a connection, no further HTTP messages
 ///   should appear (the connection has been handed off to the upgraded protocol).
@@ -111,7 +111,7 @@ impl Rule for Status101SwitchingProtocols {
         // ── Check: 101 on HTTP/3 ──
         // §4.5 is the only place RFC 9114 mentions 101 at all (the message said §4.1,
         // whose subject is HTTP Message Framing). Also enforced by
-        // `server_http3_status_code_validity`; checked here for completeness.
+        // `http3_status_code_valid`; checked here for completeness.
         // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
         if crate::http_version::is_major(&tx.request.version, 3) {
             return Some(Violation {

@@ -168,7 +168,7 @@ sources:
     # registry check compares base URLs.
     #
     # Nothing in the tree reads it. It is where an operator writes the
-    # `server_alt_svc_protocol_iana_registered` allowed list from, and the
+    # `alt_svc_protocol_registered` allowed list from, and the
     # policy is Expert Review, which is why that list is configuration rather
     # than a table compiled into the linter.
 

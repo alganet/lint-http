@@ -172,7 +172,7 @@ The `[rules]` section allows you to enable, disable, or configure specific lint 
 Severity: Each rule table must include a `severity` key. Allowed values are `"info"`, `"warn"`, and `"error"`. When present, this value is used in emitted `Violation` records and in captures. Example:
 
 ```toml
-[rules.server_cache_control_present]
+[rules.cache_control_present]
 enabled = true
 severity = "warn"
 ```
@@ -193,8 +193,8 @@ severity = "info"
 Some rules support additional configuration options beyond simple enable/disable. Use TOML tables to configure these rules.
 
 ```toml
-# Configure server_clear_site_data with custom logout paths
-[rules.server_clear_site_data]
+# Configure clear_site_data_present with custom logout paths
+[rules.clear_site_data_present]
 enabled = true
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 ```

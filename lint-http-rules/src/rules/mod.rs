@@ -379,7 +379,7 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
                 "Configuration names a rule '{}' that does not exist. Rule ids are listed in \
                  docs/rules.md; if this configuration predates a rename, update the id \
                  (most recently, 'client_prefer_header_and_preference_applied' became \
-                 'server_prefer_header_and_preference_applied')",
+                 'prefer_header_and_preference_applied')",
                 rule_name
             ));
         }
@@ -655,12 +655,12 @@ captures = "captures.jsonl"
 [tls]
 enabled = false
 
-[rules.server_clear_site_data]
+[rules.clear_site_data_present]
 enabled = true
 severity = "warn"
 paths = []  # Invalid: empty array
 "#,
-        "server_clear_site_data",
+        "clear_site_data_present",
         "cannot be empty"
     )]
     #[case(
@@ -671,12 +671,12 @@ captures = "captures.jsonl"
 [tls]
 enabled = false
 
-[rules.server_clear_site_data]
+[rules.clear_site_data_present]
 enabled = true
 severity = "warn"
 paths = ["/logout", 42, "/signout"]  # Invalid: contains non-string
 "#,
-        "server_clear_site_data",
+        "clear_site_data_present",
         "not a string"
     )]
     #[case(
@@ -687,13 +687,13 @@ captures = "captures.jsonl"
 [tls]
 enabled = false
 
-[rules.server_clear_site_data]
+[rules.clear_site_data_present]
 enabled = true
 severity = "warn"
 # Missing "paths" field entirely
 other_field = "value"
 "#,
-        "server_clear_site_data",
+        "clear_site_data_present",
         "'paths' field"
     )]
     #[case(
@@ -799,7 +799,7 @@ severity = "warn"
         assert!(RULES.iter().any(|r| r.id() == "host_header"));
         assert!(PROTOCOL_RULES
             .iter()
-            .any(|r| r.id() == "server_quic_transport_parameters"));
+            .any(|r| r.id() == "quic_transport_parameters_valid"));
     }
 
     #[test]
@@ -980,7 +980,7 @@ severity = "warn"
         let msg = err.to_string();
         assert!(msg.contains("does not exist"), "{msg}");
         assert!(
-            msg.contains("'server_prefer_header_and_preference_applied'"),
+            msg.contains("'prefer_header_and_preference_applied'"),
             "{msg}"
         );
 
@@ -993,10 +993,10 @@ severity = "warn"
     #[test]
     fn validate_rules_ok_when_enabled_rule_has_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
-        // server_cache_control_present doesn't require config; enabling should pass
-        enable_rule(&mut cfg, "server_cache_control_present");
-        // server_clear_site_data requires paths; enable with valid paths too
-        enable_rule_with_paths(&mut cfg, "server_clear_site_data", &["/logout"]);
+        // cache_control_present doesn't require config; enabling should pass
+        enable_rule(&mut cfg, "cache_control_present");
+        // clear_site_data_present requires paths; enable with valid paths too
+        enable_rule_with_paths(&mut cfg, "clear_site_data_present", &["/logout"]);
         validate_rules(&cfg)?;
         Ok(())
     }
@@ -1064,19 +1064,19 @@ severity = "warn"
     #[test]
     fn validate_rules_errors_on_invalid_rule_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
-        // Enable server_clear_site_data but with invalid empty paths
+        // Enable clear_site_data_present but with invalid empty paths
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
         table.insert("paths".to_string(), toml::Value::Array(vec![]));
         cfg.rules.insert(
-            "server_clear_site_data".to_string(),
+            "clear_site_data_present".to_string(),
             toml::Value::Table(table),
         );
 
         let res = validate_rules(&cfg);
         assert!(res.is_err());
         let msg = res.unwrap_err().to_string();
-        assert!(msg.contains("server_clear_site_data"));
+        assert!(msg.contains("clear_site_data_present"));
         Ok(())
     }
 
@@ -1234,12 +1234,10 @@ severity = "warn"
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));
         table.insert("severity".to_string(), toml::Value::String("warn".into()));
-        cfg.rules.insert(
-            "server_cache_control_present".into(),
-            toml::Value::Table(table),
-        );
+        cfg.rules
+            .insert("cache_control_present".into(), toml::Value::Table(table));
 
-        let rc = parse_rule_config(&cfg, "server_cache_control_present")?;
+        let rc = parse_rule_config(&cfg, "cache_control_present")?;
         assert_eq!(rc.severity, crate::lint::Severity::Warn);
 
         // The reading is the severity's, and the `enabled` key beside it is not
@@ -1248,27 +1246,26 @@ severity = "warn"
         let mut severity_only = crate::config::Config::default();
         let mut table = toml::map::Map::new();
         table.insert("severity".to_string(), toml::Value::String("error".into()));
-        severity_only.rules.insert(
-            "server_cache_control_present".into(),
-            toml::Value::Table(table),
-        );
+        severity_only
+            .rules
+            .insert("cache_control_present".into(), toml::Value::Table(table));
         assert_eq!(
-            parse_rule_config(&severity_only, "server_cache_control_present")?.severity,
+            parse_rule_config(&severity_only, "cache_control_present")?.severity,
             crate::lint::Severity::Error
         );
-        assert!(validate_rule_table(&severity_only, "server_cache_control_present").is_err());
+        assert!(validate_rule_table(&severity_only, "cache_control_present").is_err());
 
         // And a table with neither is refused by both, because the severity is
         // the reading lint time cannot do without.
         let empty = crate::config::Config::default();
-        assert!(parse_rule_config(&empty, "server_cache_control_present").is_err());
-        assert!(validate_rule_table(&empty, "server_cache_control_present").is_err());
+        assert!(parse_rule_config(&empty, "cache_control_present").is_err());
+        assert!(validate_rule_table(&empty, "cache_control_present").is_err());
 
         // And the reason dropping the flag is not an engine-visible change:
         // `is_enabled` reads a missing `enabled` as `false`, so the rule whose
         // severity is now readable is one `PreparedEngine` never dispatches. The
         // lookup was dead twice over on that path.
-        assert!(!severity_only.is_enabled("server_cache_control_present"));
+        assert!(!severity_only.is_enabled("cache_control_present"));
         Ok(())
     }
 

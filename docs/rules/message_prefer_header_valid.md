@@ -22,7 +22,7 @@ Reads a request's `Prefer` field against RFC 7240 §2's grammar — `Prefer = 1#
 
 **A repeated preference token is reported.** §2 asks clients not to write one twice and says the first instance is the one considered, so the second is text no recipient acts on; §4.2 and §4.4 add that `return` and `handling` written twice can cost the client both instances.
 
-**Not decided here:** whether the server honored anything — `message_preference_applied_header_valid` compares this field against the response's `Preference-Applied`. Nor §2's `Vary` MUST: its antecedent is a fact about the *server*, so the message that can state it is the response rather than this one. `server_prefer_header_and_preference_applied` reads a `Preference-Applied` as the server saying it applies that preference and asks for the `Vary` there.
+**Not decided here:** whether the server honored anything — `message_preference_applied_header_valid` compares this field against the response's `Preference-Applied`. Nor §2's `Vary` MUST: its antecedent is a fact about the *server*, so the message that can state it is the response rather than this one. `prefer_header_and_preference_applied` reads a `Preference-Applied` as the server saying it applies that preference and asks for the `Vary` there.
 
 ## Specifications
 

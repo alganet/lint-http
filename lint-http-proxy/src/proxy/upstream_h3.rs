@@ -424,7 +424,7 @@ impl H3UpstreamClient {
     /// GOAWAY). The origin's *QUIC transport parameters* are **not** emitted —
     /// quinn exposes no API to read a peer's transport parameters — so no
     /// `Server`-tagged `QuicTransportParams` event exists on this leg. A future
-    /// `server_quic_transport_parameters` activation would need a different
+    /// `quic_transport_parameters_valid` activation would need a different
     /// source than this path.
     async fn connect(&self, route: &H3Route, shared: &Arc<Shared>) -> anyhow::Result<PooledConn> {
         let local_is_ipv6 = self
@@ -857,7 +857,7 @@ enum AltSvc {
 /// Parse an `Alt-Svc` header value for HTTP/3 routing. Reuses the alt-svc rules'
 /// list/param splitting (`crate::helpers::headers`) and their acceptance
 /// criteria — only the final `h3` token (draft `h3-NN` is rejected, as
-/// `server_alt_svc_h3_advertisement_valid` flags). `origin_host` resolves the
+/// `alt_svc_h3_advertisement_valid` flags). `origin_host` resolves the
 /// `":port"` (same-host) advertisement form. Returns `None` when the header
 /// carries no usable h3 route and no `clear`.
 fn parse_alt_svc(header: &str, origin_host: &str) -> Option<AltSvc> {
@@ -877,7 +877,7 @@ fn parse_alt_svc(header: &str, origin_host: &str) -> Option<AltSvc> {
             continue;
         };
         // Only the final `h3` ALPN token routes; draft `h3-NN` is not usable
-        // (mirrors `server_alt_svc_h3_advertisement_valid`).
+        // (mirrors `alt_svc_h3_advertisement_valid`).
         if !proto_auth[..eq].trim().eq_ignore_ascii_case("h3") {
             continue;
         }

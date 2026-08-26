@@ -20,7 +20,7 @@ pub struct RedirectChainValid;
 /// or `None` for a status whose definition gives the field no *elsewhere* to
 /// point at.
 ///
-/// The set is not the 3xx class. `server_redirect_status_and_location_validity`
+/// The set is not the 3xx class. `redirect_status_and_location_valid`
 /// exempts the whole class because its licensing sentence — §10.2.2's *"For 3xx
 /// (Redirection) responses"* — names the class; the sentences licensing *this*
 /// finding are the individual status definitions, and they are what a status is
@@ -116,7 +116,7 @@ impl Rule for RedirectChainValid {
 
         let referent = location_names_another_resource(resp.status)?;
 
-        // Everything about the field's own shape is `server_location_header_uri_valid`'s.
+        // Everything about the field's own shape is `location_header_uri_valid`'s.
         // Each decline below is a case that rule already reports, and reporting
         // it a second time here would say the same thing with less of the reason.
         let lines = resp.headers.get_all("location").iter().count();
@@ -250,7 +250,7 @@ impl Rule for RedirectChainValid {
     }
 
     fn description(&self) -> &'static str {
-        "Reports a redirect whose `Location` resolves to the target URI of the request it answers — a redirection to where the client already is. Following it produces the same request, and following that produces the same response.\n\n**The status set is the statuses whose own definition says the field names another resource.** Five say it in as many words — `301` and `308` a *new permanent* URI (RFC 9110 §15.4.2, §15.4.9), `302` and `307` a *different* URI (§15.4.3, §15.4.8), and `303` adds that the URI in the field *\"is not considered equivalent to the target URI\"* (§15.4.4) — and a `300`'s `Location` is *\"a preferred choice's URI reference\"* among representations *\"each with its own more specific identifier\"* (§15.4.1). An unregistered 3xx is a `300` to every conforming recipient (§15) and is reported the same way.\n\n**`304`, `305`, `306` and `201` are not reported.** A `304` redirects the client to a representation it already holds rather than to another URI; `305` is deprecated and `306` reserved, so neither defines anything to follow. A `201 Created` naming the request's own target is the case §15.3.2 *defines* — a `PUT` that creates the resource where it was addressed — and that response would mean the same thing carrying no field at all.\n\n**The comparison is between absolute forms, not between strings.** The target URI is reconstructed from the request-target and the `Host` field (RFC 9112 §3.3), and the `Location` is resolved against it (§10.2.2, RFC 3986 §5), so `page`, `/dir/page` and `https://host/dir/page` are recognised as one resource, and a value naming a different host is not reported however its path reads. Both sides then get RFC 3986 §6.2.2's syntax-based normalization, so a dot segment and a needlessly percent-encoded `unreserved` character are spellings rather than resources: `/a%2Db` and `/a-b` are one path, and — since §2.3 names the period among the octets a normalizer decodes — so are `/dir/%2E%2E/dir/page` and `/dir/page`. `%2F` is not decoded, because that would move a segment boundary the sender never wrote (§2.4). §6.2.3's scheme-based normalization is **not** applied, so a `Location` writing out the scheme's default port does not compare equal to a target that left it off.\n\n**Two things the capture cannot decide, and the rule declines both.** A request-target in origin-form carries no scheme — RFC 9112 §3.3 takes it from whether the connection was secured, which is not in the message — so a `Location` naming a scheme is not compared; the case that would otherwise be reported is the ordinary HTTP-to-HTTPS redirect. Likewise a reference naming a host is not compared when no `Host` field says which host was addressed.\n\n**This is advice.** No sentence forbids a server from sending it. The status definitions above *declare* what the field names rather than requiring anything of it, and the one requirement in the area — §15.4's *\"A client SHOULD detect and intervene in cyclical redirections\"* — is addressed to the client, which is the role this rule is performing. What the finding buys is that a redirect no client can resolve becomes visible.\n\n**Longer cycles are not detected, and the rule reads no history.** A cycle spanning two or more resources needs a history that spans resources; the state layer's origin-scoped query derives that origin from the request-target alone, so it is empty for the origin-form target an HTTP/1.1 request carries. Only the one-step cycle is reported.\n\nThe field's grammar, an empty value, and a response carrying more than one `Location` field line are `server_location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `server_redirect_status_and_location_validity`'s; a redirect status carrying *no* `Location` is `server_response_location_on_redirect`'s."
+        "Reports a redirect whose `Location` resolves to the target URI of the request it answers — a redirection to where the client already is. Following it produces the same request, and following that produces the same response.\n\n**The status set is the statuses whose own definition says the field names another resource.** Five say it in as many words — `301` and `308` a *new permanent* URI (RFC 9110 §15.4.2, §15.4.9), `302` and `307` a *different* URI (§15.4.3, §15.4.8), and `303` adds that the URI in the field *\"is not considered equivalent to the target URI\"* (§15.4.4) — and a `300`'s `Location` is *\"a preferred choice's URI reference\"* among representations *\"each with its own more specific identifier\"* (§15.4.1). An unregistered 3xx is a `300` to every conforming recipient (§15) and is reported the same way.\n\n**`304`, `305`, `306` and `201` are not reported.** A `304` redirects the client to a representation it already holds rather than to another URI; `305` is deprecated and `306` reserved, so neither defines anything to follow. A `201 Created` naming the request's own target is the case §15.3.2 *defines* — a `PUT` that creates the resource where it was addressed — and that response would mean the same thing carrying no field at all.\n\n**The comparison is between absolute forms, not between strings.** The target URI is reconstructed from the request-target and the `Host` field (RFC 9112 §3.3), and the `Location` is resolved against it (§10.2.2, RFC 3986 §5), so `page`, `/dir/page` and `https://host/dir/page` are recognised as one resource, and a value naming a different host is not reported however its path reads. Both sides then get RFC 3986 §6.2.2's syntax-based normalization, so a dot segment and a needlessly percent-encoded `unreserved` character are spellings rather than resources: `/a%2Db` and `/a-b` are one path, and — since §2.3 names the period among the octets a normalizer decodes — so are `/dir/%2E%2E/dir/page` and `/dir/page`. `%2F` is not decoded, because that would move a segment boundary the sender never wrote (§2.4). §6.2.3's scheme-based normalization is **not** applied, so a `Location` writing out the scheme's default port does not compare equal to a target that left it off.\n\n**Two things the capture cannot decide, and the rule declines both.** A request-target in origin-form carries no scheme — RFC 9112 §3.3 takes it from whether the connection was secured, which is not in the message — so a `Location` naming a scheme is not compared; the case that would otherwise be reported is the ordinary HTTP-to-HTTPS redirect. Likewise a reference naming a host is not compared when no `Host` field says which host was addressed.\n\n**This is advice.** No sentence forbids a server from sending it. The status definitions above *declare* what the field names rather than requiring anything of it, and the one requirement in the area — §15.4's *\"A client SHOULD detect and intervene in cyclical redirections\"* — is addressed to the client, which is the role this rule is performing. What the finding buys is that a redirect no client can resolve becomes visible.\n\n**Longer cycles are not detected, and the rule reads no history.** A cycle spanning two or more resources needs a history that spans resources; the state layer's origin-scoped query derives that origin from the request-target alone, so it is empty for the origin-form target an HTTP/1.1 request carries. Only the one-step cycle is reported.\n\nThe field's grammar, an empty value, and a response carrying more than one `Location` field line are `location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `redirect_status_and_location_valid`'s; a redirect status carrying *no* `Location` is `location_on_redirect_present`'s."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -561,7 +561,7 @@ mod tests {
         );
     }
 
-    /// Shapes `server_location_header_uri_valid` owns and reports, each declined
+    /// Shapes `location_header_uri_valid` owns and reports, each declined
     /// here rather than reported twice with less of the reason. The value
     /// carrying %xFF is where this rule used to claim "not valid UTF-8".
     #[rstest]
@@ -584,14 +584,14 @@ mod tests {
     #[case::a_space(&["/a b"])]
     fn the_owning_rule_reports_what_this_one_declines(#[case] locations: &[&str]) {
         let tx = exchange("/a", Some("example.com"), 301, locations);
-        let owner = crate::rules::server_location_header_uri_valid::ServerLocationHeaderUriValid;
+        let owner = crate::rules::location_header_uri_valid::LocationHeaderUriValid;
         assert!(
             owner
                 .check_transaction(
                     &tx,
                     &crate::transaction_history::TransactionHistory::empty(),
                     &crate::test_helpers::make_test_config_with_enabled_rules(&[
-                        "server_location_header_uri_valid",
+                        "location_header_uri_valid",
                     ]),
                 )
                 .is_some(),
