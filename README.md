@@ -154,6 +154,7 @@ The CI gates are mirrored locally with [`just`](https://just.systems). Run bare
 ```bash
 just check          # everything CI rejects a PR for: fmt, citations, lint, test
 just fmt            # format the whole tree, including the rule modules cargo fmt can't reach
+just gendocs        # regenerate docs/rules/ and docs/rules.md from rule metadata
 just install-hooks  # enable the pre-commit guard (fmt + citations, once per clone)
 ```
 

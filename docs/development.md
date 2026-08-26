@@ -169,7 +169,7 @@ not write them by hand. Put the prose on the rule itself, in `description()`,
 Then regenerate:
 
 ```bash
-cargo run -p lint-http-proxy -- gendocs
+cargo xtask gendocs
 ```
 
 The `docs_match_generated` test diffs the checked-in tree against freshly

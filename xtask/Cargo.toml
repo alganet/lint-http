@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+#
+# SPDX-License-Identifier: ISC
+
+[package]
+name = "xtask"
+description = "Repository maintenance tasks for lint-http. Not shipped, not published."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+# The point of this crate: the dev tooling cannot reach a user. Nothing here is
+# built by `cargo install --path lint-http-proxy`, and `publish = false` makes
+# that a fact about the manifest rather than a convention.
+publish = false
+
+[dependencies]
+lint-http-rules = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+# Test-only: unique temp directory names for the write_all round-trip.
+uuid = { workspace = true }
+
+[lints]
+workspace = true
