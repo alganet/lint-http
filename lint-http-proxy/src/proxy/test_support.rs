@@ -36,7 +36,7 @@ pub(super) async fn make_shared_with_cfg(
     let protocol_event_store = StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
         300, 100,
     ));
-    let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg));
+    let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg)?);
     let shared = StdArc::new(Shared {
         upstream,
         captures: cw.clone(),
