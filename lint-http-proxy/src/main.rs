@@ -729,7 +729,7 @@ severity = "warn"
 
     // Enables only the WebSocket opcode-sequence protocol rule.
     async fn write_ws_opcode_config() -> anyhow::Result<std::path::PathBuf> {
-        write_config_enabling("stateful_websocket_frame_opcode_sequence").await
+        write_config_enabling("websocket_frame_opcode_sequence").await
     }
 
     fn ws_message(

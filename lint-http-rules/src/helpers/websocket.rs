@@ -368,7 +368,7 @@ mod tests {
     /// finding where it belongs. The value derives from `base64-value-non-empty`
     /// and decodes to the sixteen octets the NOTE names, so a rule enforcing a
     /// requirement addressed to a *recipient* of the value has nothing here — only
-    /// the party that wrote it does. `stateful_websocket_handshake_validity` is
+    /// the party that wrote it does. `websocket_handshake_valid` is
     /// where that distinction is paid, and the accept value stays derivable so the
     /// server is still measured on its answer.
     #[test]

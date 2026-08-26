@@ -702,6 +702,24 @@ sources:
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
   fragments:
+  - label: cookie_same_site_enforced
+    section: § 4.1.2.7
+    snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
+      line: 133
+  - label: cookie_same_site_enforced (2)
+    section: § 4.1.2.7
+    snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
+      line: 125
+  - label: cookie_same_site_enforced (3)
+    section: § 4.1.2.7
+    snippet: If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
+      line: 147
   - label: message_cookie_attribute_consistency
     section: § 4.1.1
     snippet: samesite-value = "Strict" / "Lax" / "None"
@@ -714,24 +732,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_attribute_consistency.rs
       line: 262
-  - label: stateful_cookie_same_site_enforcement
-    section: § 4.1.2.7
-    snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
-      line: 133
-  - label: stateful_cookie_same_site_enforcement (2)
-    section: § 4.1.2.7
-    snippet: If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax".
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
-      line: 125
-  - label: stateful_cookie_same_site_enforcement (3)
-    section: § 4.1.2.7
-    snippet: If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cookie_same_site_enforcement.rs
-      line: 147
 - label: draft-thomson-hybi-http-timeout-03
   url: https://www.ietf.org/archive/id/draft-thomson-hybi-http-timeout-03.txt
   type: text/plain
@@ -1463,7 +1463,7 @@ sources:
       line: 466
     - file: lint-http-rules/src/rules/message_content_location_and_uri_consistency.rs
       line: 240
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 196
   - label: lint-http-rules/src/helpers/uri.rs (36)
     section: § 6.2.2.2
@@ -2001,6 +2001,36 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6265.txt
   type: text/plain
   fragments:
+  - label: cookie_domain_matching
+    section: § 5.4
+    snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_domain_matching.rs
+      line: 102
+  - label: cookie_domain_matching (2)
+    section: § 5.4
+    snippet: The request-uri's path path-matches the cookie's path.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_domain_matching.rs
+      line: 116
+  - label: cookie_lifecycle
+    section: § 4.1.2.5
+    snippet: The Secure attribute limits the scope of the cookie to "secure" channels
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_lifecycle.rs
+      line: 130
+  - label: cookie_lifecycle (2)
+    section: § 5.3
+    snippet: The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_lifecycle.rs
+      line: 186
+  - label: cookie_lifecycle (3)
+    section: § 5.4
+    snippet: Cookies with longer paths are listed before cookies with shorter paths.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_lifecycle.rs
+      line: 89
   - label: lint-http-rules/src/helpers/cookie.rs
     section: § 4.1.1
     snippet: 'Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:'
@@ -2111,36 +2141,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_cookie_domain_validity.rs
       line: 65
-  - label: stateful_cookie_domain_matching
-    section: § 5.4
-    snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
-      line: 102
-  - label: stateful_cookie_domain_matching (2)
-    section: § 5.4
-    snippet: The request-uri's path path-matches the cookie's path.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cookie_domain_matching.rs
-      line: 116
-  - label: stateful_cookie_lifecycle
-    section: § 4.1.2.5
-    snippet: The Secure attribute limits the scope of the cookie to "secure" channels
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
-      line: 130
-  - label: stateful_cookie_lifecycle (2)
-    section: § 5.3
-    snippet: The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
-      line: 186
-  - label: stateful_cookie_lifecycle (3)
-    section: § 5.4
-    snippet: Cookies with longer paths are listed before cookies with shorter paths.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cookie_lifecycle.rs
-      line: 89
   - label: trace_method_echo
     section: § 4.2.1
     snippet: The user agent sends stored cookies to the origin server in the Cookie header.
@@ -2249,7 +2249,7 @@ sources:
     cited_by:
     - file: lint-http-core/src/protocol_event.rs
       line: 70
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 122
   - label: lint-http-core/src/protocol_event.rs (2)
     section: § 9.1
@@ -2265,7 +2265,7 @@ sources:
       line: 71
     - file: lint-http-proxy/src/proxy/websocket.rs
       line: 384
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 250
   - label: lint-http-proxy/src/proxy/websocket.rs
     section: § 4.1
@@ -2379,7 +2379,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_sec_websocket_extensions_syntax.rs
       line: 44
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 252
   - label: message_sec_websocket_extensions_syntax (3)
     section: § 9.1
@@ -2441,7 +2441,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 209
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 65
   - label: Sec-WebSocket-Protocol
     section: § 4.3
@@ -2495,339 +2495,339 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_sec_websocket_version_advertisement.rs
       line: 22
-  - label: stateful_websocket_frame_masking
+  - label: websocket_frame_masking
     section: § 5.1
     snippet: A client MUST close a connection if it detects a masked frame.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_masking.rs
+    - file: lint-http-rules/src/rules/websocket_frame_masking.rs
       line: 74
-  - label: stateful_websocket_frame_masking (2)
+  - label: websocket_frame_masking (2)
     section: § 5.1
     snippet: A server MUST NOT mask any frames that it sends to the client.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_masking.rs
+    - file: lint-http-rules/src/rules/websocket_frame_masking.rs
       line: 61
-  - label: stateful_websocket_frame_masking (3)
+  - label: websocket_frame_masking (3)
     section: § 5.1
     snippet: The server MUST close the connection upon receiving a frame that is not masked.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_masking.rs
+    - file: lint-http-rules/src/rules/websocket_frame_masking.rs
       line: 68
-  - label: stateful_websocket_frame_masking (4)
+  - label: websocket_frame_masking (4)
     section: § 5.1
     snippet: To avoid confusing network intermediaries (such as intercepting proxies) and for security reasons that are further discussed in Section 10.3, a client MUST mask all frames that it sends to the server (see Section 5.3 for further details).
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_masking.rs
+    - file: lint-http-rules/src/rules/websocket_frame_masking.rs
       line: 60
-  - label: stateful_websocket_frame_opcode_sequence
+  - label: websocket_frame_opcode_sequence
     section: § 11.8
     snippet: The opcode is an integer number between 0 and 15, inclusive.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 119
-  - label: stateful_websocket_frame_opcode_sequence (2)
+  - label: websocket_frame_opcode_sequence (2)
     section: § 11.8
     snippet: WebSocket Opcode numbers are subject to the "Standards Action" IANA registration policy [RFC5226].
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 120
-  - label: stateful_websocket_frame_opcode_sequence (3)
+  - label: websocket_frame_opcode_sequence (3)
     section: § 5.1
     snippet: A data frame MAY be transmitted by either the client or the server at any time after opening handshake completion and before that endpoint has sent a Close frame (Section 5.5.1).
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 284
-  - label: stateful_websocket_frame_opcode_sequence (4)
+  - label: websocket_frame_opcode_sequence (4)
     section: § 5.2
     snippet: '%x0 denotes a continuation frame'
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 293
-  - label: stateful_websocket_frame_opcode_sequence (5)
+  - label: websocket_frame_opcode_sequence (5)
     section: § 5.2
     snippet: '%x3-7 are reserved for further non-control frames'
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 144
-  - label: stateful_websocket_frame_opcode_sequence (6)
+  - label: websocket_frame_opcode_sequence (6)
     section: § 5.2
     snippet: '%xB-F are reserved for further control frames'
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 153
-  - label: stateful_websocket_frame_opcode_sequence (7)
+  - label: websocket_frame_opcode_sequence (7)
     section: § 5.2
     snippet: If an unknown opcode is received, the receiving endpoint MUST _Fail the WebSocket Connection_.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 143
-  - label: stateful_websocket_frame_opcode_sequence (8)
+  - label: websocket_frame_opcode_sequence (8)
     section: § 5.4
     snippet: A fragmented message consists of a single frame with the FIN bit clear and an opcode other than 0, followed by zero or more frames with the FIN bit clear and the opcode set to 0, and terminated by a single frame with the FIN bit set and an opcode of 0.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 294
-  - label: stateful_websocket_frame_opcode_sequence (9)
+  - label: websocket_frame_opcode_sequence (9)
     section: § 5.4
     snippet: An unfragmented message consists of a single frame with the FIN bit set (Section 5.2) and an opcode other than 0.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 309
-  - label: stateful_websocket_frame_opcode_sequence (10)
+  - label: websocket_frame_opcode_sequence (10)
     section: § 5.4
     snippet: Control frames (see Section 5.5) MAY be injected in the middle of a fragmented message.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 277
-  - label: stateful_websocket_frame_opcode_sequence (11)
+  - label: websocket_frame_opcode_sequence (11)
     section: § 5.4
     snippet: Control frames themselves MUST NOT be fragmented.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 199
-  - label: stateful_websocket_frame_opcode_sequence (12)
+  - label: websocket_frame_opcode_sequence (12)
     section: § 5.4
     snippet: The fragments of one message MUST NOT be interleaved between the fragments of another message unless an extension has been negotiated that can interpret the interleaving.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 308
-  - label: stateful_websocket_frame_opcode_sequence (13)
+  - label: websocket_frame_opcode_sequence (13)
     section: § 5.5
     snippet: All control frames MUST have a payload length of 125 bytes or less and MUST NOT be fragmented.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 190
-  - label: stateful_websocket_frame_opcode_sequence (14)
+  - label: websocket_frame_opcode_sequence (14)
     section: § 5.5
     snippet: Control frames are identified by opcodes where the most significant bit of the opcode is 1.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 184
-  - label: stateful_websocket_frame_opcode_sequence (15)
+  - label: websocket_frame_opcode_sequence (15)
     section: § 5.5.1
     snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 210
-  - label: stateful_websocket_frame_opcode_sequence (16)
+  - label: websocket_frame_opcode_sequence (16)
     section: § 5.5.1
     snippet: The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 209
-  - label: stateful_websocket_frame_opcode_sequence (17)
+  - label: websocket_frame_opcode_sequence (17)
     section: § 5.5.1
     snippet: The Close frame contains an opcode of 0x8.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 208
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 270
-  - label: stateful_websocket_frame_opcode_sequence (18)
+  - label: websocket_frame_opcode_sequence (18)
     section: § 5.5.1
     snippet: The application MUST NOT send any more data frames after sending a Close frame.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 283
-  - label: stateful_websocket_frame_opcode_sequence (19)
+  - label: websocket_frame_opcode_sequence (19)
     section: § 5.6
     snippet: Data frames (e.g., non-control frames) are identified by opcodes where the most significant bit of the opcode is 0.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 249
-  - label: stateful_websocket_frame_opcode_sequence (20)
+  - label: websocket_frame_opcode_sequence (20)
     section: § 5.8
     snippet: This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_opcode_sequence.rs
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 121
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_rsv_bits.rs
+    - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
       line: 120
-  - label: stateful_websocket_frame_rsv_bits
+  - label: websocket_frame_rsv_bits
     section: § 5.2
     snippet: If a nonzero value is received and none of the negotiated extensions defines the meaning of such a nonzero value, the receiving endpoint MUST _Fail the WebSocket Connection_.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_rsv_bits.rs
+    - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
       line: 119
-  - label: stateful_websocket_frame_rsv_bits (2)
+  - label: websocket_frame_rsv_bits (2)
     section: § 5.2
     snippet: MUST be 0 unless an extension is negotiated that defines meanings for non-zero values.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_rsv_bits.rs
+    - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
       line: 118
-  - label: stateful_websocket_frame_rsv_bits (3)
+  - label: websocket_frame_rsv_bits (3)
     section: § 5.2
     snippet: 'RSV1, RSV2, RSV3:  1 bit each'
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_rsv_bits.rs
+    - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
       line: 89
   - label: frame-rsv1 production
     section: § 5.2
     snippet: frame-rsv1 = %x0 / %x1 ; 1 bit in length, MUST be 0 unless ; negotiated otherwise
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_frame_rsv_bits.rs
+    - file: lint-http-rules/src/rules/websocket_frame_rsv_bits.rs
       line: 69
-  - label: stateful_websocket_handshake_validity
+  - label: websocket_handshake_valid
     section: § 4.1
     snippet: If the response includes a |Sec-WebSocket-Extensions| header field and this header field indicates the use of an extension that was not present in the client's handshake (the server has indicated an extension not requested by the client), the client MUST _Fail the WebSocket Connection_.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 248
-  - label: stateful_websocket_handshake_validity (2)
+  - label: websocket_handshake_valid (2)
     section: § 4.1
     snippet: If the response includes a |Sec-WebSocket-Protocol| header field and this header field indicates the use of a subprotocol that was not present in the client's handshake (the server has indicated a subprotocol not requested by the client), the client MUST _Fail the WebSocket Connection_.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 292
-  - label: stateful_websocket_handshake_validity (3)
+  - label: websocket_handshake_valid (3)
     section: § 4.1
     snippet: If the response lacks a |Connection| header field or the |Connection| header field doesn't contain a token that is an ASCII case-insensitive match for the value "Upgrade", the client MUST _Fail the WebSocket Connection_.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 160
-  - label: stateful_websocket_handshake_validity (4)
+  - label: websocket_handshake_valid (4)
     section: § 4.1
     snippet: If the response lacks a |Sec-WebSocket-Accept| header field or the |Sec-WebSocket-Accept| contains a value other than the base64-encoded SHA-1 of the concatenation of the |Sec-WebSocket-Key| (as a string, not base64-decoded) with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" but ignoring any leading and trailing whitespace, the client MUST _Fail the WebSocket Connection_.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 195
-  - label: stateful_websocket_handshake_validity (5)
+  - label: websocket_handshake_valid (5)
     section: § 4.1
     snippet: If the response lacks an |Upgrade| header field or the |Upgrade| header field contains a value that is not an ASCII case-insensitive match for the value "websocket", the client MUST _Fail the WebSocket Connection_.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 125
-  - label: stateful_websocket_handshake_validity (6)
+  - label: websocket_handshake_valid (6)
     section: § 4.1
     snippet: If the status code received from the server is not 101, the client handles the response per HTTP [RFC2616] procedures.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 398
-  - label: stateful_websocket_handshake_validity (7)
+  - label: websocket_handshake_valid (7)
     section: § 4.1
     snippet: In particular, the client might perform authentication if it receives a 401 status code; the server might redirect the client using a 3xx status code (but clients are not required to follow them), etc.  Otherwise, proceed as follows.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 399
-  - label: stateful_websocket_handshake_validity (8)
+  - label: websocket_handshake_valid (8)
     section: § 4.2.1
     snippet: A |Sec-WebSocket-Key| header field with a base64-encoded (see Section 4 of [RFC4648]) value that, when decoded, is 16 bytes in length.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 67
-  - label: stateful_websocket_handshake_validity (9)
+  - label: websocket_handshake_valid (9)
     section: § 4.2.1
     snippet: A |Sec-WebSocket-Version| header field, with a value of 13.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 68
-  - label: stateful_websocket_handshake_validity (10)
+  - label: websocket_handshake_valid (10)
     section: § 4.2.1
     snippet: including but not limited to any violations of the ABNF grammar specified for the components of the handshake
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 66
-  - label: stateful_websocket_handshake_validity (11)
+  - label: websocket_handshake_valid (11)
     section: § 4.2.2
     snippet: A Status-Line with a 101 response code as per RFC 2616 [RFC2616].
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 405
-  - label: stateful_websocket_handshake_validity (12)
+  - label: websocket_handshake_valid (12)
     section: § 4.2.2
     snippet: A |Connection| header field with value "Upgrade".
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 161
-  - label: stateful_websocket_handshake_validity (13)
+  - label: websocket_handshake_valid (13)
     section: § 4.2.2
     snippet: A |Sec-WebSocket-Accept| header field.  The value of this header field is constructed by concatenating /key/, defined above in step 4 in Section 4.2.2, with the string "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", taking the SHA-1 hash of this concatenated value to obtain a 20-byte value and base64-encoding (see Section 4 of [RFC4648]) this 20-byte hash.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 196
-  - label: stateful_websocket_handshake_validity (14)
+  - label: websocket_handshake_valid (14)
     section: § 4.2.2
     snippet: An |Upgrade| header field with value "websocket" as per RFC 2616 [RFC2616].
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 126
-  - label: stateful_websocket_handshake_validity (15)
+  - label: websocket_handshake_valid (15)
     section: § 4.2.2
     snippet: Extensions not listed by the client MUST NOT be listed.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 249
-  - label: stateful_websocket_handshake_validity (16)
+  - label: websocket_handshake_valid (16)
     section: § 4.2.2
     snippet: If the requested service is not available, the server MUST send an appropriate HTTP error code (such as 404 Not Found) and abort the WebSocket handshake.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 404
-  - label: stateful_websocket_handshake_validity (17)
+  - label: websocket_handshake_valid (17)
     section: § 4.2.2
     snippet: If the server chooses to accept the incoming connection, it MUST reply with a valid HTTP response indicating the following.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 400
-  - label: stateful_websocket_handshake_validity (18)
+  - label: websocket_handshake_valid (18)
     section: § 4.2.2
     snippet: If the server does not wish to accept this connection, it MUST return an appropriate HTTP error code (e.g., 403 Forbidden) and abort the WebSocket handshake described in this section.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 403
-  - label: stateful_websocket_handshake_validity (19)
+  - label: websocket_handshake_valid (19)
     section: § 4.2.2
     snippet: If this version does not match a version understood by the server, the server MUST abort the WebSocket handshake described in this section and instead send an appropriate HTTP error code (such as 426 Upgrade Required) and a |Sec-WebSocket-Version| header field indicating the version(s) the server is capable of understanding.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 69
-  - label: stateful_websocket_handshake_validity (20)
+  - label: websocket_handshake_valid (20)
     section: § 4.2.2
     snippet: The empty string is not the same as the null value for these purposes and is not a legal value for this field.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 295
-  - label: stateful_websocket_handshake_validity (21)
+  - label: websocket_handshake_valid (21)
     section: § 4.2.2
     snippet: The server MAY redirect the client using a 3xx status code [RFC2616].
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 402
-  - label: stateful_websocket_handshake_validity (22)
+  - label: websocket_handshake_valid (22)
     section: § 4.2.2
     snippet: The server can perform additional client authentication, for example, by returning a 401 status code with the corresponding |WWW-Authenticate| header field as described in [RFC2616].
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 401
-  - label: stateful_websocket_handshake_validity (23)
+  - label: websocket_handshake_valid (23)
     section: § 4.2.2
     snippet: The value chosen MUST be derived from the client's handshake, specifically by selecting one of the values from the |Sec-WebSocket-Protocol| field that the server is willing to use for this connection (if any).
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 293
-  - label: stateful_websocket_handshake_validity (24)
+  - label: websocket_handshake_valid (24)
     section: § 4.2.2
     snippet: if the server does not wish to agree to one of the suggested subprotocols, it MUST NOT send back a |Sec-WebSocket-Protocol| header field in its response
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 294
   - label: Sec-WebSocket-Protocol-Server
     section: § 4.3
     snippet: Sec-WebSocket-Protocol-Server = token
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 296
   - label: extension
     section: § 4.3
     snippet: extension = extension-token *( ";" extension-param )
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 353
-  - label: stateful_websocket_handshake_validity (25)
+  - label: websocket_handshake_valid (25)
     section: § 9.1
     snippet: any extension parameters, and what constitutes a valid response by a server to a requested set of parameters by a client, will be defined by each such extension.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
+    - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 251
 - label: RFC 6585
   url: https://www.rfc-editor.org/rfc/rfc6585.txt
@@ -2843,41 +2843,41 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc6749.txt
   type: text/plain
   fragments:
-  - label: stateful_oauth2_code_flow
+  - label: oauth2_code_flow
     section: § 10.12
     snippet: The client MUST implement CSRF protection for its redirection URI.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_oauth2_code_flow.rs
+    - file: lint-http-rules/src/rules/oauth2_code_flow.rs
       line: 75
-  - label: stateful_oauth2_code_flow (2)
+  - label: oauth2_code_flow (2)
     section: § 10.12
     snippet: The client SHOULD utilize the "state" request parameter to deliver this value
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_oauth2_code_flow.rs
+    - file: lint-http-rules/src/rules/oauth2_code_flow.rs
       line: 76
-  - label: stateful_oauth2_code_flow (3)
+  - label: oauth2_code_flow (3)
     section: § 4.1.1
     snippet: RECOMMENDED.  An opaque value used by the client to maintain state between the request and callback.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_oauth2_code_flow.rs
+    - file: lint-http-rules/src/rules/oauth2_code_flow.rs
       line: 74
-  - label: stateful_oauth2_code_flow (4)
+  - label: oauth2_code_flow (4)
     section: § 4.1.1
     snippet: REQUIRED.  Value MUST be set to "code".
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_oauth2_code_flow.rs
+    - file: lint-http-rules/src/rules/oauth2_code_flow.rs
       line: 66
-  - label: stateful_oauth2_code_flow (5)
+  - label: oauth2_code_flow (5)
     section: § 4.1.2
     snippet: REQUIRED if the "state" parameter was present in the client authorization request.  The exact value received from the client.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_oauth2_code_flow.rs
+    - file: lint-http-rules/src/rules/oauth2_code_flow.rs
       line: 99
-  - label: stateful_oauth2_code_flow (6)
+  - label: oauth2_code_flow (6)
     section: § 4.1.2
     snippet: REQUIRED.  The authorization code generated by the authorization server.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_oauth2_code_flow.rs
+    - file: lint-http-rules/src/rules/oauth2_code_flow.rs
       line: 94
 - label: RFC 6750
   url: https://www.rfc-editor.org/rfc/rfc6750.txt
@@ -3570,6 +3570,30 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc7616.txt
   type: text/plain
   fragments:
+  - label: digest_auth_nonce_handling
+    section: § 3.3
+    snippet: A case-insensitive flag indicating that the previous request from the client was rejected because the nonce value was stale.
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_auth_nonce_handling.rs
+      line: 253
+  - label: digest_auth_nonce_handling (2)
+    section: § 3.3
+    snippet: A string of data, specified by the server, that SHOULD be returned by the client unchanged in the Authorization header field of subsequent requests
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_auth_nonce_handling.rs
+      line: 182
+  - label: digest_auth_nonce_handling (3)
+    section: § 3.3
+    snippet: The nonce is opaque to the client.
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_auth_nonce_handling.rs
+      line: 136
+  - label: digest_auth_nonce_handling (4)
+    section: § 3.4
+    snippet: if the same nc value is seen twice, then the request is a replay.
+    cited_by:
+    - file: lint-http-rules/src/rules/digest_auth_nonce_handling.rs
+      line: 241
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 3.5
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
@@ -3600,30 +3624,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_digest_auth_validity.rs
       line: 111
-  - label: stateful_digest_auth_nonce_handling
-    section: § 3.3
-    snippet: A case-insensitive flag indicating that the previous request from the client was rejected because the nonce value was stale.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
-      line: 253
-  - label: stateful_digest_auth_nonce_handling (2)
-    section: § 3.3
-    snippet: A string of data, specified by the server, that SHOULD be returned by the client unchanged in the Authorization header field of subsequent requests
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
-      line: 182
-  - label: stateful_digest_auth_nonce_handling (3)
-    section: § 3.3
-    snippet: The nonce is opaque to the client.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
-      line: 136
-  - label: stateful_digest_auth_nonce_handling (4)
-    section: § 3.4
-    snippet: if the same nc value is seen twice, then the request is a replay.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_digest_auth_nonce_handling.rs
-      line: 241
 - label: RFC 7617
   url: https://www.rfc-editor.org/rfc/rfc7617.txt
   type: text/plain
@@ -3914,22 +3914,22 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc8246.txt
   type: text/plain
   fragments:
-  - label: server_immutable_requires_freshness
+  - label: immutable_cache_never_stale
     section: § 2
     snippet: Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload).
     cited_by:
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 107
     - file: lint-http-rules/src/rules/server_immutable_requires_freshness.rs
       line: 105
-    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 107
-  - label: server_immutable_requires_freshness (2)
+  - label: immutable_cache_never_stale (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
     cited_by:
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 108
     - file: lint-http-rules/src/rules/server_immutable_requires_freshness.rs
       line: 104
-    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 108
 - label: RFC 8259
   url: https://www.rfc-editor.org/rfc/rfc8259.txt
   type: text/plain
@@ -4136,59 +4136,59 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc8297.txt
   type: text/plain
   fragments:
-  - label: stateful_103_early_hints_before_final
+  - label: status_103_early_hints_before_final
     section: § 2
     snippet: A client MUST NOT interpret the 103 (Early Hints) response header fields as if they applied to the informational response itself (e.g., as metadata about the 103 (Early Hints) response).
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 41
-  - label: stateful_103_early_hints_before_final (2)
+  - label: status_103_early_hints_before_final (2)
     section: § 2
     snippet: A client SHOULD NOT interpret the nonexistence of a header field in a 103 (Early Hints) response as a speculation that the header field is unlikely to be part of the final response.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 42
-  - label: stateful_103_early_hints_before_final (3)
+  - label: status_103_early_hints_before_final (3)
     section: § 2
     snippet: A server MAY emit multiple 103 (Early Hints) responses with additional header fields as new information becomes available while the request is being processed.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 47
-  - label: stateful_103_early_hints_before_final (4)
+  - label: status_103_early_hints_before_final (4)
     section: § 2
     snippet: A server MAY use a 103 (Early Hints) response to indicate only some of the header fields that are expected to be found in the final response.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 46
-  - label: stateful_103_early_hints_before_final (5)
+  - label: status_103_early_hints_before_final (5)
     section: § 2
     snippet: Aside from performance optimizations, such evaluation of the 103 (Early Hints) response's header fields MUST NOT affect how the final response is processed.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 40
-  - label: stateful_103_early_hints_before_final (6)
+  - label: status_103_early_hints_before_final (6)
     section: § 2
     snippet: However, there might be cases when this is not desirable, such as when the server learns that the header fields in the 103 (Early Hints) response are not correct before the final response is sent.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 53
-  - label: stateful_103_early_hints_before_final (7)
+  - label: status_103_early_hints_before_final (7)
     section: § 2
     snippet: The 103 (Early Hints) informational status code indicates to the client that the server is likely to send a final response with the header fields included in the informational response.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 87
-  - label: stateful_103_early_hints_before_final (8)
+  - label: status_103_early_hints_before_final (8)
     section: § 2
     snippet: Typically, a server will include the header fields sent in a 103 (Early Hints) response in the final response as well.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 52
-  - label: stateful_103_early_hints_before_final (9)
+  - label: status_103_early_hints_before_final (9)
     section: § 3
     snippet: In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 127
 - label: RFC 8441
   url: https://www.rfc-editor.org/rfc/rfc8441.txt
@@ -4524,7 +4524,7 @@ sources:
       line: 82
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 20
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 86
   - label: accept_ranges_on_partial_content (5)
     section: § 14.3
@@ -4594,6 +4594,20 @@ sources:
       line: 37
     - file: lint-http-rules/src/rules/server_accept_ranges_values_valid.rs
       line: 311
+  - label: authentication_failure_loop
+    section: § 15.5.2
+    snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
+    cited_by:
+    - file: lint-http-rules/src/rules/authentication_failure_loop.rs
+      line: 57
+  - label: authentication_failure_loop (2)
+    section: § 15.5.2
+    snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
+    cited_by:
+    - file: lint-http-rules/src/rules/authentication_failure_loop.rs
+      line: 30
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 72
   - label: cache_coherence
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
@@ -4618,6 +4632,14 @@ sources:
       line: 54
     - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
       line: 33
+  - label: cache_validation_chain
+    section: § 13.1.2
+    snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_validation_chain.rs
+      line: 62
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
+      line: 100
   - label: cached_validators_reused
     section: § 13.1.2
     snippet: When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request
@@ -4630,6 +4652,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 67
+  - label: conditional_request_handling
+    section: § 13.1.2
+    snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
+    cited_by:
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 97
+  - label: conditional_request_handling (2)
+    section: § 13.1.3
+    snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
+    cited_by:
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 131
+  - label: conditional_request_handling (3)
+    section: § 13.2.2
+    snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
+    cited_by:
+    - file: lint-http-rules/src/rules/conditional_request_handling.rs
+      line: 132
   - label: expect_header_valid
     section: § 10.1
     snippet: The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request.
@@ -4858,6 +4898,8 @@ sources:
       line: 50
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 31
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 81
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 191
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -4874,8 +4916,6 @@ sources:
       line: 241
     - file: lint-http-rules/src/rules/server_response_405_allow.rs
       line: 47
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 81
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 78
   - label: head_response_headers_match_get (11)
@@ -4966,7 +5006,7 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_transaction.rs
       line: 64
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 24
   - label: lint-http-core/src/http_version.rs
     section: § 2.5
@@ -5486,7 +5526,7 @@ sources:
       line: 41
     - file: lint-http-rules/src/rules/server_x_xss_protection_value_valid.rs
       line: 40
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 77
   - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 5.5
@@ -5512,14 +5552,14 @@ sources:
       line: 49
     - file: lint-http-rules/src/rules/message_upgrade_header_syntax_valid.rs
       line: 137
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 138
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 113
     - file: lint-http-rules/src/rules/server_patch_accept_patch_header.rs
       line: 82
     - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
       line: 126
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 138
   - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 5.5
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
@@ -6090,7 +6130,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/status.rs
       line: 7
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 79
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
@@ -6098,10 +6138,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 381
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 161
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
       line: 111
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 161
   - label: Host grammar
     section: § 7.2
     snippet: Host = uri-host [ ":" port ]
@@ -6412,12 +6452,12 @@ sources:
       line: 35
     - file: lint-http-rules/src/rules/message_context_fields_direction.rs
       line: 45
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 103
     - file: lint-http-rules/src/rules/server_location_header_uri_valid.rs
       line: 20
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 76
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 103
   - label: message_allow_header_method_tokens (2)
     section: § 10.2.1
     snippet: An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration.
@@ -7068,7 +7108,7 @@ sources:
       line: 64
     - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
       line: 39
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 76
   - label: message_if_modified_since_date_format (2)
     section: § 5.5
@@ -7086,7 +7126,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_if_none_match_etag_syntax.rs
       line: 54
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 99
   - label: message_if_unmodified_since_date_format
     section: § 13.1.4
@@ -7938,12 +7978,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 76
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 88
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 33
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 28
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 88
   - label: post_creates_resource (2)
     section: § 15.3.2
     snippet: The 201 (Created) status code indicates that the request has been fulfilled and has resulted in one or more new resources being created.
@@ -7956,12 +7996,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 62
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 89
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 34
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 27
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 89
   - label: post_creates_resource (4)
     section: § 9.3.3
     snippet: An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable)).
@@ -8072,7 +8112,7 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 133
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 80
   - label: range_header_syntax (10)
     section: § 14.2
@@ -8080,6 +8120,160 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 226
+  - label: range_request_and_caching
+    section: § 13.1.5
+    snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 186
+  - label: range_request_and_caching (2)
+    section: § 13.1.5
+    snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 207
+  - label: range_request_and_caching (3)
+    section: § 13.1.5
+    snippet: Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 197
+  - label: range_request_and_caching (4)
+    section: § 15.3.7.3
+    snippet: A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 93
+  - label: range_request_and_caching (5)
+    section: § 15.3.7.3
+    snippet: These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1).
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 134
+  - label: redirect_chain_valid
+    section: § 10.2.2
+    snippet: For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 30
+    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
+      line: 43
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 112
+  - label: redirect_chain_valid (2)
+    section: § 10.2.2
+    snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 171
+  - label: redirect_chain_valid (3)
+    section: § 10.2.2
+    snippet: When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5).
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 162
+  - label: redirect_chain_valid (4)
+    section: § 15
+    snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 77
+    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
+      line: 44
+    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
+      line: 67
+  - label: redirect_chain_valid (5)
+    section: § 15.4
+    snippet: A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops).
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 235
+  - label: redirect_chain_valid (6)
+    section: § 15.4
+    snippet: If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 78
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 80
+    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
+      line: 45
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 121
+  - label: redirect_chain_valid (7)
+    section: § 15.4.1
+    snippet: If the server has a preferred choice, the server SHOULD generate a Location header field containing a preferred choice's URI reference.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 34
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 37
+  - label: redirect_chain_valid (8)
+    section: § 15.4.1
+    snippet: the target resource has more than one representation, each with its own more specific identifier
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 33
+  - label: redirect_chain_valid (9)
+    section: § 15.4.2
+    snippet: The 301 (Moved Permanently) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 38
+  - label: redirect_chain_valid (10)
+    section: § 15.4.3
+    snippet: The 302 (Found) status code indicates that the target resource resides temporarily under a different URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 42
+  - label: redirect_chain_valid (11)
+    section: § 15.4.4
+    snippet: Note that the new URI in the Location header field is not considered equivalent to the target URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 48
+  - label: redirect_chain_valid (12)
+    section: § 15.4.4
+    snippet: The 303 (See Other) status code indicates that the server is redirecting the user agent to a different resource, as indicated by a URI in the Location header field, which is intended to provide an indirect response to the original request.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 47
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 45
+    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
+      line: 58
+  - label: redirect_chain_valid (13)
+    section: § 15.4.5
+    snippet: the server is therefore redirecting the client to make use of that stored representation as if it were the content of a 200 (OK) response
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 67
+  - label: redirect_chain_valid (14)
+    section: § 15.4.6
+    snippet: The 305 (Use Proxy) status code was defined in a previous version of this specification and is now deprecated (Appendix B of [RFC7231]).
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 69
+  - label: redirect_chain_valid (15)
+    section: § 15.4.7
+    snippet: The 306 status code was defined in a previous version of this specification, is no longer used, and the code is reserved.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 71
+  - label: redirect_chain_valid (16)
+    section: § 15.4.8
+    snippet: The 307 (Temporary Redirect) status code indicates that the target resource resides temporarily under a different URI and the user agent MUST NOT change the request method if it performs an automatic redirection to that URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 52
+    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
+      line: 44
+  - label: redirect_chain_valid (17)
+    section: § 15.4.9
+    snippet: The 308 (Permanent Redirect) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 56
   - label: request_method_token_valid
     section: § 9.1
     snippet: All such methods ought to be registered within the "Hypertext Transfer Protocol (HTTP) Method Registry", as described in Section 16.1.
@@ -8265,48 +8459,18 @@ sources:
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
       line: 43
   - label: server_3xx_vs_request_method (2)
-    section: § 15.4
-    snippet: If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
-      line: 80
-    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
-      line: 45
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 121
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 78
-  - label: server_3xx_vs_request_method (3)
     section: § 15.4.2
     snippet: historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 308 (Permanent Redirect) status | code can be used instead.
     cited_by:
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
       line: 31
-  - label: server_3xx_vs_request_method (4)
+  - label: server_3xx_vs_request_method (3)
     section: § 15.4.3
     snippet: For historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 307 (Temporary Redirect) status | code can be used instead.
     cited_by:
     - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
       line: 33
-  - label: server_3xx_vs_request_method (5)
-    section: § 15.4.4
-    snippet: The 303 (See Other) status code indicates that the server is redirecting the user agent to a different resource, as indicated by a URI in the Location header field, which is intended to provide an indirect response to the original request.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
-      line: 45
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 58
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 47
-  - label: server_3xx_vs_request_method (6)
-    section: § 15.4.8
-    snippet: The 307 (Temporary Redirect) status code indicates that the target resource resides temporarily under a different URI and the user agent MUST NOT change the request method if it performs an automatic redirection to that URI.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_3xx_vs_request_method.rs
-      line: 44
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 52
-  - label: server_3xx_vs_request_method (7)
+  - label: server_3xx_vs_request_method (4)
     section: § 9.3.3
     snippet: If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field.
     cited_by:
@@ -8478,21 +8642,11 @@ sources:
       line: 130
   - label: server_redirect_status_and_location_validity
     section: § 10.2.2
-    snippet: For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
-      line: 43
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 112
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 30
-  - label: server_redirect_status_and_location_validity (2)
-    section: § 10.2.2
     snippet: The type of relationship is defined by the combination of request method and status code semantics.
     cited_by:
     - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
       line: 83
-  - label: server_redirect_status_and_location_validity (3)
+  - label: server_redirect_status_and_location_validity (2)
     section: § 15
     snippet: A client that receives a response with an invalid status code SHOULD process the response as if it had a 5xx (Server Error) status code.
     cited_by:
@@ -8500,16 +8654,6 @@ sources:
       line: 53
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 79
-  - label: server_redirect_status_and_location_validity (4)
-    section: § 15
-    snippet: However, a client MUST understand the class of any status code, as indicated by the first digit, and treat an unrecognized status code as being equivalent to the x00 status code of that class.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_redirect_status_and_location_validity.rs
-      line: 44
-    - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
-      line: 67
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 77
   - label: server_response_405_allow
     section: § 10.2.1
     snippet: The actual set of allowed methods is defined by the origin server at the time of each request.
@@ -8561,32 +8705,24 @@ sources:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 38
   - label: server_response_location_on_redirect (2)
-    section: § 15.4.1
-    snippet: If the server has a preferred choice, the server SHOULD generate a Location header field containing a preferred choice's URI reference.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
-      line: 37
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 34
-  - label: server_response_location_on_redirect (3)
     section: § 15.4.2
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 43
-  - label: server_response_location_on_redirect (4)
+  - label: server_response_location_on_redirect (3)
     section: § 15.4.3
     snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 50
-  - label: server_response_location_on_redirect (5)
+  - label: server_response_location_on_redirect (4)
     section: § 15.4.8
     snippet: The server SHOULD generate a Location header field in the response containing a URI reference for the different URI.
     cited_by:
     - file: lint-http-rules/src/rules/server_response_location_on_redirect.rs
       line: 68
-  - label: server_response_location_on_redirect (6)
+  - label: server_response_location_on_redirect (5)
     section: § 15.4.9
     snippet: The server SHOULD generate a Location header field in the response containing a preferred URI reference for the new permanent URI.
     cited_by:
@@ -8664,190 +8800,54 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_vary_header_valid.rs
       line: 32
-  - label: stateful_101_switching_protocols
+  - label: status_101_switching_protocols
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 48
-  - label: stateful_101_switching_protocols (2)
+  - label: status_101_switching_protocols (2)
     section: § 15.2.2
     snippet: The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 148
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 189
-  - label: stateful_101_switching_protocols (3)
+  - label: status_101_switching_protocols (3)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 135
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 176
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 203
-  - label: stateful_101_switching_protocols (4)
+  - label: status_101_switching_protocols (4)
     section: § 7.8
     snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 78
-  - label: stateful_101_switching_protocols (5)
+  - label: status_101_switching_protocols (5)
     section: § 7.8
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 165
-  - label: stateful_103_early_hints_before_final
+  - label: status_103_early_hints_before_final
     section: § 15.2
     snippet: Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 105
-  - label: stateful_103_early_hints_before_final (2)
+  - label: status_103_early_hints_before_final (2)
     section: § 15.2
     snippet: The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response.
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_103_early_hints_before_final.rs
+    - file: lint-http-rules/src/rules/status_103_early_hints_before_final.rs
       line: 126
-  - label: stateful_authentication_failure_loop
-    section: § 15.5.2
-    snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
-      line: 57
-  - label: stateful_authentication_failure_loop (2)
-    section: § 15.5.2
-    snippet: The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_authentication_failure_loop.rs
-      line: 30
-    - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 72
-  - label: stateful_cache_validation_chain
-    section: § 13.1.2
-    snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
-      line: 62
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
-      line: 100
-  - label: stateful_conditional_request_handling
-    section: § 13.1.2
-    snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
-      line: 97
-  - label: stateful_conditional_request_handling (2)
-    section: § 13.1.3
-    snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
-      line: 131
-  - label: stateful_conditional_request_handling (3)
-    section: § 13.2.2
-    snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_conditional_request_handling.rs
-      line: 132
-  - label: stateful_range_request_and_caching
-    section: § 13.1.5
-    snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 186
-  - label: stateful_range_request_and_caching (2)
-    section: § 13.1.5
-    snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 207
-  - label: stateful_range_request_and_caching (3)
-    section: § 13.1.5
-    snippet: Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 197
-  - label: stateful_range_request_and_caching (4)
-    section: § 15.3.7.3
-    snippet: A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 93
-  - label: stateful_range_request_and_caching (5)
-    section: § 15.3.7.3
-    snippet: These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1).
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 134
-  - label: stateful_redirect_chain_validity
-    section: § 10.2.2
-    snippet: If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any).
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 171
-  - label: stateful_redirect_chain_validity (2)
-    section: § 10.2.2
-    snippet: When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5).
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 162
-  - label: stateful_redirect_chain_validity (3)
-    section: § 15.4
-    snippet: A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops).
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 235
-  - label: stateful_redirect_chain_validity (4)
-    section: § 15.4.1
-    snippet: the target resource has more than one representation, each with its own more specific identifier
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 33
-  - label: stateful_redirect_chain_validity (5)
-    section: § 15.4.2
-    snippet: The 301 (Moved Permanently) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 38
-  - label: stateful_redirect_chain_validity (6)
-    section: § 15.4.3
-    snippet: The 302 (Found) status code indicates that the target resource resides temporarily under a different URI.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 42
-  - label: stateful_redirect_chain_validity (7)
-    section: § 15.4.4
-    snippet: Note that the new URI in the Location header field is not considered equivalent to the target URI.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 48
-  - label: stateful_redirect_chain_validity (8)
-    section: § 15.4.5
-    snippet: the server is therefore redirecting the client to make use of that stored representation as if it were the content of a 200 (OK) response
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 67
-  - label: stateful_redirect_chain_validity (9)
-    section: § 15.4.6
-    snippet: The 305 (Use Proxy) status code was defined in a previous version of this specification and is now deprecated (Appendix B of [RFC7231]).
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 69
-  - label: stateful_redirect_chain_validity (10)
-    section: § 15.4.7
-    snippet: The 306 status code was defined in a previous version of this specification, is no longer used, and the code is reserved.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 71
-  - label: stateful_redirect_chain_validity (11)
-    section: § 15.4.9
-    snippet: The 308 (Permanent Redirect) status code indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 56
   - label: status_code_semantics
     section: § 11.6.1
     snippet: A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response.
@@ -8974,6 +8974,66 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 106
+  - label: cache_validation_chain
+    section: § 4.3.1
+    snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_validation_chain.rs
+      line: 133
+    - file: lint-http-rules/src/rules/cache_validation_chain.rs
+      line: 171
+  - label: cache_validation_chain (2)
+    section: § 4.3.1
+    snippet: MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_validation_chain.rs
+      line: 92
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 155
+  - label: cache_validation_chain (3)
+    section: § 4.3.1
+    snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_validation_chain.rs
+      line: 98
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 128
+  - label: immutable_cache_never_stale
+    section: § 5.1
+    snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
+    cited_by:
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 73
+    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
+      line: 77
+    - file: lint-http-rules/src/rules/message_age_header_numeric.rs
+      line: 17
+  - label: immutable_cache_never_stale (2)
+    section: § 5.2
+    snippet: Cache directives are identified by a token, to be compared case-insensitively
+    cited_by:
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 195
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 204
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 159
+    - file: lint-http-rules/src/rules/no_store_enforced.rs
+      line: 258
+    - file: lint-http-rules/src/rules/private_cache_visibility.rs
+      line: 54
+  - label: immutable_cache_never_stale (3)
+    section: § 5.2.2.4
+    snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
+    cited_by:
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 182
+  - label: immutable_cache_never_stale (4)
+    section: § 5.2.2.5
+    snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request
+    cited_by:
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 181
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
@@ -8982,7 +9042,7 @@ sources:
       line: 1116
     - file: lint-http-rules/src/rules/server_vary_and_cache_consistency.rs
       line: 45
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 171
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 4.2.1
@@ -8996,6 +9056,32 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 766
+  - label: max_age_directive_valid
+    section: § 4.2
+    snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
+    cited_by:
+    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
+      line: 108
+  - label: max_age_directive_valid (2)
+    section: § 4.2
+    snippet: When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency
+    cited_by:
+    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
+      line: 116
+  - label: max_age_directive_valid (3)
+    section: § 4.3
+    snippet: it can use the conditional request mechanism
+    cited_by:
+    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
+      line: 136
+  - label: max_age_directive_valid (4)
+    section: § 5.2.2.1
+    snippet: The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds.
+    cited_by:
+    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
+      line: 107
+    - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
+      line: 54
   - label: message_age_header_numeric
     section: § 1.2.2
     snippet: If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent.
@@ -9015,16 +9101,6 @@ sources:
     - file: lint-http-rules/src/rules/message_singleton_fields_not_repeated.rs
       line: 45
   - label: message_age_header_numeric (3)
-    section: § 5.1
-    snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
-    cited_by:
-    - file: lint-http-rules/src/rules/message_age_header_numeric.rs
-      line: 17
-    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 73
-    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
-      line: 77
-  - label: message_age_header_numeric (4)
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
     cited_by:
@@ -9086,9 +9162,9 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
       line: 117
-    - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
+    - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 149
-    - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
+    - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 175
   - label: message_caching_directive_interaction (3)
     section: § 5.2.2.7
@@ -9096,9 +9172,9 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/message_caching_directive_interaction.rs
       line: 98
-    - file: lint-http-rules/src/rules/stateful_private_cache_visibility.rs
+    - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 86
-    - file: lint-http-rules/src/rules/stateful_private_cache_visibility.rs
+    - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 123
   - label: message_caching_directive_interaction (4)
     section: § 5.2.2.9
@@ -9162,6 +9238,80 @@ sources:
       line: 46
     - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
       line: 75
+  - label: must_revalidate_enforced
+    section: § 4.2
+    snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
+    cited_by:
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 107
+  - label: must_revalidate_enforced (2)
+    section: § 4.3.1
+    snippet: It then updates that request with one or more precondition header fields.
+    cited_by:
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 99
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 81
+    - file: lint-http-rules/src/rules/private_cache_visibility.rs
+      line: 39
+    - file: lint-http-rules/src/rules/s_max_age_enforced.rs
+      line: 90
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
+      line: 57
+  - label: must_revalidate_enforced (3)
+    section: § 5.2.2.2
+    snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
+    cited_by:
+    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
+      line: 113
+  - label: no_cache_revalidation
+    section: § 5.2.2.4
+    snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
+    cited_by:
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 85
+  - label: no_cache_revalidation (2)
+    section: § 5.2.2.4
+    snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
+    cited_by:
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 156
+  - label: range_request_and_caching
+    section: § 3.3
+    snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 92
+  - label: range_request_and_caching (2)
+    section: § 3.4
+    snippet: A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 135
+  - label: range_request_and_caching (3)
+    section: § 4.3.1
+    snippet: It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI.
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 108
+  - label: range_request_and_caching (4)
+    section: § 4.3.1
+    snippet: MAY send the Last-Modified value (using If-Unmodified-Since or If-Range) if the request is for a subrange, a single stored response is being validated, and that response contains only a Last-Modified value (not an entity tag).
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 129
+  - label: range_request_and_caching (5)
+    section: § 4.3.1
+    snippet: Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending
+    cited_by:
+    - file: lint-http-rules/src/rules/range_request_and_caching.rs
+      line: 109
+  - label: s_max_age_enforced
+    section: § 5.2.2.10
+    snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/s_max_age_enforced.rs
+      line: 99
   - label: server_cache_control_present
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
@@ -9175,166 +9325,16 @@ sources:
     - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
       line: 86
   - label: server_status_and_caching_semantics (2)
-    section: § 5.2.2.1
-    snippet: The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds.
-    cited_by:
-    - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
-      line: 54
-    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
-      line: 107
-  - label: server_status_and_caching_semantics (3)
     section: § 5.2.2.10
     snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires
     cited_by:
     - file: lint-http-rules/src/rules/server_status_and_caching_semantics.rs
       line: 55
-  - label: stateful_cache_validation_chain
-    section: § 4.3.1
-    snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
-      line: 133
-    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
-      line: 171
-  - label: stateful_cache_validation_chain (2)
-    section: § 4.3.1
-    snippet: MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
-      line: 92
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 155
-  - label: stateful_cache_validation_chain (3)
-    section: § 4.3.1
-    snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_cache_validation_chain.rs
-      line: 98
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 128
-  - label: stateful_immutable_cache_never_stale
-    section: § 5.2
-    snippet: Cache directives are identified by a token, to be compared case-insensitively
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 195
-    - file: lint-http-rules/src/rules/stateful_must_revalidate_enforcement.rs
-      line: 204
-    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
-      line: 159
-    - file: lint-http-rules/src/rules/stateful_no_store_enforcement.rs
-      line: 258
-    - file: lint-http-rules/src/rules/stateful_private_cache_visibility.rs
-      line: 54
-  - label: stateful_immutable_cache_never_stale (2)
-    section: § 5.2.2.4
-    snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 182
-  - label: stateful_immutable_cache_never_stale (3)
-    section: § 5.2.2.5
-    snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_immutable_cache_never_stale.rs
-      line: 181
-  - label: stateful_max_age_directive_validity
-    section: § 4.2
-    snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
-      line: 108
-  - label: stateful_max_age_directive_validity (2)
-    section: § 4.2
-    snippet: When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
-      line: 116
-  - label: stateful_max_age_directive_validity (3)
-    section: § 4.3
-    snippet: it can use the conditional request mechanism
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_max_age_directive_validity.rs
-      line: 136
-  - label: stateful_must_revalidate_enforcement
-    section: § 4.2
-    snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_must_revalidate_enforcement.rs
-      line: 107
-  - label: stateful_must_revalidate_enforcement (2)
-    section: § 4.3.1
-    snippet: It then updates that request with one or more precondition header fields.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_must_revalidate_enforcement.rs
-      line: 99
-    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
-      line: 81
-    - file: lint-http-rules/src/rules/stateful_private_cache_visibility.rs
-      line: 39
-    - file: lint-http-rules/src/rules/stateful_s_max_age_enforcement.rs
-      line: 90
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
-      line: 57
-  - label: stateful_must_revalidate_enforcement (3)
-    section: § 5.2.2.2
-    snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_must_revalidate_enforcement.rs
-      line: 113
-  - label: stateful_no_cache_revalidation
-    section: § 5.2.2.4
-    snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
-      line: 85
-  - label: stateful_no_cache_revalidation (2)
-    section: § 5.2.2.4
-    snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_no_cache_revalidation.rs
-      line: 156
-  - label: stateful_range_request_and_caching
-    section: § 3.3
-    snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 92
-  - label: stateful_range_request_and_caching (2)
-    section: § 3.4
-    snippet: A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 135
-  - label: stateful_range_request_and_caching (3)
-    section: § 4.3.1
-    snippet: It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 108
-  - label: stateful_range_request_and_caching (4)
-    section: § 4.3.1
-    snippet: MAY send the Last-Modified value (using If-Unmodified-Since or If-Range) if the request is for a subrange, a single stored response is being validated, and that response contains only a Last-Modified value (not an entity tag).
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 129
-  - label: stateful_range_request_and_caching (5)
-    section: § 4.3.1
-    snippet: Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_range_request_and_caching.rs
-      line: 109
-  - label: stateful_s_max_age_enforcement
-    section: § 5.2.2.10
-    snippet: The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_s_max_age_enforcement.rs
-      line: 99
-  - label: stateful_vary_header_cache_validity
+  - label: vary_header_cache_valid
     section: § 4.1
     snippet: the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_vary_header_cache_validity.rs
+    - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 192
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.txt
@@ -9458,7 +9458,7 @@ sources:
       line: 384
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 86
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 223
   - label: message_compression_and_transfer_encoding_consistency
     section: § 6.1
@@ -9790,6 +9790,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 84
+  - label: redirect_chain_valid
+    section: § 3.3
+    snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
+    cited_by:
+    - file: lint-http-rules/src/rules/redirect_chain_valid.rs
+      line: 224
   - label: request_target_form_valid
     section: § 3.2
     snippet: A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain.
@@ -9918,12 +9924,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_status_code_valid_range.rs
       line: 80
-  - label: stateful_redirect_chain_validity
-    section: § 3.3
-    snippet: Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http".
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_redirect_chain_validity.rs
-      line: 224
 - label: RFC 9113
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain
@@ -10156,16 +10156,90 @@ sources:
       line: 97
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 41
-  - label: stateful_101_switching_protocols
+  - label: status_101_switching_protocols
     section: § 8.6
     snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 98
 - label: RFC 9114
   url: https://www.rfc-editor.org/rfc/rfc9114.txt
   type: text/plain
   fragments:
+  - label: http3_goaway_semantics
+    section: § 5.2
+    snippet: Endpoints MUST NOT initiate new requests or promise new pushes on the connection after receipt of a GOAWAY frame from the peer.
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
+      line: 110
+  - label: http3_goaway_semantics (2)
+    section: § 5.2
+    snippet: Receiving a GOAWAY containing a larger identifier than previously received MUST be treated as a connection error of type H3_ID_ERROR.
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
+      line: 75
+  - label: http3_goaway_semantics (3)
+    section: § 5.2
+    snippet: The server sends a client-initiated bidirectional stream ID; the client sends a push ID.
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
+      line: 68
+    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
+      line: 103
+  - label: http3_max_push_id
+    section: § 7.2.7
+    snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_max_push_id.rs
+      line: 66
+  - label: http3_max_push_id (2)
+    section: § 7.2.7
+    snippet: A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED.
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_max_push_id.rs
+      line: 50
+  - label: http3_max_push_id (3)
+    section: § 7.2.7
+    snippet: The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_max_push_id.rs
+      line: 97
+  - label: http3_settings_frame
+    section: § 11.2.2
+    snippet: The entries in Table 3 are registered by this document
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_settings_frame.rs
+      line: 27
+  - label: http3_settings_frame (2)
+    section: § 7.2.4
+    snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_settings_frame.rs
+      line: 73
+  - label: http3_settings_frame (3)
+    section: § 7.2.4
+    snippet: An implementation MUST ignore any parameter with an identifier it does not understand
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_settings_frame.rs
+      line: 132
+  - label: http3_settings_frame (4)
+    section: § 7.2.4
+    snippet: SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_settings_frame.rs
+      line: 67
+  - label: http3_settings_frame (5)
+    section: § 7.2.4
+    snippet: The same setting identifier MUST NOT occur more than once in the SETTINGS frame
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_settings_frame.rs
+      line: 115
+  - label: http3_settings_frame (6)
+    section: § 7.2.4.1
+    snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_settings_frame.rs
+      line: 96
   - label: lint-http-core/src/http_version.rs
     section: § 4.3.1
     snippet: HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line.
@@ -10198,7 +10272,7 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 125
-    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
+    - file: lint-http-rules/src/rules/http3_settings_frame.rs
       line: 49
   - label: lint-http-proxy/src/h3_instrument.rs (3)
     section: § 7.2.6
@@ -10206,7 +10280,7 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 131
-    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
+    - file: lint-http-rules/src/rules/http3_goaway_semantics.rs
       line: 51
   - label: lint-http-proxy/src/h3_instrument.rs (4)
     section: § 7.2.7
@@ -10214,7 +10288,7 @@ sources:
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
       line: 128
-    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
+    - file: lint-http-rules/src/rules/http3_max_push_id.rs
       line: 34
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
     section: § 4.3.2
@@ -10366,7 +10440,7 @@ sources:
       line: 48
     - file: lint-http-rules/src/rules/server_response_426_upgrade.rs
       line: 61
-    - file: lint-http-rules/src/rules/stateful_101_switching_protocols.rs
+    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 115
   - label: server_no_body_for_1xx_204_304
     section: § 4.1
@@ -10400,80 +10474,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/server_quic_transport_parameters.rs
       line: 133
-  - label: stateful_http3_goaway_semantics
-    section: § 5.2
-    snippet: Endpoints MUST NOT initiate new requests or promise new pushes on the connection after receipt of a GOAWAY frame from the peer.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 110
-  - label: stateful_http3_goaway_semantics (2)
-    section: § 5.2
-    snippet: Receiving a GOAWAY containing a larger identifier than previously received MUST be treated as a connection error of type H3_ID_ERROR.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 75
-  - label: stateful_http3_goaway_semantics (3)
-    section: § 5.2
-    snippet: The server sends a client-initiated bidirectional stream ID; the client sends a push ID.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 68
-    - file: lint-http-rules/src/rules/stateful_http3_goaway_semantics.rs
-      line: 103
-  - label: stateful_http3_max_push_id
-    section: § 7.2.7
-    snippet: A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 66
-  - label: stateful_http3_max_push_id (2)
-    section: § 7.2.7
-    snippet: A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED.
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 50
-  - label: stateful_http3_max_push_id (3)
-    section: § 7.2.7
-    snippet: The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_max_push_id.rs
-      line: 97
-  - label: stateful_http3_settings_frame
-    section: § 11.2.2
-    snippet: The entries in Table 3 are registered by this document
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 27
-  - label: stateful_http3_settings_frame (2)
-    section: § 7.2.4
-    snippet: A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 73
-  - label: stateful_http3_settings_frame (3)
-    section: § 7.2.4
-    snippet: An implementation MUST ignore any parameter with an identifier it does not understand
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 132
-  - label: stateful_http3_settings_frame (4)
-    section: § 7.2.4
-    snippet: SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 67
-  - label: stateful_http3_settings_frame (5)
-    section: § 7.2.4
-    snippet: The same setting identifier MUST NOT occur more than once in the SETTINGS frame
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 115
-  - label: stateful_http3_settings_frame (6)
-    section: § 7.2.4.1
-    snippet: These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR
-    cited_by:
-    - file: lint-http-rules/src/rules/stateful_http3_settings_frame.rs
-      line: 96
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.txt
   type: text/plain

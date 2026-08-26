@@ -1142,7 +1142,7 @@ mod tests {
         Ok(())
     }
 
-    /// Pin the boundary `stateful_103_early_hints_before_final` publishes: on
+    /// Pin the boundary `status_103_early_hints_before_final` publishes: on
     /// this leg an interim response never reaches a capture. hyper's HTTP/1.x
     /// client returns no message head for `100 | 102..=199` and reads on for the
     /// final response, so an origin sending `103` then `200` is recorded as one

@@ -10,7 +10,7 @@
 //! Both halves of the key are the query's: every entry handed to a rule already
 //! has this client and this request target, so a consumer comparing either one
 //! against the transaction in hand is writing a test that cannot be false.
-//! `stateful_103_early_hints_before_final` compared both, and dropped them when
+//! `status_103_early_hints_before_final` compared both, and dropped them when
 //! it was audited. `cache_coherence` still compares the URI — that one
 //! is left where it is, because deleting it belongs to that rule's own audit
 //! along with the approximation its comment describes.
