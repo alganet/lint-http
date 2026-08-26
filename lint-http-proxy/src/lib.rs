@@ -16,16 +16,20 @@
 
 // Core data types.
 pub use lint_http_core::{
-    config, http_date, http_transaction, lint, protocol_event, protocol_event_store, serde_helpers,
-    state, transaction_history,
+    http_date, http_transaction, lint, protocol_event, protocol_event_store, serde_helpers, state,
+    transaction_history,
 };
 
 // Rule catalogue, helpers, query layer, and lint dispatch.
 pub use lint_http_rules::{engine, helpers, lint_protocol, queries, rules};
 
-// Transport / capture / CA layers owned by this crate.
+// Transport / capture / CA layers owned by this crate. `config` moved here
+// from core when the transport surface (`[general]`/`[tls]`) was split away
+// from the rule table; the module path is unchanged for both `lint_http::…`
+// and `crate::…` users.
 pub mod ca;
 pub mod capture;
+pub mod config;
 pub mod connection;
 pub mod h3_instrument;
 pub mod proxy;

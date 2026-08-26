@@ -109,13 +109,13 @@ mod tests {
     use super::super::test_support::{make_shared_with_cfg, read_capture};
     use super::*;
     use crate::test_helpers::{
-        make_test_config_with_enabled_rules, make_test_transaction_with_response,
+        make_proxy_config_with_enabled_rules, make_test_transaction_with_response,
     };
     use tokio::fs;
 
     #[tokio::test]
     async fn commit_populates_violations_and_writes_capture() -> anyhow::Result<()> {
-        let cfg_inner = make_test_config_with_enabled_rules(&[
+        let cfg_inner = make_proxy_config_with_enabled_rules(&[
             "cache_control_present",
             "etag_or_last_modified_present",
         ]);
@@ -140,7 +140,7 @@ mod tests {
 
     #[tokio::test]
     async fn commit_records_to_state_after_lint() -> anyhow::Result<()> {
-        let cfg_inner = make_test_config_with_enabled_rules(&[
+        let cfg_inner = make_proxy_config_with_enabled_rules(&[
             "cache_control_present",
             "etag_or_last_modified_present",
         ]);

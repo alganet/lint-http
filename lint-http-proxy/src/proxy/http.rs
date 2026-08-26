@@ -369,8 +369,8 @@ mod tests {
             .mount(&mock)
             .await;
 
-        use crate::test_helpers::make_test_config_with_enabled_rules;
-        let cfg_inner = make_test_config_with_enabled_rules(&[
+        use crate::test_helpers::make_proxy_config_with_enabled_rules;
+        let cfg_inner = make_proxy_config_with_enabled_rules(&[
             "cache_control_present",
             "etag_or_last_modified_present",
         ]);
@@ -967,7 +967,7 @@ mod tests {
 
     #[tokio::test]
     async fn handle_request_various_upstream_responses_exercises_rules() -> anyhow::Result<()> {
-        use crate::test_helpers::make_test_config_with_enabled_rules;
+        use crate::test_helpers::make_proxy_config_with_enabled_rules;
 
         let mock = MockServer::start().await;
 
@@ -992,7 +992,7 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let cfg_inner = make_test_config_with_enabled_rules(&[
+        let cfg_inner = make_proxy_config_with_enabled_rules(&[
             "content_type_present",
             "etag_or_last_modified_present",
             "status_405_allow_valid",
