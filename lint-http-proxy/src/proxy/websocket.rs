@@ -168,9 +168,12 @@ pub(super) async fn handle_websocket_upgrade(
 
         // Build the 101 response to send back to the client.
         // Forward ALL headers including upgrade-related ones (Connection, Upgrade,
-        // Sec-WebSocket-Accept) — do NOT strip hop-by-hop headers for 101.
+        // Sec-WebSocket-Accept) — do NOT strip hop-by-hop headers for 101. The one
+        // exception is the extension negotiation, which stops at the relay:
+        // see `without_extension_negotiation`. The capture above already
+        // recorded the 101 as received.
         let mut resp_builder = Response::builder().status(101);
-        for (name, value) in headers.iter() {
+        for (name, value) in without_extension_negotiation(&headers).iter() {
             resp_builder = resp_builder.header(name, value);
         }
         let resp = resp_builder
@@ -327,6 +330,33 @@ async fn connect_upstream_for_upgrade(
         let handle = tokio::spawn(conn.with_upgrades());
         Ok((sender, handle))
     }
+}
+
+/// The message minus its `Sec-WebSocket-Extensions` field: the extension
+/// negotiation stops at the relay, in both directions.
+///
+/// **The relay is a WebSocket endpoint on each leg, not a tunnel.** Every frame
+/// passes through tungstenite, which implements no extension and returns
+/// `ProtocolError::NonZeroReservedBits` for any frame that sets one — so a
+/// negotiation relayed end-to-end authorises frames the middle cannot read.
+/// That was live: the client's `permessage-deflate` offer reached the origin,
+/// the origin's acceptance reached the client, and the first compressed frame
+/// killed the session (RULECITES P48). An intermediary that cannot read an
+/// extension's frames must not relay its negotiation, so the offer is removed
+/// from the upstream handshake request and the acceptance — which a conforming
+/// origin then never sends, but a broken one still might — from the `101`
+/// forwarded to the client.
+///
+/// **Captures are untouched.** Both the request and the `101` are recorded as
+/// received, offer and acceptance included, before this runs — the rules read
+/// what each party wrote, not what the relay could live with.
+// cite(RFC 6455 § 9.1): "Note that like other HTTP header fields, this header field MAY be split or combined across multiple lines."
+pub(super) fn without_extension_negotiation(headers: &hyper::HeaderMap) -> hyper::HeaderMap {
+    let mut out = headers.clone();
+    // `HeaderMap::remove` takes every value of the name, so a field split
+    // across lines — which § 9.1 permits in as many words — leaves nothing.
+    out.remove("sec-websocket-extensions");
+    out
 }
 
 /// What a `101` settled about extensions, read from the response and not from
@@ -623,6 +653,35 @@ mod tests {
             MessageDirection::Client,
         );
         assert_eq!(unmasked.masked, Some(false));
+    }
+
+    /// The negotiation stops at the relay: the field is removed however many
+    /// lines carried it, and nothing else moves. The frames of an accepted
+    /// extension would be unreadable to tungstenite in the middle, so relaying
+    /// the offer or the acceptance authorised sessions the relay then killed
+    /// (RULECITES P48).
+    #[test]
+    fn extension_negotiation_is_stripped_and_nothing_else_is() {
+        use hyper::header::{HeaderName, HeaderValue};
+        let name = HeaderName::from_static("sec-websocket-extensions");
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(
+            hyper::header::UPGRADE,
+            HeaderValue::from_static("websocket"),
+        );
+        headers.insert(
+            HeaderName::from_static("sec-websocket-key"),
+            HeaderValue::from_static("dGhlIHNhbXBsZSBub25jZQ=="),
+        );
+        headers.append(name.clone(), HeaderValue::from_static("permessage-deflate"));
+        headers.append(name.clone(), HeaderValue::from_static("bbf-usp-protocol"));
+
+        let out = without_extension_negotiation(&headers);
+        assert!(!out.contains_key(&name), "both field lines are gone");
+        assert_eq!(out.len(), 2, "everything else survives");
+        assert!(out.contains_key(hyper::header::UPGRADE));
+        assert!(out.contains_key("sec-websocket-key"));
     }
 
     /// The one line that turns a `101` into the fact a frame rule reads.
