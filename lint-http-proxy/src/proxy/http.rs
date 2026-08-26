@@ -250,9 +250,15 @@ where
             // Preserve hop-by-hop headers for the upstream handshake: the
             // WebSocket upgrade depends on `Connection`/`Upgrade` reaching the
             // origin (the request-side analog of the 101 carve-out in
-            // `filter_response_headers`).
+            // `filter_response_headers`). The one field removed is the
+            // extension negotiation, which stops at the relay — the frames of
+            // an accepted extension would be unreadable in the middle, and a
+            // session tungstenite cannot read is a session it kills. The
+            // capture records `req_headers` as received, offer included; see
+            // `websocket::without_extension_negotiation`.
+            let upstream_headers = super::websocket::without_extension_negotiation(&req_headers);
             let upstream_req =
-                match upstream_request_builder(&method, &uri, &req_headers, &shared, false)
+                match upstream_request_builder(&method, &uri, &upstream_headers, &shared, false)
                     .body(Full::new(body_bytes.clone()))
                 {
                     Ok(r) => r,

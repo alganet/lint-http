@@ -2249,7 +2249,7 @@ sources:
     - file: lint-http-core/src/protocol_event.rs
       line: 71
     - file: lint-http-proxy/src/proxy/websocket.rs
-      line: 354
+      line: 384
     - file: lint-http-rules/src/rules/stateful_websocket_handshake_validity.rs
       line: 250
   - label: lint-http-proxy/src/proxy/websocket.rs
@@ -2273,7 +2273,13 @@ sources:
     snippet: '%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong'
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket.rs
-      line: 528
+      line: 558
+  - label: lint-http-proxy/src/proxy/websocket.rs (4)
+    section: § 9.1
+    snippet: Note that like other HTTP header fields, this header field MAY be split or combined across multiple lines.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/websocket.rs
+      line: 353
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: (as a string, not base64-decoded) with the string
