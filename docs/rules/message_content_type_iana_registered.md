@@ -26,7 +26,31 @@ Entries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a st
 [rules.message_content_type_iana_registered]
 enabled = true
 severity = "warn"
-allowed = ["text/plain", "text/html", "application/json", "image/*", "+json"]
+# The list has to carry the media types HTTP itself produces, or the rule
+# reports the protocol working. `multipart/byteranges` is what a multi-range
+# request gets back (RFC 9110 § 14.6) and `message/http` is what a TRACE
+# response carries (RFC 9112 § 10.1) -- neither is a choice the origin made.
+# `application/octet-stream` is the type RFC 9110 § 8.3 names for content whose
+# type is unknown, so a default that rejects it rejects the specified fallback.
+#
+# The rest are the ordinary shapes of a request body and a non-JSON API. A
+# deployment whose clients are browsers needs the subresource types too --
+# text/css, text/javascript, font/woff2, application/wasm, image/svg+xml -- but
+# those are not added here, because this list is the one a deployment is
+# expected to narrow to what it actually serves.
+allowed = [
+  "text/plain",
+  "text/html",
+  "application/json",
+  "application/xml",
+  "application/octet-stream",
+  "application/x-www-form-urlencoded",
+  "multipart/byteranges",
+  "multipart/form-data",
+  "message/http",
+  "image/*",
+  "+json",
+]
 ```
 
 ## Examples

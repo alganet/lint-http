@@ -442,7 +442,14 @@ severity = "warn"
 # The registry is Expert Review and gains entries between releases, so this is
 # the narrower and more useful list: the alternatives this deployment actually
 # serves. Everything else is reported, registered or not.
-allowed = ["h2", "h3", "h2c", "http/1.1"]
+#
+# `h3-29` is listed because the draft-29 identifier is still advertised
+# alongside `h3` by large operators, and this rule is not the one that has an
+# opinion about that: naming a draft identifier where the final one exists
+# belongs to `server_alt_svc_h3_advertisement_valid`, which reports it with the
+# advice to use `h3`. Leaving `h3-29` out here made both rules report the same
+# token on the same response, saying two different things about it.
+allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
 
 [rules.server_problem_details_content_type]
 enabled = true
@@ -508,7 +515,31 @@ severity = "warn"
 [rules.message_content_type_iana_registered]
 enabled = true
 severity = "warn"
-allowed = ["text/plain", "text/html", "application/json", "image/*", "+json"]
+# The list has to carry the media types HTTP itself produces, or the rule
+# reports the protocol working. `multipart/byteranges` is what a multi-range
+# request gets back (RFC 9110 § 14.6) and `message/http` is what a TRACE
+# response carries (RFC 9112 § 10.1) -- neither is a choice the origin made.
+# `application/octet-stream` is the type RFC 9110 § 8.3 names for content whose
+# type is unknown, so a default that rejects it rejects the specified fallback.
+#
+# The rest are the ordinary shapes of a request body and a non-JSON API. A
+# deployment whose clients are browsers needs the subresource types too --
+# text/css, text/javascript, font/woff2, application/wasm, image/svg+xml -- but
+# those are not added here, because this list is the one a deployment is
+# expected to narrow to what it actually serves.
+allowed = [
+  "text/plain",
+  "text/html",
+  "application/json",
+  "application/xml",
+  "application/octet-stream",
+  "application/x-www-form-urlencoded",
+  "multipart/byteranges",
+  "multipart/form-data",
+  "message/http",
+  "image/*",
+  "+json",
+]
 
 [rules.message_media_type_suffix_validity]
 enabled = true

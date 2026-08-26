@@ -47,7 +47,14 @@ severity = "warn"
 # The registry is Expert Review and gains entries between releases, so this is
 # the narrower and more useful list: the alternatives this deployment actually
 # serves. Everything else is reported, registered or not.
-allowed = ["h2", "h3", "h2c", "http/1.1"]
+#
+# `h3-29` is listed because the draft-29 identifier is still advertised
+# alongside `h3` by large operators, and this rule is not the one that has an
+# opinion about that: naming a draft identifier where the final one exists
+# belongs to `server_alt_svc_h3_advertisement_valid`, which reports it with the
+# advice to use `h3`. Leaving `h3-29` out here made both rules report the same
+# token on the same response, saying two different things about it.
+allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
 ```
 
 ## Examples
