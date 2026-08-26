@@ -42,7 +42,7 @@ impl ProtocolRule for Http3SettingsFrame {
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The event this rule recognizes is the SETTINGS frame itself; every
         // other protocol event is out of scope.
@@ -54,13 +54,6 @@ impl ProtocolRule for Http3SettingsFrame {
             } => (settings, *direction),
             _ => return None,
         };
-
-        // Read after the match, not before it. `lint_protocol_event` hands every
-        // enabled protocol rule every event on the connection, so this
-        // discriminant is the rule's whole scope and it ends the rule for all but
-        // one frame type; `parse_rule_config` looks the rule id up twice (its doc
-        // comment costs it).
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
 
         // Scanning the whole connection history — rather than a single stream —
         // is what makes a second SETTINGS visible at all.
@@ -82,7 +75,7 @@ impl ProtocolRule for Http3SettingsFrame {
                 }
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message:
                         "HTTP/3 duplicate SETTINGS frame from the same peer on one connection \
                          (RFC 9114 §7.2.4)"
@@ -98,7 +91,7 @@ impl ProtocolRule for Http3SettingsFrame {
             if RESERVED_SETTING_IDS.contains(&id) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "HTTP/3 SETTINGS contains reserved HTTP/2 setting identifier \
                          0x{:02X} (RFC 9114 §7.2.4.1)",
@@ -117,7 +110,7 @@ impl ProtocolRule for Http3SettingsFrame {
             if settings[..i].iter().any(|&(prev_id, _)| prev_id == id) {
                 return Some(Violation {
                     rule: self.id().into(),
-                    severity: config.severity,
+                    severity: ctx.severity,
                     message: format!(
                         "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \
                          than once (RFC 9114 §7.2.4)",
@@ -255,7 +248,9 @@ mod tests {
         let prior_client = make_settings(conn, vec![(0x06, 4096)]);
         let history = ProtocolEventHistory::new(vec![prior_client]);
         let evt = make_server_settings(conn, vec![(0x06, 8192)]);
-        assert!(rule.check_event(&evt, &history, &make_config()).is_none());
+        assert!(
+            crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config()).is_none()
+        );
     }
 
     // ── First SETTINGS on a connection: valid cases ──────────────────
@@ -272,7 +267,12 @@ mod tests {
                 (0x07, 100),  // SETTINGS_QPACK_BLOCKED_STREAMS
             ],
         );
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -281,7 +281,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -291,7 +296,12 @@ mod tests {
         let conn = Uuid::new_v4();
         // Extension/unknown setting identifiers are allowed.
         let evt = make_settings(conn, vec![(0x33, 1), (0xFF00, 42)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -304,7 +314,7 @@ mod tests {
         let prev = make_settings(conn, vec![(0x06, 4096)]);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_settings(conn, vec![(0x06, 8192)]);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("duplicate SETTINGS"));
     }
@@ -316,7 +326,7 @@ mod tests {
         let prev = make_settings(conn, vec![]);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_settings(conn, vec![]);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("duplicate SETTINGS"));
     }
@@ -335,7 +345,7 @@ mod tests {
         let closed = make_event_at(conn, ProtocolEventKind::H3StreamClosed { stream_id: 0 }, t);
         let history = ProtocolEventHistory::new(vec![opened, closed]);
         let evt = make_settings(conn, vec![(0x06, 4096)]);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -375,7 +385,7 @@ mod tests {
         );
         let history = ProtocolEventHistory::new(vec![opened, prev_settings, transport]);
         let evt = make_settings(conn, vec![(0x06, 8192)]);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -386,7 +396,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x00, 0)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x00"));
     }
@@ -396,7 +411,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x02, 1)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x02"));
     }
@@ -406,7 +426,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x03, 100)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x03"));
     }
@@ -416,7 +441,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x04, 65535)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x04"));
     }
@@ -426,7 +456,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x05, 16384)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x05"));
     }
@@ -437,7 +472,12 @@ mod tests {
         let conn = Uuid::new_v4();
         // Mix valid settings with one reserved.
         let evt = make_settings(conn, vec![(0x06, 8192), (0x03, 100), (0x07, 50)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x03"));
     }
@@ -449,7 +489,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x06, 8192), (0x06, 4096)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         let msg = result.unwrap().message;
         assert!(msg.contains("more than once"));
@@ -462,7 +507,12 @@ mod tests {
         let conn = Uuid::new_v4();
         // Same identifier repeated with an unrelated one between.
         let evt = make_settings(conn, vec![(0x01, 4096), (0x07, 100), (0x01, 2048)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("0x01"));
     }
@@ -473,7 +523,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x06, 100), (0x01, 100), (0x07, 100)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -484,7 +539,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x03, 1), (0x03, 2)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_some());
         let msg = result.unwrap().message;
         assert!(msg.contains("reserved"));
@@ -499,7 +559,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x01, 4096)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -508,7 +573,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x06, 8192)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -517,7 +587,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x07, 200)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -527,7 +602,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x08, 1)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -537,7 +617,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_settings(conn, vec![(0x33, 1)]);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -548,7 +633,12 @@ mod tests {
         let rule = Http3SettingsFrame;
         let conn = Uuid::new_v4();
         let evt = make_event(conn, ProtocolEventKind::H3StreamOpened { stream_id: 0 });
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -563,7 +653,12 @@ mod tests {
                 direction: MessageDirection::Client,
             },
         );
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -578,7 +673,12 @@ mod tests {
                 direction: MessageDirection::Client,
             },
         );
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -592,7 +692,7 @@ mod tests {
         let prev = make_settings(conn, vec![(0x06, 4096)]);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_settings(conn, vec![(0x02, 1)]); // reserved + duplicate
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
         assert!(result.unwrap().message.contains("duplicate SETTINGS"));
     }

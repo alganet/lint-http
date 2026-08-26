@@ -377,7 +377,7 @@ fn lint_websocket_session(
             session.id,
             &session.extensions,
         );
-        violations.extend(engine.lint_protocol_event(&event, cfg, &event_store));
+        violations.extend(engine.lint_protocol_event(&event, &event_store));
         event_store.record_event(&event);
     }
     violations

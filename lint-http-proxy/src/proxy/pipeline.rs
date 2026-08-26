@@ -57,29 +57,24 @@ impl TransactionPipeline {
 }
 
 /// Orchestrates the per-protocol-event cycle: lint, then record to the event
-/// store. Cloneable so concurrent relay tasks can each own one.
+/// store. Cloneable so concurrent relay tasks can each own one. No config
+/// here: the protocol rules' configuration was resolved into the engine when
+/// it was built.
 #[derive(Clone)]
 pub(super) struct ProtocolEventPipeline {
     engine: Arc<PreparedEngine>,
-    cfg: Arc<Config>,
     store: Arc<ProtocolEventStore>,
 }
 
 impl ProtocolEventPipeline {
-    pub(super) fn new(
-        engine: Arc<PreparedEngine>,
-        cfg: Arc<Config>,
-        store: Arc<ProtocolEventStore>,
-    ) -> Self {
-        Self { engine, cfg, store }
+    pub(super) fn new(engine: Arc<PreparedEngine>, store: Arc<ProtocolEventStore>) -> Self {
+        Self { engine, store }
     }
 
     /// Lint `event`, then record it — in that order. Returns the violations
     /// so callers can log or collect them.
     pub(super) fn commit(&self, event: &ProtocolEvent) -> Vec<Violation> {
-        let violations = self
-            .engine
-            .lint_protocol_event(event, &self.cfg, &self.store);
+        let violations = self.engine.lint_protocol_event(event, &self.store);
         self.store.record_event(event);
         violations
     }
@@ -96,11 +91,7 @@ impl Shared {
     }
 
     pub(super) fn protocol_event_pipeline(&self) -> ProtocolEventPipeline {
-        ProtocolEventPipeline::new(
-            self.engine.clone(),
-            self.cfg.clone(),
-            self.protocol_event_store.clone(),
-        )
+        ProtocolEventPipeline::new(self.engine.clone(), self.protocol_event_store.clone())
     }
 }
 

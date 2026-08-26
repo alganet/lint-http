@@ -28,7 +28,7 @@ impl ProtocolRule for WebsocketFrameMasking {
         &self,
         event: &ProtocolEvent,
         _history: &ProtocolEventHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let ProtocolEventKind::WebSocketFrame {
             direction, masked, ..
@@ -79,12 +79,9 @@ impl ProtocolRule for WebsocketFrameMasking {
             _ => return None,
         };
 
-        // Read last: both gates above end the rule for every conforming frame,
-        // and `parse_rule_config` is two lookups of the rule id.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!("A WebSocket frame where {defect}"),
         })
     }
@@ -183,7 +180,8 @@ mod tests {
     }
 
     fn judge(event: &ProtocolEvent) -> Option<Violation> {
-        RULE.check_event(
+        crate::test_helpers::run_protocol_rule(
+            &RULE,
             event,
             &ProtocolEventHistory::new(Vec::new()),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[RULE.id()]),

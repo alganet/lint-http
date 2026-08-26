@@ -47,7 +47,7 @@ impl ProtocolRule for WebsocketFrameRsvBits {
         &self,
         event: &ProtocolEvent,
         _history: &ProtocolEventHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         let ProtocolEventKind::WebSocketFrame {
             direction,
@@ -71,9 +71,6 @@ impl ProtocolRule for WebsocketFrameRsvBits {
             return None;
         }
 
-        // Read once, after the branch that ends the rule for every conforming
-        // frame: `parse_rule_config` is two lookups of the rule id.
-        let config = crate::rules::parse_rule_config(cfg, self.id()).ok()?;
         let sender = match direction {
             MessageDirection::Client => "client",
             MessageDirection::Server => "server",
@@ -90,7 +87,7 @@ impl ProtocolRule for WebsocketFrameRsvBits {
         if *rsv > 0b111 {
             return Some(Violation {
                 rule: self.id().into(),
-                severity: config.severity,
+                severity: ctx.severity,
                 message: format!(
                     "A WebSocket frame the {sender} sent records the reserved bits as {rsv:#05b}, \
                      and the frame header holds three of them — one bit each — so no frame on any \
@@ -127,7 +124,7 @@ impl ProtocolRule for WebsocketFrameRsvBits {
         // catalogue does.
         Some(Violation {
             rule: self.id().into(),
-            severity: config.severity,
+            severity: ctx.severity,
             message: format!(
                 "A WebSocket frame the {sender} sent has {} set, and the 101 that opened this \
                  session accepted no extension: RFC 6455 §5.2 makes a reserved bit non-zero only \
@@ -238,7 +235,8 @@ mod tests {
     }
 
     fn judge(event: &ProtocolEvent) -> Option<Violation> {
-        RULE.check_event(
+        crate::test_helpers::run_protocol_rule(
+            &RULE,
             event,
             &ProtocolEventHistory::new(Vec::new()),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[RULE.id()]),

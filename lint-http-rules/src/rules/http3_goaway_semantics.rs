@@ -27,24 +27,16 @@ impl ProtocolRule for Http3GoawaySemantics {
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
-        cfg: &crate::config::Config,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        // The configuration is read when a finding is built, not on entry. The
-        // other six rules of this family have one gate apiece and read it after
-        // that gate; this one dispatches on the event kind into two arms, and
-        // inside each the finding is a comparison against the history — so the
-        // last point at which nothing is decided yet is the branch that reports.
-        // Every enabled protocol rule sees every event on the connection, and
-        // `parse_rule_config` looks the rule id up twice (its doc comment costs
-        // it). Written once here rather than at both report sites: `?` inside the
-        // closure ends the closure, and returning its `None` is what the two
-        // sites do with it.
+        // Written once here rather than at both report sites: this rule
+        // dispatches on the event kind into two arms, and inside each the
+        // finding is a comparison against the history, so the two sites share
+        // one builder.
         let report = |message: String| -> Option<Violation> {
             Some(Violation {
                 rule: self.id().into(),
-                severity: crate::rules::parse_rule_config(cfg, self.id())
-                    .ok()?
-                    .severity,
+                severity: ctx.severity,
                 message,
             })
         };
@@ -227,8 +219,8 @@ mod tests {
         make_event(conn, ProtocolEventKind::H3StreamOpened { stream_id })
     }
 
-    /// A rule table carrying `enabled` and no `severity`: `parse_rule_config`
-    /// fails on it, and the two report sites turn that into silence.
+    /// A rule table carrying `enabled` and no `severity`: `prepare` fails on
+    /// it, and the dispatch helper turns that into silence.
     fn make_config_without_severity() -> crate::config::Config {
         let mut cfg = crate::config::Config::default();
         let mut table = toml::map::Map::new();
@@ -269,10 +261,16 @@ mod tests {
         };
 
         // The same traffic under a readable configuration is a finding.
-        assert!(rule.check_event(&evt, &history, &make_config()).is_some());
-        assert!(rule
-            .check_event(&evt, &history, &make_config_without_severity())
-            .is_none());
+        assert!(
+            crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config()).is_some()
+        );
+        assert!(crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &history,
+            &make_config_without_severity()
+        )
+        .is_none());
     }
 
     // ── GOAWAY stream ID must not increase ──────────────────────────────
@@ -282,7 +280,12 @@ mod tests {
         let rule = Http3GoawaySemantics;
         let conn = Uuid::new_v4();
         let evt = make_goaway(conn, Some(4));
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -293,7 +296,7 @@ mod tests {
         let prev = make_goaway(conn, Some(10));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(4));
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -304,7 +307,7 @@ mod tests {
         let prev = make_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(4));
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -315,7 +318,7 @@ mod tests {
         let prev = make_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(10));
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
         let msg = result.unwrap().message;
         assert!(msg.contains("increased from previous"));
@@ -332,7 +335,7 @@ mod tests {
         let prev = make_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, None);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -343,7 +346,7 @@ mod tests {
         let prev = make_goaway(conn, None);
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(4));
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -354,7 +357,12 @@ mod tests {
         let rule = Http3GoawaySemantics;
         let conn = Uuid::new_v4();
         let evt = make_stream_opened(conn, 0);
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -365,7 +373,7 @@ mod tests {
         let goaway = make_goaway(conn, Some(10));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 8);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -376,7 +384,7 @@ mod tests {
         let goaway = make_goaway(conn, Some(10));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 10);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -387,7 +395,7 @@ mod tests {
         let goaway = make_server_goaway(conn, Some(4));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 5);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
         let msg = result.unwrap().message;
         assert!(msg.contains("stream 5"));
@@ -404,7 +412,9 @@ mod tests {
         let goaway = make_goaway(conn, Some(4)); // client GOAWAY (push id 4)
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 5);
-        assert!(rule.check_event(&evt, &history, &make_config()).is_none());
+        assert!(
+            crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config()).is_none()
+        );
     }
 
     #[test]
@@ -417,7 +427,7 @@ mod tests {
         let goaway = make_goaway(conn, None);
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 0);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -430,7 +440,12 @@ mod tests {
             Uuid::new_v4(),
             ProtocolEventKind::H3StreamClosed { stream_id: 0 },
         );
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -450,7 +465,12 @@ mod tests {
                 payload_length: 10,
             },
         );
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -484,7 +504,7 @@ mod tests {
         let history = ProtocolEventHistory::new(vec![goaway, stream]);
         // New GOAWAY with id=12 > 10 should fail
         let evt = make_goaway(conn, Some(12));
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -511,7 +531,7 @@ mod tests {
         // Stream 3 > goaway id 2 — first event is H3StreamClosed which
         // should be skipped; the goaway at index 1 triggers violation.
         let evt = make_stream_opened(conn, 3);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -540,7 +560,7 @@ mod tests {
         let history = ProtocolEventHistory::new(vec![g1, g2]);
         // New GOAWAY with id=8: compared to most recent (6), 8 > 6 → fail
         let evt = make_goaway(conn, Some(8));
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -552,7 +572,12 @@ mod tests {
         let rule = Http3GoawaySemantics;
         let conn = Uuid::new_v4();
         let evt = make_goaway(conn, Some(0));
-        let result = rule.check_event(&evt, &ProtocolEventHistory::empty(), &make_config());
+        let result = crate::test_helpers::run_protocol_rule(
+            &rule,
+            &evt,
+            &ProtocolEventHistory::empty(),
+            &make_config(),
+        );
         assert!(result.is_none());
     }
 
@@ -564,7 +589,7 @@ mod tests {
         let goaway = make_goaway(conn, Some(0));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 0);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 
@@ -576,7 +601,7 @@ mod tests {
         let goaway = make_server_goaway(conn, Some(0));
         let history = ProtocolEventHistory::new(vec![goaway]);
         let evt = make_stream_opened(conn, 1);
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_some());
     }
 
@@ -588,7 +613,7 @@ mod tests {
         let prev = make_goaway(conn, Some(100));
         let history = ProtocolEventHistory::new(vec![prev]);
         let evt = make_goaway(conn, Some(0));
-        let result = rule.check_event(&evt, &history, &make_config());
+        let result = crate::test_helpers::run_protocol_rule(&rule, &evt, &history, &make_config());
         assert!(result.is_none());
     }
 }

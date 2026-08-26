@@ -20,3 +20,20 @@ pub fn make_test_rule_config() -> crate::rules::RuleConfig {
         severity: crate::lint::Severity::Warn,
     }
 }
+
+/// Prepare `rule` under `cfg`, then dispatch one event through it — the way
+/// the engine does, collapsed to one call for tests.
+///
+/// Returns `None` when `prepare` rejects the config, which preserves what a
+/// direct `check_event` call answered when its own parse failed: the rule
+/// yields nothing. Tests asserting *why* preparation fails call `prepare`
+/// directly.
+pub fn run_protocol_rule(
+    rule: &dyn crate::rules::ProtocolRule,
+    event: &crate::protocol_event::ProtocolEvent,
+    history: &crate::protocol_event::ProtocolEventHistory,
+    cfg: &crate::config::Config,
+) -> Option<crate::lint::Violation> {
+    let resolved = rule.prepare(cfg).ok()?;
+    rule.check_event(event, history, &crate::rules::RuleContext::new(&resolved))
+}
