@@ -19,7 +19,7 @@ Two types of violations are reported:
 
 Both are efficiency findings rather than protocol violations: RFC 9111 frames fresh reuse and conditional revalidation as things a cache *can* do, not obligations.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is checked by a separate rule.
 
-The stateful check augments the stateless [`client_cache_respect`](client_cache_respect.md) rule, which merely ensures conditional headers are included when validators exist regardless of age.
+The stateful check augments the stateless [`cached_validators_reused`](cached_validators_reused.md) rule, which merely ensures conditional headers are included when validators exist regardless of age.
 
 ## Specifications
 

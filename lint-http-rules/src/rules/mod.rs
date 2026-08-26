@@ -536,19 +536,19 @@ pub static STATEFUL_RULES: &[(&dyn Rule, QueryType)] = &[
     ),
     // ── ByResource: per-client history for one resource (the common case) ──
     (
-        &client_accept_ranges_on_partial_content::ClientAcceptRangesOnPartialContent,
+        &accept_ranges_on_partial_content::AcceptRangesOnPartialContent,
         QueryType::ByResource,
     ),
     (
-        &client_cache_respect::ClientCacheRespect,
+        &cached_validators_reused::CachedValidatorsReused,
         QueryType::ByResource,
     ),
     (
-        &client_expect_header_valid::ClientExpectHeaderValid,
+        &expect_header_valid::ExpectHeaderValid,
         QueryType::ByResource,
     ),
     (
-        &client_patch_method_content_type_match::ClientPatchMethodContentTypeMatch,
+        &patch_method_content_type_match::PatchMethodContentTypeMatch,
         QueryType::ByResource,
     ),
     (&cache_coherence::CacheCoherence, QueryType::ByResource),
@@ -808,7 +808,7 @@ severity = "warn"
         // The sorted views must contain exactly what was registered.
         assert_eq!(RULES.len(), REGISTERED_RULES.len());
         assert_eq!(PROTOCOL_RULES.len(), REGISTERED_PROTOCOL_RULES.len());
-        assert!(RULES.iter().any(|r| r.id() == "client_host_header"));
+        assert!(RULES.iter().any(|r| r.id() == "host_header"));
         assert!(PROTOCOL_RULES
             .iter()
             .any(|r| r.id() == "server_quic_transport_parameters"));

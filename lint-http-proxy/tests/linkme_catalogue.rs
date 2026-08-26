@@ -36,7 +36,7 @@ fn registered_rules_collected_in_binary_link_config() {
     // Spot-check a known transaction rule and a known protocol rule.
     assert!(lint_http::rules::RULES
         .iter()
-        .any(|r| r.id() == "client_host_header"));
+        .any(|r| r.id() == "host_header"));
     assert!(lint_http::rules::PROTOCOL_RULES
         .iter()
         .any(|r| r.id() == "server_quic_transport_parameters"));

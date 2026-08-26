@@ -65,7 +65,7 @@ fn section_title(scope: RuleScope) -> &'static str {
 }
 
 /// Derive a human-readable title from a snake_case rule id, e.g.
-/// `client_user_agent_present` → `"Client User Agent Present"`. A deterministic
+/// `user_agent_present` → `"User Agent Present"`. A deterministic
 /// approximation: it does not reproduce hand-written hyphenation/acronyms
 /// (`User-Agent`), which is acceptable for generated scaffolding.
 pub fn title_from_id(id: &str) -> String {
@@ -270,10 +270,7 @@ mod tests {
 
     #[test]
     fn title_from_id_capitalizes_each_word() {
-        assert_eq!(
-            title_from_id("client_user_agent_present"),
-            "Client User Agent Present"
-        );
+        assert_eq!(title_from_id("user_agent_present"), "User Agent Present");
         assert_eq!(title_from_id("connection_id"), "Connection Id");
         assert_eq!(title_from_id("single"), "Single");
     }
@@ -293,8 +290,8 @@ mod tests {
             },
         ];
         let doc = render_doc(
-            "client_user_agent_present",
-            Some("Client User-Agent Present"),
+            "user_agent_present",
+            Some("User-Agent Present"),
             "Requests should carry a User-Agent header.",
             &[
                 SpecRef {
@@ -311,12 +308,12 @@ mod tests {
                 },
             ],
             &examples,
-            Some("[rules.client_user_agent_present]\nenabled = true\nseverity = \"warn\""),
+            Some("[rules.user_agent_present]\nenabled = true\nseverity = \"warn\""),
         );
 
         assert!(doc.starts_with("<!--\nSPDX-FileCopyrightText"));
         // `title` override preserves header casing the id can't reproduce.
-        assert!(doc.contains("# Client User-Agent Present"));
+        assert!(doc.contains("# User-Agent Present"));
         assert!(doc.contains("## Description\n\nRequests should carry a User-Agent header."));
         // The bullet is *derived* from the fields now, not stored as prose — which
         // is what ended the five spellings. Both arms of `Display` are pinned here:
@@ -327,7 +324,7 @@ mod tests {
              - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5)\n"
         ));
         assert!(doc.contains(
-            "## Configuration\n\n```toml\n[rules.client_user_agent_present]\nenabled = true\n\
+            "## Configuration\n\n```toml\n[rules.user_agent_present]\nenabled = true\n\
              severity = \"warn\"\n```"
         ));
         assert!(doc.contains("### ✅ Good Request"));

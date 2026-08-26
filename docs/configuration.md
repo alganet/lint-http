@@ -183,7 +183,7 @@ Rules must be enabled via a TOML table with `enabled = true`. Example:
 
 ```toml
 # Client Rules
-[rules.client_accept_encoding_present]
+[rules.accept_encoding_present]
 enabled = true
 severity = "info"
 ```

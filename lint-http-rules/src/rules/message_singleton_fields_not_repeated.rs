@@ -156,7 +156,7 @@ impl Rule for MessageSingletonFieldsNotRepeated {
          already reported where their values are read, with the joined value in the finding: \
          `Referer`, `Content-Location`, `Location`, `Max-Forwards`, `From` and \
          `Content-Disposition` each carry the check in their own rule, `Host` in \
-         `client_host_header` (where RFC 9112 §3.2 adds the recipient's 400), and \
+         `host_header` (where RFC 9112 §3.2 adds the recipient's 400), and \
          `Content-Length` in the body-length rules — RFC 9110 §8.6 gives that field its own \
          arithmetic for duplicate values, which is a different question from this rule's.\
          \n\n\

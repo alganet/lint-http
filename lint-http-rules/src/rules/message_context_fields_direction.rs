@@ -324,7 +324,7 @@ mod tests {
         );
     }
 
-    /// The rule's own hazard, asserted the `client_proxy_connection_discouraged`
+    /// The rule's own hazard, asserted the `proxy_connection_discouraged`
     /// way: §10 states no BCP 14 keyword about the arrival, so the message must
     /// not invent one.
     #[test]

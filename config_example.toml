@@ -90,15 +90,15 @@ suppress_headers = ["X-Sensitive-Header"]
 
 
 # Client Rules
-[rules.client_accept_encoding_present]
+[rules.accept_encoding_present]
 enabled = true
 severity = "info"
 
-[rules.client_user_agent_present]
+[rules.user_agent_present]
 enabled = true
 severity = "info"
 
-[rules.client_sec_websocket_headers_consistency]
+[rules.sec_websocket_headers_consistent]
 enabled = false
 severity = "warn"
 
@@ -110,11 +110,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.client_cache_respect]
+[rules.cached_validators_reused]
 enabled = true
 severity = "warn"
 
-[rules.client_proxy_connection_discouraged]
+[rules.proxy_connection_discouraged]
 enabled = true
 severity = "info"
 # RFC 9112 Appendix C.2.2 carries no BCP 14 keyword at all, so the finding is
@@ -254,11 +254,11 @@ severity = "warn"
 paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 
 # Correctness rules examples
-[rules.client_host_header]
+[rules.host_header]
 enabled = true
 severity = "warn"
 
-[rules.client_request_method_token_valid]
+[rules.request_method_token_valid]
 enabled = true
 severity = "warn"
 # The standardized method names this deployment expects to see spelled the way their
@@ -316,11 +316,11 @@ registered_methods = [
   "VERSION-CONTROL",
 ]
 
-[rules.client_request_version_method_validity]
+[rules.request_version_method_valid]
 enabled = true
 severity = "warn"
 
-[rules.client_patch_method_content_type_match]
+[rules.patch_method_content_type_match]
 enabled = true
 severity = "warn"
 
@@ -332,15 +332,15 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.client_expect_header_valid]
+[rules.expect_header_valid]
 enabled = true
 severity = "error"
 
-[rules.client_request_target_no_fragment]
+[rules.request_target_no_fragment]
 enabled = true
 severity = "error"
 
-[rules.client_request_target_form_checks]
+[rules.request_target_form_valid]
 enabled = true
 severity = "error"
 
@@ -467,11 +467,11 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
-[rules.client_range_header_syntax_valid]
+[rules.range_header_syntax]
 enabled = true
 severity = "error"
 
-[rules.client_accept_ranges_on_partial_content]
+[rules.accept_ranges_on_partial_content]
 enabled = true
 severity = "warn"
 
@@ -492,11 +492,11 @@ units = ["bytes"]
 enabled = true
 severity = "warn"
 
-[rules.client_request_uri_percent_encoding_valid]
+[rules.request_uri_percent_encoding_valid]
 enabled = true
 severity = "error"
 
-[rules.client_request_origin_header_present_for_cors]
+[rules.request_origin_header_present_for_cors]
 enabled = true
 severity = "warn"
 
