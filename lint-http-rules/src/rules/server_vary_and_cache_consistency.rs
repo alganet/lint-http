@@ -38,7 +38,7 @@ impl Rule for ServerVaryAndCacheConsistency {
         // no finding at all when `to_str` refused one — so a single `obs-text`
         // octet anywhere in the value stood the rule down — and it did not join
         // them, so a `*` written on a second field line was not a `*` here while
-        // it was one to `client_prefer_header_and_preference_applied`. Both are
+        // it was one to `server_prefer_header_and_preference_applied`. Both are
         // `helpers::headers::vary_nomination`'s answer now, for all three rules
         // that ask.
         //

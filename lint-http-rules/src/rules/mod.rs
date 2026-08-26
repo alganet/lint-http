@@ -365,6 +365,26 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
         }
     }
 
+    // A configured name that matches no registered rule fails, loudly. A
+    // section under an unknown name used to validate fine and configure
+    // nothing — which is a rule the operator believes is on and is not. Both
+    // ways of arriving here deserve the error: a typo, and a configuration
+    // that predates a rule rename (this catalogue has had three breaking
+    // renames, decided each time against silent aliasing).
+    for rule_name in config.rules.keys() {
+        let known = RULES.iter().any(|r| r.id() == rule_name)
+            || PROTOCOL_RULES.iter().any(|r| r.id() == rule_name);
+        if !known {
+            return Err(anyhow::anyhow!(
+                "Configuration names a rule '{}' that does not exist. Rule ids are listed in \
+                 docs/rules.md; if this configuration predates a rename, update the id \
+                 (most recently, 'client_prefer_header_and_preference_applied' became \
+                 'server_prefer_header_and_preference_applied')",
+                rule_name
+            ));
+        }
+    }
+
     // Per-rule validation: every enabled rule parses its own config section so
     // a malformed section (including custom fields) fails fast at startup.
     for rule in RULES.iter() {
@@ -959,6 +979,30 @@ severity = "warn"
                 !is_server,
             );
         }
+    }
+
+    /// A configured name matching no registered rule fails validation, and the
+    /// error points at the rename that most recently made an id stale. The
+    /// stale id used here is the real one: the rule whose prefix contradicted
+    /// its scope was renamed without an alias (RULECITES P39, the user's
+    /// call), and a deployment carrying the old section must hear about it at
+    /// startup rather than run with the rule silently unconfigured.
+    #[test]
+    fn validate_rules_rejects_a_rule_id_that_does_not_exist() {
+        let mut cfg = crate::config::Config::default();
+        enable_rule(&mut cfg, "client_prefer_header_and_preference_applied");
+        let err = validate_rules(&cfg).expect_err("an unknown rule id must fail validation");
+        let msg = err.to_string();
+        assert!(msg.contains("does not exist"), "{msg}");
+        assert!(
+            msg.contains("'server_prefer_header_and_preference_applied'"),
+            "{msg}"
+        );
+
+        // A typo is the same failure.
+        let mut cfg = crate::config::Config::default();
+        enable_rule(&mut cfg, "server_cache_control_presnet");
+        assert!(validate_rules(&cfg).is_err());
     }
 
     #[test]
