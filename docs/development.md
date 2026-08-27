@@ -105,11 +105,25 @@ impl Rule for MyRule {
         "my_rule_name"
     }
 
-    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, previous: Option<&crate::http_transaction::HttpTransaction>, config: &crate::config::Config) -> Option<Violation> {
-        // Implementation
+    fn check_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Option<Violation> {
+        // Implementation. `ctx.severity` is the configured severity, already
+        // resolved — nothing here reads TOML.
     }
 }
 ```
+
+Configuration is resolved **once, when the engine is built**, by the trait's
+`prepare` hook. The default resolves the two required keys (`enabled`,
+`severity`); a rule with its own options overrides `prepare`, parses them into
+a typed value, and returns it as the `state` of its `ResolvedRule` — the check
+gets it back with `ctx.state::<MyConfig>()`. Validation *is* successful
+preparation: a malformed section fails engine construction by rule name, so
+there is no separate `validate` hook to keep in sync.
 
 #### Scoping
 
@@ -126,7 +140,12 @@ impl Rule for HostHeader {
     fn id(&self) -> &'static str { "host_header" }
     fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Client }
 
-    fn check_transaction(&self, tx: &crate::http_transaction::HttpTransaction, previous: Option<&crate::http_transaction::HttpTransaction>, config: &crate::config::Config) -> Option<Violation> {
+    fn check_transaction(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Option<Violation> {
         // Check tx
     }
 }
@@ -183,6 +202,8 @@ do run it, as does CI.
 
 ### 6. Configurable Rules Guidelines
 
-- Do not use hardcoded defaults in rule implementations. If a rule requires configuration, it should require an explicit TOML table under `[rules.<rule_id>]` and parse its numeric/string values from that table.
-- On missing or invalid configuration, `validate_config` must return an `Err(...)` so startup validation fails fast. Do not silently fallback to a default unless this behavior is explicitly documented and desired.
-- Tests should validate both `validate_config` errors for invalid/missing config and the runtime behavior when valid configs are provided (including edge cases like negative numbers, invalid types, and boundary values).
+- Do not use hardcoded defaults in rule implementations. If a rule requires configuration, it should require an explicit TOML table under `[rules.<rule_id>]` and parse its values in `prepare`.
+- On missing or invalid configuration, `prepare` must return an `Err(...)` so engine construction fails fast, by rule name. Do not silently fall back to a default unless this behavior is explicitly documented and desired.
+- A required list of case-insensitive names (the `allowed`/`headers` shape) is parsed by `helpers::rule_config::parse_lowercased_list`; the citation licensing the case-fold stays in the rule's `prepare`, beside the call.
+- Tests should cover both `prepare` errors for invalid/missing config and the runtime behavior when valid configs are provided (including edge cases like negative numbers, invalid types, and boundary values). Dispatch a rule in tests through `test_helpers::run_rule` / `run_protocol_rule`, which prepare and then check the way the engine does.
+- Every registered rule must prepare successfully under `config_example.toml` — the `every_rule_prepares_under_the_example_config` test enforces it, so a new configurable rule needs its example section in the same commit.
