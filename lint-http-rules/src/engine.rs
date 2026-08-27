@@ -54,11 +54,11 @@ impl PreparedEngine {
     /// Validate the config, then intersect the catalogue's precomputed scope
     /// views with `cfg.is_enabled`, once.
     ///
-    /// **This is the only place `enabled` is read, and it is why the per-rule
-    /// reading went.** Each rule's `parse_rule_config` used to ask the same
-    /// question again on every transaction and discard the answer; the flag is
-    /// decided here, when the engine is built, and a rule that is not in one of
-    /// these three vectors is never dispatched.
+    /// **This is the only place `enabled` is read.** The flag is decided here,
+    /// when the engine is built, and a rule that is not in one of these three
+    /// vectors is never dispatched; each rule's per-transaction config read
+    /// used to ask the same question again on every dispatch and discard the
+    /// answer.
     ///
     /// Construction runs [`crate::rules::validate_rules`] itself, so an engine
     /// cannot exist over a config whose rule tables were never checked. This
@@ -240,8 +240,8 @@ mod tests {
     #[test]
     fn construction_rejects_malformed_enabled_rule_config() {
         // An enabled rule whose table lacks `severity` used to be a lint-time
-        // silence (`parse_rule_config(...).ok()?`); construction now refuses
-        // the config outright.
+        // silence (a per-dispatch parse ending in `.ok()?`); construction now
+        // refuses the config outright.
         let mut cfg = Config::default();
         let mut table = toml::map::Map::new();
         table.insert("enabled".to_string(), toml::Value::Boolean(true));

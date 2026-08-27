@@ -261,8 +261,8 @@ mod tests {
         #[case] expect_violation: bool,
         #[case] expected_char: Option<char>,
     ) -> anyhow::Result<()> {
-        let cfg = &crate::test_helpers::make_test_rule_config();
-        let res = super::check_header_name("request header section", name, cfg.severity);
+        let res =
+            super::check_header_name("request header section", name, crate::lint::Severity::Warn);
 
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", name);

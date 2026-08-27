@@ -7,7 +7,7 @@
 //! Helper functions for constructing test fixtures (HTTP transactions,
 //! configurations) that depend only on core types. Used across this crate's
 //! tests and — via the `test-utils` feature — by downstream crates. Fixtures
-//! that need rule-layer types (e.g. `make_test_rule_config`) live in the rules
+//! that need rule-layer types (e.g. `run_rule`) live in the rules
 //! crate's own `test_helpers`.
 
 use crate::state::ClientIdentifier;
