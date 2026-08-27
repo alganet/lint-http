@@ -16,73 +16,78 @@ impl Rule for XXssProtectionValueValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // A response header (a legacy browser feature; no standard ever defined it),
-        // so only the response side is inspected. Its absence is fine — CSP is the
-        // replacement — which is why count == 0 simply passes.
-        // cite(MDN X-XSS-Protection): "response header was a feature of Internet Explorer, Chrome and Safari that stopped pages from loading when they detected reflected cross-site scripting"
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // A response header (a legacy browser feature; no standard ever defined it),
+            // so only the response side is inspected. Its absence is fine — CSP is the
+            // replacement — which is why count == 0 simply passes.
+            // cite(MDN X-XSS-Protection): "response header was a feature of Internet Explorer, Chrome and Safari that stopped pages from loading when they detected reflected cross-site scripting"
+            let resp = tx.response.as_ref()?;
 
-        let headers = &resp.headers;
-        let count = headers.get_all("x-xss-protection").iter().count();
-        if count == 0 {
-            return None;
-        }
+            let headers = &resp.headers;
+            let count = headers.get_all("x-xss-protection").iter().count();
+            if count == 0 {
+                return None;
+            }
 
-        // The value was never defined as a comma-separated list, so a sender may
-        // not repeat the field.
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        if count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple X-XSS-Protection header fields present".into(),
-            });
-        }
-
-        // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-        let val = match crate::helpers::headers::get_header_str(headers, "x-xss-protection") {
-            Some(v) => v.trim(),
-            None => {
+            // The value was never defined as a comma-separated list, so a sender may
+            // not repeat the field.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            if count > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "X-XSS-Protection header contains non-ASCII or control characters"
-                        .into(),
-                })
+                    message: "Multiple X-XSS-Protection header fields present".into(),
+                });
             }
+
+            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
+            let val = match crate::helpers::headers::get_header_str(headers, "x-xss-protection") {
+                Some(v) => v.trim(),
+                None => {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "X-XSS-Protection header contains non-ASCII or control characters"
+                            .into(),
+                    })
+                }
+            };
+
+            // Accept exactly "0" or "1;mode=block" (allow whitespace around separators, case-insensitive)
+            // `1` and `1; report=<uri>` are documented values that this rule rejects anyway.
+            // That is a policy, not a reading of a grammar: the filter these values enable is
+            // the thing the quote below warns about, and `0` is the one safe setting.
+            // cite(MDN X-XSS-Protection): "Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites."
+            // cite(MDN X-XSS-Protection): "Disables XSS filtering."
+            if val.eq_ignore_ascii_case("0") {
+                return None;
+            }
+
+            // Split on ';' and validate structure: exactly two parts, first is '1', second is 'mode=block'
+            // cite(MDN X-XSS-Protection): "Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected."
+            let parts: Vec<&str> = val.split(';').map(|s| s.trim()).collect();
+            if parts.len() == 2
+                && parts[0].eq_ignore_ascii_case("1")
+                && parts[1].eq_ignore_ascii_case("mode=block")
+            {
+                return None;
+            }
+
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!("X-XSS-Protection contains unsupported value: '{}'", val),
+            })
         };
-
-        // Accept exactly "0" or "1;mode=block" (allow whitespace around separators, case-insensitive)
-        // `1` and `1; report=<uri>` are documented values that this rule rejects anyway.
-        // That is a policy, not a reading of a grammar: the filter these values enable is
-        // the thing the quote below warns about, and `0` is the one safe setting.
-        // cite(MDN X-XSS-Protection): "Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites."
-        // cite(MDN X-XSS-Protection): "Disables XSS filtering."
-        if val.eq_ignore_ascii_case("0") {
-            return None;
-        }
-
-        // Split on ';' and validate structure: exactly two parts, first is '1', second is 'mode=block'
-        // cite(MDN X-XSS-Protection): "Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected."
-        let parts: Vec<&str> = val.split(';').map(|s| s.trim()).collect();
-        if parts.len() == 2
-            && parts[0].eq_ignore_ascii_case("1")
-            && parts[1].eq_ignore_ascii_case("mode=block")
-        {
-            return None;
-        }
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!("X-XSS-Protection contains unsupported value: '{}'", val),
-        })
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

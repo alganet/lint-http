@@ -16,94 +16,100 @@ impl Rule for ContentTransferEncodingValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The five named mechanisms. The grammar admits two more alternatives —
-        // `ietf-token` and `x-token` — so this list is not the whole of it; see the
-        // x-token branch below.
-        let allowed = ["7bit", "8bit", "binary", "quoted-printable", "base64"];
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The five named mechanisms. The grammar admits two more alternatives —
+            // `ietf-token` and `x-token` — so this list is not the whole of it; see the
+            // x-token branch below.
+            let allowed = ["7bit", "8bit", "binary", "quoted-printable", "base64"];
 
-        // Describe what is wrong with the *value*, if anything. This is diagnostic
-        // detail only: no value can make the field belong in an HTTP message, so the
-        // verdict is decided by presence alone (below), not by this.
-        let describe_value = |val: &str| -> Option<String> {
-            let s = val.trim();
-            if s.is_empty() {
-                return Some("the value is empty".into());
-            }
+            // Describe what is wrong with the *value*, if anything. This is diagnostic
+            // detail only: no value can make the field belong in an HTTP message, so the
+            // verdict is decided by presence alone (below), not by this.
+            let describe_value = |val: &str| -> Option<String> {
+                let s = val.trim();
+                if s.is_empty() {
+                    return Some("the value is empty".into());
+                }
 
-            // RFC 2045 defines a single token value here; if commas are present it's likely malformed
-            let parts: Vec<&str> = crate::helpers::headers::list_members(s).collect();
-            // cite(RFC 2045 § 6.1): "mechanism := "7bit" / "8bit" / "binary" / "quoted-printable" / "base64" / ietf-token / x-token"
-            if parts.len() > 1 {
-                return Some(
-                    "the value is a comma-separated list, but a mechanism is a single token".into(),
-                );
-            }
+                // RFC 2045 defines a single token value here; if commas are present it's likely malformed
+                let parts: Vec<&str> = crate::helpers::headers::list_members(s).collect();
+                // cite(RFC 2045 § 6.1): "mechanism := "7bit" / "8bit" / "binary" / "quoted-printable" / "base64" / ietf-token / x-token"
+                if parts.len() > 1 {
+                    return Some(
+                        "the value is a comma-separated list, but a mechanism is a single token"
+                            .into(),
+                    );
+                }
 
-            // `parts[0]` was an index, and `,` is the value that makes it panic:
-            // every member of that value is empty, none of them is an element, so
-            // the walk hands back nothing at all. The length test above only
-            // refuses *more* than one member. A value listing no member says the
-            // same thing as one with nothing in it, which is the branch above.
-            // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-            let Some(tok) = parts.first().copied() else {
-                return Some("the value is empty".into());
+                // `parts[0]` was an index, and `,` is the value that makes it panic:
+                // every member of that value is empty, none of them is an element, so
+                // the walk hands back nothing at all. The length test above only
+                // refuses *more* than one member. A value listing no member says the
+                // same thing as one with nothing in it, which is the branch above.
+                // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+                let Some(tok) = parts.first().copied() else {
+                    return Some("the value is empty".into());
+                };
+                if let Some(c) = crate::helpers::token::find_invalid_token_char(tok) {
+                    return Some(format!("the value contains an invalid character: '{}'", c));
+                }
+
+                let lower = tok.to_ascii_lowercase();
+                // `x-token` is a first-class alternative in the mechanism grammar, and
+                // §6.3 spells out how to use it: a private encoding *must* carry the `X-`
+                // prefix precisely so it is recognizable as non-standard. So an `x-`
+                // value is the conforming way to name a private mechanism, not an
+                // unrecognized one — rejecting it contradicted the grammar quoted above.
+                // cite(RFC 2045 § 6.3): "Implementors may, if necessary, define private Content-Transfer-Encoding values, but must use an x-token, which is a name prefixed by "X-", to indicate its non-standard status"
+                // cite(RFC 2045 § 6.1): "These values are not case sensitive"
+                if !allowed.contains(&lower.as_str()) && !lower.starts_with("x-") {
+                    return Some(format!("'{}' is not a MIME transfer mechanism either", tok));
+                }
+
+                None
             };
-            if let Some(c) = crate::helpers::token::find_invalid_token_char(tok) {
-                return Some(format!("the value contains an invalid character: '{}'", c));
-            }
 
-            let lower = tok.to_ascii_lowercase();
-            // `x-token` is a first-class alternative in the mechanism grammar, and
-            // §6.3 spells out how to use it: a private encoding *must* carry the `X-`
-            // prefix precisely so it is recognizable as non-standard. So an `x-`
-            // value is the conforming way to name a private mechanism, not an
-            // unrecognized one — rejecting it contradicted the grammar quoted above.
-            // cite(RFC 2045 § 6.3): "Implementors may, if necessary, define private Content-Transfer-Encoding values, but must use an x-token, which is a name prefixed by "X-", to indicate its non-standard status"
-            // cite(RFC 2045 § 6.1): "These values are not case sensitive"
-            if !allowed.contains(&lower.as_str()) && !lower.starts_with("x-") {
-                return Some(format!("'{}' is not a MIME transfer mechanism either", tok));
-            }
+            // The field's *presence* is the finding, whatever it carries. HTTP has no
+            // Content-Transfer-Encoding: a gateway from a MIME-compliant protocol is
+            // required to strip it before the message reaches an HTTP client, so one
+            // arriving over HTTP means that strip did not happen. A recipient that
+            // ignores the field (as an HTTP recipient will) reads the body without
+            // decoding it, which silently yields the wrong bytes — the reason this is
+            // worth reporting even when the value is a perfectly good MIME mechanism.
+            // cite(RFC 9112 § B.5): "HTTP does not use the Content-Transfer-Encoding field of MIME."
+            // cite(RFC 9112 § B.5): "Proxies and gateways from MIME-compliant protocols to HTTP need to remove any Content-Transfer-Encoding prior to delivering the response message to an HTTP client."
+            let report = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+                let hv = headers.get_all("content-transfer-encoding").iter().next()?;
+                let shown = hv.to_str().unwrap_or("<non-UTF-8>");
+                let detail = describe_value(shown).map(|d| format!("; {}", d));
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Content-Transfer-Encoding: {} present in {}; HTTP does not use this field and a gateway is required to remove it{}",
+                        shown.trim(),
+                        which,
+                        detail.unwrap_or_default()
+                    ),
+                })
+            };
 
-            None
+            if let Some(resp) = &tx.response {
+                if let Some(v) = report("response", &resp.headers) {
+                    return Some(v);
+                }
+            }
+            report("request", &tx.request.headers)
         };
-
-        // The field's *presence* is the finding, whatever it carries. HTTP has no
-        // Content-Transfer-Encoding: a gateway from a MIME-compliant protocol is
-        // required to strip it before the message reaches an HTTP client, so one
-        // arriving over HTTP means that strip did not happen. A recipient that
-        // ignores the field (as an HTTP recipient will) reads the body without
-        // decoding it, which silently yields the wrong bytes — the reason this is
-        // worth reporting even when the value is a perfectly good MIME mechanism.
-        // cite(RFC 9112 § B.5): "HTTP does not use the Content-Transfer-Encoding field of MIME."
-        // cite(RFC 9112 § B.5): "Proxies and gateways from MIME-compliant protocols to HTTP need to remove any Content-Transfer-Encoding prior to delivering the response message to an HTTP client."
-        let report = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
-            let hv = headers.get_all("content-transfer-encoding").iter().next()?;
-            let shown = hv.to_str().unwrap_or("<non-UTF-8>");
-            let detail = describe_value(shown).map(|d| format!("; {}", d));
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Content-Transfer-Encoding: {} present in {}; HTTP does not use this field and a gateway is required to remove it{}",
-                    shown.trim(),
-                    which,
-                    detail.unwrap_or_default()
-                ),
-            })
-        };
-
-        if let Some(resp) = &tx.response {
-            if let Some(v) = report("response", &resp.headers) {
-                return Some(v);
-            }
-        }
-        report("request", &tx.request.headers)
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

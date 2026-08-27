@@ -75,40 +75,45 @@ impl Rule for ContextFieldsDirection {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // A response context field in a request, then a request context field
-        // in a response. Each table is probed against the *other* direction
-        // only — in its own direction the field is what its section says it
-        // is, and its value is its own rule's question.
-        let message = misdirected(
-            &tx.request.headers,
-            RESPONSE_CONTEXT_FIELDS,
-            "Request",
-            "response context field",
-            "a request",
-        )
-        .or_else(|| {
-            tx.response.as_ref().and_then(|resp| {
-                misdirected(
-                    &resp.headers,
-                    REQUEST_CONTEXT_FIELDS,
-                    "Response",
-                    "request context field",
-                    "a response",
-                )
-            })
-        })?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // A response context field in a request, then a request context field
+            // in a response. Each table is probed against the *other* direction
+            // only — in its own direction the field is what its section says it
+            // is, and its value is its own rule's question.
+            let message = misdirected(
+                &tx.request.headers,
+                RESPONSE_CONTEXT_FIELDS,
+                "Request",
+                "response context field",
+                "a request",
+            )
+            .or_else(|| {
+                tx.response.as_ref().and_then(|resp| {
+                    misdirected(
+                        &resp.headers,
+                        REQUEST_CONTEXT_FIELDS,
+                        "Response",
+                        "request context field",
+                        "a response",
+                    )
+                })
+            })?;
 
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message,
-        })
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message,
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

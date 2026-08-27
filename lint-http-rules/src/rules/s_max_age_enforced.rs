@@ -34,80 +34,85 @@ impl Rule for SMaxAgeEnforced {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // locate the most recent prior response with both s-maxage and a
-        // larger max-age value.  s-maxage by itself is not actionable for this
-        // check; we need a "real" private freshness lifetime to compare.
-        let mut candidate: Option<(&crate::http_transaction::HttpTransaction, i64, i64)> = None;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // locate the most recent prior response with both s-maxage and a
+            // larger max-age value.  s-maxage by itself is not actionable for this
+            // check; we need a "real" private freshness lifetime to compare.
+            let mut candidate: Option<(&crate::http_transaction::HttpTransaction, i64, i64)> = None;
 
-        for past in history.iter() {
-            if let Some(resp) = &past.response {
-                if let Some(s_age) =
-                    crate::helpers::headers::get_cache_control_s_maxage(&resp.headers)
-                {
-                    if let Some(max_age) =
-                        crate::helpers::headers::get_cache_control_max_age(&resp.headers)
+            for past in history.iter() {
+                if let Some(resp) = &past.response {
+                    if let Some(s_age) =
+                        crate::helpers::headers::get_cache_control_s_maxage(&resp.headers)
                     {
-                        if max_age > s_age {
-                            candidate = Some((past, s_age, max_age));
-                            break;
+                        if let Some(max_age) =
+                            crate::helpers::headers::get_cache_control_max_age(&resp.headers)
+                        {
+                            if max_age > s_age {
+                                candidate = Some((past, s_age, max_age));
+                                break;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        let (prev_tx, s_max_age, max_age) = candidate?;
+            let (prev_tx, s_max_age, max_age) = candidate?;
 
-        // Estimate current age as the Age header plus elapsed seconds — a simplification of
-        // §4.2.3's full algorithm, adequate for the boundary comparison below.
-        let mut age_val: i64 = 0;
-        if let Some(resp) = &prev_tx.response {
-            if let Some(hv) = resp.headers.get("age") {
-                if let Ok(s) = hv.to_str() {
-                    if let Ok(n) = s.trim().parse::<i64>() {
-                        if n >= 0 {
-                            age_val = n;
+            // Estimate current age as the Age header plus elapsed seconds — a simplification of
+            // §4.2.3's full algorithm, adequate for the boundary comparison below.
+            let mut age_val: i64 = 0;
+            if let Some(resp) = &prev_tx.response {
+                if let Some(hv) = resp.headers.get("age") {
+                    if let Ok(s) = hv.to_str() {
+                        if let Ok(n) = s.trim().parse::<i64>() {
+                            if n >= 0 {
+                                age_val = n;
+                            }
                         }
                     }
                 }
             }
-        }
-        let elapsed = tx
-            .timestamp
-            .signed_duration_since(prev_tx.timestamp)
-            .num_seconds();
-        let elapsed = if elapsed < 0 { 0 } else { elapsed };
-        let current_age = age_val.saturating_add(elapsed);
+            let elapsed = tx
+                .timestamp
+                .signed_duration_since(prev_tx.timestamp)
+                .num_seconds();
+            let elapsed = if elapsed < 0 { 0 } else { elapsed };
+            let current_age = age_val.saturating_add(elapsed);
 
-        // A conditional request is the revalidation whose timing this rule judges.
-        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
-        let has_conditional = tx.request.headers.contains_key("if-none-match")
-            || tx.request.headers.contains_key("if-modified-since");
+            // A conditional request is the revalidation whose timing this rule judges.
+            // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
+            let has_conditional = tx.request.headers.contains_key("if-none-match")
+                || tx.request.headers.contains_key("if-modified-since");
 
-        // Heuristic: revalidating in the [s-maxage, max-age) window is the behaviour of a *shared*
-        // cache, so on a presumed-private client it suggests s-maxage was misread as the freshness
-        // limit. The cite establishes only that s-maxage is shared-cache-only; no sentence forbids
-        // a cache from revalidating a still-fresh response, so the flag is an inference (it also
-        // assumes the observed client is private, which cannot be verified from traffic).
-        // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
-        if has_conditional && current_age >= s_max_age && current_age < max_age {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Resource revalidated after s-maxage={} but before max-age={} (age {}) — private caches must ignore s-maxage and use max-age for freshness",
-                    s_max_age, max_age, current_age
-                ),
-            });
-        }
+            // Heuristic: revalidating in the [s-maxage, max-age) window is the behaviour of a *shared*
+            // cache, so on a presumed-private client it suggests s-maxage was misread as the freshness
+            // limit. The cite establishes only that s-maxage is shared-cache-only; no sentence forbids
+            // a cache from revalidating a still-fresh response, so the flag is an inference (it also
+            // assumes the observed client is private, which cannot be verified from traffic).
+            // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
+            if has_conditional && current_age >= s_max_age && current_age < max_age {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Resource revalidated after s-maxage={} but before max-age={} (age {}) — private caches must ignore s-maxage and use max-age for freshness",
+                        s_max_age, max_age, current_age
+                    ),
+                });
+            }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

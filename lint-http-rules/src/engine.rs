@@ -172,7 +172,7 @@ impl PreparedEngine {
             };
 
             let ctx = crate::rules::RuleContext::new(&prepared.resolved);
-            out.extend(rule.check_transaction(tx, history, &ctx));
+            out.extend(rule.findings(tx, history, &ctx));
         }
 
         out
@@ -235,6 +235,48 @@ mod tests {
         let empty = PreparedEngine::new(&Config::default()).unwrap();
         assert_eq!(empty.enabled_full.len(), 0);
         assert_eq!(empty.enabled_protocol.len(), 0);
+    }
+
+    /// Every registered rule, dispatched once — a response-bearing and a
+    /// request-only transaction through the transaction rules, one event
+    /// through the protocol rules. Keeps every rule's dispatch path exercised
+    /// through the engine itself (not only through the per-rule tests'
+    /// helper), so a rule whose `findings` panics on ordinary traffic fails
+    /// here by name.
+    #[test]
+    fn every_registered_rule_dispatches_cleanly() -> anyhow::Result<()> {
+        let toml_src = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
+        )?;
+        let mut cfg: Config = toml::from_str(&toml_src)?;
+        for val in cfg.rules.values_mut() {
+            if let toml::Value::Table(table) = val {
+                table.insert("enabled".to_string(), toml::Value::Boolean(true));
+            }
+        }
+        let engine = PreparedEngine::new(&cfg)?;
+        let state = crate::state::StateStore::new(300, 10);
+
+        let with_response = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let _ = engine.lint_transaction(&with_response, &state);
+
+        use crate::http_transaction::{HttpTransaction, TimingInfo};
+        let mut request_only = HttpTransaction::new(
+            crate::test_helpers::make_test_client(),
+            "GET".to_string(),
+            "http://example.com/".to_string(),
+        );
+        request_only.timing = TimingInfo { duration_ms: 5 };
+        let _ = engine.lint_transaction(&request_only, &state);
+
+        let event_store = crate::protocol_event_store::ProtocolEventStore::new(300, 100);
+        let event = crate::protocol_event::ProtocolEvent {
+            timestamp: chrono::Utc::now(),
+            connection_id: uuid::Uuid::new_v4(),
+            kind: crate::protocol_event::ProtocolEventKind::H3StreamOpened { stream_id: 0 },
+        };
+        let _ = engine.lint_protocol_event(&event, &event_store);
+        Ok(())
     }
 
     #[test]

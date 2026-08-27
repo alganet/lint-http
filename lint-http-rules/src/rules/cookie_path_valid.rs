@@ -16,66 +16,71 @@ impl Rule for CookiePathValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        for hv in resp.headers.get_all("set-cookie").iter() {
-            let s = match hv.to_str() {
-                Ok(v) => v,
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Set-Cookie header value is not valid UTF-8".into(),
-                    })
-                }
-            };
-
-            // Split into cookie-pair and attribute segments
-            let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
-            if parts.is_empty() {
-                // No segments at all; nothing to validate here
-                continue;
-            }
-
-            for attr in parts.iter().skip(1) {
-                if attr.is_empty() {
-                    continue;
-                }
-                let mut av = attr.splitn(2, '=');
-                let key = av.next().unwrap().trim();
-                let val_opt = av.next().map(|v| v.trim());
-
-                if key.eq_ignore_ascii_case("path") {
-                    // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
-                    let v = match val_opt {
-                        Some(v) => v,
-                        None => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Set-Cookie attribute 'Path' requires a value".into(),
-                            })
-                        }
-                    };
-
-                    if let Err(e) = crate::helpers::cookie::validate_cookie_path(v) {
+            for hv in resp.headers.get_all("set-cookie").iter() {
+                let s = match hv.to_str() {
+                    Ok(v) => v,
+                    Err(_) => {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: ctx.severity,
-                            message: format!("Set-Cookie attribute 'Path' invalid: {}", e),
-                        });
+                            message: "Set-Cookie header value is not valid UTF-8".into(),
+                        })
+                    }
+                };
+
+                // Split into cookie-pair and attribute segments
+                let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
+                if parts.is_empty() {
+                    // No segments at all; nothing to validate here
+                    continue;
+                }
+
+                for attr in parts.iter().skip(1) {
+                    if attr.is_empty() {
+                        continue;
+                    }
+                    let mut av = attr.splitn(2, '=');
+                    let key = av.next().unwrap().trim();
+                    let val_opt = av.next().map(|v| v.trim());
+
+                    if key.eq_ignore_ascii_case("path") {
+                        // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
+                        let v = match val_opt {
+                            Some(v) => v,
+                            None => {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: "Set-Cookie attribute 'Path' requires a value".into(),
+                                })
+                            }
+                        };
+
+                        if let Err(e) = crate::helpers::cookie::validate_cookie_path(v) {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!("Set-Cookie attribute 'Path' invalid: {}", e),
+                            });
+                        }
                     }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -105,24 +105,29 @@ impl Rule for SingletonFieldsNotRepeated {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let message =
-            judge(&tx.request.headers, tx.request.trailers.as_ref(), "Request").or_else(|| {
-                tx.response
-                    .as_ref()
-                    .and_then(|resp| judge(&resp.headers, resp.trailers.as_ref(), "Response"))
-            })?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let message = judge(&tx.request.headers, tx.request.trailers.as_ref(), "Request")
+                .or_else(|| {
+                    tx.response
+                        .as_ref()
+                        .and_then(|resp| judge(&resp.headers, resp.trailers.as_ref(), "Response"))
+                })?;
 
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message,
-        })
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message,
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -141,58 +141,63 @@ impl Rule for ServerTimingHeaderSyntax {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // Both field sections, because the specification's own worked exchange
-        // uses both: § 6 announces `Trailer: Server-Timing` and then writes
-        // `Server-Timing: total;dur=123.4` after the content. Reading the header
-        // section alone left the last line of the only example this document
-        // publishes measured by nobody.
-        //
-        // Whether the field belongs in a trailer section at all is a different
-        // question and not this rule's: RFC 9110 § 6.5.1 asks the sender to know
-        // its own field's definition, § 6 here is marked non-normative, and
-        // `trailer_fields_valid` owns that question and declines it
-        // by name for every field whose definition this tree does not hold.
-        // What is asked here is the same thing of both sections -- that what the
-        // server wrote derives from § 2's grammar. The walk is the shared one;
-        // the permission is what differs per field, and this rule's is the one
-        // it does not have.
-        //
-        // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-        for (section, headers) in response_field_sections(resp) {
-            // One `char` per octet, and the lines of this section joined into
-            // the one list they are. `to_str` folds a field carrying any octet
-            // at or above %x80 into "no such field here" -- and `qdtext` admits
-            // `obs-text`, so the old reader turned a conforming `desc` into a
-            // finding that named UTF-8, a property of the reader rather than of
-            // the grammar. Where such an octet is genuinely inadmissible it is
-            // inside a `token`, and the finding that owns it names the octet.
+            // Both field sections, because the specification's own worked exchange
+            // uses both: § 6 announces `Trailer: Server-Timing` and then writes
+            // `Server-Timing: total;dur=123.4` after the content. Reading the header
+            // section alone left the last line of the only example this document
+            // publishes measured by nobody.
             //
-            // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
-            // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-            let Some(value) = combined_field_value_as_written(headers, "server-timing") else {
-                continue;
-            };
-            // The section names itself at the front of the sentence rather than
-            // in a parenthesis at the back: several of these findings already
-            // end in an `(advice: …)` clause, and a second parenthetical after
-            // it reads as an afterthought about the first.
-            if let Some(message) = check_field_value(&value) {
-                return Some(self.violation(
-                    ctx.severity,
-                    format!("In the response {section}: {message}"),
-                ));
+            // Whether the field belongs in a trailer section at all is a different
+            // question and not this rule's: RFC 9110 § 6.5.1 asks the sender to know
+            // its own field's definition, § 6 here is marked non-normative, and
+            // `trailer_fields_valid` owns that question and declines it
+            // by name for every field whose definition this tree does not hold.
+            // What is asked here is the same thing of both sections -- that what the
+            // server wrote derives from § 2's grammar. The walk is the shared one;
+            // the permission is what differs per field, and this rule's is the one
+            // it does not have.
+            //
+            // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+            for (section, headers) in response_field_sections(resp) {
+                // One `char` per octet, and the lines of this section joined into
+                // the one list they are. `to_str` folds a field carrying any octet
+                // at or above %x80 into "no such field here" -- and `qdtext` admits
+                // `obs-text`, so the old reader turned a conforming `desc` into a
+                // finding that named UTF-8, a property of the reader rather than of
+                // the grammar. Where such an octet is genuinely inadmissible it is
+                // inside a `token`, and the finding that owns it names the octet.
+                //
+                // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
+                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                let Some(value) = combined_field_value_as_written(headers, "server-timing") else {
+                    continue;
+                };
+                // The section names itself at the front of the sentence rather than
+                // in a parenthesis at the back: several of these findings already
+                // end in an `(advice: …)` clause, and a second parenthetical after
+                // it reads as an afterthought about the first.
+                if let Some(message) = check_field_value(&value) {
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!("In the response {section}: {message}"),
+                    ));
+                }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

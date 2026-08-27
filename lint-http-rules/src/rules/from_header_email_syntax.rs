@@ -24,161 +24,166 @@ impl Rule for FromHeaderEmailSyntax {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req = &tx.request;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req = &tx.request;
 
-        // A request with no `From` — which is nearly all of them, since § 10.1.2
-        // says the field is rarely sent — ends the rule at one field probe.
-        //
-        // Read as the sender wrote it, one `char` per octet. The `to_str` this
-        // replaced answered "From header value is not valid UTF-8" for any octet
-        // above %x7E: a claim about an encoding where the truth is about a value,
-        // and the octets it hid are exactly the ones no production here admits,
-        // since RFC 5322 writes every character class as a range stopping at
-        // %x7E.
-        //
-        // The header section only. Whether *any* field may appear in a trailer
-        // section is § 6.5.1's deny-by-default question and
-        // `trailer_fields_valid`'s finding, and an address identifying
-        // the user who sent a request cannot arrive after the request's content.
-        //
-        // cite(RFC 9110 § 10.1.2): "The "From" header field contains an Internet email address for a human user who controls the requesting user agent."
-        // cite(RFC 9110 § 10.1.2): "The address ought to be machine-usable, as defined by "mailbox" in Section 3.4 of [RFC5322]"
-        // cite(RFC 9110 § 10.1.2): "mailbox = <mailbox, see [RFC5322], Section 3.4>"
-        let value = combined_field_value_as_written(&req.headers, "from")?;
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().to_string(),
-                severity: ctx.severity,
-                message,
-            })
+            // A request with no `From` — which is nearly all of them, since § 10.1.2
+            // says the field is rarely sent — ends the rule at one field probe.
+            //
+            // Read as the sender wrote it, one `char` per octet. The `to_str` this
+            // replaced answered "From header value is not valid UTF-8" for any octet
+            // above %x7E: a claim about an encoding where the truth is about a value,
+            // and the octets it hid are exactly the ones no production here admits,
+            // since RFC 5322 writes every character class as a range stopping at
+            // %x7E.
+            //
+            // The header section only. Whether *any* field may appear in a trailer
+            // section is § 6.5.1's deny-by-default question and
+            // `trailer_fields_valid`'s finding, and an address identifying
+            // the user who sent a request cannot arrive after the request's content.
+            //
+            // cite(RFC 9110 § 10.1.2): "The "From" header field contains an Internet email address for a human user who controls the requesting user agent."
+            // cite(RFC 9110 § 10.1.2): "The address ought to be machine-usable, as defined by "mailbox" in Section 3.4 of [RFC5322]"
+            // cite(RFC 9110 § 10.1.2): "mailbox = <mailbox, see [RFC5322], Section 3.4>"
+            let value = combined_field_value_as_written(&req.headers, "from")?;
+            let violation = |message: String| {
+                Some(Violation {
+                    rule: self.id().to_string(),
+                    severity: ctx.severity,
+                    message,
+                })
+            };
+
+            let lines = req.headers.get_all("from").iter().count();
+            if lines > 1 {
+                // `From`'s value is one `mailbox`, and neither of that production's
+                // alternatives is a comma-separated list — so § 5.3's exception does
+                // not apply and one message carries at most one `From` line.
+                //
+                // The count has to be taken before the value is parsed, because the
+                // recombination is not detectable afterwards in the way it is for
+                // most singletons: RFC 5322 § 3.4 defines `mailbox-list` two lines
+                // under `mailbox` with a comma as its separator, so what a recipient
+                // joins two `From` lines into is a well-formed production of the same
+                // document — just not the one this field imports.
+                //
+                // The preamble is `helpers::headers::singleton_field_preamble`'s.
+                // What is appended is the sharpest of the five: the other four join
+                // into something malformed or into a reference naming the wrong
+                // resource, and this one joins into a *well-formed production of the
+                // same document* — `mailbox-list`, two lines below `mailbox` in
+                // RFC 5322 § 3.4 and not imported by this field.
+                return violation(format!(
+                    "{}. The comma a recipient joins them with is `mailbox-list`'s separator (RFC 5322 §3.4), a production this field does not import, so the joined value names no one address",
+                    crate::helpers::headers::singleton_field_preamble(
+                        "From",
+                        lines,
+                        &shown_in_finding(&value),
+                        "its value is a single RFC 5322 `mailbox`, which has no comma-separated-list alternative",
+                    )
+                ));
+            }
+
+            // `OWS` and only `OWS`. The value carries one `char` per octet, so U+00A0
+            // in it is the octet %xA0 — `obs-text`, which is whitespace in no
+            // document and which `str::trim` removed before any check saw it.
+            //
+            // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
+            let value = trim_ows(&value);
+
+            if value.is_empty() {
+                // Both of `mailbox`'s alternatives contain an `addr-spec`, and
+                // `addr-spec` writes a literal `"@"` — so the shortest value the
+                // field's grammar generates is not the empty one, whichever
+                // alternative each half takes. That is the whole argument, and it is
+                // deliberately about the at-sign rather than about a `1*atext` floor:
+                // a `quoted-string` local-part has no such floor (`""` derives), and
+                // neither does a `domain-literal` (`[]` derives).
+                //
+                // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+                return violation(
+                    "From is present with an empty value. `From = mailbox`, both of that production's alternatives contain an `addr-spec`, and `addr-spec = local-part \"@\" domain` writes an at-sign the value does not have — so no empty value derives from the field's grammar (RFC 5322 §3.4.1)"
+                        .to_string(),
+                );
+            }
+
+            match parse_mailbox(value) {
+                Ok(parsed) => {
+                    // Both `?`s below are "there is nothing to report" and not a
+                    // failure: the first is a sender who wrote a `domain-literal`,
+                    // the second a host name already in the preferred syntax. Said
+                    // here because the operator reads the same three characters as
+                    // an error path everywhere else in this file, and because
+                    // `clippy::question_mark` refuses the `let ... else` spelling
+                    // that would have said it in code.
+                    let domain = parsed.domain_name?;
+                    let defect = preferred_name_syntax_defect(&domain)?;
+                    // The weakest finding here, and it is worded as the weaker thing
+                    // it is. A `dot-atom` domain outside the preferred name syntax —
+                    // `alice@my_host.example`, where `_` is an `atext` — derives from
+                    // the field's grammar perfectly well, so §2.2's MUST NOT does not
+                    // reach it. What reaches it is that RFC 5322 hands the domain to
+                    // the documents that define host names and says so, and RFC 9110
+                    // asks for an address that is machine-usable. That is advice, and
+                    // it is separated from the syntax findings rather than flattened
+                    // into one "invalid domain" message with them, because a reader
+                    // who is told a value is malformed will go and change it.
+                    //
+                    // A `domain-literal` reaches none of this: `[192.0.2.1]` is an
+                    // address, not a name, so the helper is asked only for the
+                    // `dot-atom` form.
+                    //
+                    // cite(RFC 5322 § 3.4.1): "In the dot-atom form, this is interpreted as an Internet domain name (either a host name or a mail exchanger name) as described in [RFC1034], [RFC1035], and [RFC1123]."
+                    // cite(RFC 5322 § 3.4.1): "It is therefore incumbent upon implementations to conform to the syntax of addresses for the context in which they are used."
+                    violation(format!(
+                        "From names the domain '{}', which is a conforming `dot-atom` but not an Internet domain name in RFC 1035 §2.3.1's preferred syntax: {}. This is advice, not a violation — RFC 5322 §3.4.1 hands the domain to the host-name documents rather than restricting it itself, and RFC 9110 §10.1.2 asks only that the address be machine-usable",
+                        shown_in_finding(&domain),
+                        defect
+                    ))
+                }
+                Err(MailboxDefect::ListSeparator) => {
+                    // The rule's premise. RFC 9110 imports `mailbox`, and RFC 5322
+                    // § 3.4 prints `mailbox-list` two lines below it — so a
+                    // comma-separated `From` is a value from the neighbouring
+                    // production, and the field has room for one address.
+                    //
+                    // The previous rule validated a `mailbox-list`, published
+                    // `From: Alice <alice@example.com>, bob@example.org` to operators
+                    // as a compliant example, and so had nothing to report here.
+                    //
+                    // cite(RFC 5322 § 3.4): "mailbox = name-addr / addr-spec"
+                    // cite(RFC 5322 § 3.4): "mailbox-list = (mailbox *("," mailbox)) / obs-mbox-list"
+                    violation(format!(
+                        "From value '{}' carries a comma outside every quoted-string, comment and angle-addr — `mailbox-list`'s separator, in a field whose value is one `mailbox`. RFC 5322 §3.4 defines the list form two lines below the one RFC 9110 §10.1.2 imports, so a request that means to name two people has no way to say so in this field",
+                        shown_in_finding(value)
+                    ))
+                }
+                Err(MailboxDefect::Syntax(defect)) => {
+                    // Everything else the grammar refuses, including every `obs-`
+                    // alternative — `obs-phrase`'s bare `.` in a display-name,
+                    // `obs-angle-addr`'s source route, `obs-domain`'s whitespace
+                    // around the dots. § 4 admits them for a *receiver* and forbids
+                    // generating them in the same sentence, which is the half that
+                    // applies to the party this rule reports on.
+                    //
+                    // cite(RFC 5322 § 4): "Though these syntactic forms MUST NOT be generated according to the grammar in section 3, they MUST be accepted and parsed by a conformant receiver."
+                    violation(format!(
+                        "From value '{}' is not an RFC 5322 §3.4 `mailbox`: {} (RFC 9110 §10.1.2)",
+                        shown_in_finding(value),
+                        defect
+                    ))
+                }
+            }
         };
-
-        let lines = req.headers.get_all("from").iter().count();
-        if lines > 1 {
-            // `From`'s value is one `mailbox`, and neither of that production's
-            // alternatives is a comma-separated list — so § 5.3's exception does
-            // not apply and one message carries at most one `From` line.
-            //
-            // The count has to be taken before the value is parsed, because the
-            // recombination is not detectable afterwards in the way it is for
-            // most singletons: RFC 5322 § 3.4 defines `mailbox-list` two lines
-            // under `mailbox` with a comma as its separator, so what a recipient
-            // joins two `From` lines into is a well-formed production of the same
-            // document — just not the one this field imports.
-            //
-            // The preamble is `helpers::headers::singleton_field_preamble`'s.
-            // What is appended is the sharpest of the five: the other four join
-            // into something malformed or into a reference naming the wrong
-            // resource, and this one joins into a *well-formed production of the
-            // same document* — `mailbox-list`, two lines below `mailbox` in
-            // RFC 5322 § 3.4 and not imported by this field.
-            return violation(format!(
-                "{}. The comma a recipient joins them with is `mailbox-list`'s separator (RFC 5322 §3.4), a production this field does not import, so the joined value names no one address",
-                crate::helpers::headers::singleton_field_preamble(
-                    "From",
-                    lines,
-                    &shown_in_finding(&value),
-                    "its value is a single RFC 5322 `mailbox`, which has no comma-separated-list alternative",
-                )
-            ));
-        }
-
-        // `OWS` and only `OWS`. The value carries one `char` per octet, so U+00A0
-        // in it is the octet %xA0 — `obs-text`, which is whitespace in no
-        // document and which `str::trim` removed before any check saw it.
-        //
-        // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
-        let value = trim_ows(&value);
-
-        if value.is_empty() {
-            // Both of `mailbox`'s alternatives contain an `addr-spec`, and
-            // `addr-spec` writes a literal `"@"` — so the shortest value the
-            // field's grammar generates is not the empty one, whichever
-            // alternative each half takes. That is the whole argument, and it is
-            // deliberately about the at-sign rather than about a `1*atext` floor:
-            // a `quoted-string` local-part has no such floor (`""` derives), and
-            // neither does a `domain-literal` (`[]` derives).
-            //
-            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-            return violation(
-                "From is present with an empty value. `From = mailbox`, both of that production's alternatives contain an `addr-spec`, and `addr-spec = local-part \"@\" domain` writes an at-sign the value does not have — so no empty value derives from the field's grammar (RFC 5322 §3.4.1)"
-                    .to_string(),
-            );
-        }
-
-        match parse_mailbox(value) {
-            Ok(parsed) => {
-                // Both `?`s below are "there is nothing to report" and not a
-                // failure: the first is a sender who wrote a `domain-literal`,
-                // the second a host name already in the preferred syntax. Said
-                // here because the operator reads the same three characters as
-                // an error path everywhere else in this file, and because
-                // `clippy::question_mark` refuses the `let ... else` spelling
-                // that would have said it in code.
-                let domain = parsed.domain_name?;
-                let defect = preferred_name_syntax_defect(&domain)?;
-                // The weakest finding here, and it is worded as the weaker thing
-                // it is. A `dot-atom` domain outside the preferred name syntax —
-                // `alice@my_host.example`, where `_` is an `atext` — derives from
-                // the field's grammar perfectly well, so §2.2's MUST NOT does not
-                // reach it. What reaches it is that RFC 5322 hands the domain to
-                // the documents that define host names and says so, and RFC 9110
-                // asks for an address that is machine-usable. That is advice, and
-                // it is separated from the syntax findings rather than flattened
-                // into one "invalid domain" message with them, because a reader
-                // who is told a value is malformed will go and change it.
-                //
-                // A `domain-literal` reaches none of this: `[192.0.2.1]` is an
-                // address, not a name, so the helper is asked only for the
-                // `dot-atom` form.
-                //
-                // cite(RFC 5322 § 3.4.1): "In the dot-atom form, this is interpreted as an Internet domain name (either a host name or a mail exchanger name) as described in [RFC1034], [RFC1035], and [RFC1123]."
-                // cite(RFC 5322 § 3.4.1): "It is therefore incumbent upon implementations to conform to the syntax of addresses for the context in which they are used."
-                violation(format!(
-                    "From names the domain '{}', which is a conforming `dot-atom` but not an Internet domain name in RFC 1035 §2.3.1's preferred syntax: {}. This is advice, not a violation — RFC 5322 §3.4.1 hands the domain to the host-name documents rather than restricting it itself, and RFC 9110 §10.1.2 asks only that the address be machine-usable",
-                    shown_in_finding(&domain),
-                    defect
-                ))
-            }
-            Err(MailboxDefect::ListSeparator) => {
-                // The rule's premise. RFC 9110 imports `mailbox`, and RFC 5322
-                // § 3.4 prints `mailbox-list` two lines below it — so a
-                // comma-separated `From` is a value from the neighbouring
-                // production, and the field has room for one address.
-                //
-                // The previous rule validated a `mailbox-list`, published
-                // `From: Alice <alice@example.com>, bob@example.org` to operators
-                // as a compliant example, and so had nothing to report here.
-                //
-                // cite(RFC 5322 § 3.4): "mailbox = name-addr / addr-spec"
-                // cite(RFC 5322 § 3.4): "mailbox-list = (mailbox *("," mailbox)) / obs-mbox-list"
-                violation(format!(
-                    "From value '{}' carries a comma outside every quoted-string, comment and angle-addr — `mailbox-list`'s separator, in a field whose value is one `mailbox`. RFC 5322 §3.4 defines the list form two lines below the one RFC 9110 §10.1.2 imports, so a request that means to name two people has no way to say so in this field",
-                    shown_in_finding(value)
-                ))
-            }
-            Err(MailboxDefect::Syntax(defect)) => {
-                // Everything else the grammar refuses, including every `obs-`
-                // alternative — `obs-phrase`'s bare `.` in a display-name,
-                // `obs-angle-addr`'s source route, `obs-domain`'s whitespace
-                // around the dots. § 4 admits them for a *receiver* and forbids
-                // generating them in the same sentence, which is the half that
-                // applies to the party this rule reports on.
-                //
-                // cite(RFC 5322 § 4): "Though these syntactic forms MUST NOT be generated according to the grammar in section 3, they MUST be accepted and parsed by a conformant receiver."
-                violation(format!(
-                    "From value '{}' is not an RFC 5322 §3.4 `mailbox`: {} (RFC 9110 §10.1.2)",
-                    shown_in_finding(value),
-                    defect
-                ))
-            }
-        }
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

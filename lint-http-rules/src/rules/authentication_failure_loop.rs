@@ -18,54 +18,59 @@ impl Rule for AuthenticationFailureLoop {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only 401 responses matter — the status that means credentials were missing
-        // or rejected, i.e. an authentication attempt that did not succeed.
-        // cite(RFC 9110 § 15.5.2): "The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource."
-        let resp = tx.response.as_ref()?;
-        if resp.status != 401 {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only 401 responses matter — the status that means credentials were missing
+            // or rejected, i.e. an authentication attempt that did not succeed.
+            // cite(RFC 9110 § 15.5.2): "The 401 (Unauthorized) status code indicates that the request has not been applied because it lacks valid authentication credentials for the target resource."
+            let resp = tx.response.as_ref()?;
+            if resp.status != 401 {
+                return None;
+            }
 
-        // History is scoped to this origin by the rule's ByOrigin query, so a "run" of
-        // 401s here is one protection space's failures, not a mix across hosts.
-        let mut consecutive_401s = 0;
+            // History is scoped to this origin by the rule's ByOrigin query, so a "run" of
+            // 401s here is one protection space's failures, not a mix across hosts.
+            let mut consecutive_401s = 0;
 
-        for prev_tx in history.iter() {
-            if let Some(prev_resp) = &prev_tx.response {
-                if prev_resp.status == 401 {
-                    consecutive_401s += 1;
-                } else {
-                    // Break on first non-401 response for this origin
-                    break;
+            for prev_tx in history.iter() {
+                if let Some(prev_resp) = &prev_tx.response {
+                    if prev_resp.status == 401 {
+                        consecutive_401s += 1;
+                    } else {
+                        // Break on first non-401 response for this origin
+                        break;
+                    }
                 }
             }
-        }
 
-        // Loop = more than 3 consecutive 401s *before* this one (4th and up). §15.5.2
-        // sanctions one retry after a 401 and says what to do when the same challenge
-        // returns; a client still replaying it on the fourth is no longer retrying, it
-        // is looping. The exact count of 4 is this rule's heuristic threshold — no
-        // sentence fixes a number — chosen to sit comfortably past the one sanctioned
-        // retry-and-re-present; the cite is the nearest governing sentence, not a bound.
-        // cite(RFC 9110 § 15.5.2): "If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information."
-        if consecutive_401s >= 3 {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Authentication failure loop detected: client has received {} consecutive 401 Unauthorized challenges for this origin.",
-                    consecutive_401s + 1
-                ),
-            })
-        } else {
-            None
-        }
+            // Loop = more than 3 consecutive 401s *before* this one (4th and up). §15.5.2
+            // sanctions one retry after a 401 and says what to do when the same challenge
+            // returns; a client still replaying it on the fourth is no longer retrying, it
+            // is looping. The exact count of 4 is this rule's heuristic threshold — no
+            // sentence fixes a number — chosen to sit comfortably past the one sanctioned
+            // retry-and-re-present; the cite is the nearest governing sentence, not a bound.
+            // cite(RFC 9110 § 15.5.2): "If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information."
+            if consecutive_401s >= 3 {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Authentication failure loop detected: client has received {} consecutive 401 Unauthorized challenges for this origin.",
+                        consecutive_401s + 1
+                    ),
+                })
+            } else {
+                None
+            }
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

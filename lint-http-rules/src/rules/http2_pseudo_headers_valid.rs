@@ -121,251 +121,257 @@ impl Rule for Http2PseudoHeadersValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only applies to HTTP/2 transactions. The gate is scoping, not a
-        // normative check, so it carries no cite; each requirement below cites
-        // the sentence it enforces. Four consecutive iterations recorded that
-        // this gate was missing: without it every finding below was made of an
-        // HTTP/1.1 or HTTP/3 message too, in the words of a version that
-        // message was not, and on top of the report from whichever rule owns
-        // the question there. What it reads is the major digit rather than a
-        // string: this version has no version field on the wire, so the value
-        // is one a writer chose, and `http_version` is where the production
-        // lives.
-        if !crate::http_version::is_major(&tx.request.version, 2) {
-            return None;
-        }
-
-        // The pseudo-header fields themselves are not in the captured field
-        // section — a transport that carries control data as `:method`,
-        // `:scheme`, `:authority` and `:path` hands its library a method and a
-        // reassembled target URI, and that is what the canonical transaction
-        // records. So each check below reads the component the pseudo-header
-        // conveyed, and the two `§ 8.3` requirements about the field block
-        // itself (ordering, and one occurrence per name) are unenforceable
-        // here; `description()` says so.
-
-        // Read as written. `method = token` is `1*tchar`, which admits no
-        // whitespace for a trim to find and no empty string, so a value failing
-        // it derives from no `method` and names nothing for the branches below
-        // to turn on -- neither the CONNECT restrictions nor the asterisk's one
-        // method. `request_method_token_valid` reports it, of every
-        // version, and reported it here too: trimming this value hid the
-        // leading space from *this* rule without hiding it from that one.
-        // cite(RFC 9113 § 8.3.1): "The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP])."
-        // The production stands alone in § 9.1 at fourteen characters, under the
-        // extractor's floor; the collected grammar's copy is where it can be
-        // quoted, at the cost of the neighbour that follows it there.
-        // cite(RFC 9110 § A): "method = token minute = 2DIGIT"
-        // cite(RFC 9113 § 8.3): "Endpoints MUST treat a request or response that contains undefined or invalid pseudo-header fields as malformed (Section 8.1.1)."
-        let method = tx.request.method.as_str();
-        if method.is_empty() || crate::helpers::token::find_invalid_token_char(method).is_some() {
-            return None;
-        }
-
-        // The target as the transport reassembled it, read as written for the
-        // same reason: a `:path` or `:authority` with whitespace around it
-        // derives from no field value, and the character is
-        // `request_uri_percent_encoding_valid`'s finding on every
-        // version.
-        // cite(RFC 9113 § 8.2.1): "A field value MUST NOT start or end with an ASCII whitespace character (ASCII SP or HTAB, 0x20 or 0x09)."
-        let target = tx.request.uri.as_str();
-
-        // Compared as written, because the method token is case-sensitive:
-        // `connect` is a method this specification does not define and owns
-        // none of CONNECT's restrictions. The fold this replaced *suppressed*
-        // findings -- a lowercase `connect` took the tunnel branch and skipped
-        // the `:path` requirement, and a lowercase `options` was handed the
-        // asterisk -- and `request_target_form_valid` had already
-        // settled the same question the same way one iteration earlier.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        // cite(RFC 9113 § 8.5): "The ":method" pseudo-header field is set to CONNECT."
-        let is_connect = method == "CONNECT";
-
-        // Which of the three forms the transport reassembled is what says which
-        // CONNECT this is, and it is the only thing that does: the capture
-        // records no `:protocol`, so an absolute-form target -- `:scheme` and
-        // `:path` present alongside `:authority` -- is a conforming extended
-        // CONNECT and a malformed basic one, indistinguishable. `description()`
-        // publishes that decline; the sibling HTTP/3 rule takes the same one.
-        // cite(RFC 8441 § 4): "A new pseudo-header field :protocol MAY be included on request HEADERS indicating the desired protocol to be spoken on the tunnel created by CONNECT."
-        // cite(RFC 8441 § 4): "On requests that contain the :protocol pseudo-header field, the :scheme and :path pseudo-header fields of the target URI (see Section 5) MUST also be included."
-        let absolute_form = crate::helpers::uri::scheme_authority_marker(target);
-
-        if is_connect {
-            // cite(RFC 9113 § 8.5): "The ":authority" pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 3.2.3 of [HTTP/1.1])."
-            // cite(RFC 9113 § 8.5): "A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1)."
-            if target.starts_with('/') {
-                // An origin-form target is a `:path` with no `:scheme` and no
-                // `:authority` beside it. That derives from neither CONNECT: a
-                // basic one omits `:path`, an extended one carries `:scheme`
-                // too. The authority a `Host` field can still supply is what
-                // decides whether anything is missing, which is the sibling
-                // HTTP/3 rule's reading of the same pair of documents.
-                // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
-                if !tx.request.headers.contains_key("host") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "CONNECT request carries a path and no authority: an extended \
-                                  CONNECT sends ':scheme' and ':path' beside an ':authority', and \
-                                  a basic one sends only the host and port to connect to"
-                            .into(),
-                    });
-                }
-            } else if absolute_form.is_none() {
-                if let Some(msg) = connect_authority_finding(target) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: msg,
-                    });
-                }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only applies to HTTP/2 transactions. The gate is scoping, not a
+            // normative check, so it carries no cite; each requirement below cites
+            // the sentence it enforces. Four consecutive iterations recorded that
+            // this gate was missing: without it every finding below was made of an
+            // HTTP/1.1 or HTTP/3 message too, in the words of a version that
+            // message was not, and on top of the report from whichever rule owns
+            // the question there. What it reads is the major digit rather than a
+            // string: this version has no version field on the wire, so the value
+            // is one a writer chose, and `http_version` is where the production
+            // lives.
+            if !crate::http_version::is_major(&tx.request.version, 2) {
+                return None;
             }
-        } else {
-            // The asterisk is a `:path` value on this version rather than a
-            // request-target of its own, and the method that may send it is
-            // the same one on all three.
-            // cite(RFC 9113 § 8.3.1): "A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field."
-            // cite(RFC 9110 § 7.1): "For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*")."
-            // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
-            if target == "*" {
-                if method != "OPTIONS" {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Asterisk ('*') is the ':path' value of a server-wide OPTIONS request \
-                             and of nothing else, and this request's ':method' is '{method}'"
-                        ),
-                    });
+
+            // The pseudo-header fields themselves are not in the captured field
+            // section — a transport that carries control data as `:method`,
+            // `:scheme`, `:authority` and `:path` hands its library a method and a
+            // reassembled target URI, and that is what the canonical transaction
+            // records. So each check below reads the component the pseudo-header
+            // conveyed, and the two `§ 8.3` requirements about the field block
+            // itself (ordering, and one occurrence per name) are unenforceable
+            // here; `description()` says so.
+
+            // Read as written. `method = token` is `1*tchar`, which admits no
+            // whitespace for a trim to find and no empty string, so a value failing
+            // it derives from no `method` and names nothing for the branches below
+            // to turn on -- neither the CONNECT restrictions nor the asterisk's one
+            // method. `request_method_token_valid` reports it, of every
+            // version, and reported it here too: trimming this value hid the
+            // leading space from *this* rule without hiding it from that one.
+            // cite(RFC 9113 § 8.3.1): "The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP])."
+            // The production stands alone in § 9.1 at fourteen characters, under the
+            // extractor's floor; the collected grammar's copy is where it can be
+            // quoted, at the cost of the neighbour that follows it there.
+            // cite(RFC 9110 § A): "method = token minute = 2DIGIT"
+            // cite(RFC 9113 § 8.3): "Endpoints MUST treat a request or response that contains undefined or invalid pseudo-header fields as malformed (Section 8.1.1)."
+            let method = tx.request.method.as_str();
+            if method.is_empty() || crate::helpers::token::find_invalid_token_char(method).is_some()
+            {
+                return None;
+            }
+
+            // The target as the transport reassembled it, read as written for the
+            // same reason: a `:path` or `:authority` with whitespace around it
+            // derives from no field value, and the character is
+            // `request_uri_percent_encoding_valid`'s finding on every
+            // version.
+            // cite(RFC 9113 § 8.2.1): "A field value MUST NOT start or end with an ASCII whitespace character (ASCII SP or HTAB, 0x20 or 0x09)."
+            let target = tx.request.uri.as_str();
+
+            // Compared as written, because the method token is case-sensitive:
+            // `connect` is a method this specification does not define and owns
+            // none of CONNECT's restrictions. The fold this replaced *suppressed*
+            // findings -- a lowercase `connect` took the tunnel branch and skipped
+            // the `:path` requirement, and a lowercase `options` was handed the
+            // asterisk -- and `request_target_form_valid` had already
+            // settled the same question the same way one iteration earlier.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            // cite(RFC 9113 § 8.5): "The ":method" pseudo-header field is set to CONNECT."
+            let is_connect = method == "CONNECT";
+
+            // Which of the three forms the transport reassembled is what says which
+            // CONNECT this is, and it is the only thing that does: the capture
+            // records no `:protocol`, so an absolute-form target -- `:scheme` and
+            // `:path` present alongside `:authority` -- is a conforming extended
+            // CONNECT and a malformed basic one, indistinguishable. `description()`
+            // publishes that decline; the sibling HTTP/3 rule takes the same one.
+            // cite(RFC 8441 § 4): "A new pseudo-header field :protocol MAY be included on request HEADERS indicating the desired protocol to be spoken on the tunnel created by CONNECT."
+            // cite(RFC 8441 § 4): "On requests that contain the :protocol pseudo-header field, the :scheme and :path pseudo-header fields of the target URI (see Section 5) MUST also be included."
+            let absolute_form = crate::helpers::uri::scheme_authority_marker(target);
+
+            if is_connect {
+                // cite(RFC 9113 § 8.5): "The ":authority" pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 3.2.3 of [HTTP/1.1])."
+                // cite(RFC 9113 § 8.5): "A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1)."
+                if target.starts_with('/') {
+                    // An origin-form target is a `:path` with no `:scheme` and no
+                    // `:authority` beside it. That derives from neither CONNECT: a
+                    // basic one omits `:path`, an extended one carries `:scheme`
+                    // too. The authority a `Host` field can still supply is what
+                    // decides whether anything is missing, which is the sibling
+                    // HTTP/3 rule's reading of the same pair of documents.
+                    // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
+                    if !tx.request.headers.contains_key("host") {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "CONNECT request carries a path and no authority: an extended \
+                                      CONNECT sends ':scheme' and ':path' beside an ':authority', and \
+                                      a basic one sends only the host and port to connect to"
+                                .into(),
+                        });
+                    }
+                } else if absolute_form.is_none() {
+                    if let Some(msg) = connect_authority_finding(target) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: msg,
+                        });
+                    }
                 }
             } else {
-                // cite(RFC 9113 § 8.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of '/'."
-                // cite(RFC 9113 § 8.3.1): "All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5)."
-                if crate::helpers::uri::extract_path_from_request_target(target).is_none() {
+                // The asterisk is a `:path` value on this version rather than a
+                // request-target of its own, and the method that may send it is
+                // the same one on all three.
+                // cite(RFC 9113 § 8.3.1): "A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field."
+                // cite(RFC 9110 § 7.1): "For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*")."
+                // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
+                if target == "*" {
+                    if method != "OPTIONS" {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Asterisk ('*') is the ':path' value of a server-wide OPTIONS request \
+                                 and of nothing else, and this request's ':method' is '{method}'"
+                            ),
+                        });
+                    }
+                } else {
+                    // cite(RFC 9113 § 8.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of '/'."
+                    // cite(RFC 9113 § 8.3.1): "All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5)."
+                    if crate::helpers::uri::extract_path_from_request_target(target).is_none() {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Request target '{}' carries no path, and every non-CONNECT request \
+                                 sends exactly one ':path': an 'http' or 'https' URI with no path \
+                                 component sends '/'",
+                                crate::helpers::headers::shown_in_finding(target)
+                            ),
+                        });
+                    }
+                }
+            }
+
+            // What `:scheme` and `:authority` conveyed, in the one shape a capture
+            // shows them: the transport reassembled them into the target URI, so a
+            // target in absolute form is where they can still be read back. The
+            // test is the marker rather than `contains("://")` -- a `://` past the
+            // first component delimiter is ordinary query data, and reading an
+            // authority out of `/r?next=http:///p` reported an origin-form target
+            // for a missing authority it never claimed to have.
+            // cite(RFC 9113 § 8.3.1): "The ":scheme" pseudo-header field includes the scheme portion of the request target."
+            // cite(RFC 9113 § 8.3.1): "The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP])."
+            if let Some(marker) = absolute_form {
+                // The scheme is the characters before the marker, and the helper
+                // carries the production. Nothing here asks whether it is one
+                // anybody serves: this pseudo-header is deliberately open.
+                // cite(RFC 9113 § 8.3.1): "":scheme" is not restricted to "http" and "https" schemed URIs."
+                if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(target) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!("Request target's scheme is not a scheme name: {msg}"),
+                    });
+                }
+
+                let scheme = &target[..marker];
+
+                // The shared extractor already walks to the delimiter that
+                // terminates an authority, and it answers `None` for an authority
+                // of no characters. Inside this branch the target is in absolute
+                // form, so that is the only `None` reachable — which is what makes
+                // the conflation this rule could not live with elsewhere usable
+                // here as the finding itself.
+                let Some(authority) =
+                    crate::helpers::uri::extract_authority_from_request_target(target)
+                else {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
                         message: format!(
-                            "Request target '{}' carries no path, and every non-CONNECT request \
-                             sends exactly one ':path': an 'http' or 'https' URI with no path \
-                             component sends '/'",
+                            "Request target '{}' names the scheme '{scheme}' and then no authority",
                             crate::helpers::headers::shown_in_finding(target)
                         ),
                     });
+                };
+
+                // The MUST NOT names the two schemes it is about, and the scheme is
+                // the left half of the value being read -- so a userinfo under some
+                // other scheme is outside it and is not reported.
+                //
+                // The password half is withheld from the finding: the elision is
+                // the shared helper's, with RFC 3986 § 3.2.1's sentence on it.
+                // cite(RFC 9113 § 8.3.1): "":authority" MUST NOT include the deprecated userinfo subcomponent for "http" or "https" schemed URIs."
+                if authority.contains('@')
+                    && (scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"))
+                {
+                    let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
+                        .unwrap_or_else(|| authority.to_string());
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Authority '{}' of an '{scheme}' target carries the deprecated userinfo \
+                             subcomponent and its '@' delimiter",
+                            crate::helpers::headers::shown_in_finding(&shown)
+                        ),
+                    });
+                }
+
+                // `uri-host [ ":" port ]` is one question with one answer, and the
+                // shared reader is where it lives: the bracket that distinguishes
+                // an IP literal, the address inside it, and a port of digits. The
+                // copy this replaced guessed at an unbracketed IPv6 literal by
+                // counting colons.
+                if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(&authority) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Authority '{}' is not a host and port: {msg}",
+                            crate::helpers::headers::shown_in_finding(&authority)
+                        ),
+                    });
                 }
             }
-        }
 
-        // What `:scheme` and `:authority` conveyed, in the one shape a capture
-        // shows them: the transport reassembled them into the target URI, so a
-        // target in absolute form is where they can still be read back. The
-        // test is the marker rather than `contains("://")` -- a `://` past the
-        // first component delimiter is ordinary query data, and reading an
-        // authority out of `/r?next=http:///p` reported an origin-form target
-        // for a missing authority it never claimed to have.
-        // cite(RFC 9113 § 8.3.1): "The ":scheme" pseudo-header field includes the scheme portion of the request target."
-        // cite(RFC 9113 § 8.3.1): "The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP])."
-        if let Some(marker) = absolute_form {
-            // The scheme is the characters before the marker, and the helper
-            // carries the production. Nothing here asks whether it is one
-            // anybody serves: this pseudo-header is deliberately open.
-            // cite(RFC 9113 § 8.3.1): "":scheme" is not restricted to "http" and "https" schemed URIs."
-            if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(target) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("Request target's scheme is not a scheme name: {msg}"),
-                });
-            }
-
-            let scheme = &target[..marker];
-
-            // The shared extractor already walks to the delimiter that
-            // terminates an authority, and it answers `None` for an authority
-            // of no characters. Inside this branch the target is in absolute
-            // form, so that is the only `None` reachable — which is what makes
-            // the conflation this rule could not live with elsewhere usable
-            // here as the finding itself.
-            let Some(authority) =
-                crate::helpers::uri::extract_authority_from_request_target(target)
-            else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Request target '{}' names the scheme '{scheme}' and then no authority",
-                        crate::helpers::headers::shown_in_finding(target)
-                    ),
-                });
-            };
-
-            // The MUST NOT names the two schemes it is about, and the scheme is
-            // the left half of the value being read -- so a userinfo under some
-            // other scheme is outside it and is not reported.
+            // **The response half is not this rule's.** This branch used to report a
+            // status outside 100–599 as a `:status` defect, and it ran on *every*
+            // transaction: this rule has no version gate, so an out-of-range status in
+            // an HTTP/1.1 status-line was reported here, as a pseudo-header the message
+            // never carried, on top of the report from the rule that owns the question.
+            // Two of this rule's own tests asserted it, both built on
+            // `make_test_transaction_with_response`, whose responses are HTTP/1.1.
             //
-            // The password half is withheld from the finding: the elision is
-            // the shared helper's, with RFC 3986 § 3.2.1's sentence on it.
-            // cite(RFC 9113 § 8.3.1): "":authority" MUST NOT include the deprecated userinfo subcomponent for "http" or "https" schemed URIs."
-            if authority.contains('@')
-                && (scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"))
-            {
-                let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
-                    .unwrap_or_else(|| authority.to_string());
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Authority '{}' of an '{scheme}' target carries the deprecated userinfo \
-                         subcomponent and its '@' delimiter",
-                        crate::helpers::headers::shown_in_finding(&shown)
-                    ),
-                });
-            }
+            // The range is RFC 9110 § 15's and holds for every version. RFC 9113
+            // § 8.3.2 defines `:status` as carrying "the HTTP status code field (see
+            // Section 15 of [HTTP])" and states no range of its own, so there was never
+            // an HTTP/2 sentence under the check; `status_code_valid_range` asks
+            // it of every version. What § 8.3.2 does require — that the field be present
+            // in all responses, including interim ones — cannot fail in this model:
+            // `ResponseInfo.status` is a `u16` that always holds a value.
+            //
+            // cite(RFC 9113 § 8.3.2): "For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP])."
+            // cite(RFC 9113 § 8.3.2): "This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1)."
 
-            // `uri-host [ ":" port ]` is one question with one answer, and the
-            // shared reader is where it lives: the bracket that distinguishes
-            // an IP literal, the address inside it, and a port of digits. The
-            // copy this replaced guessed at an unbracketed IPv6 literal by
-            // counting colons.
-            if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(&authority) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Authority '{}' is not a host and port: {msg}",
-                        crate::helpers::headers::shown_in_finding(&authority)
-                    ),
-                });
-            }
-        }
-
-        // **The response half is not this rule's.** This branch used to report a
-        // status outside 100–599 as a `:status` defect, and it ran on *every*
-        // transaction: this rule has no version gate, so an out-of-range status in
-        // an HTTP/1.1 status-line was reported here, as a pseudo-header the message
-        // never carried, on top of the report from the rule that owns the question.
-        // Two of this rule's own tests asserted it, both built on
-        // `make_test_transaction_with_response`, whose responses are HTTP/1.1.
-        //
-        // The range is RFC 9110 § 15's and holds for every version. RFC 9113
-        // § 8.3.2 defines `:status` as carrying "the HTTP status code field (see
-        // Section 15 of [HTTP])" and states no range of its own, so there was never
-        // an HTTP/2 sentence under the check; `status_code_valid_range` asks
-        // it of every version. What § 8.3.2 does require — that the field be present
-        // in all responses, including interim ones — cannot fail in this model:
-        // `ResponseInfo.status` is a `u16` that always holds a value.
-        //
-        // cite(RFC 9113 § 8.3.2): "For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP])."
-        // cite(RFC 9113 § 8.3.2): "This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1)."
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

@@ -24,66 +24,71 @@ impl ProtocolRule for WebsocketFrameMasking {
         "websocket_frame_masking"
     }
 
-    fn check_event(
+    fn findings(
         &self,
         event: &ProtocolEvent,
         _history: &ProtocolEventHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let ProtocolEventKind::WebSocketFrame {
-            direction, masked, ..
-        } = &event.kind
-        else {
-            return None;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let ProtocolEventKind::WebSocketFrame {
+                direction, masked, ..
+            } = &event.kind
+            else {
+                return None;
+            };
+
+            // `None` is *not recorded*, and it is the whole of what this rule
+            // declines. An assembled message carries no frame header for the bit to
+            // come from, and every event written before the field existed reads
+            // back as this. Treating it as `false` would report every capture that
+            // predates the field — and *"the client did not mask"* is a finding
+            // about the wire, not about the record.
+            let masked = (*masked)?;
+
+            // The two sentences are one sentence apart in the section and they are
+            // exact opposites, so the direction picks which one applies and there is
+            // no frame both reach. `MessageDirection` is the sender's role on the
+            // observed connection, which is the grammatical subject of each.
+            //
+            // Neither has an escape clause. § 5.8 hands extensions the reserved
+            // bits and the reserved opcodes and says nothing about the MASK bit, so
+            // unlike its neighbour this rule does not read the handshake — the
+            // parenthetical *"(These rules might be relaxed in a future
+            // specification.)"* is about a future document, not about a negotiation
+            // this one permits.
+            //
+            // cite(RFC 6455 § 5.1): "To avoid confusing network intermediaries (such as intercepting proxies) and for security reasons that are further discussed in Section 10.3, a client MUST mask all frames that it sends to the server (see Section 5.3 for further details)."
+            // cite(RFC 6455 § 5.1): "A server MUST NOT mask any frames that it sends to the client."
+            let defect = match (direction, masked) {
+                (MessageDirection::Client, false) => {
+                    // The consequence is the recipient's, and it is a MUST too: an
+                    // unmasked frame from a client does not merely violate a
+                    // sentence, it ends the connection at a conforming server.
+                    //
+                    // cite(RFC 6455 § 5.1): "The server MUST close the connection upon receiving a frame that is not masked."
+                    "the client sent an unmasked frame: RFC 6455 §5.1 has a client mask all frames it \
+                     sends to the server, whether or not the connection is running over TLS, and a \
+                     conforming server must close the connection on receiving one"
+                }
+                (MessageDirection::Server, true) => {
+                    // cite(RFC 6455 § 5.1): "A client MUST close a connection if it detects a masked frame."
+                    "the server sent a masked frame: RFC 6455 §5.1 has a server mask none of the \
+                     frames it sends to the client, and a conforming client must close the connection \
+                     on detecting one"
+                }
+                _ => return None,
+            };
+
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!("A WebSocket frame where {defect}"),
+            })
         };
-
-        // `None` is *not recorded*, and it is the whole of what this rule
-        // declines. An assembled message carries no frame header for the bit to
-        // come from, and every event written before the field existed reads
-        // back as this. Treating it as `false` would report every capture that
-        // predates the field — and *"the client did not mask"* is a finding
-        // about the wire, not about the record.
-        let masked = (*masked)?;
-
-        // The two sentences are one sentence apart in the section and they are
-        // exact opposites, so the direction picks which one applies and there is
-        // no frame both reach. `MessageDirection` is the sender's role on the
-        // observed connection, which is the grammatical subject of each.
-        //
-        // Neither has an escape clause. § 5.8 hands extensions the reserved
-        // bits and the reserved opcodes and says nothing about the MASK bit, so
-        // unlike its neighbour this rule does not read the handshake — the
-        // parenthetical *"(These rules might be relaxed in a future
-        // specification.)"* is about a future document, not about a negotiation
-        // this one permits.
-        //
-        // cite(RFC 6455 § 5.1): "To avoid confusing network intermediaries (such as intercepting proxies) and for security reasons that are further discussed in Section 10.3, a client MUST mask all frames that it sends to the server (see Section 5.3 for further details)."
-        // cite(RFC 6455 § 5.1): "A server MUST NOT mask any frames that it sends to the client."
-        let defect = match (direction, masked) {
-            (MessageDirection::Client, false) => {
-                // The consequence is the recipient's, and it is a MUST too: an
-                // unmasked frame from a client does not merely violate a
-                // sentence, it ends the connection at a conforming server.
-                //
-                // cite(RFC 6455 § 5.1): "The server MUST close the connection upon receiving a frame that is not masked."
-                "the client sent an unmasked frame: RFC 6455 §5.1 has a client mask all frames it \
-                 sends to the server, whether or not the connection is running over TLS, and a \
-                 conforming server must close the connection on receiving one"
-            }
-            (MessageDirection::Server, true) => {
-                // cite(RFC 6455 § 5.1): "A client MUST close a connection if it detects a masked frame."
-                "the server sent a masked frame: RFC 6455 §5.1 has a server mask none of the \
-                 frames it sends to the client, and a conforming client must close the connection \
-                 on detecting one"
-            }
-            _ => return None,
-        };
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!("A WebSocket frame where {defect}"),
-        })
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

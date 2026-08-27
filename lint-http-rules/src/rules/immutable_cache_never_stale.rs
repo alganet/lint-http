@@ -40,83 +40,88 @@ impl Rule for ImmutableCacheNeverStale {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // locate the most recent prior response with an immutable
-        // directive that isn't simultaneously forbidding caching.
-        let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
-        for past in history.iter() {
-            if let Some(resp) = &past.response {
-                if header_has_immutable(&resp.headers) {
-                    candidate = Some(past);
-                    break;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // locate the most recent prior response with an immutable
+            // directive that isn't simultaneously forbidding caching.
+            let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
+            for past in history.iter() {
+                if let Some(resp) = &past.response {
+                    if header_has_immutable(&resp.headers) {
+                        candidate = Some(past);
+                        break;
+                    }
                 }
             }
-        }
 
-        let prev_tx = candidate?;
+            let prev_tx = candidate?;
 
-        // Advertised freshness lifetime. The max-age/Expires calculation
-        // (RFC 9111 §4.2.1) is owned by the helper, which carries the cite.
-        let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
-            &prev_tx.response.as_ref().unwrap().headers,
-            prev_tx.timestamp,
-        );
+            // Advertised freshness lifetime. The max-age/Expires calculation
+            // (RFC 9111 §4.2.1) is owned by the helper, which carries the cite.
+            let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
+                &prev_tx.response.as_ref().unwrap().headers,
+                prev_tx.timestamp,
+            );
 
-        // Seed the age from the response's Age field. A non-negative delta-seconds
-        // is the only meaningful value, so a negative or unparseable one is dropped.
-        // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
-        let mut age_val: i64 = 0;
-        if let Some(resp) = &prev_tx.response {
-            if let Some(hv) = resp.headers.get("age") {
-                if let Ok(s) = hv.to_str() {
-                    if let Ok(n) = s.trim().parse::<i64>() {
-                        if n >= 0 {
-                            age_val = n;
+            // Seed the age from the response's Age field. A non-negative delta-seconds
+            // is the only meaningful value, so a negative or unparseable one is dropped.
+            // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
+            let mut age_val: i64 = 0;
+            if let Some(resp) = &prev_tx.response {
+                if let Some(hv) = resp.headers.get("age") {
+                    if let Ok(s) = hv.to_str() {
+                        if let Ok(n) = s.trim().parse::<i64>() {
+                            if n >= 0 {
+                                age_val = n;
+                            }
                         }
                     }
                 }
             }
-        }
-        // current_age ≈ Age + time observed in our own history. This is a
-        // deliberate simplification of §4.2.3's full age computation (which adds
-        // response_delay and resident_time from request/response timing we do not
-        // record); the elapsed clamp to ≥ 0 absorbs clock skew the same way §4.2.3
-        // does by flooring. It is an estimate, adequate for a best-effort warning.
-        let elapsed = tx
-            .timestamp
-            .signed_duration_since(prev_tx.timestamp)
-            .num_seconds();
-        let elapsed = if elapsed < 0 { 0 } else { elapsed };
-        let current_age = age_val.saturating_add(elapsed);
+            // current_age ≈ Age + time observed in our own history. This is a
+            // deliberate simplification of §4.2.3's full age computation (which adds
+            // response_delay and resident_time from request/response timing we do not
+            // record); the elapsed clamp to ≥ 0 absorbs clock skew the same way §4.2.3
+            // does by flooring. It is an estimate, adequate for a best-effort warning.
+            let elapsed = tx
+                .timestamp
+                .signed_duration_since(prev_tx.timestamp)
+                .num_seconds();
+            let elapsed = if elapsed < 0 { 0 } else { elapsed };
+            let current_age = age_val.saturating_add(elapsed);
 
-        // Only the two revalidation preconditions count as "revalidation" here:
-        // If-None-Match and If-Modified-Since are what a cache sends to revalidate.
-        // If-Match / If-Unmodified-Since are update preconditions, not cache
-        // revalidation, so their presence is not the waste this rule targets.
-        let has_conditional = tx.request.headers.contains_key("if-none-match")
-            || tx.request.headers.contains_key("if-modified-since");
+            // Only the two revalidation preconditions count as "revalidation" here:
+            // If-None-Match and If-Modified-Since are what a cache sends to revalidate.
+            // If-Match / If-Unmodified-Since are update preconditions, not cache
+            // revalidation, so their presence is not the waste this rule targets.
+            let has_conditional = tx.request.headers.contains_key("if-none-match")
+                || tx.request.headers.contains_key("if-modified-since");
 
-        // Only while fresh. `immutable` says nothing about a stale response, and this rule
-        // must not either — hence the age check guarding the branch.
-        // cite(RFC 8246 § 2): "Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload)."
-        // cite(RFC 8246 § 2): "The immutable extension only applies during the freshness lifetime of the stored response."
-        if has_conditional && current_age < freshness_lifetime {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Unnecessary revalidation of immutable response while still fresh (age {} < freshness {})",
-                    current_age, freshness_lifetime
-                ),
-            });
-        }
+            // Only while fresh. `immutable` says nothing about a stale response, and this rule
+            // must not either — hence the age check guarding the branch.
+            // cite(RFC 8246 § 2): "Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload)."
+            // cite(RFC 8246 § 2): "The immutable extension only applies during the freshness lifetime of the stored response."
+            if has_conditional && current_age < freshness_lifetime {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Unnecessary revalidation of immutable response while still fresh (age {} < freshness {})",
+                        current_age, freshness_lifetime
+                    ),
+                });
+            }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

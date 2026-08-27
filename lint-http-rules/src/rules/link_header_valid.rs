@@ -36,34 +36,39 @@ impl Rule for LinkHeaderValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Most messages carry no `Link`, and the config read is several map
-        // probes and a hash of the rule id against one lookup per section.
-        if !tx.request.headers.contains_key("link")
-            && !tx
-                .response
-                .as_ref()
-                .is_some_and(|resp| resp.headers.contains_key("link"))
-        {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Most messages carry no `Link`, and the config read is several map
+            // probes and a hash of the rule id against one lookup per section.
+            if !tx.request.headers.contains_key("link")
+                && !tx
+                    .response
+                    .as_ref()
+                    .is_some_and(|resp| resp.headers.contains_key("link"))
+            {
+                return None;
+            }
 
-        let message = judge(&tx.request.headers, "Request", false).or_else(|| {
-            tx.response
-                .as_ref()
-                .and_then(|resp| judge(&resp.headers, "Response", true))
-        })?;
+            let message = judge(&tx.request.headers, "Request", false).or_else(|| {
+                tx.response
+                    .as_ref()
+                    .and_then(|resp| judge(&resp.headers, "Response", true))
+            })?;
 
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message,
-        })
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message,
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

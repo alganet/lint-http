@@ -22,49 +22,54 @@ impl Rule for MultipartBoundarySyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Every Content-Type field line, not just the first. `HeaderMap::get`
-        // returns one value, and RFC 9110 §8.3 is explicit that implementations
-        // differ over which member of a duplicated Content-Type they act on, so
-        // no line can be dismissed as the one nobody reads. A multipart type
-        // with no boundary is unusable whichever line the recipient picks.
-        //
-        // That there is more than one line is `content_type_valid`'s
-        // finding; this rule says only what it owns.
-        let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
-            for hv in headers.get_all("content-type").iter() {
-                // Decoded from the raw octets rather than through `to_str`, which
-                // refuses anything outside visible US-ASCII and so refuses
-                // `obs-text` — legal inside a `quoted-string`. Skipping such a
-                // value meant `multipart/mixed; foo="<0xE4>"`, which has no
-                // boundary parameter at all, was reported by nothing. Where
-                // obs-text appears in the boundary itself the character check
-                // below rejects it, as `bcharsnospace` is US-ASCII throughout.
-                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                let s = crate::helpers::headers::field_line_as_written(hv);
-                if let Some(v) = check_multipart_boundary(which, &s, ctx.severity) {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Every Content-Type field line, not just the first. `HeaderMap::get`
+            // returns one value, and RFC 9110 §8.3 is explicit that implementations
+            // differ over which member of a duplicated Content-Type they act on, so
+            // no line can be dismissed as the one nobody reads. A multipart type
+            // with no boundary is unusable whichever line the recipient picks.
+            //
+            // That there is more than one line is `content_type_valid`'s
+            // finding; this rule says only what it owns.
+            let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+                for hv in headers.get_all("content-type").iter() {
+                    // Decoded from the raw octets rather than through `to_str`, which
+                    // refuses anything outside visible US-ASCII and so refuses
+                    // `obs-text` — legal inside a `quoted-string`. Skipping such a
+                    // value meant `multipart/mixed; foo="<0xE4>"`, which has no
+                    // boundary parameter at all, was reported by nothing. Where
+                    // obs-text appears in the boundary itself the character check
+                    // below rejects it, as `bcharsnospace` is US-ASCII throughout.
+                    // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                    let s = crate::helpers::headers::field_line_as_written(hv);
+                    if let Some(v) = check_multipart_boundary(which, &s, ctx.severity) {
+                        return Some(v);
+                    }
+                }
+                None
+            };
+
+            if let Some(v) = check_all("request", &tx.request.headers) {
+                return Some(v);
+            }
+
+            if let Some(resp) = &tx.response {
+                if let Some(v) = check_all("response", &resp.headers) {
                     return Some(v);
                 }
             }
+
             None
         };
-
-        if let Some(v) = check_all("request", &tx.request.headers) {
-            return Some(v);
-        }
-
-        if let Some(resp) = &tx.response {
-            if let Some(v) = check_all("response", &resp.headers) {
-                return Some(v);
-            }
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

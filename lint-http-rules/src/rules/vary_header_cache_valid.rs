@@ -44,165 +44,173 @@ impl Rule for VaryHeaderCacheValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req = &tx.request;
-        // Only a conditional request reuses a stored validator — the precondition header ties
-        // the request to a specific stored representation whose Vary key we can check.
-        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
-        // One value, however many field lines carry it: `#entity-tag` is a list,
-        // so § 5.2's join applies here exactly as it does to the `Vary` the walk
-        // below reads. Octet-level, for the reason that reader gives — `to_str`
-        // folds an `obs-text` octet into "no such field", which is a claim about
-        // the message where the truth is about the value.
-        let inm_value =
-            crate::helpers::headers::combined_field_value_as_written(&req.headers, "if-none-match");
-        let has_inm = inm_value.is_some();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req = &tx.request;
+            // Only a conditional request reuses a stored validator — the precondition header ties
+            // the request to a specific stored representation whose Vary key we can check.
+            // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
+            // One value, however many field lines carry it: `#entity-tag` is a list,
+            // so § 5.2's join applies here exactly as it does to the `Vary` the walk
+            // below reads. Octet-level, for the reason that reader gives — `to_str`
+            // folds an `obs-text` octet into "no such field", which is a claim about
+            // the message where the truth is about the value.
+            let inm_value = crate::helpers::headers::combined_field_value_as_written(
+                &req.headers,
+                "if-none-match",
+            );
+            let has_inm = inm_value.is_some();
 
-        // The same sentence, and the opposite consequence, because
-        // `If-Modified-Since = HTTP-date` is not a list. A second field line does
-        // not extend this value: § 5.2 joins the lines with a comma and no
-        // `HTTP-date` holds one, so such a message names no stored validator
-        // rather than either of two — the branch below asked each line in turn
-        // and took whichever matched, which is picking a validator by position.
-        // The duplication itself is a sender defect that no rule in the
-        // catalogue reports, and it is not this rule's question either way.
-        //
-        // cite(RFC 9110 § 13.1.3): "If-Modified-Since = HTTP-date"
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        let ims_value = crate::helpers::headers::combined_field_value_as_written(
-            &req.headers,
-            "if-modified-since",
-        );
-        let has_ims = ims_value.is_some();
-        if !has_inm && !has_ims {
-            // nothing to check when client is not reusing a cached validator
-            return None;
-        }
+            // The same sentence, and the opposite consequence, because
+            // `If-Modified-Since = HTTP-date` is not a list. A second field line does
+            // not extend this value: § 5.2 joins the lines with a comma and no
+            // `HTTP-date` holds one, so such a message names no stored validator
+            // rather than either of two — the branch below asked each line in turn
+            // and took whichever matched, which is picking a validator by position.
+            // The duplication itself is a sender defect that no rule in the
+            // catalogue reports, and it is not this rule's question either way.
+            //
+            // cite(RFC 9110 § 13.1.3): "If-Modified-Since = HTTP-date"
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            let ims_value = crate::helpers::headers::combined_field_value_as_written(
+                &req.headers,
+                "if-modified-since",
+            );
+            let has_ims = ims_value.is_some();
+            if !has_inm && !has_ims {
+                // nothing to check when client is not reusing a cached validator
+                return None;
+            }
 
-        // `If-None-Match: *` names no specific stored representation (it matches any existing
-        // one), so there is no single Vary key to trace — skip it.
-        //
-        // **The wildcard is the whole field value, not a member.** The grammar is
-        // an alternation and § 13.1.2's own sentence says *when the field value
-        // is "*"* — so a `*` sought among the members stood this rule down on
-        // two values that are not the wildcard: `"etag1", *`, which derives from
-        // neither alternative, and the pair of field lines `If-None-Match:
-        // "etag1,` / `If-None-Match: *`, where the join leaves an unterminated
-        // quoted-string holding one member and no `*` at all.
-        //
-        // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
-        // cite(RFC 9110 § 13.1.2): "The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*""
-        if inm_value.as_deref().map(crate::helpers::headers::trim_ows) == Some("*") {
-            return None;
-        }
+            // `If-None-Match: *` names no specific stored representation (it matches any existing
+            // one), so there is no single Vary key to trace — skip it.
+            //
+            // **The wildcard is the whole field value, not a member.** The grammar is
+            // an alternation and § 13.1.2's own sentence says *when the field value
+            // is "*"* — so a `*` sought among the members stood this rule down on
+            // two values that are not the wildcard: `"etag1", *`, which derives from
+            // neither alternative, and the pair of field lines `If-None-Match:
+            // "etag1,` / `If-None-Match: *`, where the join leaves an unterminated
+            // quoted-string holding one member and no `*` at all.
+            //
+            // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
+            // cite(RFC 9110 § 13.1.2): "The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*""
+            if inm_value.as_deref().map(crate::helpers::headers::trim_ows) == Some("*") {
+                return None;
+            }
 
-        // find the prior transaction that supplied the validator
-        let mut matched_past: Option<&crate::http_transaction::HttpTransaction> = None;
-        let mut matched_validator: Option<String> = None;
+            // find the prior transaction that supplied the validator
+            let mut matched_past: Option<&crate::http_transaction::HttpTransaction> = None;
+            let mut matched_validator: Option<String> = None;
 
-        for past in history.iter() {
-            if let Some(resp) = &past.response {
-                // check ETag first
-                if has_inm {
-                    if let Some(etag) = resp.headers.get("etag").and_then(|hv| hv.to_str().ok()) {
-                        // Does current request present an If-None-Match that
-                        // matches this etag? Asked of the same joined value the
-                        // gate above read, so the field is read one way: a
-                        // per-line walk here would have made the pair of lines
-                        // `If-None-Match: "eta` / `If-None-Match: g1"` two
-                        // members where § 5.2 makes them one entity-tag.
-                        if let Some(inm) = inm_value.as_deref() {
-                            if crate::helpers::headers::inm_matches_known(inm, etag) {
-                                matched_past = Some(past);
-                                matched_validator = Some(etag.trim().to_string());
-                                break;
+            for past in history.iter() {
+                if let Some(resp) = &past.response {
+                    // check ETag first
+                    if has_inm {
+                        if let Some(etag) = resp.headers.get("etag").and_then(|hv| hv.to_str().ok())
+                        {
+                            // Does current request present an If-None-Match that
+                            // matches this etag? Asked of the same joined value the
+                            // gate above read, so the field is read one way: a
+                            // per-line walk here would have made the pair of lines
+                            // `If-None-Match: "eta` / `If-None-Match: g1"` two
+                            // members where § 5.2 makes them one entity-tag.
+                            if let Some(inm) = inm_value.as_deref() {
+                                if crate::helpers::headers::inm_matches_known(inm, etag) {
+                                    matched_past = Some(past);
+                                    matched_validator = Some(etag.trim().to_string());
+                                    break;
+                                }
                             }
                         }
                     }
-                }
-                // The ETag branch above breaks this loop the moment it matches,
-                // so `matched_past` is `None` at every evaluation of this line —
-                // the `matched_past.is_none() &&` it used to carry could not be
-                // false, before this iteration or after it. The precedence it
-                // reads as is real and is the `break`'s.
-                if has_ims {
-                    if let Some(lm) = resp
-                        .headers
-                        .get("last-modified")
-                        .and_then(|hv| hv.to_str().ok())
-                    {
-                        let lm_trimmed = lm.trim();
-                        if let Some(ims_str) = ims_value.as_deref().map(str::trim) {
-                            // only compare if both look like valid HTTP dates
-                            if crate::http_date::is_valid_http_date(ims_str) {
-                                // simple string equality is acceptable here; the
-                                // canonicalization rules are handled in other
-                                // rules and our goal is just to locate the
-                                // matching transaction.
-                                if ims_str == lm_trimmed {
-                                    matched_past = Some(past);
-                                    matched_validator = Some(lm_trimmed.to_string());
-                                    break;
+                    // The ETag branch above breaks this loop the moment it matches,
+                    // so `matched_past` is `None` at every evaluation of this line —
+                    // the `matched_past.is_none() &&` it used to carry could not be
+                    // false, before this iteration or after it. The precedence it
+                    // reads as is real and is the `break`'s.
+                    if has_ims {
+                        if let Some(lm) = resp
+                            .headers
+                            .get("last-modified")
+                            .and_then(|hv| hv.to_str().ok())
+                        {
+                            let lm_trimmed = lm.trim();
+                            if let Some(ims_str) = ims_value.as_deref().map(str::trim) {
+                                // only compare if both look like valid HTTP dates
+                                if crate::http_date::is_valid_http_date(ims_str) {
+                                    // simple string equality is acceptable here; the
+                                    // canonicalization rules are handled in other
+                                    // rules and our goal is just to locate the
+                                    // matching transaction.
+                                    if ims_str == lm_trimmed {
+                                        matched_past = Some(past);
+                                        matched_validator = Some(lm_trimmed.to_string());
+                                        break;
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        let past = matched_past?; // no validator candidate found
+            let past = matched_past?; // no validator candidate found
 
-        // The field names that past response nominated. A `*` never matches any
-        // request, so there is nothing to compare and the rule stops.
-        //
-        // The walk this replaced read the field lines one at a time, skipped the
-        // whole rule when `to_str` refused one, and did not join them — so a `*`
-        // on a second field line was not a `*` here, and one `obs-text` octet in
-        // any line stood the comparison down. `helpers::headers::vary_nomination`
-        // is the one answer all three rules that ask this now share.
-        //
-        // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
-        let crate::helpers::headers::VaryNomination::Fields(vary_fields) =
-            crate::helpers::headers::vary_nomination(&past.response.as_ref().unwrap().headers)
-        else {
-            return None;
-        };
+            // The field names that past response nominated. A `*` never matches any
+            // request, so there is nothing to compare and the rule stops.
+            //
+            // The walk this replaced read the field lines one at a time, skipped the
+            // whole rule when `to_str` refused one, and did not join them — so a `*`
+            // on a second field line was not a `*` here, and one `obs-text` octet in
+            // any line stood the comparison down. `helpers::headers::vary_nomination`
+            // is the one answer all three rules that ask this now share.
+            //
+            // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
+            let crate::helpers::headers::VaryNomination::Fields(vary_fields) =
+                crate::helpers::headers::vary_nomination(&past.response.as_ref().unwrap().headers)
+            else {
+                return None;
+            };
 
-        if vary_fields.is_empty() {
-            return None;
-        }
-
-        for field in vary_fields {
-            let past_val =
-                crate::helpers::headers::get_all_header_values(&past.request.headers, &field)
-                    .unwrap_or_default();
-            let curr_val = crate::helpers::headers::get_all_header_values(&req.headers, &field)
-                .unwrap_or_default();
-            // Exact value comparison. §4.1's "match" definition additionally permits whitespace,
-            // line-combining, and semantic normalization (ordering/case where insignificant); this
-            // rule does not apply those, so it can over-report when the values differ only in a
-            // §4.1-permitted normalization — a deliberate simplification.
-            // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
-            if past_val != curr_val {
-                let reported_validator = matched_validator.as_deref().unwrap_or("<unknown>");
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Conditional request with validator '{}' differs in Vary field '{}'; cache key must incorporate all Vary dimensions",
-                        reported_validator, field
-                    ),
-                });
+            if vary_fields.is_empty() {
+                return None;
             }
-        }
 
-        None
+            for field in vary_fields {
+                let past_val =
+                    crate::helpers::headers::get_all_header_values(&past.request.headers, &field)
+                        .unwrap_or_default();
+                let curr_val = crate::helpers::headers::get_all_header_values(&req.headers, &field)
+                    .unwrap_or_default();
+                // Exact value comparison. §4.1's "match" definition additionally permits whitespace,
+                // line-combining, and semantic normalization (ordering/case where insignificant); this
+                // rule does not apply those, so it can over-report when the values differ only in a
+                // §4.1-permitted normalization — a deliberate simplification.
+                // cite(RFC 9111 § 4.1): "the cache MUST NOT use that stored response without revalidation unless all the presented request header fields nominated by that Vary field value match those fields in the original request"
+                if past_val != curr_val {
+                    let reported_validator = matched_validator.as_deref().unwrap_or("<unknown>");
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Conditional request with validator '{}' differs in Vary field '{}'; cache key must incorporate all Vary dimensions",
+                            reported_validator, field
+                        ),
+                    });
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -34,149 +34,154 @@ impl Rule for ExpectHeaderValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The field is defined on the request, so the request is where it is read.
-        //
-        // cite(RFC 9110 § 10.1.1): "The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server in order to properly handle this request."
-        //
-        // `#expectation` makes however many field lines carry it one list, so
-        // they are joined before the members are counted — a member written at a
-        // line boundary is one member. The join is over the octets as written
-        // because an `expectation`'s value may be a `quoted-string`, and `qdtext`
-        // admits `obs-text`: `to_str` refused such a value and skipped the whole
-        // field with it, so a legal `Expect: a="caf%xE9"` and an illegal
-        // `Expect: %xFF` were equally invisible.
-        //
-        // That the field is a list at all is a change this revision made and
-        // records by name: RFC 7231 wrote `Expect = "100-continue"`, a single
-        // value with no list construct, so a rule transcribed from the previous
-        // document would report every second member as junk.
-        //
-        // cite(RFC 9110 § B.3): "List-based grammar for Expect has been restored for compatibility with RFC 2616."
-        let value = combined_field_value_as_written(&tx.request.headers, "Expect")?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The field is defined on the request, so the request is where it is read.
+            //
+            // cite(RFC 9110 § 10.1.1): "The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server in order to properly handle this request."
+            //
+            // `#expectation` makes however many field lines carry it one list, so
+            // they are joined before the members are counted — a member written at a
+            // line boundary is one member. The join is over the octets as written
+            // because an `expectation`'s value may be a `quoted-string`, and `qdtext`
+            // admits `obs-text`: `to_str` refused such a value and skipped the whole
+            // field with it, so a legal `Expect: a="caf%xE9"` and an illegal
+            // `Expect: %xFF` were equally invisible.
+            //
+            // That the field is a list at all is a change this revision made and
+            // records by name: RFC 7231 wrote `Expect = "100-continue"`, a single
+            // value with no list construct, so a rule transcribed from the previous
+            // document would report every second member as junk.
+            //
+            // cite(RFC 9110 § B.3): "List-based grammar for Expect has been restored for compatibility with RFC 2616."
+            let value = combined_field_value_as_written(&tx.request.headers, "Expect")?;
 
-        // Read after the field, not before it: both this and a missing `Expect`
-        // end the rule, and the header probe is one map lookup where the config
-        // read is several.
-        let report = |message: String| {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message,
-            })
-        };
+            // Read after the field, not before it: both this and a missing `Expect`
+            // end the rule, and the header probe is one map lookup where the config
+            // read is several.
+            let report = |message: String| {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message,
+                })
+            };
 
-        // A list of no members, which is not a list with an empty member in it —
-        // the two look alike and only one of them is a defect. The sender-expanded
-        // grammar wraps the whole value in `[ ]`, and a comma is not `OWS`, so a
-        // value that trims to nothing is a value with no commas and no members.
-        //
-        // cite(RFC 9110 § A): "Expect = [ expectation *( OWS "," OWS expectation ) ]"
-        if trim_ows(&value).is_empty() {
-            return None;
-        }
+            // A list of no members, which is not a list with an empty member in it —
+            // the two look alike and only one of them is a defect. The sender-expanded
+            // grammar wraps the whole value in `[ ]`, and a comma is not `OWS`, so a
+            // value that trims to nothing is a value with no commas and no members.
+            //
+            // cite(RFC 9110 § A): "Expect = [ expectation *( OWS "," OWS expectation ) ]"
+            if trim_ows(&value).is_empty() {
+                return None;
+            }
 
-        let Some(members) = members_of(&value) else {
-            return report(format!(
-                "Expect has a quoted-string that is never terminated: '{}'",
-                crate::helpers::headers::shown_in_finding(&value)
-            ));
-        };
-
-        // cite(RFC 9110 § 10.1.1): "The Expect field value is case-insensitive."
-        let mut hundred_continue: Option<Expectation<'_>> = None;
-        for (i, member) in members.iter().enumerate() {
-            if member.is_empty() {
-                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            let Some(members) = members_of(&value) else {
                 return report(format!(
-                    "Expect writes an empty list element (member {} of {}): '{}'",
-                    i + 1,
-                    members.len(),
+                    "Expect has a quoted-string that is never terminated: '{}'",
                     crate::helpers::headers::shown_in_finding(&value)
                 ));
-            }
-            let e = match parse_expectation(member) {
-                Ok(e) => e,
-                Err(msg) => return report(msg),
             };
-            if hundred_continue.is_none() && e.name.eq_ignore_ascii_case(HUNDRED_CONTINUE) {
-                hundred_continue = Some(e);
-            }
-        }
 
-        if let Some(e) = hundred_continue {
-            // The strongest sentence in the section, and the one no rule in the
-            // catalogue answered. "Content" is the octet stream after framing is
-            // taken off, which is what `content_evidence` measures; a message
-            // that shows none is a message that does not include content.
-            //
-            // The direction matters here in a way it does not for the rules that
-            // report content being *present*: those stay silent when a capture
-            // records neither an octet count nor a `Content-Length`, and this one
-            // speaks. The proxy always records the count, so that silence belongs
-            // to captures written elsewhere, and `description()` says on what
-            // evidence the finding rests.
-            //
-            // cite(RFC 9110 § 10.1.1): "A client MUST NOT generate a 100-continue expectation in a request that does not include content."
-            // cite(RFC 9110 § 10.1.1): "A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request"
-            if content_evidence(&tx.request.headers, tx.request.body_length).is_none() {
-                return report(
-                    "Request carries a 100-continue expectation but no content: the expectation \
-                     asks the server to weigh in before content the message never had"
-                        .to_string(),
-                );
+            // cite(RFC 9110 § 10.1.1): "The Expect field value is case-insensitive."
+            let mut hundred_continue: Option<Expectation<'_>> = None;
+            for (i, member) in members.iter().enumerate() {
+                if member.is_empty() {
+                    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                    return report(format!(
+                        "Expect writes an empty list element (member {} of {}): '{}'",
+                        i + 1,
+                        members.len(),
+                        crate::helpers::headers::shown_in_finding(&value)
+                    ));
+                }
+                let e = match parse_expectation(member) {
+                    Ok(e) => e,
+                    Err(msg) => return report(msg),
+                };
+                if hundred_continue.is_none() && e.name.eq_ignore_ascii_case(HUNDRED_CONTINUE) {
+                    hundred_continue = Some(e);
+                }
             }
 
-            // A 417 says the response chain does not understand expectations, so
-            // repeating the request with the same expectation asks again for
-            // something already refused. The history is scoped to this resource by
-            // the rule's `ByResource` query; the search is for the most recent
-            // exchange using *this method*, because a request with another method
-            // is not the one being repeated and its status says nothing about this
-            // one.
-            //
-            // cite(RFC 9110 § 15.5.18): "The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers."
-            // cite(RFC 9110 § 10.1.1): "A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server)."
-            if history
-                .iter()
-                .find(|prev| prev.request.method == tx.request.method)
-                .is_some_and(|prev| {
-                    prev.response.as_ref().is_some_and(|r| r.status == 417)
-                        && carries_hundred_continue(&prev.request.headers)
-                })
-            {
-                return report(
-                    "Request repeats one the response chain answered with 417 (Expectation Failed) \
-                     and still carries a 100-continue expectation"
-                        .to_string(),
-                );
+            if let Some(e) = hundred_continue {
+                // The strongest sentence in the section, and the one no rule in the
+                // catalogue answered. "Content" is the octet stream after framing is
+                // taken off, which is what `content_evidence` measures; a message
+                // that shows none is a message that does not include content.
+                //
+                // The direction matters here in a way it does not for the rules that
+                // report content being *present*: those stay silent when a capture
+                // records neither an octet count nor a `Content-Length`, and this one
+                // speaks. The proxy always records the count, so that silence belongs
+                // to captures written elsewhere, and `description()` says on what
+                // evidence the finding rests.
+                //
+                // cite(RFC 9110 § 10.1.1): "A client MUST NOT generate a 100-continue expectation in a request that does not include content."
+                // cite(RFC 9110 § 10.1.1): "A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request"
+                if content_evidence(&tx.request.headers, tx.request.body_length).is_none() {
+                    return report(
+                        "Request carries a 100-continue expectation but no content: the expectation \
+                         asks the server to weigh in before content the message never had"
+                            .to_string(),
+                    );
+                }
+
+                // A 417 says the response chain does not understand expectations, so
+                // repeating the request with the same expectation asks again for
+                // something already refused. The history is scoped to this resource by
+                // the rule's `ByResource` query; the search is for the most recent
+                // exchange using *this method*, because a request with another method
+                // is not the one being repeated and its status says nothing about this
+                // one.
+                //
+                // cite(RFC 9110 § 15.5.18): "The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers."
+                // cite(RFC 9110 § 10.1.1): "A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server)."
+                if history
+                    .iter()
+                    .find(|prev| prev.request.method == tx.request.method)
+                    .is_some_and(|prev| {
+                        prev.response.as_ref().is_some_and(|r| r.status == 417)
+                            && carries_hundred_continue(&prev.request.headers)
+                    })
+                {
+                    return report(
+                        "Request repeats one the response chain answered with 417 (Expectation Failed) \
+                         and still carries a 100-continue expectation"
+                            .to_string(),
+                    );
+                }
+
+                // No MUST is broken by writing one: the grammar admits a value and
+                // parameters on any expectation, and the specification declines to
+                // define either for this one rather than forbidding them. What it
+                // costs is the expectation itself — a server comparing the member
+                // against `100-continue` finds something else, which is the member
+                // the next sentence hands a 417.
+                //
+                // cite(RFC 9110 § 10.1.1): "A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met."
+                if e.has_arguments() {
+                    return report(format!(
+                        "Expect writes the 100-continue expectation with an argument ('{}'); the \
+                         specification defines no value or parameters for it, so a recipient matching \
+                         the member against 100-continue sees a different expectation and may answer \
+                         417 (Expectation Failed). This is advice: the grammar admits the argument",
+                        crate::helpers::headers::shown_in_finding(e.member)
+                    ));
+                }
             }
 
-            // No MUST is broken by writing one: the grammar admits a value and
-            // parameters on any expectation, and the specification declines to
-            // define either for this one rather than forbidding them. What it
-            // costs is the expectation itself — a server comparing the member
-            // against `100-continue` finds something else, which is the member
-            // the next sentence hands a 417.
-            //
-            // cite(RFC 9110 § 10.1.1): "A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met."
-            if e.has_arguments() {
-                return report(format!(
-                    "Expect writes the 100-continue expectation with an argument ('{}'); the \
-                     specification defines no value or parameters for it, so a recipient matching \
-                     the member against 100-continue sees a different expectation and may answer \
-                     417 (Expectation Failed). This is advice: the grammar admits the argument",
-                    crate::helpers::headers::shown_in_finding(e.member)
-                ));
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

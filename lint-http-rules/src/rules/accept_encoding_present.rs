@@ -16,87 +16,92 @@ impl Rule for AcceptEncodingPresent {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // A CONNECT does not ask for a representation, so there is no response
-        // content for a content coding to apply to. This is the method's own
-        // semantics rather than a guess about the status it will get back:
-        // CONNECT asks for a tunnel, and on success everything after the
-        // response header section is opaque forwarded data.
-        // cite(RFC 9110 § 9.3.6): "The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed."
-        // cite(RFC 9110 § 9.3.6): "Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target."
-        //
-        // Advising a client to negotiate content codings for a tunnel is noise,
-        // and on a proxy it is noise on every CONNECT that passes through.
-        if tx.request.method.eq_ignore_ascii_case("CONNECT") {
-            return None;
-        }
-
-        // Nothing requires a client to send this field, so the rule is advice
-        // throughout. What the advice *was* is the problem: the comment here
-        // said the absence means "identity only" by default. § 12.5.3 says the
-        // opposite, in the first of the three rules a server tests against.
-        // cite(RFC 9110 § 12.5.3): "When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response."
-        // cite(RFC 9110 § 12.5.3): "If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent."
-        // cite(RFC 9110 § 12.5.3): "Accept-Encoding = #( codings [ weight ] )"
-        //
-        // Absence is the *most permissive* state there is -- every coding is
-        // acceptable, and a server that compresses anyway conforms. The
-        // "identity only" reading belongs to a different value entirely: the
-        // field present and empty.
-        // cite(RFC 9110 § 12.5.3): "An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response."
-        //
-        // So the rule reported the permissive case on a rationale that
-        // described the refusing one, and passed the refusing one in silence.
-        // Both are reported now, and they are not the same finding.
-        //
-        // A member that is empty is not an element, so a value of `,` lists no
-        // codings and reads the same way as one with nothing in it at all.
-        // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-        let mut present = false;
-        let mut any_coding = false;
-        for hv in tx.request.headers.get_all("accept-encoding").iter() {
-            present = true;
-            let val = crate::helpers::headers::field_line_as_written(hv);
-            if crate::helpers::headers::list_members(&val).next().is_some() {
-                any_coding = true;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // A CONNECT does not ask for a representation, so there is no response
+            // content for a content coding to apply to. This is the method's own
+            // semantics rather than a guess about the status it will get back:
+            // CONNECT asks for a tunnel, and on success everything after the
+            // response header section is opaque forwarded data.
+            // cite(RFC 9110 § 9.3.6): "The CONNECT method requests that the recipient establish a tunnel to the destination origin server identified by the request target and, if successful, thereafter restrict its behavior to blind forwarding of data, in both directions, until the tunnel is closed."
+            // cite(RFC 9110 § 9.3.6): "Any 2xx (Successful) response indicates that the sender (and all inbound proxies) will switch to tunnel mode immediately after the response header section; data received after that header section is from the server identified by the request target."
+            //
+            // Advising a client to negotiate content codings for a tunnel is noise,
+            // and on a proxy it is noise on every CONNECT that passes through.
+            if tx.request.method.eq_ignore_ascii_case("CONNECT") {
+                return None;
             }
-        }
 
-        if !present {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Request expresses no content-coding preference (no Accept-Encoding \
-                          header); any coding is acceptable, but most servers will not compress \
-                          without an explicit signal"
-                    .into(),
-            });
-        }
+            // Nothing requires a client to send this field, so the rule is advice
+            // throughout. What the advice *was* is the problem: the comment here
+            // said the absence means "identity only" by default. § 12.5.3 says the
+            // opposite, in the first of the three rules a server tests against.
+            // cite(RFC 9110 § 12.5.3): "When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response."
+            // cite(RFC 9110 § 12.5.3): "If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent."
+            // cite(RFC 9110 § 12.5.3): "Accept-Encoding = #( codings [ weight ] )"
+            //
+            // Absence is the *most permissive* state there is -- every coding is
+            // acceptable, and a server that compresses anyway conforms. The
+            // "identity only" reading belongs to a different value entirely: the
+            // field present and empty.
+            // cite(RFC 9110 § 12.5.3): "An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response."
+            //
+            // So the rule reported the permissive case on a rationale that
+            // described the refusing one, and passed the refusing one in silence.
+            // Both are reported now, and they are not the same finding.
+            //
+            // A member that is empty is not an element, so a value of `,` lists no
+            // codings and reads the same way as one with nothing in it at all.
+            // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+            let mut present = false;
+            let mut any_coding = false;
+            for hv in tx.request.headers.get_all("accept-encoding").iter() {
+                present = true;
+                let val = crate::helpers::headers::field_line_as_written(hv);
+                if crate::helpers::headers::list_members(&val).next().is_some() {
+                    any_coding = true;
+                }
+            }
 
-        if !any_coding {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Request declines all content codings (empty Accept-Encoding header)"
-                    .into(),
-            });
-        }
+            if !present {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Request expresses no content-coding preference (no Accept-Encoding \
+                              header); any coding is acceptable, but most servers will not compress \
+                              without an explicit signal"
+                        .into(),
+                });
+            }
 
-        // Anything that lists a coding stops here, including the values that
-        // refuse everything by *weight* rather than by omission. § 12.5.3's
-        // second rule makes `*;q=0` -- or `identity;q=0` without a more
-        // specific entry -- exclude even the unencoded representation, which is
-        // a stronger refusal than an empty field. It is deliberately not
-        // reported: that is a judgement about acceptability computed from
-        // qvalues, not about whether a preference was expressed, and this rule
-        // is the latter. Recorded so the omission reads as a decision.
-        // cite(RFC 9110 § 12.5.3): "If the representation has no content coding, then it is acceptable by default unless specifically excluded by the Accept-Encoding header field stating either "identity;q=0" or "*;q=0" without a more specific entry for "identity"."
-        None
+            if !any_coding {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Request declines all content codings (empty Accept-Encoding header)"
+                        .into(),
+                });
+            }
+
+            // Anything that lists a coding stops here, including the values that
+            // refuse everything by *weight* rather than by omission. § 12.5.3's
+            // second rule makes `*;q=0` -- or `identity;q=0` without a more
+            // specific entry -- exclude even the unencoded representation, which is
+            // a stronger refusal than an empty field. It is deliberately not
+            // reported: that is a judgement about acceptability computed from
+            // qvalues, not about whether a preference was expressed, and this rule
+            // is the latter. Recorded so the omission reads as a decision.
+            // cite(RFC 9110 § 12.5.3): "If the representation has no content coding, then it is acceptable by default unless specifically excluded by the Accept-Encoding header field stating either "identity;q=0" or "*;q=0" without a more specific entry for "identity"."
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

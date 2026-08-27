@@ -34,16 +34,21 @@ impl Rule for AuthSchemeRegistered {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-        // Helper to check a single scheme token against allowed list
-        let check_scheme =
-            |hdr_name: &str, scheme: &str, allowed: &Vec<String>| -> Option<Violation> {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+            // Helper to check a single scheme token against allowed list
+            let check_scheme = |hdr_name: &str,
+                                scheme: &str,
+                                allowed: &Vec<String>|
+             -> Option<Violation> {
                 // An auth-scheme is a token; the tchar set is helper-owned.
                 // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(scheme) {
@@ -71,70 +76,72 @@ impl Rule for AuthSchemeRegistered {
                 None
             };
 
-        // Check WWW-Authenticate challenges in responses
-        if let Some(resp) = &tx.response {
-            for hv in resp.headers.get_all("www-authenticate").iter() {
-                let s = match hv.to_str() {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "WWW-Authenticate header contains non-UTF8 value".into(),
-                        })
-                    }
-                };
+            // Check WWW-Authenticate challenges in responses
+            if let Some(resp) = &tx.response {
+                for hv in resp.headers.get_all("www-authenticate").iter() {
+                    let s = match hv.to_str() {
+                        Ok(v) => v,
+                        Err(_) => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: "WWW-Authenticate header contains non-UTF8 value".into(),
+                            })
+                        }
+                    };
 
-                // split into assembled challenges
-                match crate::helpers::auth::split_and_group_challenges(s) {
-                    Ok(challenges) => {
-                        for challenge in challenges {
-                            let scheme =
-                                challenge.split(char::is_whitespace).next().unwrap().trim();
-                            if let Some(v) =
-                                check_scheme("WWW-Authenticate", scheme, &config.allowed)
-                            {
-                                return Some(v);
+                    // split into assembled challenges
+                    match crate::helpers::auth::split_and_group_challenges(s) {
+                        Ok(challenges) => {
+                            for challenge in challenges {
+                                let scheme =
+                                    challenge.split(char::is_whitespace).next().unwrap().trim();
+                                if let Some(v) =
+                                    check_scheme("WWW-Authenticate", scheme, &config.allowed)
+                                {
+                                    return Some(v);
+                                }
                             }
                         }
-                    }
-                    Err(e) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Invalid WWW-Authenticate header: {}", e),
-                        })
+                        Err(e) => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!("Invalid WWW-Authenticate header: {}", e),
+                            })
+                        }
                     }
                 }
             }
-        }
 
-        // Check Authorization header in requests
-        if let Some(hv) = tx.request.headers.get_all("authorization").iter().next() {
-            if let Ok(v) = hv.to_str() {
-                // validate basic syntax first
-                if let Err(e) = crate::helpers::auth::validate_authorization_syntax(v) {
+            // Check Authorization header in requests
+            if let Some(hv) = tx.request.headers.get_all("authorization").iter().next() {
+                if let Ok(v) = hv.to_str() {
+                    // validate basic syntax first
+                    if let Err(e) = crate::helpers::auth::validate_authorization_syntax(v) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!("Invalid Authorization header: {}", e),
+                        });
+                    }
+
+                    let scheme = v.split(char::is_whitespace).next().unwrap().trim();
+                    if let Some(vv) = check_scheme("Authorization", scheme, &config.allowed) {
+                        return Some(vv);
+                    }
+                } else {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: format!("Invalid Authorization header: {}", e),
+                        message: "Authorization header contains non-UTF8 value".into(),
                     });
                 }
-
-                let scheme = v.split(char::is_whitespace).next().unwrap().trim();
-                if let Some(vv) = check_scheme("Authorization", scheme, &config.allowed) {
-                    return Some(vv);
-                }
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Authorization header contains non-UTF8 value".into(),
-                });
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

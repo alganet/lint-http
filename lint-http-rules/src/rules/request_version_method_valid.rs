@@ -60,64 +60,69 @@ impl Rule for RequestVersionMethodValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Matched exactly, never case-folded. `get` is not the GET method, and
-        // none of the sentences below say anything about it: an unrecognized
-        // method has no defined content semantics, so there is nothing to
-        // measure it against.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        let method = tx.request.method.as_str();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Matched exactly, never case-folded. `get` is not the GET method, and
+            // none of the sentences below say anything about it: an unrecognized
+            // method has no defined content semantics, so there is nothing to
+            // measure it against.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            let method = tx.request.method.as_str();
 
-        // One section per method, because the strength differs and the message
-        // has to say which one it is. GET, HEAD and DELETE carry a SHOULD NOT
-        // with an `unless`; CONNECT is a declaration about the message.
-        // TRACE's MUST NOT is `trace_method_echo`'s.
-        let sentence = match method {
-            // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
-            "GET" => "§ 9.3.1 says a client SHOULD NOT generate content in a GET request",
-            // cite(RFC 9110 § 9.3.2): "A client SHOULD NOT generate content in a HEAD request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
-            "HEAD" => "§ 9.3.2 says a client SHOULD NOT generate content in a HEAD request",
-            // cite(RFC 9110 § 9.3.5): "A client SHOULD NOT generate content in a DELETE request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
-            "DELETE" => "§ 9.3.5 says a client SHOULD NOT generate content in a DELETE request",
+            // One section per method, because the strength differs and the message
+            // has to say which one it is. GET, HEAD and DELETE carry a SHOULD NOT
+            // with an `unless`; CONNECT is a declaration about the message.
+            // TRACE's MUST NOT is `trace_method_echo`'s.
+            let sentence = match method {
+                // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
+                "GET" => "§ 9.3.1 says a client SHOULD NOT generate content in a GET request",
+                // cite(RFC 9110 § 9.3.2): "A client SHOULD NOT generate content in a HEAD request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
+                "HEAD" => "§ 9.3.2 says a client SHOULD NOT generate content in a HEAD request",
+                // cite(RFC 9110 § 9.3.5): "A client SHOULD NOT generate content in a DELETE request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
+                "DELETE" => "§ 9.3.5 says a client SHOULD NOT generate content in a DELETE request",
 
-            // Not a requirement on the sender but a statement about the
-            // message, so the finding is that the message contradicts its own
-            // method's definition rather than that a modal was disobeyed.
-            // cite(RFC 9110 § 9.3.6): "A CONNECT request message does not have content."
-            "CONNECT" => {
-                return request_declares_content(&tx.request).then(|| Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "CONNECT request declares content in its header section; RFC 9110 § 9.3.6 defines a CONNECT request message as having none".into(),
-                });
+                // Not a requirement on the sender but a statement about the
+                // message, so the finding is that the message contradicts its own
+                // method's definition rather than that a modal was disobeyed.
+                // cite(RFC 9110 § 9.3.6): "A CONNECT request message does not have content."
+                "CONNECT" => {
+                    return request_declares_content(&tx.request).then(|| Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "CONNECT request declares content in its header section; RFC 9110 § 9.3.6 defines a CONNECT request message as having none".into(),
+                    });
+                }
+
+                _ => return None,
+            };
+
+            if !request_carries_content(&tx.request) {
+                return None;
             }
 
-            _ => return None,
+            // The `unless` clause is a private agreement made "in or out of band",
+            // which no observer of the exchange can confirm — but the sentence that
+            // closes the same paragraph (identically in all three sections) says the
+            // agreement is not something to rely on, and names why: the request
+            // chain. So the finding stands and `description()` states the limit.
+            // cite(RFC 9110 § 9.3.1): "An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain."
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "{} request carries content; RFC 9110 {}, and content received in one has no generally defined semantics",
+                    method, sentence
+                ),
+            })
         };
-
-        if !request_carries_content(&tx.request) {
-            return None;
-        }
-
-        // The `unless` clause is a private agreement made "in or out of band",
-        // which no observer of the exchange can confirm — but the sentence that
-        // closes the same paragraph (identically in all three sections) says the
-        // agreement is not something to rely on, and names why: the request
-        // chain. So the finding stands and `description()` states the limit.
-        // cite(RFC 9110 § 9.3.1): "An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "{} request carries content; RFC 9110 {}, and content received in one has no generally defined semantics",
-                method, sentence
-            ),
-        })
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

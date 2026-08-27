@@ -69,107 +69,112 @@ impl Rule for Status405AllowValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // The status is the whole antecedent of both findings: the field is a MAY on
-        // every other response, so a 200 carrying no `Allow` is a server taking the
-        // licence rather than a defect.
-        //
-        // No version gate. The sentence defining this status names the request-line,
-        // which only an HTTP/1.x message has — it is quoted below, where it decides
-        // the second finding — but the status code it defines is the
-        // version-independent document's, and the other two versions carry the same
-        // method in a `:method` pseudo-header.
-        //
-        // cite(RFC 9110 § 10.2.1): "An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response."
-        if resp.status != 405 {
-            return None;
-        }
-
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().to_string(),
-                severity: ctx.severity,
-                message,
-            })
-        };
-
-        // One field section is one value however many lines carry it, and the join
-        // is over the octets: a value carrying `obs-text` is a value that is there,
-        // and reading it through a UTF-8 decode would fold the whole field into "no
-        // such field here" and report a server that sent one.
-        let Some(advertised) = combined_field_value_as_written(&resp.headers, "allow") else {
-            // What the MUST asks for first is the field, and a field whose value is
-            // empty is still the field: § 10.2.1 gives that value a meaning and
-            // names this response as where it is likeliest to be read, so `Allow:`
-            // on a 405 is a resource answering "none". Only a header section with no
-            // `Allow` line at all reaches here.
+            // The status is the whole antecedent of both findings: the field is a MAY on
+            // every other response, so a 200 carrying no `Allow` is a server taking the
+            // licence rather than a defect.
             //
-            // A trailer field does not answer it. § 15.5.6 asks for a header field,
-            // and § 6.5.1 forbids a trailer field unless the field's own definition
-            // permits one, which § 10.2.1 does not. Where the capture kept a trailer
-            // section holding the name, the finding says so: a server that wrote it
-            // there has a different thing to fix from one that wrote nothing.
+            // No version gate. The sentence defining this status names the request-line,
+            // which only an HTTP/1.x message has — it is quoted below, where it decides
+            // the second finding — but the status code it defines is the
+            // version-independent document's, and the other two versions carry the same
+            // method in a `:method` pseudo-header.
             //
-            // cite(RFC 9110 § 10.2.1): "An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration."
+            // cite(RFC 9110 § 10.2.1): "An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response."
+            if resp.status != 405 {
+                return None;
+            }
+
+            let violation = |message: String| {
+                Some(Violation {
+                    rule: self.id().to_string(),
+                    severity: ctx.severity,
+                    message,
+                })
+            };
+
+            // One field section is one value however many lines carry it, and the join
+            // is over the octets: a value carrying `obs-text` is a value that is there,
+            // and reading it through a UTF-8 decode would fold the whole field into "no
+            // such field here" and report a server that sent one.
+            let Some(advertised) = combined_field_value_as_written(&resp.headers, "allow") else {
+                // What the MUST asks for first is the field, and a field whose value is
+                // empty is still the field: § 10.2.1 gives that value a meaning and
+                // names this response as where it is likeliest to be read, so `Allow:`
+                // on a 405 is a resource answering "none". Only a header section with no
+                // `Allow` line at all reaches here.
+                //
+                // A trailer field does not answer it. § 15.5.6 asks for a header field,
+                // and § 6.5.1 forbids a trailer field unless the field's own definition
+                // permits one, which § 10.2.1 does not. Where the capture kept a trailer
+                // section holding the name, the finding says so: a server that wrote it
+                // there has a different thing to fix from one that wrote nothing.
+                //
+                // cite(RFC 9110 § 10.2.1): "An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration."
+                // cite(RFC 9110 § 15.5.6): "The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods."
+                // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+                let in_trailer_section = resp
+                    .trailers
+                    .as_ref()
+                    .is_some_and(|trailers| trailers.contains_key("allow"));
+
+                return violation(format!(
+                    "405 Method Not Allowed with no Allow header field. An origin server must generate one in this response, listing the methods the target resource currently supports; a resource that supports none says so with an empty field value, which is not the same as leaving the field out{}",
+                    if in_trailer_section {
+                        ". This response's trailer section carries an Allow, and a trailer field does not answer a requirement on the header section"
+                    } else {
+                        ""
+                    }
+                ));
+            };
+
+            // The MUST does not stop at the field's name. Its object clause is the first
+            // sentence below — the field is to hold *the target resource's currently
+            // supported methods* — and the second says what the status this response
+            // carries states about the method it answers. One message makes both
+            // statements, about one target resource, so a 405 whose `Allow` names the
+            // refused method contradicts itself and a recipient cannot act on it.
+            //
+            // What the two sentences after them do *not* license is any wider
+            // comparison: which methods the list should have held instead is the origin
+            // server's answer at the time of each request, and it moves under the
+            // resource, so no other captured message disagrees with this one. The
+            // disagreement reported here is the one internal to a single exchange.
+            //
+            // An empty method is compared against nothing: `method = token` is `1*tchar`
+            // and derives no empty string, so a capture holding one names nothing for a
+            // member to agree with, and an empty member of this list would then match
+            // it. `request_method_token_valid` reports that value.
+            //
             // cite(RFC 9110 § 15.5.6): "The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods."
-            // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-            let in_trailer_section = resp
-                .trailers
-                .as_ref()
-                .is_some_and(|trailers| trailers.contains_key("allow"));
+            // cite(RFC 9110 § 15.5.6): "The 405 (Method Not Allowed) status code indicates that the method received in the request-line is known by the origin server but not supported by the target resource."
+            // cite(RFC 9110 § 10.2.1): "The "Allow" header field lists the set of methods advertised as supported by the target resource."
+            // cite(RFC 9110 § 10.2.1): "The actual set of allowed methods is defined by the origin server at the time of each request."
+            // cite(RFC 9110 § 9.1): "However, the set of allowed methods can change dynamically."
+            if !tx.request.method.is_empty() && Self::advertises(&advertised, &tx.request.method) {
+                // The value is quoted as the section's *combined* value and the message
+                // says so, because where two field lines carried it the commas between
+                // them are the join's rather than anything a sender wrote.
+                return violation(format!(
+                    "405 Method Not Allowed answering the method '{}', whose Allow header field advertises that same method: the status says the target resource does not support it and the field says it does. The section's field lines combine to '{}'",
+                    shown_in_finding(&tx.request.method),
+                    shown_in_finding(&advertised)
+                ));
+            }
 
-            return violation(format!(
-                "405 Method Not Allowed with no Allow header field. An origin server must generate one in this response, listing the methods the target resource currently supports; a resource that supports none says so with an empty field value, which is not the same as leaving the field out{}",
-                if in_trailer_section {
-                    ". This response's trailer section carries an Allow, and a trailer field does not answer a requirement on the header section"
-                } else {
-                    ""
-                }
-            ));
+            None
         };
-
-        // The MUST does not stop at the field's name. Its object clause is the first
-        // sentence below — the field is to hold *the target resource's currently
-        // supported methods* — and the second says what the status this response
-        // carries states about the method it answers. One message makes both
-        // statements, about one target resource, so a 405 whose `Allow` names the
-        // refused method contradicts itself and a recipient cannot act on it.
-        //
-        // What the two sentences after them do *not* license is any wider
-        // comparison: which methods the list should have held instead is the origin
-        // server's answer at the time of each request, and it moves under the
-        // resource, so no other captured message disagrees with this one. The
-        // disagreement reported here is the one internal to a single exchange.
-        //
-        // An empty method is compared against nothing: `method = token` is `1*tchar`
-        // and derives no empty string, so a capture holding one names nothing for a
-        // member to agree with, and an empty member of this list would then match
-        // it. `request_method_token_valid` reports that value.
-        //
-        // cite(RFC 9110 § 15.5.6): "The origin server MUST generate an Allow header field in a 405 response containing a list of the target resource's currently supported methods."
-        // cite(RFC 9110 § 15.5.6): "The 405 (Method Not Allowed) status code indicates that the method received in the request-line is known by the origin server but not supported by the target resource."
-        // cite(RFC 9110 § 10.2.1): "The "Allow" header field lists the set of methods advertised as supported by the target resource."
-        // cite(RFC 9110 § 10.2.1): "The actual set of allowed methods is defined by the origin server at the time of each request."
-        // cite(RFC 9110 § 9.1): "However, the set of allowed methods can change dynamically."
-        if !tx.request.method.is_empty() && Self::advertises(&advertised, &tx.request.method) {
-            // The value is quoted as the section's *combined* value and the message
-            // says so, because where two field lines carried it the commas between
-            // them are the join's rather than anything a sender wrote.
-            return violation(format!(
-                "405 Method Not Allowed answering the method '{}', whose Allow header field advertises that same method: the status says the target resource does not support it and the field says it does. The section's field lines combine to '{}'",
-                shown_in_finding(&tx.request.method),
-                shown_in_finding(&advertised)
-            ));
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

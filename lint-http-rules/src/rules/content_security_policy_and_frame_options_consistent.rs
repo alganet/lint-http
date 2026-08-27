@@ -16,203 +16,208 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only check responses
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only check responses
+            let resp = tx.response.as_ref()?;
 
-        // Collect CSP frame-ancestors info across header fields
-        let mut csp_found = false;
-        let mut csp_none = false;
-        let mut csp_self = false;
-        let mut csp_origins: Vec<String> = Vec::new();
+            // Collect CSP frame-ancestors info across header fields
+            let mut csp_found = false;
+            let mut csp_none = false;
+            let mut csp_self = false;
+            let mut csp_origins: Vec<String> = Vec::new();
 
-        for hv in resp.headers.get_all("content-security-policy").iter() {
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => continue, // other rule flags non-utf8
-            };
-
-            for dir in crate::helpers::headers::parse_semicolon_list(s) {
-                let mut parts = dir.split_whitespace();
-                let name = match parts.next() {
-                    Some(n) => n,
-                    None => continue,
+            for hv in resp.headers.get_all("content-security-policy").iter() {
+                let s = match hv.to_str() {
+                    Ok(s) => s,
+                    Err(_) => continue, // other rule flags non-utf8
                 };
-                if !name.eq_ignore_ascii_case("frame-ancestors") {
-                    continue;
-                }
 
-                csp_found = true;
-
-                // parse members
-                let mut had_member = false;
-                for member in parts {
-                    let m = member.trim();
-                    if m.is_empty() {
+                for dir in crate::helpers::headers::parse_semicolon_list(s) {
+                    let mut parts = dir.split_whitespace();
+                    let name = match parts.next() {
+                        Some(n) => n,
+                        None => continue,
+                    };
+                    if !name.eq_ignore_ascii_case("frame-ancestors") {
                         continue;
                     }
-                    had_member = true;
-                    // strip single quotes if present
-                    let token = if m.len() >= 2 && m.starts_with('\'') && m.ends_with('\'') {
-                        &m[1..m.len() - 1]
-                    } else {
-                        m
-                    };
-                    if token.eq_ignore_ascii_case("none") {
-                        csp_none = true;
-                    } else if token.eq_ignore_ascii_case("self") {
-                        csp_self = true;
-                    } else {
-                        // treat as origin candidate (store normalized without trailing slash)
-                        let mut o = token.to_string();
-                        if o.ends_with('/') {
-                            o.pop();
+
+                    csp_found = true;
+
+                    // parse members
+                    let mut had_member = false;
+                    for member in parts {
+                        let m = member.trim();
+                        if m.is_empty() {
+                            continue;
                         }
-                        csp_origins.push(o);
+                        had_member = true;
+                        // strip single quotes if present
+                        let token = if m.len() >= 2 && m.starts_with('\'') && m.ends_with('\'') {
+                            &m[1..m.len() - 1]
+                        } else {
+                            m
+                        };
+                        if token.eq_ignore_ascii_case("none") {
+                            csp_none = true;
+                        } else if token.eq_ignore_ascii_case("self") {
+                            csp_self = true;
+                        } else {
+                            // treat as origin candidate (store normalized without trailing slash)
+                            let mut o = token.to_string();
+                            if o.ends_with('/') {
+                                o.pop();
+                            }
+                            csp_origins.push(o);
+                        }
+                    }
+
+                    // If directive had no members (e.g., 'frame-ancestors'), treat as malformed; skip
+                    if !had_member {
+                        continue;
                     }
                 }
-
-                // If directive had no members (e.g., 'frame-ancestors'), treat as malformed; skip
-                if !had_member {
-                    continue;
-                }
             }
-        }
 
-        // If no CSP frame-ancestors, nothing to compare
-        if !csp_found {
-            return None;
-        }
-
-        // Get X-Frame-Options header. The two headers answer the same question, and a
-        // browser that honours `frame-ancestors` ignores `X-Frame-Options` — so when they
-        // disagree, one of them is a statement of intent that nothing enforces. That
-        // precedence (and why only enforced CSP counts, so report-only is skipped above)
-        // is §6.4.2.2's; the two purpose cites give each header's own scope.
-        // cite(CSP3 § 6.4.2.2): "the frame-ancestors directive overrides the ``X-Frame-Options`` header."
-        // cite(CSP3 § 6.4.2): "The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed."
-        // cite(HTML Speculative Loading § 7.7): "The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable."
-        let xfo_count = resp.headers.get_all("x-frame-options").iter().count();
-        if xfo_count == 0 {
-            return None;
-        }
-        if xfo_count > 1 {
-            // Other rule will report duplicate header; avoid duplicate diagnostics here
-            return None;
-        }
-
-        // Absent or non-utf8 -> let the dedicated rule report it.
-        let xfo_val =
-            crate::helpers::headers::get_header_str(&resp.headers, "x-frame-options")?.trim();
-
-        // Recognize canonical forms
-        if xfo_val.eq_ignore_ascii_case("DENY") {
-            // DENY forbids framing; contradiction if CSP permits any framing
-            if csp_none {
-                // Both deny -> ok
+            // If no CSP frame-ancestors, nothing to compare
+            if !csp_found {
                 return None;
             }
-            // CSP permits framing if it had any non-'none' member
-            if csp_self || !csp_origins.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "X-Frame-Options: DENY contradicts Content-Security-Policy frame-ancestors which permits framing".into(),
-                });
-            }
-            return None;
-        }
 
-        if xfo_val.eq_ignore_ascii_case("SAMEORIGIN") {
-            // SAMEORIGIN permits same-origin; contradiction only if CSP explicitly forbids all
-            if csp_none {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Content-Security-Policy frame-ancestors: 'none' forbids framing while X-Frame-Options: SAMEORIGIN permits same-origin frames".into(),
-                });
+            // Get X-Frame-Options header. The two headers answer the same question, and a
+            // browser that honours `frame-ancestors` ignores `X-Frame-Options` — so when they
+            // disagree, one of them is a statement of intent that nothing enforces. That
+            // precedence (and why only enforced CSP counts, so report-only is skipped above)
+            // is §6.4.2.2's; the two purpose cites give each header's own scope.
+            // cite(CSP3 § 6.4.2.2): "the frame-ancestors directive overrides the ``X-Frame-Options`` header."
+            // cite(CSP3 § 6.4.2): "The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed."
+            // cite(HTML Speculative Loading § 7.7): "The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable."
+            let xfo_count = resp.headers.get_all("x-frame-options").iter().count();
+            if xfo_count == 0 {
+                return None;
             }
-            // otherwise compatible (both allow some framing)
-            return None;
-        }
-
-        // ALLOW-FROM
-        if xfo_val.len() >= 10 && xfo_val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
-            let rest = xfo_val[10..].trim_start();
-            if rest.is_empty() {
-                return None; // malformed XFO, other rule will report
-            }
-            let allow_origin = if let Some(stripped) = rest.strip_suffix('/') {
-                stripped
-            } else {
-                rest
-            };
-
-            // If CSP forbids all -> contradiction
-            if csp_none {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("X-Frame-Options: ALLOW-FROM {} permits framing but Content-Security-Policy frame-ancestors is 'none'", rest),
-                });
+            if xfo_count > 1 {
+                // Other rule will report duplicate header; avoid duplicate diagnostics here
+                return None;
             }
 
-            // If CSP has explicit origins, require the ALLOW-FROM origin to be present
-            if !csp_origins.is_empty() {
-                let mut matched = false;
-                for o in &csp_origins {
-                    if o.eq_ignore_ascii_case(allow_origin) {
-                        matched = true;
-                        break;
-                    }
+            // Absent or non-utf8 -> let the dedicated rule report it.
+            let xfo_val =
+                crate::helpers::headers::get_header_str(&resp.headers, "x-frame-options")?.trim();
+
+            // Recognize canonical forms
+            if xfo_val.eq_ignore_ascii_case("DENY") {
+                // DENY forbids framing; contradiction if CSP permits any framing
+                if csp_none {
+                    // Both deny -> ok
+                    return None;
                 }
-                if !matched {
-                    // Maybe CSP used 'self' and that matches server origin; compare to request origin
-                    if csp_self {
-                        // derive request origin
-                        let req_origin = extract_origin_from_uri(&tx.request.uri);
-                        if let Some(rorig) = req_origin {
-                            if rorig.eq_ignore_ascii_case(allow_origin) {
-                                return None; // matches self
-                            }
-                        }
-                    }
-
+                // CSP permits framing if it had any non-'none' member
+                if csp_self || !csp_origins.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: format!("X-Frame-Options: ALLOW-FROM {} is not included in Content-Security-Policy frame-ancestors", rest),
+                        message: "X-Frame-Options: DENY contradicts Content-Security-Policy frame-ancestors which permits framing".into(),
                     });
                 }
+                return None;
             }
 
-            // if CSP only had 'self', check if ALLOW-FROM equals request origin
-            if csp_self && csp_origins.is_empty() {
-                let req_origin = extract_origin_from_uri(&tx.request.uri);
-                if let Some(rorig) = req_origin {
-                    if rorig.eq_ignore_ascii_case(allow_origin) {
-                        return None;
-                    } else {
+            if xfo_val.eq_ignore_ascii_case("SAMEORIGIN") {
+                // SAMEORIGIN permits same-origin; contradiction only if CSP explicitly forbids all
+                if csp_none {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Content-Security-Policy frame-ancestors: 'none' forbids framing while X-Frame-Options: SAMEORIGIN permits same-origin frames".into(),
+                    });
+                }
+                // otherwise compatible (both allow some framing)
+                return None;
+            }
+
+            // ALLOW-FROM
+            if xfo_val.len() >= 10 && xfo_val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
+                let rest = xfo_val[10..].trim_start();
+                if rest.is_empty() {
+                    return None; // malformed XFO, other rule will report
+                }
+                let allow_origin = if let Some(stripped) = rest.strip_suffix('/') {
+                    stripped
+                } else {
+                    rest
+                };
+
+                // If CSP forbids all -> contradiction
+                if csp_none {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!("X-Frame-Options: ALLOW-FROM {} permits framing but Content-Security-Policy frame-ancestors is 'none'", rest),
+                    });
+                }
+
+                // If CSP has explicit origins, require the ALLOW-FROM origin to be present
+                if !csp_origins.is_empty() {
+                    let mut matched = false;
+                    for o in &csp_origins {
+                        if o.eq_ignore_ascii_case(allow_origin) {
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if !matched {
+                        // Maybe CSP used 'self' and that matches server origin; compare to request origin
+                        if csp_self {
+                            // derive request origin
+                            let req_origin = extract_origin_from_uri(&tx.request.uri);
+                            if let Some(rorig) = req_origin {
+                                if rorig.eq_ignore_ascii_case(allow_origin) {
+                                    return None; // matches self
+                                }
+                            }
+                        }
+
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: ctx.severity,
-                            message: format!("X-Frame-Options: ALLOW-FROM {} does not match Content-Security-Policy frame-ancestors 'self' (origin {})", rest, rorig),
+                            message: format!("X-Frame-Options: ALLOW-FROM {} is not included in Content-Security-Policy frame-ancestors", rest),
                         });
                     }
                 }
+
+                // if CSP only had 'self', check if ALLOW-FROM equals request origin
+                if csp_self && csp_origins.is_empty() {
+                    let req_origin = extract_origin_from_uri(&tx.request.uri);
+                    if let Some(rorig) = req_origin {
+                        if rorig.eq_ignore_ascii_case(allow_origin) {
+                            return None;
+                        } else {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!("X-Frame-Options: ALLOW-FROM {} does not match Content-Security-Policy frame-ancestors 'self' (origin {})", rest, rorig),
+                            });
+                        }
+                    }
+                }
+
+                // Otherwise compatible
+                return None;
             }
 
-            // Otherwise compatible
-            return None;
-        }
-
-        // Unsupported XFO form -> ignore (other rule flags)
-        None
+            // Unsupported XFO form -> ignore (other rule flags)
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

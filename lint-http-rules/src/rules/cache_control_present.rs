@@ -18,34 +18,39 @@ impl Rule for CacheControlPresent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        if let Some(resp) = &tx.response {
-            // Nothing requires a `Cache-Control` on a 200. What the absence of one buys is
-            // a cache guessing: with no explicit expiration time, a heuristic freshness
-            // lifetime is permitted, and the origin no longer decides how long its response
-            // is reused. This rule asks servers to decide. It is advice, and cites the
-            // sentence that makes it advice worth taking.
-            // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
-            //
-            // Scoped to 200 by choice, not by the spec. §4.2.2 permits heuristics on any
-            // status "defined as heuristically cacheable (e.g., see Section 15.1 of
-            // [HTTP])" — 203, 204, 206, 300, 301, 308, 404, 410, 451 among them — so the
-            // same advice applies to those too. 200 is the overwhelmingly common case and
-            // the least noisy to flag; widening the set is a behavior change, left out.
-            if resp.status == 200 && !resp.headers.contains_key("cache-control") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Response 200 without Cache-Control header".into(),
-                });
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            if let Some(resp) = &tx.response {
+                // Nothing requires a `Cache-Control` on a 200. What the absence of one buys is
+                // a cache guessing: with no explicit expiration time, a heuristic freshness
+                // lifetime is permitted, and the origin no longer decides how long its response
+                // is reused. This rule asks servers to decide. It is advice, and cites the
+                // sentence that makes it advice worth taking.
+                // cite(RFC 9111 § 4.2.2): "Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time."
+                //
+                // Scoped to 200 by choice, not by the spec. §4.2.2 permits heuristics on any
+                // status "defined as heuristically cacheable (e.g., see Section 15.1 of
+                // [HTTP])" — 203, 204, 206, 300, 301, 308, 404, 410, 451 among them — so the
+                // same advice applies to those too. 200 is the overwhelmingly common case and
+                // the least noisy to flag; widening the set is a behavior change, left out.
+                if resp.status == 200 && !resp.headers.contains_key("cache-control") {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Response 200 without Cache-Control header".into(),
+                    });
+                }
             }
-        }
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

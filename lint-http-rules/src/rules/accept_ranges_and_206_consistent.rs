@@ -16,104 +16,109 @@ impl Rule for AcceptRangesAnd206Consistent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // `Accept-Ranges` is a response field, which is the sentence behind
-        // reading one side only -- not the scope enum, which in this engine only
-        // decides when the rule is dispatched.
-        //
-        // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // `Accept-Ranges` is a response field, which is the sentence behind
+            // reading one side only -- not the scope enum, which in this engine only
+            // decides when the rule is dispatched.
+            //
+            // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
+            let resp = tx.response.as_ref()?;
 
-        // Everything below reads the 206 as evidence about the resource, so no
-        // other status has anything to contradict.
-        //
-        // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
-        if resp.status != 206 {
-            return None;
-        }
+            // Everything below reads the 206 as evidence about the resource, so no
+            // other status has anything to contradict.
+            //
+            // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
+            if resp.status != 206 {
+                return None;
+            }
 
-        // What the response advertises, read by the code that both readers of
-        // this field share -- including the trailer section, which is part of
-        // the field's definition.
-        let advertised = crate::helpers::accept_ranges::read_advertisement(resp);
+            // What the response advertises, read by the code that both readers of
+            // this field share -- including the trailer section, which is part of
+            // the field's definition.
+            let advertised = crate::helpers::accept_ranges::read_advertisement(resp);
 
-        // Advice, and the sentences that keep it advice. The field is worth
-        // sending -- it is what a client restarting this transfer would read --
-        // and no sentence asks for it, which is what the finding says. The
-        // quotation that settles it is the last one: §15.3.7 does say which
-        // fields a 206 MUST carry, names six of them, and `Accept-Ranges` is
-        // not among them.
-        //
-        // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
-        // cite(RFC 9110 § 14.3): "A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers."
-        // cite(RFC 9110 § 14.3): "to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path."
-        // cite(RFC 9110 § 15.3.7): "A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary."
-        if !advertised.present {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "206 Partial Content response carries no Accept-Ranges field, so a client resuming this transfer has nothing telling it which range units the resource supports (advice: nothing requires the field)".into(),
-            });
-        }
+            // Advice, and the sentences that keep it advice. The field is worth
+            // sending -- it is what a client restarting this transfer would read --
+            // and no sentence asks for it, which is what the finding says. The
+            // quotation that settles it is the last one: §15.3.7 does say which
+            // fields a 206 MUST carry, names six of them, and `Accept-Ranges` is
+            // not among them.
+            //
+            // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
+            // cite(RFC 9110 § 14.3): "A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers."
+            // cite(RFC 9110 § 14.3): "to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path."
+            // cite(RFC 9110 § 15.3.7): "A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary."
+            if !advertised.present {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "206 Partial Content response carries no Accept-Ranges field, so a client resuming this transfer has nothing telling it which range units the resource supports (advice: nothing requires the field)".into(),
+                });
+            }
 
-        // The permission to send `none` belongs to a server that supports no kind
-        // of range request for the target resource; a 206 is that same server
-        // fulfilling one. `none` is reserved for saying that and nothing else, so
-        // it is reported beside a real unit too.
-        //
-        // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
-        // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
-        if advertised.advertises("none") {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into(),
-            });
-        }
+            // The permission to send `none` belongs to a server that supports no kind
+            // of range request for the target resource; a 206 is that same server
+            // fulfilling one. `none` is reserved for saying that and nothing else, so
+            // it is reported beside a real unit too.
+            //
+            // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
+            // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
+            if advertised.advertises("none") {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into(),
+                });
+            }
 
-        // A unit that could not be read may be the one the Content-Range names,
-        // so there is nothing to conclude from a mismatch below.
-        if !advertised.complete {
-            return None;
-        }
+            // A unit that could not be read may be the one the Content-Range names,
+            // so there is nothing to conclude from a mismatch below.
+            if !advertised.complete {
+                return None;
+            }
 
-        // The field's syntax, and whether a 206 carries it at all, belong to
-        // `range_and_content_range_consistent`; what is wanted here is
-        // one construct out of it, the range unit, parsed by the code that owns
-        // the production rather than by a second reading of it. A value this
-        // rule cannot parse is that rule's finding, reported there.
-        //
-        // cite(RFC 9110 § 14.1): "This general notion of a "range unit" is used in the Accept-Ranges (Section 14.3) response header field to advertise support for range requests, the Range (Section 14.2) request header field to delineate the parts of a representation that are requested, and the Content-Range (Section 14.4) header field to describe which part of a representation is being transferred."
-        let content_range =
-            crate::helpers::headers::get_header_str(&resp.headers, "content-range")?;
-        let content_range =
-            crate::helpers::content_range::parse_content_range(content_range).ok()?;
-        let unit = content_range.unit();
+            // The field's syntax, and whether a 206 carries it at all, belong to
+            // `range_and_content_range_consistent`; what is wanted here is
+            // one construct out of it, the range unit, parsed by the code that owns
+            // the production rather than by a second reading of it. A value this
+            // rule cannot parse is that rule's finding, reported there.
+            //
+            // cite(RFC 9110 § 14.1): "This general notion of a "range unit" is used in the Accept-Ranges (Section 14.3) response header field to advertise support for range requests, the Range (Section 14.2) request header field to delineate the parts of a representation that are requested, and the Content-Range (Section 14.4) header field to describe which part of a representation is being transferred."
+            let content_range =
+                crate::helpers::headers::get_header_str(&resp.headers, "content-range")?;
+            let content_range =
+                crate::helpers::content_range::parse_content_range(content_range).ok()?;
+            let unit = content_range.unit();
 
-        // What makes the omission worth reporting: the 206 is the answer a server
-        // sends when the request's unit is one it supports for this resource, so
-        // the response is evidence about a unit its own advice leaves out. Also
-        // advice -- the sentence below is about which status to send, and says
-        // nothing about which units the field lists.
-        //
-        // cite(RFC 9110 § 14.2): "If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested."
-        if !advertised.advertises(unit) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Content-Range describes a range in '{}', a unit this response's Accept-Ranges does not advertise (advice: nothing requires the two to agree)",
-                    unit
-                ),
-            });
-        }
+            // What makes the omission worth reporting: the 206 is the answer a server
+            // sends when the request's unit is one it supports for this resource, so
+            // the response is evidence about a unit its own advice leaves out. Also
+            // advice -- the sentence below is about which status to send, and says
+            // nothing about which units the field lists.
+            //
+            // cite(RFC 9110 § 14.2): "If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested."
+            if !advertised.advertises(unit) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Content-Range describes a range in '{}', a unit this response's Accept-Ranges does not advertise (advice: nothing requires the two to agree)",
+                        unit
+                    ),
+                });
+            }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

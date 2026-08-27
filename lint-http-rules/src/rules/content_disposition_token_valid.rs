@@ -26,155 +26,161 @@ impl Rule for ContentDispositionTokenValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Helper to validate a single Content-Disposition header value
-        let check_value = |hdr_name: &str, val: &str| -> Option<Violation> {
-            // Trim whitespace and split off parameters
-            // The disposition-type is mandatory and the parameters are not, so an
-            // empty field value satisfies no part of the production.
-            // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
-            let s = val.trim();
-            if s.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("{} header value must not be empty", hdr_name),
-                });
-            }
-
-            // Everything before the first ";" is the disposition-type. Trimming
-            // is not tidiness: the grammar's whitespace is implied rather than
-            // written, so `attachment ; filename=…` is a conforming spelling.
-            // cite(RFC 6266 § 4.1): "Note that due to the rules for implied linear whitespace (Section 2.1 of [RFC2616]), OPTIONAL whitespace can appear between words (token or quoted-string) and separator characters."
-            let dispo = s.split(';').next().unwrap().trim();
-            // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
-            if dispo.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("{} header disposition-type must not be empty", hdr_name),
-                });
-            }
-
-            // The rule's whole purpose, and it had been uncited. Only the third
-            // alternative constrains characters, and it is what a value other
-            // than "inline"/"attachment" must satisfy; `token` itself is the
-            // shared helper's to define. Nothing checks the value against a list
-            // of known types, because there is no such list to check against —
-            // an unrecognized type is conforming and has defined handling.
-            // cite(RFC 6266 § 4.1): "disp-ext-type       = token"
-            // cite(RFC 6266 § 4.2): "Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8)."
-            if let Some(c) = crate::helpers::token::find_invalid_token_char(dispo) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "{} disposition-type contains invalid token character: '{}'",
-                        hdr_name, c
-                    ),
-                });
-            }
-
-            None
-        };
-
-        // One message's worth of Content-Disposition field lines. The §5.3
-        // prohibition is scoped to a message and spans both of its field
-        // sections, so the header and trailer sections are counted together: one
-        // line in each is the same defect as two in either.
-        let check_message = |kind: &str,
-                             headers: &hyper::HeaderMap,
-                             trailers: Option<&hyper::HeaderMap>|
-         -> Option<Violation> {
-            let vals: Vec<_> = headers
-                .get_all("content-disposition")
-                .iter()
-                .chain(
-                    trailers
-                        .into_iter()
-                        .flat_map(|t| t.get_all("content-disposition").iter()),
-                )
-                .collect();
-
-            // The grammar is a disposition-type followed by parameters, with no
-            // `#(...)` alternative anywhere in it, so §5.3's exception does not
-            // apply and a message carries at most one field line.
-            // Combining two is worse here than the arithmetic suggests: the
-            // recombined value is "attachment; filename="a", inline", which
-            // different recipients truncate at different points, so the filename
-            // a download is saved under depends on whose parser read it.
-            //
-            // **Not `helpers::headers::singleton_field_preamble`, and the reason
-            // is one line above: `vals` counts the header section and the trailer
-            // section together.** That is what §5.3 asks for -- its MUST NOT is
-            // about the message and says *"whether in the headers or trailers"* --
-            // and it is exactly what the shared preamble may not claim, because
-            // the recombining clause in it is §5.2's and §5.2 recombines *within a
-            // section*. Two lines in two sections are two values, not one. The
-            // five callers of that preamble each read one section; this rule is
-            // out of it by a reason rather than by omission, and it was missed by
-            // both of the hand-maintained copy lists that P3 was written from.
-            // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
-            // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
-            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-            if vals.len() > 1 {
-                // The singleton conclusion is drawn from RFC 6266's grammar, so
-                // only a response — the message RFC 6266 governs — may be told
-                // that. A request Content-Disposition is outside that document,
-                // and the §5.3 requirement stands on its own for it.
-                let basis = if kind == "response" {
-                    "the grammar has no comma-separated-list alternative (RFC 6266 §4.1), so at most one field line may be sent (RFC 9110 §5.3)"
-                } else {
-                    "no definition of this field gives it a comma-separated-list form, so at most one field line may be sent (RFC 9110 §5.3)"
-                };
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Multiple Content-Disposition header fields in the {}; {}",
-                        kind, basis
-                    ),
-                });
-            }
-
-            for hv in vals {
-                // Not a UTF-8 question: `to_str` accepts only visible US-ASCII,
-                // which is the range field values are held to. A raw non-ASCII
-                // filename is well-formed UTF-8 and still wrong here — RFC 6266
-                // §4.3 has `filename*` for exactly that.
-                // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
-                let Ok(s) = hv.to_str() else {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Helper to validate a single Content-Disposition header value
+            let check_value = |hdr_name: &str, val: &str| -> Option<Violation> {
+                // Trim whitespace and split off parameters
+                // The disposition-type is mandatory and the parameters are not, so an
+                // empty field value satisfies no part of the production.
+                // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
+                let s = val.trim();
+                if s.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: "Content-Disposition header value contains octets outside visible US-ASCII; non-ASCII filenames belong in a `filename*` parameter (RFC 6266 §4.3)".into(),
+                        message: format!("{} header value must not be empty", hdr_name),
                     });
-                };
-                if let Some(v) = check_value("Content-Disposition", s) {
+                }
+
+                // Everything before the first ";" is the disposition-type. Trimming
+                // is not tidiness: the grammar's whitespace is implied rather than
+                // written, so `attachment ; filename=…` is a conforming spelling.
+                // cite(RFC 6266 § 4.1): "Note that due to the rules for implied linear whitespace (Section 2.1 of [RFC2616]), OPTIONAL whitespace can appear between words (token or quoted-string) and separator characters."
+                let dispo = s.split(';').next().unwrap().trim();
+                // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
+                if dispo.is_empty() {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!("{} header disposition-type must not be empty", hdr_name),
+                    });
+                }
+
+                // The rule's whole purpose, and it had been uncited. Only the third
+                // alternative constrains characters, and it is what a value other
+                // than "inline"/"attachment" must satisfy; `token` itself is the
+                // shared helper's to define. Nothing checks the value against a list
+                // of known types, because there is no such list to check against —
+                // an unrecognized type is conforming and has defined handling.
+                // cite(RFC 6266 § 4.1): "disp-ext-type       = token"
+                // cite(RFC 6266 § 4.2): "Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8)."
+                if let Some(c) = crate::helpers::token::find_invalid_token_char(dispo) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "{} disposition-type contains invalid token character: '{}'",
+                            hdr_name, c
+                        ),
+                    });
+                }
+
+                None
+            };
+
+            // One message's worth of Content-Disposition field lines. The §5.3
+            // prohibition is scoped to a message and spans both of its field
+            // sections, so the header and trailer sections are counted together: one
+            // line in each is the same defect as two in either.
+            let check_message = |kind: &str,
+                                 headers: &hyper::HeaderMap,
+                                 trailers: Option<&hyper::HeaderMap>|
+             -> Option<Violation> {
+                let vals: Vec<_> = headers
+                    .get_all("content-disposition")
+                    .iter()
+                    .chain(
+                        trailers
+                            .into_iter()
+                            .flat_map(|t| t.get_all("content-disposition").iter()),
+                    )
+                    .collect();
+
+                // The grammar is a disposition-type followed by parameters, with no
+                // `#(...)` alternative anywhere in it, so §5.3's exception does not
+                // apply and a message carries at most one field line.
+                // Combining two is worse here than the arithmetic suggests: the
+                // recombined value is "attachment; filename="a", inline", which
+                // different recipients truncate at different points, so the filename
+                // a download is saved under depends on whose parser read it.
+                //
+                // **Not `helpers::headers::singleton_field_preamble`, and the reason
+                // is one line above: `vals` counts the header section and the trailer
+                // section together.** That is what §5.3 asks for -- its MUST NOT is
+                // about the message and says *"whether in the headers or trailers"* --
+                // and it is exactly what the shared preamble may not claim, because
+                // the recombining clause in it is §5.2's and §5.2 recombines *within a
+                // section*. Two lines in two sections are two values, not one. The
+                // five callers of that preamble each read one section; this rule is
+                // out of it by a reason rather than by omission, and it was missed by
+                // both of the hand-maintained copy lists that P3 was written from.
+                // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
+                // cite(RFC 9110 § 5.5): "Fields that only anticipate a single member as the field value are referred to as "singleton fields"."
+                // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+                if vals.len() > 1 {
+                    // The singleton conclusion is drawn from RFC 6266's grammar, so
+                    // only a response — the message RFC 6266 governs — may be told
+                    // that. A request Content-Disposition is outside that document,
+                    // and the §5.3 requirement stands on its own for it.
+                    let basis = if kind == "response" {
+                        "the grammar has no comma-separated-list alternative (RFC 6266 §4.1), so at most one field line may be sent (RFC 9110 §5.3)"
+                    } else {
+                        "no definition of this field gives it a comma-separated-list form, so at most one field line may be sent (RFC 9110 §5.3)"
+                    };
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Multiple Content-Disposition header fields in the {}; {}",
+                            kind, basis
+                        ),
+                    });
+                }
+
+                for hv in vals {
+                    // Not a UTF-8 question: `to_str` accepts only visible US-ASCII,
+                    // which is the range field values are held to. A raw non-ASCII
+                    // filename is well-formed UTF-8 and still wrong here — RFC 6266
+                    // §4.3 has `filename*` for exactly that.
+                    // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
+                    let Ok(s) = hv.to_str() else {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Content-Disposition header value contains octets outside visible US-ASCII; non-ASCII filenames belong in a `filename*` parameter (RFC 6266 §4.3)".into(),
+                        });
+                    };
+                    if let Some(v) = check_value("Content-Disposition", s) {
+                        return Some(v);
+                    }
+                }
+
+                None
+            };
+
+            if let Some(resp) = &tx.response {
+                if let Some(v) = check_message("response", &resp.headers, resp.trailers.as_ref()) {
                     return Some(v);
                 }
             }
 
-            None
-        };
-
-        if let Some(resp) = &tx.response {
-            if let Some(v) = check_message("response", &resp.headers, resp.trailers.as_ref()) {
+            if let Some(v) =
+                check_message("request", &tx.request.headers, tx.request.trailers.as_ref())
+            {
                 return Some(v);
             }
-        }
 
-        if let Some(v) = check_message("request", &tx.request.headers, tx.request.trailers.as_ref())
-        {
-            return Some(v);
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

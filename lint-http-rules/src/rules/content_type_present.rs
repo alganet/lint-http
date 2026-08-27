@@ -16,105 +16,110 @@ impl Rule for ContentTypePresent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let Some(resp) = &tx.response else {
-            return None;
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let Some(resp) = &tx.response else {
+                return None;
+            };
 
-        // The responses that carry no content, and so cannot be missing a
-        // header field that describes content. The list had three entries and
-        // needed six.
-        // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
-        let status = resp.status;
-        let bodiless_status = (100..200).contains(&status) || status == 204 || status == 304;
+            // The responses that carry no content, and so cannot be missing a
+            // header field that describes content. The list had three entries and
+            // needed six.
+            // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
+            let status = resp.status;
+            let bodiless_status = (100..200).contains(&status) || status == 204 || status == 304;
 
-        // 205 is not in § 6.3's item 1, and is bodiless all the same -- its own
-        // status definition says so in a MUST NOT. A 205 declaring a
-        // Content-Length was reported for omitting a Content-Type it has
-        // nothing to describe.
-        // cite(RFC 9110 § 15.3.6): "Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response."
-        let reset_content = status == 205;
+            // 205 is not in § 6.3's item 1, and is bodiless all the same -- its own
+            // status definition says so in a MUST NOT. A 205 declaring a
+            // Content-Length was reported for omitting a Content-Type it has
+            // nothing to describe.
+            // cite(RFC 9110 § 15.3.6): "Since the 205 status code implies that no additional content will be provided, a server MUST NOT generate content in a 205 response."
+            let reset_content = status == 205;
 
-        // A HEAD response carries no content by definition, so § 8.3's
-        // condition -- "a message containing content" -- is not met however
-        // large the resource is. Whether it *should* still carry the
-        // Content-Type a GET would have sent is a different sentence (§ 9.3.2's
-        // same-header-fields SHOULD) and a different rule's finding:
-        // `head_response_headers_match_get` compares the two
-        // transactions, and its configurable header list already names
-        // `content-type`.
-        // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
-        let head_request = tx.request.method.eq_ignore_ascii_case("HEAD");
+            // A HEAD response carries no content by definition, so § 8.3's
+            // condition -- "a message containing content" -- is not met however
+            // large the resource is. Whether it *should* still carry the
+            // Content-Type a GET would have sent is a different sentence (§ 9.3.2's
+            // same-header-fields SHOULD) and a different rule's finding:
+            // `head_response_headers_match_get` compares the two
+            // transactions, and its configurable header list already names
+            // `content-type`.
+            // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            let head_request = tx.request.method.eq_ignore_ascii_case("HEAD");
 
-        // And a 2xx to CONNECT is a tunnel: the octets after the header section
-        // are not content and no media type describes them.
-        // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
-        let tunnelling =
-            tx.request.method.eq_ignore_ascii_case("CONNECT") && (200..300).contains(&status);
+            // And a 2xx to CONNECT is a tunnel: the octets after the header section
+            // are not content and no media type describes them.
+            // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
+            let tunnelling =
+                tx.request.method.eq_ignore_ascii_case("CONNECT") && (200..300).contains(&status);
 
-        if bodiless_status || reset_content || head_request || tunnelling {
-            return None;
-        }
-
-        if resp.headers.contains_key("content-type") {
-            return None;
-        }
-
-        // The requirement is conditioned on the message *containing content*,
-        // and the transaction records how many octets arrived. The rule
-        // inferred it from header fields instead, and one of the three
-        // inferences asserted a body from the *absence* of information: a 2xx
-        // with no Content-Length was taken to have one. That is backwards --
-        // § 6.3's last item says a response that declares no length is
-        // delimited by the connection closing, which says nothing about
-        // whether any octets arrive, and over HTTP/2 or HTTP/3 an ordinary
-        // empty 200 carries no Content-Length at all. Every such response was
-        // reported.
-        // cite(RFC 9112 § 6.3): "Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection."
-        //
-        // So the observation wins where there is one. `body_length` is `None`
-        // only on the paths that never captured a body, and there the header
-        // evidence is all there is -- but only the two signals that *assert*
-        // content, never the absence of one.
-        let has_content = match resp.body_length {
-            Some(n) => n > 0,
-            None => {
-                let declared = crate::helpers::headers::validate_content_length(&resp.headers)
-                    .ok()
-                    .flatten();
-                declared.is_some_and(|n| n > 0)
-                    || resp.headers.contains_key(hyper::header::TRANSFER_ENCODING)
+            if bodiless_status || reset_content || head_request || tunnelling {
+                return None;
             }
+
+            if resp.headers.contains_key("content-type") {
+                return None;
+            }
+
+            // The requirement is conditioned on the message *containing content*,
+            // and the transaction records how many octets arrived. The rule
+            // inferred it from header fields instead, and one of the three
+            // inferences asserted a body from the *absence* of information: a 2xx
+            // with no Content-Length was taken to have one. That is backwards --
+            // § 6.3's last item says a response that declares no length is
+            // delimited by the connection closing, which says nothing about
+            // whether any octets arrive, and over HTTP/2 or HTTP/3 an ordinary
+            // empty 200 carries no Content-Length at all. Every such response was
+            // reported.
+            // cite(RFC 9112 § 6.3): "Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection."
+            //
+            // So the observation wins where there is one. `body_length` is `None`
+            // only on the paths that never captured a body, and there the header
+            // evidence is all there is -- but only the two signals that *assert*
+            // content, never the absence of one.
+            let has_content = match resp.body_length {
+                Some(n) => n > 0,
+                None => {
+                    let declared = crate::helpers::headers::validate_content_length(&resp.headers)
+                        .ok()
+                        .flatten();
+                    declared.is_some_and(|n| n > 0)
+                        || resp.headers.contains_key(hyper::header::TRANSFER_ENCODING)
+                }
+            };
+
+            // The requirement, at last quoted. It is a **SHOULD**, and it carries
+            // an exception the rule cannot evaluate: a sender that does not know
+            // the media type is excused. Nothing on the wire distinguishes "did not
+            // know" from "did not bother", so this reports both, and the
+            // description says so rather than implying a MUST.
+            // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
+            // cite(RFC 9110 § 8.3): "Content-Type = media-type"
+            //
+            // Omitting it is not a framing error, and § 8.3 gives the recipient two
+            // ways to proceed -- which is exactly why this is worth reporting
+            // rather than shrugging at. The second of those ways is content
+            // sniffing, and § 8.3 spends a paragraph on what it costs:
+            // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
+            // cite(RFC 9110 § 8.3): "This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation")."
+            if has_content {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Response contains content but no Content-Type header".into(),
+                });
+            }
+
+            None
         };
-
-        // The requirement, at last quoted. It is a **SHOULD**, and it carries
-        // an exception the rule cannot evaluate: a sender that does not know
-        // the media type is excused. Nothing on the wire distinguishes "did not
-        // know" from "did not bother", so this reports both, and the
-        // description says so rather than implying a MUST.
-        // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
-        // cite(RFC 9110 § 8.3): "Content-Type = media-type"
-        //
-        // Omitting it is not a framing error, and § 8.3 gives the recipient two
-        // ways to proceed -- which is exactly why this is worth reporting
-        // rather than shrugging at. The second of those ways is content
-        // sniffing, and § 8.3 spends a paragraph on what it costs:
-        // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
-        // cite(RFC 9110 § 8.3): "This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation")."
-        if has_content {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Response contains content but no Content-Type header".into(),
-            });
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

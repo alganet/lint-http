@@ -201,63 +201,68 @@ impl Rule for RefreshHeaderSyntax {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        let lines = resp.headers.get_all("refresh");
-        let count = lines.iter().count();
-        if count == 0 {
-            return None;
-        }
+            let lines = resp.headers.get_all("refresh");
+            let count = lines.iter().count();
+            if count == 0 {
+                return None;
+            }
 
-        // cite(HTML Document Lifecycle § 7.5.1): "We do not currently have a spec for how to handle multiple `Refresh` headers."
-        // cite(Fetch § 2.2.2): "Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20"
-        // The processing model is handed one string, and that string is the
-        // combination of every field line — so HTML's note is not about a choice
-        // between the lines, it is about a value none of them carries. Nothing is
-        // measured after this: judging the first line would judge something no
-        // recipient reads.
-        if count > 1 {
-            return Some(Violation {
+            // cite(HTML Document Lifecycle § 7.5.1): "We do not currently have a spec for how to handle multiple `Refresh` headers."
+            // cite(Fetch § 2.2.2): "Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20"
+            // The processing model is handed one string, and that string is the
+            // combination of every field line — so HTML's note is not about a choice
+            // between the lines, it is about a value none of them carries. Nothing is
+            // measured after this: judging the first line would judge something no
+            // recipient reads.
+            if count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Response carries {count} Refresh header field lines; HTML specifies no \
+                         handling for more than one, so what a recipient does with them is not \
+                         interoperable"
+                    ),
+                });
+            }
+
+            let raw = lines.iter().next()?.as_bytes();
+            // cite(HTML Document Lifecycle § 7.5.1): "Let value be the isomorphic decoding of the value of the header."
+            // cite(Infra § 4.5): "To isomorphic decode a byte sequence input, return a string whose code point length is equal to input’s length and whose code points have the same values as the values of input’s bytes, in the same order."
+            // Not `to_str()`. Every octet becomes the code point of the same value,
+            // so an `obs-text` byte reaches the check that owns it — `%xE9` is a URL
+            // code point and `%x85` is not, and a UTF-8 decode cannot tell them
+            // apart because it refuses both.
+            let decoded: String = raw.iter().map(|&b| b as char).collect();
+
+            // cite(RFC 9110 §5.5): "A field value does not include leading or trailing whitespace."
+            // HTTP's whitespace, not Infra's: the octets a sender may pad with are
+            // SP and HTAB, and `str::trim` would also eat `%xA0`, which is `obs-text`
+            // and belongs to the value.
+            let value = decoded.trim_matches(|c| c == ' ' || c == '\t');
+
+            // cite(HTML Speculative Loading § 7.8): "It takes the same value and works largely the same."
+            // The conformance requirement `refresh_value_error` implements is written
+            // for the `meta` pragma's content attribute; this is the sentence that
+            // makes it this field's requirement too.
+            refresh_value_error(value).map(|why| Violation {
                 rule: self.id().into(),
                 severity: ctx.severity,
-                message: format!(
-                    "Response carries {count} Refresh header field lines; HTML specifies no \
-                     handling for more than one, so what a recipient does with them is not \
-                     interoperable"
-                ),
-            });
-        }
-
-        let raw = lines.iter().next()?.as_bytes();
-        // cite(HTML Document Lifecycle § 7.5.1): "Let value be the isomorphic decoding of the value of the header."
-        // cite(Infra § 4.5): "To isomorphic decode a byte sequence input, return a string whose code point length is equal to input’s length and whose code points have the same values as the values of input’s bytes, in the same order."
-        // Not `to_str()`. Every octet becomes the code point of the same value,
-        // so an `obs-text` byte reaches the check that owns it — `%xE9` is a URL
-        // code point and `%x85` is not, and a UTF-8 decode cannot tell them
-        // apart because it refuses both.
-        let decoded: String = raw.iter().map(|&b| b as char).collect();
-
-        // cite(RFC 9110 §5.5): "A field value does not include leading or trailing whitespace."
-        // HTTP's whitespace, not Infra's: the octets a sender may pad with are
-        // SP and HTAB, and `str::trim` would also eat `%xA0`, which is `obs-text`
-        // and belongs to the value.
-        let value = decoded.trim_matches(|c| c == ' ' || c == '\t');
-
-        // cite(HTML Speculative Loading § 7.8): "It takes the same value and works largely the same."
-        // The conformance requirement `refresh_value_error` implements is written
-        // for the `meta` pragma's content attribute; this is the sentence that
-        // makes it this field's requirement too.
-        refresh_value_error(value).map(|why| Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!("Refresh header value '{value}': {why}"),
-        })
+                message: format!("Refresh header value '{value}': {why}"),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

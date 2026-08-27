@@ -93,52 +93,57 @@ impl Rule for ClearSiteDataPresent {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only check successful responses. This 2xx gate is the rule's own tolerance,
-        // not a specified scope: the spec processes the header on any response, but a
-        // failed sign-out (4xx/5xx) did not end the session, so no clearing is expected.
-        let Some(resp) = &tx.response else {
-            return None;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only check successful responses. This 2xx gate is the rule's own tolerance,
+            // not a specified scope: the spec processes the header on any response, but a
+            // failed sign-out (4xx/5xx) did not end the session, so no clearing is expected.
+            let Some(resp) = &tx.response else {
+                return None;
+            };
+            let status = resp.status;
+            if !(200..300).contains(&status) {
+                return None;
+            }
+
+            // Parse config only after the cheap response/status guards — non-2xx
+            // responses (redirects, errors) skip the paths allocation entirely.
+            let config: &ClearSiteDataConfig = ctx.state();
+
+            // Check if the current resource path matches any configured path
+            let resource_path = extract_path_from_resource(&tx.request.uri);
+
+            // Check if resource path matches any configured path
+            let is_logout_path = config.paths.contains(&resource_path);
+
+            // Which paths are logout endpoints is configuration, not specification — no
+            // document knows that. The pattern itself, though, is the spec's own opening
+            // example: a sign-out endpoint is where the header is expected.
+            // cite(Clear-Site-Data): "A user signs out of Super Secret Social Network via a CSRF-protected POST to https://supersecretsocialnetwork.example.com/logout, and the site author wishes to ensure that locally stored data is removed as a result"
+            // What the specification supplies is what the header is for, and the reason a
+            // sign-out that omits it leaves the session's data behind.
+            // cite(Clear-Site-Data § 3.1): "The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types."
+            if is_logout_path && !resp.headers.contains_key("clear-site-data") {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: config.severity,
+                    message: format!(
+                        "Logout endpoint '{}' should include Clear-Site-Data header to properly clear client-side storage",
+                        resource_path
+                    ),
+                })
+            } else {
+                None
+            }
         };
-        let status = resp.status;
-        if !(200..300).contains(&status) {
-            return None;
-        }
-
-        // Parse config only after the cheap response/status guards — non-2xx
-        // responses (redirects, errors) skip the paths allocation entirely.
-        let config: &ClearSiteDataConfig = ctx.state();
-
-        // Check if the current resource path matches any configured path
-        let resource_path = extract_path_from_resource(&tx.request.uri);
-
-        // Check if resource path matches any configured path
-        let is_logout_path = config.paths.contains(&resource_path);
-
-        // Which paths are logout endpoints is configuration, not specification — no
-        // document knows that. The pattern itself, though, is the spec's own opening
-        // example: a sign-out endpoint is where the header is expected.
-        // cite(Clear-Site-Data): "A user signs out of Super Secret Social Network via a CSRF-protected POST to https://supersecretsocialnetwork.example.com/logout, and the site author wishes to ensure that locally stored data is removed as a result"
-        // What the specification supplies is what the header is for, and the reason a
-        // sign-out that omits it leaves the session's data behind.
-        // cite(Clear-Site-Data § 3.1): "The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types."
-        if is_logout_path && !resp.headers.contains_key("clear-site-data") {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message: format!(
-                    "Logout endpoint '{}' should include Clear-Site-Data header to properly clear client-side storage",
-                    resource_path
-                ),
-            })
-        } else {
-            None
-        }
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

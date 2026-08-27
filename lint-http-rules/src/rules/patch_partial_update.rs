@@ -34,74 +34,81 @@ impl Rule for PatchPartialUpdate {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The method token is case-sensitive, so the comparison is exact: a
-        // request whose method is `patch` did not use PATCH, it used a method
-        // with no defined semantics, and RFC 5789 § 2 is not a sentence about
-        // it. `request_method_token_valid` is the rule that reports the
-        // spelling.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        // cite(RFC 5789 § 2): "The PATCH method requests that a set of changes described in the request entity be applied to the resource identified by the Request-URI."
-        if tx.request.method != "PATCH" {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The method token is case-sensitive, so the comparison is exact: a
+            // request whose method is `patch` did not use PATCH, it used a method
+            // with no defined semantics, and RFC 5789 § 2 is not a sentence about
+            // it. `request_method_token_valid` is the rule that reports the
+            // spelling.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            // cite(RFC 5789 § 2): "The PATCH method requests that a set of changes described in the request entity be applied to the resource identified by the Request-URI."
+            if tx.request.method != "PATCH" {
+                return None;
+            }
 
-        // The requirement's condition is that the message *contains content*,
-        // which is what makes this the gate rather than a header check. A
-        // framing field is not the answer: `Transfer-Encoding` says how the
-        // octets were delimited, not that there were any, and over HTTP/2 and
-        // HTTP/3 content arrives with no framing field at all. The shared
-        // helper carries § 6.4's definition of content and reads the captured
-        // count first, falling back to the sender's declared length only where
-        // nothing was captured.
-        // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
-        let evidence =
-            crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)?;
+            // The requirement's condition is that the message *contains content*,
+            // which is what makes this the gate rather than a header check. A
+            // framing field is not the answer: `Transfer-Encoding` says how the
+            // octets were delimited, not that there were any, and over HTTP/2 and
+            // HTTP/3 content arrives with no framing field at all. The shared
+            // helper carries § 6.4's definition of content and reads the captured
+            // count first, falling back to the sender's declared length only where
+            // nothing was captured.
+            // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
+            let evidence = crate::helpers::headers::content_evidence(
+                &tx.request.headers,
+                tx.request.body_length,
+            )?;
 
-        // Presence is the whole test, so `contains_key` answers it and no
-        // decode is needed. A `Content-Type` whose octets are not visible ASCII
-        // is a field that is *there*; what is wrong with it is
-        // `content_type_valid`'s finding, not this rule's --
-        // confirmed by running that rule over one, rather than by reading it.
-        if tx.request.headers.contains_key("content-type") {
-            // The rule stops here, and this is where it stops. Whether the
-            // named media type is a *patch* format is a question no sentence
-            // answers from a lone request: § 2 says there is no format
-            // implementations must support, so there is no set to compare
-            // against, and nothing defines a naming convention -- the document's
-            // own examples are `application/example` and `text/example`. What a
-            // particular server accepts is discovered rather than spelled, and
-            // RFC 9110 names the mechanism, which is a *response* field.
-            // `patch_method_content_type_match` is the rule that holds
-            // one and can therefore ask the question.
-            // cite(RFC 5789 § 2): "Therefore, there is no single default patch document format that implementations are required to support."
-            // cite(RFC 9110 § 12.3): "Similarly, Section 3.1 of [RFC5789] defines the "Accept-Patch" response header field, which allows discovery of which content types are accepted in PATCH requests."
-            return None;
-        }
+            // Presence is the whole test, so `contains_key` answers it and no
+            // decode is needed. A `Content-Type` whose octets are not visible ASCII
+            // is a field that is *there*; what is wrong with it is
+            // `content_type_valid`'s finding, not this rule's --
+            // confirmed by running that rule over one, rather than by reading it.
+            if tx.request.headers.contains_key("content-type") {
+                // The rule stops here, and this is where it stops. Whether the
+                // named media type is a *patch* format is a question no sentence
+                // answers from a lone request: § 2 says there is no format
+                // implementations must support, so there is no set to compare
+                // against, and nothing defines a naming convention -- the document's
+                // own examples are `application/example` and `text/example`. What a
+                // particular server accepts is discovered rather than spelled, and
+                // RFC 9110 names the mechanism, which is a *response* field.
+                // `patch_method_content_type_match` is the rule that holds
+                // one and can therefore ask the question.
+                // cite(RFC 5789 § 2): "Therefore, there is no single default patch document format that implementations are required to support."
+                // cite(RFC 9110 § 12.3): "Similarly, Section 3.1 of [RFC5789] defines the "Accept-Patch" response header field, which allows discovery of which content types are accepted in PATCH requests."
+                return None;
+            }
 
-        // What the absence costs. § 2 makes the media type the thing that says
-        // which instructions the server is holding -- it is how the patch
-        // document is identified, and the server is required to judge whether
-        // the one it received fits the resource. § 2.2 offers it a status code
-        // for the answer "no" -- permissively, "can be specified", which is
-        // where the strength of this finding stops. Without the field, § 8.3
-        // leaves the server two ways to proceed, and both are guesses.
-        // cite(RFC 5789 § 2): "The set of changes is represented in a format called a "patch document" identified by a media type."
-        // cite(RFC 5789 § 2): "Servers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI."
-        // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
-        // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "PATCH request carries content ({evidence}) with no Content-Type naming the patch document format"
-            ),
-        })
+            // What the absence costs. § 2 makes the media type the thing that says
+            // which instructions the server is holding -- it is how the patch
+            // document is identified, and the server is required to judge whether
+            // the one it received fits the resource. § 2.2 offers it a status code
+            // for the answer "no" -- permissively, "can be specified", which is
+            // where the strength of this finding stops. Without the field, § 8.3
+            // leaves the server two ways to proceed, and both are guesses.
+            // cite(RFC 5789 § 2): "The set of changes is represented in a format called a "patch document" identified by a media type."
+            // cite(RFC 5789 § 2): "Servers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI."
+            // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
+            // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "PATCH request carries content ({evidence}) with no Content-Type naming the patch document format"
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

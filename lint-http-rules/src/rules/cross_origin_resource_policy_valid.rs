@@ -16,78 +16,83 @@ impl Rule for CrossOriginResourcePolicyValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // CORP is a response-only header per spec; ignore requests
-        let resp = if let Some(resp) = &tx.response {
-            resp
-        } else {
-            return None;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // CORP is a response-only header per spec; ignore requests
+            let resp = if let Some(resp) = &tx.response {
+                resp
+            } else {
+                return None;
+            };
+            let headers = &resp.headers;
+
+            let count = headers
+                .get_all("cross-origin-resource-policy")
+                .iter()
+                .count();
+            if count == 0 {
+                return None;
+            }
+
+            if count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Multiple Cross-Origin-Resource-Policy header fields present".into(),
+                });
+            }
+
+            let val = match crate::helpers::headers::get_header_str(
+                headers,
+                "cross-origin-resource-policy",
+            ) {
+                Some(v) => v.trim(),
+                None => return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message:
+                        "Cross-Origin-Resource-Policy header contains non-ASCII or control characters"
+                            .into(),
+                }),
+            };
+
+            // Must not be a comma-separated list
+            if crate::helpers::headers::list_members(val).count() != 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Cross-Origin-Resource-Policy must be a single value".into(),
+                });
+            }
+
+            // Acceptable values: same-site, same-origin, cross-origin — and the ABNF says
+            // case-sensitive, so this comparison is too. It used to be case-insensitive, which
+            // called `SAME-ORIGIN` valid; a user agent does not. It sets an unrecognized policy
+            // to null and fetches the resource as if the header were never sent, so accepting
+            // the miscased form told the operator a protection was on while it was off.
+            // cite(Fetch § 3.7): "Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive"
+            // cite(Fetch § 3.7): "If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null."
+            if val == "same-site" || val == "same-origin" || val == "cross-origin" {
+                return None;
+            }
+
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "Cross-Origin-Resource-Policy contains unsupported value: '{}'",
+                    val
+                ),
+            })
         };
-        let headers = &resp.headers;
-
-        let count = headers
-            .get_all("cross-origin-resource-policy")
-            .iter()
-            .count();
-        if count == 0 {
-            return None;
-        }
-
-        if count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple Cross-Origin-Resource-Policy header fields present".into(),
-            });
-        }
-
-        let val = match crate::helpers::headers::get_header_str(
-            headers,
-            "cross-origin-resource-policy",
-        ) {
-            Some(v) => v.trim(),
-            None => return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message:
-                    "Cross-Origin-Resource-Policy header contains non-ASCII or control characters"
-                        .into(),
-            }),
-        };
-
-        // Must not be a comma-separated list
-        if crate::helpers::headers::list_members(val).count() != 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Cross-Origin-Resource-Policy must be a single value".into(),
-            });
-        }
-
-        // Acceptable values: same-site, same-origin, cross-origin — and the ABNF says
-        // case-sensitive, so this comparison is too. It used to be case-insensitive, which
-        // called `SAME-ORIGIN` valid; a user agent does not. It sets an unrecognized policy
-        // to null and fetches the resource as if the header were never sent, so accepting
-        // the miscased form told the operator a protection was on while it was off.
-        // cite(Fetch § 3.7): "Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive"
-        // cite(Fetch § 3.7): "If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null."
-        if val == "same-site" || val == "same-origin" || val == "cross-origin" {
-            return None;
-        }
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Cross-Origin-Resource-Policy contains unsupported value: '{}'",
-                val
-            ),
-        })
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

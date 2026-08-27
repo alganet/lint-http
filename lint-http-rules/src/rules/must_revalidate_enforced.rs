@@ -43,86 +43,91 @@ impl Rule for MustRevalidateEnforced {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // find the most recent past response that contained must-revalidate
-        let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
-        for past in history.iter() {
-            if let Some(resp) = &past.response {
-                if header_has_must_revalidate(&resp.headers) {
-                    candidate = Some(past);
-                    break;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // find the most recent past response that contained must-revalidate
+            let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
+            for past in history.iter() {
+                if let Some(resp) = &past.response {
+                    if header_has_must_revalidate(&resp.headers) {
+                        candidate = Some(past);
+                        break;
+                    }
                 }
             }
-        }
 
-        let prev_tx = candidate?;
+            let prev_tx = candidate?;
 
-        // Freshness lifetime advertised by the response. The helper owns the §4.2.1
-        // derivation (max-age wins, else Expires − Date), returning zero when no explicit
-        // lifetime is available.
-        let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
-            &prev_tx.response.as_ref().unwrap().headers,
-            prev_tx.timestamp,
-        );
+            // Freshness lifetime advertised by the response. The helper owns the §4.2.1
+            // derivation (max-age wins, else Expires − Date), returning zero when no explicit
+            // lifetime is available.
+            let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
+                &prev_tx.response.as_ref().unwrap().headers,
+                prev_tx.timestamp,
+            );
 
-        // Estimate current age as the Age header (if numeric) plus elapsed seconds. This is a
-        // simplification of §4.2.3's full algorithm (it omits response_delay and the Date-based
-        // apparent_age term); adequate for staleness detection. A non-numeric or absurd Age is
-        // treated as zero.
-        let mut age_val: i64 = 0;
-        if let Some(resp) = &prev_tx.response {
-            if let Some(hv) = resp.headers.get("age") {
-                if let Ok(s) = hv.to_str() {
-                    if let Ok(n) = s.trim().parse::<i64>() {
-                        if n >= 0 {
-                            age_val = n;
+            // Estimate current age as the Age header (if numeric) plus elapsed seconds. This is a
+            // simplification of §4.2.3's full algorithm (it omits response_delay and the Date-based
+            // apparent_age term); adequate for staleness detection. A non-numeric or absurd Age is
+            // treated as zero.
+            let mut age_val: i64 = 0;
+            if let Some(resp) = &prev_tx.response {
+                if let Some(hv) = resp.headers.get("age") {
+                    if let Ok(s) = hv.to_str() {
+                        if let Ok(n) = s.trim().parse::<i64>() {
+                            if n >= 0 {
+                                age_val = n;
+                            }
                         }
                     }
                 }
             }
-        }
-        let elapsed = tx
-            .timestamp
-            .signed_duration_since(prev_tx.timestamp)
-            .num_seconds();
-        let elapsed = if elapsed < 0 { 0 } else { elapsed };
-        let current_age = age_val.saturating_add(elapsed);
+            let elapsed = tx
+                .timestamp
+                .signed_duration_since(prev_tx.timestamp)
+                .num_seconds();
+            let elapsed = if elapsed < 0 { 0 } else { elapsed };
+            let current_age = age_val.saturating_add(elapsed);
 
-        // A conditional request (carrying a precondition header field) is how a client
-        // revalidates — the "successfully validated by the origin" that §5.2.2.2 requires.
-        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
-        let has_conditional = tx.request.headers.contains_key("if-none-match")
-            || tx.request.headers.contains_key("if-modified-since");
+            // A conditional request (carrying a precondition header field) is how a client
+            // revalidates — the "successfully validated by the origin" that §5.2.2.2 requires.
+            // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
+            let has_conditional = tx.request.headers.contains_key("if-none-match")
+                || tx.request.headers.contains_key("if-modified-since");
 
-        // A response is stale once its age reaches its freshness lifetime. §4.2's normative
-        // calculation is `response_is_fresh = (freshness_lifetime > current_age)` (a sourcecode
-        // block, not machine-citeable), so stale is `>=` — which also makes a zero lifetime
-        // (max-age=0 or no explicit freshness) immediately stale.
-        // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has."
-        if current_age >= freshness_lifetime && !has_conditional {
-            // warn only if there was a validator on the original response
-            let resp = prev_tx.response.as_ref().unwrap();
-            let has_validator =
-                resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
-            // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
-            if has_validator {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Cached response with 'must-revalidate' directive is stale (age {} >= freshness {}) and was reused without conditional request",
-                        current_age, freshness_lifetime
-                    ),
-                });
+            // A response is stale once its age reaches its freshness lifetime. §4.2's normative
+            // calculation is `response_is_fresh = (freshness_lifetime > current_age)` (a sourcecode
+            // block, not machine-citeable), so stale is `>=` — which also makes a zero lifetime
+            // (max-age=0 or no explicit freshness) immediately stale.
+            // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has."
+            if current_age >= freshness_lifetime && !has_conditional {
+                // warn only if there was a validator on the original response
+                let resp = prev_tx.response.as_ref().unwrap();
+                let has_validator =
+                    resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
+                // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
+                if has_validator {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Cached response with 'must-revalidate' directive is stale (age {} >= freshness {}) and was reused without conditional request",
+                            current_age, freshness_lifetime
+                        ),
+                    });
+                }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

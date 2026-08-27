@@ -364,60 +364,65 @@ impl Rule for TeHeaderValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        if let Some(resp) = &tx.response {
-            // The field is defined in § 10.1, whose subject is stated in its first
-            // sentence, and § 10.1.4 defines this one as describing the *client*.
-            // Nothing measures a `TE` in a response, because no sentence gives one a
-            // meaning there — which is also the whole of what this finding claims;
-            // `description()` says so, since a reader is otherwise entitled to read a
-            // finding as the report of a prohibition. Presence is asked of the
-            // headers rather than of a decoded value: a value carrying `obs-text` is
-            // still a `TE` field on the wire, and reading it through `to_str` made
-            // the response look like one that has none.
-            //
-            // Asked only of the versions that state no prohibition of their own.
-            // On HTTP/2 and HTTP/3 the exception restoring `TE` is written for a
-            // *request*, so a response carrying one is a connection-specific
-            // field and the message is malformed —
-            // `no_connection_specific_fields` reports that, with the
-            // version's own sentence. Reporting it here as well would be two
-            // findings for one field, and the weaker of the two would be the one
-            // saying RFC 9110 merely gives it no meaning.
-            //
-            // cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
-            // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
-            // The gate is a condition on this branch and not an early return:
-            // the request-side checks below are this rule's main body, and a
-            // `return None` here would have taken them with it.
-            if !matches!(crate::http_version::major(&resp.version), Some(2 | 3))
-                && resp.headers.contains_key("te")
-            {
-                let value =
-                    combined_field_value_as_written(&resp.headers, "te").unwrap_or_default();
-                return Some(Violation {
-                    rule: self.id().to_string(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Response carries a TE header field: '{}'; TE is a request context field describing the client's capabilities, and RFC 9110 gives it no meaning in a response",
-                        value.escape_debug()
-                    ),
-                });
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            if let Some(resp) = &tx.response {
+                // The field is defined in § 10.1, whose subject is stated in its first
+                // sentence, and § 10.1.4 defines this one as describing the *client*.
+                // Nothing measures a `TE` in a response, because no sentence gives one a
+                // meaning there — which is also the whole of what this finding claims;
+                // `description()` says so, since a reader is otherwise entitled to read a
+                // finding as the report of a prohibition. Presence is asked of the
+                // headers rather than of a decoded value: a value carrying `obs-text` is
+                // still a `TE` field on the wire, and reading it through `to_str` made
+                // the response look like one that has none.
+                //
+                // Asked only of the versions that state no prohibition of their own.
+                // On HTTP/2 and HTTP/3 the exception restoring `TE` is written for a
+                // *request*, so a response carrying one is a connection-specific
+                // field and the message is malformed —
+                // `no_connection_specific_fields` reports that, with the
+                // version's own sentence. Reporting it here as well would be two
+                // findings for one field, and the weaker of the two would be the one
+                // saying RFC 9110 merely gives it no meaning.
+                //
+                // cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
+                // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
+                // The gate is a condition on this branch and not an early return:
+                // the request-side checks below are this rule's main body, and a
+                // `return None` here would have taken them with it.
+                if !matches!(crate::http_version::major(&resp.version), Some(2 | 3))
+                    && resp.headers.contains_key("te")
+                {
+                    let value =
+                        combined_field_value_as_written(&resp.headers, "te").unwrap_or_default();
+                    return Some(Violation {
+                        rule: self.id().to_string(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Response carries a TE header field: '{}'; TE is a request context field describing the client's capabilities, and RFC 9110 gives it no meaning in a response",
+                            value.escape_debug()
+                        ),
+                    });
+                }
             }
-        }
 
-        let value = combined_field_value_as_written(&tx.request.headers, "te")?;
+            let value = combined_field_value_as_written(&tx.request.headers, "te")?;
 
-        if let Some(v) = self.check_members(&value, ctx.severity) {
-            return Some(v);
-        }
+            if let Some(v) = self.check_members(&value, ctx.severity) {
+                return Some(v);
+            }
 
-        self.check_connection_option(tx, ctx.severity)
+            self.check_connection_option(tx, ctx.severity)
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

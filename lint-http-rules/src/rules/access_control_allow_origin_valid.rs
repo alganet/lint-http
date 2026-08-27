@@ -16,81 +16,86 @@ impl Rule for AccessControlAllowOriginValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        let headers = &resp.headers;
+            let headers = &resp.headers;
 
-        let acao_count = headers
-            .get_all("access-control-allow-origin")
-            .iter()
-            .count();
-        if acao_count == 0 {
-            return None;
-        }
+            let acao_count = headers
+                .get_all("access-control-allow-origin")
+                .iter()
+                .count();
+            if acao_count == 0 {
+                return None;
+            }
 
-        // Multiple header fields are not allowed for Access-Control-Allow-Origin: the
-        // header carries one value — an echoed origin, `null`, or `*` — not a list.
-        // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
-        if acao_count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into(),
-            });
-        }
+            // Multiple header fields are not allowed for Access-Control-Allow-Origin: the
+            // header carries one value — an echoed origin, `null`, or `*` — not a list.
+            // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
+            if acao_count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into(),
+                });
+            }
 
-        // There is a single header field; validate its single value semantics and origin syntax.
-        let hv = headers
-            .get_all("access-control-allow-origin")
-            .iter()
-            .next()
-            .unwrap();
-        let s = match hv.to_str() {
-            Ok(v) => v.trim(),
-            Err(_) => return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message:
-                    "Access-Control-Allow-Origin header contains non-ASCII or control characters"
-                        .into(),
-            }),
+            // There is a single header field; validate its single value semantics and origin syntax.
+            let hv = headers
+                .get_all("access-control-allow-origin")
+                .iter()
+                .next()
+                .unwrap();
+            let s = match hv.to_str() {
+                Ok(v) => v.trim(),
+                Err(_) => return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message:
+                        "Access-Control-Allow-Origin header contains non-ASCII or control characters"
+                            .into(),
+                }),
+            };
+
+            // Must be a single value (not a comma-separated list)
+            let members: Vec<String> = crate::helpers::headers::list_members(s)
+                .map(|m| m.to_string())
+                .collect();
+            if members.len() != 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Access-Control-Allow-Origin must be a single value ('*', 'null', or a serialized origin)".into(),
+                });
+            }
+
+            let member = members.into_iter().next().unwrap();
+            if member == "*" || member == "null" {
+                return None;
+            }
+
+            if !crate::helpers::headers::is_valid_serialized_origin(&member) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Access-Control-Allow-Origin contains invalid origin: '{}'",
+                        member
+                    ),
+                });
+            }
+
+            None
         };
-
-        // Must be a single value (not a comma-separated list)
-        let members: Vec<String> = crate::helpers::headers::list_members(s)
-            .map(|m| m.to_string())
-            .collect();
-        if members.len() != 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Access-Control-Allow-Origin must be a single value ('*', 'null', or a serialized origin)".into(),
-            });
-        }
-
-        let member = members.into_iter().next().unwrap();
-        if member == "*" || member == "null" {
-            return None;
-        }
-
-        if !crate::helpers::headers::is_valid_serialized_origin(&member) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Access-Control-Allow-Origin contains invalid origin: '{}'",
-                    member
-                ),
-            });
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

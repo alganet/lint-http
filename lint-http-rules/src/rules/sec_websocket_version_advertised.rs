@@ -105,38 +105,43 @@ impl Rule for SecWebsocketVersionAdvertised {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // Only an opening handshake's answer is measured, and the shared reader
-        // is what decides that a request is one — the same gate the two rules
-        // reading the rest of this handshake use, so a message that is a
-        // handshake to them and not to this rule is not a gap anyone has to
-        // find. Above HTTP/1.x the handshake is an extended CONNECT and this
-        // field is not part of it.
-        crate::helpers::websocket::opening_handshake_version(&tx.request)?;
+            // Only an opening handshake's answer is measured, and the shared reader
+            // is what decides that a request is one — the same gate the two rules
+            // reading the rest of this handshake use, so a message that is a
+            // handshake to them and not to this rule is not a gap anyone has to
+            // find. Above HTTP/1.x the handshake is an extended CONNECT and this
+            // field is not part of it.
+            crate::helpers::websocket::opening_handshake_version(&tx.request)?;
 
-        // The request's version is read as one value: `Sec-WebSocket-Version-Client
-        // = version` is a single `version`, not a list, so a request carrying
-        // two field lines has written something this grammar does not derive —
-        // and `sec_websocket_headers_consistent` is the rule that says
-        // so. Here the joined value simply matches no member, which leaves the
-        // contradiction finding unstated rather than falsely stated.
-        let requested =
-            combined_field_value_as_written(&tx.request.headers, "sec-websocket-version")
-                .map(|raw| trim_ows(&raw).to_string());
+            // The request's version is read as one value: `Sec-WebSocket-Version-Client
+            // = version` is a single `version`, not a list, so a request carrying
+            // two field lines has written something this grammar does not derive —
+            // and `sec_websocket_headers_consistent` is the rule that says
+            // so. Here the joined value simply matches no member, which leaves the
+            // contradiction finding unstated rather than falsely stated.
+            let requested =
+                combined_field_value_as_written(&tx.request.headers, "sec-websocket-version")
+                    .map(|raw| trim_ows(&raw).to_string());
 
-        let message = Self::defect(&resp.headers, requested.as_deref())?;
+            let message = Self::defect(&resp.headers, requested.as_deref())?;
 
-        Some(self.violation(
-            ctx.severity,
-            format!("The response to a WebSocket opening handshake {message}"),
-        ))
+            Some(self.violation(
+                ctx.severity,
+                format!("The response to a WebSocket opening handshake {message}"),
+            ))
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -40,111 +40,116 @@ impl Rule for MaxAgeDirectiveValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // locate most recent prior response with a usable max-age
-        let mut candidate: Option<(&crate::http_transaction::HttpTransaction, i64)> = None;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // locate most recent prior response with a usable max-age
+            let mut candidate: Option<(&crate::http_transaction::HttpTransaction, i64)> = None;
 
-        for past in history.iter() {
-            if let Some(resp) = &past.response {
-                // The helper owns the directive parse. Two of its behaviours matter
-                // here: it returns None when no-cache or no-store is also present —
-                // which is what this rule wants, since under those directives
-                // revalidating is required rather than wasteful — and it reads the
-                // value with an integer parse, so a max-age too large for i64 yields
-                // None and the resource is skipped rather than treated as long-lived.
-                if let Some(max_age) =
-                    crate::helpers::headers::get_cache_control_max_age(&resp.headers)
-                {
-                    candidate = Some((past, max_age));
-                    break;
+            for past in history.iter() {
+                if let Some(resp) = &past.response {
+                    // The helper owns the directive parse. Two of its behaviours matter
+                    // here: it returns None when no-cache or no-store is also present —
+                    // which is what this rule wants, since under those directives
+                    // revalidating is required rather than wasteful — and it reads the
+                    // value with an integer parse, so a max-age too large for i64 yields
+                    // None and the resource is skipped rather than treated as long-lived.
+                    if let Some(max_age) =
+                        crate::helpers::headers::get_cache_control_max_age(&resp.headers)
+                    {
+                        candidate = Some((past, max_age));
+                        break;
+                    }
                 }
             }
-        }
 
-        let (prev_tx, max_age) = candidate?;
+            let (prev_tx, max_age) = candidate?;
 
-        // Seed the age from the stored response's Age field. The i64 parse is more
-        // permissive than `delta-seconds` (it accepts a leading "+", which `1*DIGIT`
-        // does not); §5.1 would have a cache ignore an invalid Age outright, so this
-        // consumes a shape the syntax rule flags. Harmless here — the value only
-        // shifts an estimate — but the two are deliberately not the same test.
-        // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
-        let mut age_val: i64 = 0;
-        if let Some(resp) = &prev_tx.response {
-            if let Some(hv) = resp.headers.get("age") {
-                if let Ok(s) = hv.to_str() {
-                    if let Ok(n) = s.trim().parse::<i64>() {
-                        if n >= 0 {
-                            age_val = n;
+            // Seed the age from the stored response's Age field. The i64 parse is more
+            // permissive than `delta-seconds` (it accepts a leading "+", which `1*DIGIT`
+            // does not); §5.1 would have a cache ignore an invalid Age outright, so this
+            // consumes a shape the syntax rule flags. Harmless here — the value only
+            // shifts an estimate — but the two are deliberately not the same test.
+            // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
+            let mut age_val: i64 = 0;
+            if let Some(resp) = &prev_tx.response {
+                if let Some(hv) = resp.headers.get("age") {
+                    if let Ok(s) = hv.to_str() {
+                        if let Ok(n) = s.trim().parse::<i64>() {
+                            if n >= 0 {
+                                age_val = n;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        let elapsed = tx
-            .timestamp
-            .signed_duration_since(prev_tx.timestamp)
-            .num_seconds();
-        let elapsed = if elapsed < 0 { 0 } else { elapsed };
-        // current_age ≈ Age + time observed here. A deliberate simplification of
-        // §4.2.3's algorithm, which also folds in response_delay and resident_time
-        // from request/response timing this rule does not record; the clamp to ≥ 0
-        // absorbs clock skew. Adequate for a best-effort freshness estimate.
-        let current_age = age_val.saturating_add(elapsed);
+            let elapsed = tx
+                .timestamp
+                .signed_duration_since(prev_tx.timestamp)
+                .num_seconds();
+            let elapsed = if elapsed < 0 { 0 } else { elapsed };
+            // current_age ≈ Age + time observed here. A deliberate simplification of
+            // §4.2.3's algorithm, which also folds in response_delay and resident_time
+            // from request/response timing this rule does not record; the clamp to ≥ 0
+            // absorbs clock skew. Adequate for a best-effort freshness estimate.
+            let current_age = age_val.saturating_add(elapsed);
 
-        let has_conditional = tx.request.headers.contains_key("if-none-match")
-            || tx.request.headers.contains_key("if-modified-since");
+            let has_conditional = tx.request.headers.contains_key("if-none-match")
+                || tx.request.headers.contains_key("if-modified-since");
 
-        // The comparison is the max-age definition applied: an age past the advertised
-        // seconds is exactly what makes the stored response stale.
-        // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
-        // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime"
-        if current_age < max_age {
-            if has_conditional {
-                // Efficiency heuristic, not a violation: no sentence forbids revalidating
-                // early. §4.2 frames reuse-while-fresh as an opportunity ("can"), so a
-                // conditional request inside the freshness window is a wasted round-trip
-                // — which is what this reports. (`immutable` is the one directive that
-                // turns this into a SHOULD NOT, and that is a separate rule.)
-                // cite(RFC 9111 § 4.2): "When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency"
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Request revalidated resource while response is still fresh (age {} < max-age {})",
-                        current_age, max_age
-                    ),
-                });
+            // The comparison is the max-age definition applied: an age past the advertised
+            // seconds is exactly what makes the stored response stale.
+            // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
+            // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime"
+            if current_age < max_age {
+                if has_conditional {
+                    // Efficiency heuristic, not a violation: no sentence forbids revalidating
+                    // early. §4.2 frames reuse-while-fresh as an opportunity ("can"), so a
+                    // conditional request inside the freshness window is a wasted round-trip
+                    // — which is what this reports. (`immutable` is the one directive that
+                    // turns this into a SHOULD NOT, and that is a separate rule.)
+                    // cite(RFC 9111 § 4.2): "When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency"
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Request revalidated resource while response is still fresh (age {} < max-age {})",
+                            current_age, max_age
+                        ),
+                    });
+                }
+            } else if !has_conditional {
+                // only warn if there was something to validate against
+                let resp = prev_tx.response.as_ref().unwrap();
+                let has_validator =
+                    resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
+                if has_validator {
+                    // Also an efficiency heuristic: §4.3 says a cache that cannot serve a
+                    // stored response *can* revalidate, not that it must. Refetching
+                    // unconditionally is legal — it just discards the validator already held
+                    // and the 304 it could have earned.
+                    // cite(RFC 9111 § 4.3): "it can use the conditional request mechanism"
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Stale cached entry (age {} >= max-age {}) refetched without a conditional request, though a validator was available to revalidate with",
+                            current_age, max_age
+                        ),
+                    });
+                }
             }
-        } else if !has_conditional {
-            // only warn if there was something to validate against
-            let resp = prev_tx.response.as_ref().unwrap();
-            let has_validator =
-                resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
-            if has_validator {
-                // Also an efficiency heuristic: §4.3 says a cache that cannot serve a
-                // stored response *can* revalidate, not that it must. Refetching
-                // unconditionally is legal — it just discards the validator already held
-                // and the 304 it could have earned.
-                // cite(RFC 9111 § 4.3): "it can use the conditional request mechanism"
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Stale cached entry (age {} >= max-age {}) refetched without a conditional request, though a validator was available to revalidate with",
-                        current_age, max_age
-                    ),
-                });
-            }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

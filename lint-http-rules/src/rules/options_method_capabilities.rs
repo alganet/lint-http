@@ -67,105 +67,111 @@ impl Rule for OptionsMethodCapabilities {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Two sentences meet at this gate and both are load-bearing: the first
-        // is why the rule looks at OPTIONS at all, the second is why the
-        // comparison is exact. `options` is not the OPTIONS method, and a method
-        // this specification does not define has no capability-advertising
-        // semantics for a response to be measured against.
-        // cite(RFC 9110 § 9.3.7): "The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary."
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        if tx.request.method != "OPTIONS" {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Two sentences meet at this gate and both are load-bearing: the first
+            // is why the rule looks at OPTIONS at all, the second is why the
+            // comparison is exact. `options` is not the OPTIONS method, and a method
+            // this specification does not define has no capability-advertising
+            // semantics for a response to be measured against.
+            // cite(RFC 9110 § 9.3.7): "The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary."
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method != "OPTIONS" {
+                return None;
+            }
 
-        // Content, not framing: the shared measurement reads § 6.4's octet
-        // stream, so a chunked OPTIONS whose only chunk is the terminator
-        // carries none, and an OPTIONS carrying an HTTP/2 DATA frame — which
-        // declares no framing field at all — does.
-        //
-        // Absence is the finding here and nothing else is. The sentence asks for
-        // a *valid* field, and a value that is empty or is not a media type is
-        // `content_type_valid`'s — confirmed by running it, not by
-        // reading it.
-        // cite(RFC 9110 § 9.3.7): "A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type."
-        if let Some(evidence) =
-            crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)
-        {
-            if !tx.request.headers.contains_key("content-type") {
+            // Content, not framing: the shared measurement reads § 6.4's octet
+            // stream, so a chunked OPTIONS whose only chunk is the terminator
+            // carries none, and an OPTIONS carrying an HTTP/2 DATA frame — which
+            // declares no framing field at all — does.
+            //
+            // Absence is the finding here and nothing else is. The sentence asks for
+            // a *valid* field, and a value that is empty or is not a media type is
+            // `content_type_valid`'s — confirmed by running it, not by
+            // reading it.
+            // cite(RFC 9110 § 9.3.7): "A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type."
+            if let Some(evidence) = crate::helpers::headers::content_evidence(
+                &tx.request.headers,
+                tx.request.body_length,
+            ) {
+                if !tx.request.headers.contains_key("content-type") {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "OPTIONS request carries content ({evidence}) with no Content-Type header field; RFC 9110 § 9.3.7 says a client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type"
+                        ),
+                    });
+                }
+            }
+
+            let resp = tx.response.as_ref()?;
+
+            // An asterisk target names no resource, and the SHOULD below asks for
+            // headers "applicable to the target resource". There is nothing for such
+            // a response to advertise: `Allow` lists the methods of a target
+            // resource this request does not have.
+            //
+            // This reaches the asterisk over HTTP/1.1 only, and the limit is in the
+            // capture rather than here: `proxy/http3.rs` records
+            // `req.uri().to_string()` of a URI the h3 crate rebuilds from `:scheme`,
+            // `:authority` and `:path`, so a `:path` of `*` is recorded as
+            // `https://example.com*` — a string that does not even reparse to the
+            // same target (the authority swallows the asterisk). Widening the
+            // comparison would be guessing; recovering the form needs the capture to
+            // keep it. Stated in `description()` because it costs an operator a
+            // finding.
+            // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
+            // cite(RFC 9110 § 9.3.7): "If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource."
+            if tx.request.uri == "*" {
+                return None;
+            }
+
+            // "Successful" is the name of the 2xx class, so that is the range.
+            // cite(RFC 9110 § 15.3): "The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted."
+            if !(200..300).contains(&resp.status) {
+                return None;
+            }
+
+            // The SHOULD is about the class, not about `Allow`: asking for that
+            // field by name would report a server exercising § 10.2.1's MAY, and the
+            // one response where `Allow` is required is a 405, which is not 2xx and
+            // is `status_405_allow_valid`'s.
+            // cite(RFC 9110 § 10.2.1): "An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response."
+            // cite(RFC 9110 § 9.3.7): "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification."
+            if !ADVERTISED_CAPABILITIES
+                .iter()
+                .any(|(lowercase, _, in_trailers)| {
+                    resp.headers.contains_key(*lowercase)
+                        || (*in_trailers
+                            && resp
+                                .trailers
+                                .as_ref()
+                                .is_some_and(|t| t.contains_key(*lowercase)))
+                })
+            {
+                let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
                     message: format!(
-                        "OPTIONS request carries content ({evidence}) with no Content-Type header field; RFC 9110 § 9.3.7 says a client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type"
+                        "Successful OPTIONS response ({}) carries none of {}; RFC 9110 § 9.3.7 says a server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource",
+                        resp.status,
+                        named.join(", ")
                     ),
                 });
             }
-        }
 
-        let resp = tx.response.as_ref()?;
-
-        // An asterisk target names no resource, and the SHOULD below asks for
-        // headers "applicable to the target resource". There is nothing for such
-        // a response to advertise: `Allow` lists the methods of a target
-        // resource this request does not have.
-        //
-        // This reaches the asterisk over HTTP/1.1 only, and the limit is in the
-        // capture rather than here: `proxy/http3.rs` records
-        // `req.uri().to_string()` of a URI the h3 crate rebuilds from `:scheme`,
-        // `:authority` and `:path`, so a `:path` of `*` is recorded as
-        // `https://example.com*` — a string that does not even reparse to the
-        // same target (the authority swallows the asterisk). Widening the
-        // comparison would be guessing; recovering the form needs the capture to
-        // keep it. Stated in `description()` because it costs an operator a
-        // finding.
-        // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
-        // cite(RFC 9110 § 9.3.7): "If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource."
-        if tx.request.uri == "*" {
-            return None;
-        }
-
-        // "Successful" is the name of the 2xx class, so that is the range.
-        // cite(RFC 9110 § 15.3): "The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted."
-        if !(200..300).contains(&resp.status) {
-            return None;
-        }
-
-        // The SHOULD is about the class, not about `Allow`: asking for that
-        // field by name would report a server exercising § 10.2.1's MAY, and the
-        // one response where `Allow` is required is a 405, which is not 2xx and
-        // is `status_405_allow_valid`'s.
-        // cite(RFC 9110 § 10.2.1): "An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response."
-        // cite(RFC 9110 § 9.3.7): "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification."
-        if !ADVERTISED_CAPABILITIES
-            .iter()
-            .any(|(lowercase, _, in_trailers)| {
-                resp.headers.contains_key(*lowercase)
-                    || (*in_trailers
-                        && resp
-                            .trailers
-                            .as_ref()
-                            .is_some_and(|t| t.contains_key(*lowercase)))
-            })
-        {
-            let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Successful OPTIONS response ({}) carries none of {}; RFC 9110 § 9.3.7 says a server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource",
-                    resp.status,
-                    named.join(", ")
-                ),
-            });
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

@@ -170,67 +170,72 @@ impl Rule for SecWebsocketHeadersConsistent {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req = &tx.request;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req = &tx.request;
 
-        // Which captured messages are this document's opening handshake — the
-        // method, the `Upgrade` keyword and the messaging syntax — is asked of the
-        // shared gate, because `websocket_handshake_valid` measures the
-        // server's half of the same exchange and the two rules have to agree on
-        // which exchanges those are. The version it returns is read below: the
-        // second half of the sentence the method comes from is a finding, and it is
-        // this rule's.
-        let version = crate::helpers::websocket::opening_handshake_version(req)?;
+            // Which captured messages are this document's opening handshake — the
+            // method, the `Upgrade` keyword and the messaging syntax — is asked of the
+            // shared gate, because `websocket_handshake_valid` measures the
+            // server's half of the same exchange and the two rules have to agree on
+            // which exchanges those are. The version it returns is read below: the
+            // second half of the sentence the method comes from is a finding, and it is
+            // this rule's.
+            let version = crate::helpers::websocket::opening_handshake_version(req)?;
 
-        // Every gate above ends the rule, and reading the configuration is several
-        // map probes and a hash of the id -- so only a request about to be measured
-        // pays for it.
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message,
-            })
+            // Every gate above ends the rule, and reading the configuration is several
+            // map probes and a hash of the id -- so only a request about to be measured
+            // pays for it.
+            let violation = |message: String| {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message,
+                })
+            };
+
+            // The other half of the sentence the method gate quotes, and the half nobody
+            // in this catalogue was reading. The section describing how a server reads
+            // this handshake opens its list with the same requirement, and a server that
+            // finds the description unmatched is told to stop and answer with an error
+            // status -- so a `GET / HTTP/1.0` carrying `Upgrade: websocket` is a
+            // handshake that cannot succeed.
+            // cite(RFC 6455 § 4.2.1): "An HTTP/1.1 or higher GET request"
+            // cite(RFC 6455 § 4.2.1): "the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)"
+            if (version.major, version.minor) < (1, 1) {
+                return violation(format!(
+                    "This WebSocket opening handshake is sent over {version}, and RFC 6455 § 4.1 \
+                     requires the request's HTTP version to be at least 1.1"
+                ));
+            }
+
+            // The four remaining requirements, in the order § 4.1's list states them --
+            // items 6, 7, 9 and 10, with the `Origin` of item 8 declined above. One
+            // message carries one finding, so the first defect is the one reported, and
+            // taking the document's order rather than a convenient one means the finding
+            // an operator sees first is the one the list reaches first.
+            let defect = [
+                Self::connection_defect(&req.headers),
+                Self::key_defect(&req.headers),
+                Self::version_defect(&req.headers),
+                Self::subprotocol_defect(&req.headers),
+            ]
+            .into_iter()
+            .flatten()
+            .next()?;
+
+            violation(format!(
+                "This request asks to be upgraded to the WebSocket Protocol, but {defect}"
+            ))
         };
-
-        // The other half of the sentence the method gate quotes, and the half nobody
-        // in this catalogue was reading. The section describing how a server reads
-        // this handshake opens its list with the same requirement, and a server that
-        // finds the description unmatched is told to stop and answer with an error
-        // status -- so a `GET / HTTP/1.0` carrying `Upgrade: websocket` is a
-        // handshake that cannot succeed.
-        // cite(RFC 6455 § 4.2.1): "An HTTP/1.1 or higher GET request"
-        // cite(RFC 6455 § 4.2.1): "the server MUST stop processing the client's handshake and return an HTTP response with an appropriate error code (such as 400 Bad Request)"
-        if (version.major, version.minor) < (1, 1) {
-            return violation(format!(
-                "This WebSocket opening handshake is sent over {version}, and RFC 6455 § 4.1 \
-                 requires the request's HTTP version to be at least 1.1"
-            ));
-        }
-
-        // The four remaining requirements, in the order § 4.1's list states them --
-        // items 6, 7, 9 and 10, with the `Origin` of item 8 declined above. One
-        // message carries one finding, so the first defect is the one reported, and
-        // taking the document's order rather than a convenient one means the finding
-        // an operator sees first is the one the list reaches first.
-        let defect = [
-            Self::connection_defect(&req.headers),
-            Self::key_defect(&req.headers),
-            Self::version_defect(&req.headers),
-            Self::subprotocol_defect(&req.headers),
-        ]
-        .into_iter()
-        .flatten()
-        .next()?;
-
-        violation(format!(
-            "This request asks to be upgraded to the WebSocket Protocol, but {defect}"
-        ))
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -270,47 +270,52 @@ impl Rule for NoConnectionSpecificFields {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Each section's own version, decided before anything else is read.
-        let request = ConnectionlessVersion::of(&tx.request.version);
-        let response = tx.response.as_ref().and_then(|resp| {
-            ConnectionlessVersion::of(&resp.version).map(|governing| (governing, resp))
-        });
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Each section's own version, decided before anything else is read.
+            let request = ConnectionlessVersion::of(&tx.request.version);
+            let response = tx.response.as_ref().and_then(|resp| {
+                ConnectionlessVersion::of(&resp.version).map(|governing| (governing, resp))
+            });
 
-        // A transaction neither half of which was carried by one of these
-        // versions ends here.
-        if request.is_none() && response.is_none() {
-            return None;
-        }
-
-        if let Some(governing) = request {
-            if let Some(violation) = self.check_field_section(
-                governing,
-                Direction::Request,
-                &tx.request.headers,
-                ctx.severity,
-            ) {
-                return Some(violation);
+            // A transaction neither half of which was carried by one of these
+            // versions ends here.
+            if request.is_none() && response.is_none() {
+                return None;
             }
-        }
 
-        if let Some((governing, resp)) = response {
-            if let Some(violation) = self.check_field_section(
-                governing,
-                Direction::Response,
-                &resp.headers,
-                ctx.severity,
-            ) {
-                return Some(violation);
+            if let Some(governing) = request {
+                if let Some(violation) = self.check_field_section(
+                    governing,
+                    Direction::Request,
+                    &tx.request.headers,
+                    ctx.severity,
+                ) {
+                    return Some(violation);
+                }
             }
-        }
 
-        None
+            if let Some((governing, resp)) = response {
+                if let Some(violation) = self.check_field_section(
+                    governing,
+                    Direction::Response,
+                    &resp.headers,
+                    ctx.severity,
+                ) {
+                    return Some(violation);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

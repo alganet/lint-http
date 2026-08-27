@@ -38,92 +38,97 @@ impl ProtocolRule for Http3SettingsFrame {
         "http3_settings_frame"
     }
 
-    fn check_event(
+    fn findings(
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The event this rule recognizes is the SETTINGS frame itself; every
-        // other protocol event is out of scope.
-        // cite(RFC 9114 § 7.2.4): "The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate"
-        let (settings, direction) = match &event.kind {
-            ProtocolEventKind::H3SettingsReceived {
-                settings,
-                direction,
-            } => (settings, *direction),
-            _ => return None,
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The event this rule recognizes is the SETTINGS frame itself; every
+            // other protocol event is out of scope.
+            // cite(RFC 9114 § 7.2.4): "The SETTINGS frame (type=0x04) conveys configuration parameters that affect how endpoints communicate"
+            let (settings, direction) = match &event.kind {
+                ProtocolEventKind::H3SettingsReceived {
+                    settings,
+                    direction,
+                } => (settings, *direction),
+                _ => return None,
+            };
 
-        // Scanning the whole connection history — rather than a single stream —
-        // is what makes a second SETTINGS visible at all.
-        // cite(RFC 9114 § 7.2.4): "SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream"
-        //
-        // A prior SETTINGS *from the same peer* means this one was sent
-        // subsequently, which is the violation. The rule is per peer ("by each
-        // peer"), so the other peer's SETTINGS — now observable on the upstream
-        // leg — is its own legitimate first frame, not a duplicate of this one.
-        // cite(RFC 9114 § 7.2.4): "A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently"
-        for prev in history.iter() {
-            if let ProtocolEventKind::H3SettingsReceived {
-                direction: prev_dir,
-                ..
-            } = &prev.kind
-            {
-                if *prev_dir != direction {
-                    continue;
+            // Scanning the whole connection history — rather than a single stream —
+            // is what makes a second SETTINGS visible at all.
+            // cite(RFC 9114 § 7.2.4): "SETTINGS frames always apply to an entire HTTP/3 connection, never a single stream"
+            //
+            // A prior SETTINGS *from the same peer* means this one was sent
+            // subsequently, which is the violation. The rule is per peer ("by each
+            // peer"), so the other peer's SETTINGS — now observable on the upstream
+            // leg — is its own legitimate first frame, not a duplicate of this one.
+            // cite(RFC 9114 § 7.2.4): "A SETTINGS frame MUST be sent as the first frame of each control stream (see Section 6.2.1) by each peer, and it MUST NOT be sent subsequently"
+            for prev in history.iter() {
+                if let ProtocolEventKind::H3SettingsReceived {
+                    direction: prev_dir,
+                    ..
+                } = &prev.kind
+                {
+                    if *prev_dir != direction {
+                        continue;
+                    }
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message:
+                            "HTTP/3 duplicate SETTINGS frame from the same peer on one connection \
+                             (RFC 9114 §7.2.4)"
+                                .into(),
+                    });
                 }
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "HTTP/3 duplicate SETTINGS frame from the same peer on one connection \
-                         (RFC 9114 §7.2.4)"
-                            .into(),
-                });
             }
-        }
 
-        // Receipt of any reserved identifier is the violation; the sender was
-        // forbidden from putting it on the wire.
-        // cite(RFC 9114 § 7.2.4.1): "These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR"
-        for &(id, _) in settings {
-            if RESERVED_SETTING_IDS.contains(&id) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "HTTP/3 SETTINGS contains reserved HTTP/2 setting identifier \
-                         0x{:02X} (RFC 9114 §7.2.4.1)",
-                        id
-                    ),
-                });
+            // Receipt of any reserved identifier is the violation; the sender was
+            // forbidden from putting it on the wire.
+            // cite(RFC 9114 § 7.2.4.1): "These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR"
+            for &(id, _) in settings {
+                if RESERVED_SETTING_IDS.contains(&id) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "HTTP/3 SETTINGS contains reserved HTTP/2 setting identifier \
+                             0x{:02X} (RFC 9114 §7.2.4.1)",
+                            id
+                        ),
+                    });
+                }
             }
-        }
 
-        // A setting identifier repeated within the one frame is a violation the
-        // sender committed; the receiver MAY reject it, but the MUST NOT is on
-        // the sender, so we report it.  Checked after the per-identifier scan so
-        // a reserved identifier is named for what it is even when repeated.
-        // cite(RFC 9114 § 7.2.4): "The same setting identifier MUST NOT occur more than once in the SETTINGS frame"
-        for (i, &(id, _)) in settings.iter().enumerate() {
-            if settings[..i].iter().any(|&(prev_id, _)| prev_id == id) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \
-                         than once (RFC 9114 §7.2.4)",
-                        id
-                    ),
-                });
+            // A setting identifier repeated within the one frame is a violation the
+            // sender committed; the receiver MAY reject it, but the MUST NOT is on
+            // the sender, so we report it.  Checked after the per-identifier scan so
+            // a reserved identifier is named for what it is even when repeated.
+            // cite(RFC 9114 § 7.2.4): "The same setting identifier MUST NOT occur more than once in the SETTINGS frame"
+            for (i, &(id, _)) in settings.iter().enumerate() {
+                if settings[..i].iter().any(|&(prev_id, _)| prev_id == id) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \
+                             than once (RFC 9114 §7.2.4)",
+                            id
+                        ),
+                    });
+                }
             }
-        }
 
-        // Identifiers outside the reserved set — including the 0x1f*N+0x21
-        // greasing values and unregistered extensions — pass without comment.
-        // cite(RFC 9114 § 7.2.4): "An implementation MUST ignore any parameter with an identifier it does not understand"
-        None
+            // Identifiers outside the reserved set — including the 0x1f*N+0x21
+            // greasing values and unregistered extensions — pass without comment.
+            // cite(RFC 9114 § 7.2.4): "An implementation MUST ignore any parameter with an identifier it does not understand"
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

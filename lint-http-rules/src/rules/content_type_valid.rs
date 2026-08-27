@@ -20,87 +20,93 @@ impl Rule for ContentTypeValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let check_message = |which: &str,
-                             headers: &hyper::HeaderMap,
-                             trailers: Option<&hyper::HeaderMap>|
-         -> Option<Violation> {
-            // Every field line, not just the first. `HeaderMap::get` returns one
-            // value, and RFC 9110 §8.3 says recipients often resolve a duplicated
-            // Content-Type by taking the *last* syntactically valid member — so
-            // checking only the first validated a value the recipient may never
-            // act on. Both field sections of the message are counted, since
-            // §5.3's prohibition spans them.
-            let vals: Vec<_> = headers
-                .get_all("content-type")
-                .iter()
-                .chain(
-                    trailers
-                        .into_iter()
-                        .flat_map(|t| t.get_all("content-type").iter()),
-                )
-                .collect();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let check_message = |which: &str,
+                                 headers: &hyper::HeaderMap,
+                                 trailers: Option<&hyper::HeaderMap>|
+             -> Option<Violation> {
+                // Every field line, not just the first. `HeaderMap::get` returns one
+                // value, and RFC 9110 §8.3 says recipients often resolve a duplicated
+                // Content-Type by taking the *last* syntactically valid member — so
+                // checking only the first validated a value the recipient may never
+                // act on. Both field sections of the message are counted, since
+                // §5.3's prohibition spans them.
+                let vals: Vec<_> = headers
+                    .get_all("content-type")
+                    .iter()
+                    .chain(
+                        trailers
+                            .into_iter()
+                            .flat_map(|t| t.get_all("content-type").iter()),
+                    )
+                    .collect();
 
-            // `Content-Type = media-type` is a single media-type with no list
-            // form, and RFC 9110 does not leave the consequences to inference:
-            // it names the duplication, names the recipient behaviour it
-            // provokes, and names the security risk. This is the one field whose
-            // own section spells out why a second line matters.
-            // cite(RFC 9110 § 8.3): "Content-Type = media-type"
-            // cite(RFC 9110 § 8.3): "Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list."
-            // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
-            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-            // This returns before any value is validated, and that is the
-            // choice: a rule yields one violation, and when two field lines are
-            // present the question of *which value applies* comes before the
-            // question of whether a value is well formed. Naming the malformed
-            // one would imply the recipient reads it, which is the thing §8.3
-            // says cannot be assumed.
-            if vals.len() > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Multiple Content-Type field lines in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
-                        which
-                    ),
-                });
+                // `Content-Type = media-type` is a single media-type with no list
+                // form, and RFC 9110 does not leave the consequences to inference:
+                // it names the duplication, names the recipient behaviour it
+                // provokes, and names the security risk. This is the one field whose
+                // own section spells out why a second line matters.
+                // cite(RFC 9110 § 8.3): "Content-Type = media-type"
+                // cite(RFC 9110 § 8.3): "Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list."
+                // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
+                // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+                // This returns before any value is validated, and that is the
+                // choice: a rule yields one violation, and when two field lines are
+                // present the question of *which value applies* comes before the
+                // question of whether a value is well formed. Naming the malformed
+                // one would imply the recipient reads it, which is the thing §8.3
+                // says cannot be assumed.
+                if vals.len() > 1 {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Multiple Content-Type field lines in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
+                            which
+                        ),
+                    });
+                }
+
+                for hv in vals {
+                    // Decoded from the raw octets rather than through `to_str`, which
+                    // refuses anything outside visible US-ASCII and so refuses
+                    // `obs-text` — legal inside a `quoted-string`, and the reason a
+                    // value like `boundary="<0xE4>"` must not be reported. Where
+                    // obs-text is *not* legal, in a `token`, the checks below already
+                    // reject it, so the decode decides nothing on its own.
+                    // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                    let s = crate::helpers::headers::field_line_as_written(hv);
+                    if let Some(v) = check_content_type(which, &s, ctx.severity) {
+                        return Some(v);
+                    }
+                }
+
+                None
+            };
+
+            if let Some(v) =
+                check_message("request", &tx.request.headers, tx.request.trailers.as_ref())
+            {
+                return Some(v);
             }
 
-            for hv in vals {
-                // Decoded from the raw octets rather than through `to_str`, which
-                // refuses anything outside visible US-ASCII and so refuses
-                // `obs-text` — legal inside a `quoted-string`, and the reason a
-                // value like `boundary="<0xE4>"` must not be reported. Where
-                // obs-text is *not* legal, in a `token`, the checks below already
-                // reject it, so the decode decides nothing on its own.
-                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                let s = crate::helpers::headers::field_line_as_written(hv);
-                if let Some(v) = check_content_type(which, &s, ctx.severity) {
+            if let Some(resp) = &tx.response {
+                if let Some(v) = check_message("response", &resp.headers, resp.trailers.as_ref()) {
                     return Some(v);
                 }
             }
 
             None
         };
-
-        if let Some(v) = check_message("request", &tx.request.headers, tx.request.trailers.as_ref())
-        {
-            return Some(v);
-        }
-
-        if let Some(resp) = &tx.response {
-            if let Some(v) = check_message("response", &resp.headers, resp.trailers.as_ref()) {
-                return Some(v);
-            }
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

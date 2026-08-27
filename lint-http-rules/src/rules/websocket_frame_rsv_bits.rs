@@ -43,96 +43,101 @@ impl ProtocolRule for WebsocketFrameRsvBits {
         "websocket_frame_rsv_bits"
     }
 
-    fn check_event(
+    fn findings(
         &self,
         event: &ProtocolEvent,
         _history: &ProtocolEventHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let ProtocolEventKind::WebSocketFrame {
-            direction,
-            rsv,
-            extensions,
-            ..
-        } = &event.kind
-        else {
-            return None;
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let ProtocolEventKind::WebSocketFrame {
+                direction,
+                rsv,
+                extensions,
+                ..
+            } = &event.kind
+            else {
+                return None;
+            };
 
-        // Zero is what the production generates without a negotiation, and it is
-        // what every frame this proxy relays carries: tungstenite's reader
-        // refuses a non-zero reserved bit, and the assembled `Message` variants
-        // it does return have no header to read one from. So this branch ends
-        // the rule for all live traffic, and the findings below are reachable
-        // through `lint` over a capture written elsewhere.
-        //
-        // cite(RFC 6455 § 5.2, label: frame-rsv1 production): "frame-rsv1 = %x0 / %x1 ; 1 bit in length, MUST be 0 unless ; negotiated otherwise"
-        if *rsv == 0 {
-            return None;
-        }
+            // Zero is what the production generates without a negotiation, and it is
+            // what every frame this proxy relays carries: tungstenite's reader
+            // refuses a non-zero reserved bit, and the assembled `Message` variants
+            // it does return have no header to read one from. So this branch ends
+            // the rule for all live traffic, and the findings below are reachable
+            // through `lint` over a capture written elsewhere.
+            //
+            // cite(RFC 6455 § 5.2, label: frame-rsv1 production): "frame-rsv1 = %x0 / %x1 ; 1 bit in length, MUST be 0 unless ; negotiated otherwise"
+            if *rsv == 0 {
+                return None;
+            }
 
-        let sender = match direction {
-            MessageDirection::Client => "client",
-            MessageDirection::Server => "server",
-        };
+            let sender = match direction {
+                MessageDirection::Client => "client",
+                MessageDirection::Server => "server",
+            };
 
-        // Three bits, and a value needing a fourth is a claim about the record
-        // rather than about the wire. The header prints the three as one bit
-        // each, so no frame could have carried the value this event holds --
-        // the same shape as the sibling rule's opcode above 15, and decided
-        // before the negotiation question because no extension can license a
-        // bit the header has no room for.
-        //
-        // cite(RFC 6455 § 5.2): "RSV1, RSV2, RSV3:  1 bit each"
-        if *rsv > 0b111 {
-            return Some(Violation {
+            // Three bits, and a value needing a fourth is a claim about the record
+            // rather than about the wire. The header prints the three as one bit
+            // each, so no frame could have carried the value this event holds --
+            // the same shape as the sibling rule's opcode above 15, and decided
+            // before the negotiation question because no extension can license a
+            // bit the header has no room for.
+            //
+            // cite(RFC 6455 § 5.2): "RSV1, RSV2, RSV3:  1 bit each"
+            if *rsv > 0b111 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "A WebSocket frame the {sender} sent records the reserved bits as {rsv:#05b}, \
+                         and the frame header holds three of them — one bit each — so no frame on any \
+                         wire carried this value"
+                    ),
+                });
+            }
+
+            // The MUST is conditional, and this is the antecedent. § 5.8 hands the
+            // three bits to extensions and requires the negotiation to happen in the
+            // opening handshake; § 9.1 makes the *server's* list the one in use. So
+            // a session whose `101` accepted no extension has nothing that could
+            // give a non-zero bit a meaning, and the sentence closes.
+            //
+            // `Accepted` is not read further: which extension defines which bit is
+            // that extension's document, not this one, and § 9.1 says the parameters
+            // supplied with any given extension MUST be defined for that extension.
+            // Reporting an RSV1 against `permessage-deflate` would mean this rule
+            // deciding what RFC 7692 says.
+            //
+            // `Unrecorded` is the older capture and the foreign one. Silence there
+            // is the honest answer for the same reason the finding below is honest
+            // when the handshake is known: the antecedent is not in evidence.
+            //
+            // cite(RFC 6455 § 5.2): "MUST be 0 unless an extension is negotiated that defines meanings for non-zero values."
+            // cite(RFC 6455 § 5.2): "If a nonzero value is received and none of the negotiated extensions defines the meaning of such a nonzero value, the receiving endpoint MUST _Fail the WebSocket Connection_."
+            // cite(RFC 6455 § 5.8): "This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions."
+            if !matches!(extensions, NegotiatedExtensions::NoneAccepted) {
+                return None;
+            }
+
+            // `Rule::violation` is a trait default on the *transaction* trait; a
+            // `ProtocolRule` builds the struct, as every other one in this
+            // catalogue does.
+            Some(Violation {
                 rule: self.id().into(),
                 severity: ctx.severity,
                 message: format!(
-                    "A WebSocket frame the {sender} sent records the reserved bits as {rsv:#05b}, \
-                     and the frame header holds three of them — one bit each — so no frame on any \
-                     wire carried this value"
+                    "A WebSocket frame the {sender} sent has {} set, and the 101 that opened this \
+                     session accepted no extension: RFC 6455 §5.2 makes a reserved bit non-zero only \
+                     under an extension that defines a meaning for it, and it has the receiving \
+                     endpoint fail the connection when none does",
+                    Self::named(*rsv)
                 ),
-            });
-        }
-
-        // The MUST is conditional, and this is the antecedent. § 5.8 hands the
-        // three bits to extensions and requires the negotiation to happen in the
-        // opening handshake; § 9.1 makes the *server's* list the one in use. So
-        // a session whose `101` accepted no extension has nothing that could
-        // give a non-zero bit a meaning, and the sentence closes.
-        //
-        // `Accepted` is not read further: which extension defines which bit is
-        // that extension's document, not this one, and § 9.1 says the parameters
-        // supplied with any given extension MUST be defined for that extension.
-        // Reporting an RSV1 against `permessage-deflate` would mean this rule
-        // deciding what RFC 7692 says.
-        //
-        // `Unrecorded` is the older capture and the foreign one. Silence there
-        // is the honest answer for the same reason the finding below is honest
-        // when the handshake is known: the antecedent is not in evidence.
-        //
-        // cite(RFC 6455 § 5.2): "MUST be 0 unless an extension is negotiated that defines meanings for non-zero values."
-        // cite(RFC 6455 § 5.2): "If a nonzero value is received and none of the negotiated extensions defines the meaning of such a nonzero value, the receiving endpoint MUST _Fail the WebSocket Connection_."
-        // cite(RFC 6455 § 5.8): "This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions."
-        if !matches!(extensions, NegotiatedExtensions::NoneAccepted) {
-            return None;
-        }
-
-        // `Rule::violation` is a trait default on the *transaction* trait; a
-        // `ProtocolRule` builds the struct, as every other one in this
-        // catalogue does.
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "A WebSocket frame the {sender} sent has {} set, and the 101 that opened this \
-                 session accepted no extension: RFC 6455 §5.2 makes a reserved bit non-zero only \
-                 under an extension that defines a meaning for it, and it has the receiving \
-                 endpoint fail the connection when none does",
-                Self::named(*rsv)
-            ),
-        })
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

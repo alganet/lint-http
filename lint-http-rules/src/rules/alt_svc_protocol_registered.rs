@@ -215,136 +215,141 @@ impl Rule for AltSvcProtocolRegistered {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // No status gate: the section says in one sentence that there is no
-        // status this field may not ride on. § 6's *"An Alt-Svc header field in
-        // a 421 (Misdirected Request) response MUST be ignored."* would look
-        // like the exception and is not one — it is addressed to the recipient,
-        // and a server that advertises an alternative nobody can negotiate has
-        // written the same defect whatever the status line says.
-        // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
-        let resp = tx.response.as_ref()?;
-        let config: &AltSvcProtocolConfig = ctx.state();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // No status gate: the section says in one sentence that there is no
+            // status this field may not ride on. § 6's *"An Alt-Svc header field in
+            // a 421 (Misdirected Request) response MUST be ignored."* would look
+            // like the exception and is not one — it is addressed to the recipient,
+            // and a server that advertises an alternative nobody can negotiate has
+            // written the same defect whatever the status line says.
+            // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
+            let resp = tx.response.as_ref()?;
+            let config: &AltSvcProtocolConfig = ctx.state();
 
-        // One `char` per octet. `to_str` folds a field carrying `obs-text` into
-        // "no such field here", which for this rule would drop every alternative
-        // beside the offending one — and `obs-text` is admissible in this field,
-        // inside the `quoted-string` an `alt-authority` or a parameter value is.
-        // The join writes a bare comma where the sentence names a comma and
-        // optional whitespace, which is why the members below are `OWS`-trimmed.
-        // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
-        let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
-        let value = trim_ows(&value);
+            // One `char` per octet. `to_str` folds a field carrying `obs-text` into
+            // "no such field here", which for this rule would drop every alternative
+            // beside the offending one — and `obs-text` is admissible in this field,
+            // inside the `quoted-string` an `alt-authority` or a parameter value is.
+            // The join writes a bare comma where the sentence names a comma and
+            // optional whitespace, which is why the members below are `OWS`-trimmed.
+            // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
+            let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
+            let value = trim_ows(&value);
 
-        // The keyword is the field's other alternative and nominates nothing,
-        // so there is no protocol identifier to ask about. It is matched exactly
-        // because `%s"clear"` is RFC 7405's case-sensitive string; a case
-        // variant is an `alt-value`, and one with no '=' in it, which the walk
-        // below hands to the rule that owns the grammar.
-        // cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
-        if value == CLEAR {
-            return None;
-        }
-
-        // A DQUOTE that never closes makes every separator after it a guess, so
-        // the members are not members. Declined rather than reported:
-        // `alt_svc_header_syntax` reads this field's grammar and reports
-        // it, under the same scope and with no gate this one does not have.
-        if !quoting_is_balanced(value) {
-            return None;
-        }
-
-        for member in list_members_as_written(value) {
-            // An empty member is `1#alt-value`'s floor or a sender's empty list
-            // element; both are the grammar's question and are reported there.
-            if member.is_empty() {
-                continue;
-            }
-            // `alt-value` is an `alternative` with the parameter group behind
-            // it, and the splitter always yields a first segment.
-            // cite(RFC 7838 § 3): "alt-value     = alternative *( OWS ";" OWS parameter )"
-            let parts = split_semicolons_respecting_quotes(member);
-            let alternative = parts
-                .first()
-                .expect("the splitter yields at least one segment");
-
-            // Everything below this line is a decline, and each one is the
-            // grammar's question rather than the registry's: a value that
-            // derives from no `protocol-id` names no ALPN protocol name, so
-            // there is nothing for a list to be asked about. Saying so a second
-            // time here would be the same finding in worse words.
-            // cite(RFC 7838 § 3): "alternative   = protocol-id "=" alt-authority"
-            let Some((protocol_id, _)) = alternative.split_once('=') else {
-                continue;
-            };
-            // `token = 1*tchar` admits no empty string and no whitespace, so
-            // this also declines the `OWS`-beside-the-`=` case the neighbouring
-            // rule reports.
-            // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
-            if protocol_id.is_empty()
-                || crate::helpers::token::find_invalid_token_char(protocol_id).is_some()
-            {
-                continue;
-            }
-            // A malformed triplet is not a name spelled wrong, it is a name
-            // that cannot be read at all; the three spelling MUSTs a
-            // well-formed triplet can still break are the neighbour's too.
-            if crate::helpers::uri::check_percent_encoding(protocol_id).is_some() {
-                continue;
+            // The keyword is the field's other alternative and nominates nothing,
+            // so there is no protocol identifier to ask about. It is matched exactly
+            // because `%s"clear"` is RFC 7405's case-sensitive string; a case
+            // variant is an `alt-value`, and one with no '=' in it, which the walk
+            // below hands to the rule that owns the grammar.
+            // cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
+            if value == CLEAR {
+                return None;
             }
 
-            let name = alpn_protocol_name(protocol_id);
-
-            // The one finding here that needs no configuration. A name longer
-            // than the vector that carries it is not one any handshake can put
-            // on the wire, so no list has to be consulted to know it names
-            // nothing.
-            if name.len() > MAX_ALPN_PROTOCOL_NAME_OCTETS {
-                return Some(self.violation(
-                    config.severity,
-                    format!(
-                        "Alt-Svc protocol-id '{}' decodes to an ALPN protocol name of {} octets. A `ProtocolName` carries at most {}, so this alternative is named by something no ClientHello or ServerHello can express",
-                        shown_in_finding(protocol_id),
-                        name.len(),
-                        MAX_ALPN_PROTOCOL_NAME_OCTETS
-                    ),
-                ));
+            // A DQUOTE that never closes makes every separator after it a guess, so
+            // the members are not members. Declined rather than reported:
+            // `alt_svc_header_syntax` reads this field's grammar and reports
+            // it, under the same scope and with no gate this one does not have.
+            if !quoting_is_balanced(value) {
+                return None;
             }
 
-            // The comparison is against the configured list and not against the
-            // registry the rule's name invokes — nothing here fetches
-            // <https://www.iana.org/assignments/tls-extensiontype-values>. That
-            // is a real divergence and `description()` says so. It is also what
-            // makes the finding worth having: a name absent from an open,
-            // expert-reviewed registry is not thereby wrong, while one this
-            // deployment does not serve is an alternative every client will
-            // fail over to and away from.
-            // cite(RFC 7838 § 2): "An Application Layer Protocol Negotiation (ALPN) protocol name, as per [RFC7301]"
-            // cite(RFC 7838 § 2): "The ALPN protocol name is used to identify the application protocol or suite of protocols used by the alternative service."
-            // cite(RFC 7301 § 3.2): "In the event that the server supports no protocols that the client advertises, then the server SHALL respond with a fatal "no_application_protocol" alert."
-            // cite(RFC 7838 § 2.4): "If the connection to the alternative service does not negotiate the expected protocol (for example, ALPN fails to negotiate h2, or an Upgrade request to h2c is not accepted), the connection to the alternative service MUST be considered to have failed."
-            if !config
-                .allowed
-                .iter()
-                .any(|allowed| allowed.as_bytes() == name.as_slice())
-            {
-                return Some(self.violation(
-                    config.severity,
-                    format!(
-                        "Alt-Svc protocol-id '{}' names the ALPN protocol {}, which is not one this deployment lists as an alternative service it offers. A client taking this alternative negotiates that name in TLS and is required to treat the connection as failed when it is not the one selected",
-                        shown_in_finding(protocol_id),
-                        shown_alpn_name(&name)
-                    ),
-                ));
-            }
-        }
+            for member in list_members_as_written(value) {
+                // An empty member is `1#alt-value`'s floor or a sender's empty list
+                // element; both are the grammar's question and are reported there.
+                if member.is_empty() {
+                    continue;
+                }
+                // `alt-value` is an `alternative` with the parameter group behind
+                // it, and the splitter always yields a first segment.
+                // cite(RFC 7838 § 3): "alt-value     = alternative *( OWS ";" OWS parameter )"
+                let parts = split_semicolons_respecting_quotes(member);
+                let alternative = parts
+                    .first()
+                    .expect("the splitter yields at least one segment");
 
-        None
+                // Everything below this line is a decline, and each one is the
+                // grammar's question rather than the registry's: a value that
+                // derives from no `protocol-id` names no ALPN protocol name, so
+                // there is nothing for a list to be asked about. Saying so a second
+                // time here would be the same finding in worse words.
+                // cite(RFC 7838 § 3): "alternative   = protocol-id "=" alt-authority"
+                let Some((protocol_id, _)) = alternative.split_once('=') else {
+                    continue;
+                };
+                // `token = 1*tchar` admits no empty string and no whitespace, so
+                // this also declines the `OWS`-beside-the-`=` case the neighbouring
+                // rule reports.
+                // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
+                if protocol_id.is_empty()
+                    || crate::helpers::token::find_invalid_token_char(protocol_id).is_some()
+                {
+                    continue;
+                }
+                // A malformed triplet is not a name spelled wrong, it is a name
+                // that cannot be read at all; the three spelling MUSTs a
+                // well-formed triplet can still break are the neighbour's too.
+                if crate::helpers::uri::check_percent_encoding(protocol_id).is_some() {
+                    continue;
+                }
+
+                let name = alpn_protocol_name(protocol_id);
+
+                // The one finding here that needs no configuration. A name longer
+                // than the vector that carries it is not one any handshake can put
+                // on the wire, so no list has to be consulted to know it names
+                // nothing.
+                if name.len() > MAX_ALPN_PROTOCOL_NAME_OCTETS {
+                    return Some(self.violation(
+                        config.severity,
+                        format!(
+                            "Alt-Svc protocol-id '{}' decodes to an ALPN protocol name of {} octets. A `ProtocolName` carries at most {}, so this alternative is named by something no ClientHello or ServerHello can express",
+                            shown_in_finding(protocol_id),
+                            name.len(),
+                            MAX_ALPN_PROTOCOL_NAME_OCTETS
+                        ),
+                    ));
+                }
+
+                // The comparison is against the configured list and not against the
+                // registry the rule's name invokes — nothing here fetches
+                // <https://www.iana.org/assignments/tls-extensiontype-values>. That
+                // is a real divergence and `description()` says so. It is also what
+                // makes the finding worth having: a name absent from an open,
+                // expert-reviewed registry is not thereby wrong, while one this
+                // deployment does not serve is an alternative every client will
+                // fail over to and away from.
+                // cite(RFC 7838 § 2): "An Application Layer Protocol Negotiation (ALPN) protocol name, as per [RFC7301]"
+                // cite(RFC 7838 § 2): "The ALPN protocol name is used to identify the application protocol or suite of protocols used by the alternative service."
+                // cite(RFC 7301 § 3.2): "In the event that the server supports no protocols that the client advertises, then the server SHALL respond with a fatal "no_application_protocol" alert."
+                // cite(RFC 7838 § 2.4): "If the connection to the alternative service does not negotiate the expected protocol (for example, ALPN fails to negotiate h2, or an Upgrade request to h2c is not accepted), the connection to the alternative service MUST be considered to have failed."
+                if !config
+                    .allowed
+                    .iter()
+                    .any(|allowed| allowed.as_bytes() == name.as_slice())
+                {
+                    return Some(self.violation(
+                        config.severity,
+                        format!(
+                            "Alt-Svc protocol-id '{}' names the ALPN protocol {}, which is not one this deployment lists as an alternative service it offers. A client taking this alternative negotiates that name in TLS and is required to treat the connection as failed when it is not the one selected",
+                            shown_in_finding(protocol_id),
+                            shown_alpn_name(&name)
+                        ),
+                    ));
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

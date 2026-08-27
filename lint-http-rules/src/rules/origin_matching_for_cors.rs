@@ -16,110 +16,115 @@ impl Rule for OriginMatchingForCors {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req = &tx.request;
-        let headers = &req.headers;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req = &tx.request;
+            let headers = &req.headers;
 
-        // Nothing to do if request did not include Origin header
-        let origin = crate::helpers::headers::get_header_str(headers, "origin")?.trim();
+            // Nothing to do if request did not include Origin header
+            let origin = crate::helpers::headers::get_header_str(headers, "origin")?.trim();
 
-        // Validate origin syntax using shared helper (handles "null" and serialized origins).
-        if let Some(reason) = crate::helpers::uri::validate_origin_value(origin) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("Invalid Origin header value '{}': {}", origin, reason),
-            });
-        }
+            // Validate origin syntax using shared helper (handles "null" and serialized origins).
+            if let Some(reason) = crate::helpers::uri::validate_origin_value(origin) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!("Invalid Origin header value '{}': {}", origin, reason),
+                });
+            }
 
-        let resp = tx.response.as_ref()?;
+            let resp = tx.response.as_ref()?;
 
-        // Check for Access-Control-Allow-Origin header in response
-        let mut acao_values: Vec<String> = Vec::new();
-        for hv in resp.headers.get_all("access-control-allow-origin").iter() {
-            match hv.to_str() {
-                Ok(s) => acao_values.push(s.to_string()),
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Access-Control-Allow-Origin header contains non-ASCII or control characters".into(),
-                    });
+            // Check for Access-Control-Allow-Origin header in response
+            let mut acao_values: Vec<String> = Vec::new();
+            for hv in resp.headers.get_all("access-control-allow-origin").iter() {
+                match hv.to_str() {
+                    Ok(s) => acao_values.push(s.to_string()),
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Access-Control-Allow-Origin header contains non-ASCII or control characters".into(),
+                        });
+                    }
                 }
             }
-        }
-        if acao_values.is_empty() {
-            return None;
-        }
-
-        // Multiple header fields are not permitted; treat as violation early
-        // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
-        if acao_values.len() > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into(),
-            });
-        }
-
-        // Now we have exactly one header field; validate its value semantics
-        let acao_raw = acao_values[0].trim();
-        // Must be a single value (not a comma-separated list)
-        let members: Vec<String> = crate::helpers::headers::list_members(acao_raw)
-            .map(|m| m.to_string())
-            .collect();
-        if members.len() != 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Access-Control-Allow-Origin must be a single value".into(),
-            });
-        }
-
-        let acao_val = members.into_iter().next().unwrap().trim().to_string();
-
-        // `*` is permitted only when credentials are not allowed. The CORS check short-
-        // circuits on `*` *only* for a request that does not carry credentials; a
-        // credentialed one falls through to the byte-serialized comparison below, which
-        // `*` can never satisfy.
-        // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
-        if acao_val == "*" {
-            if let Some(cred) = crate::helpers::headers::get_header_str(
-                &resp.headers,
-                "access-control-allow-credentials",
-            ) {
-                if cred.trim().eq_ignore_ascii_case("true") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true".into(),
-                    });
-                }
+            if acao_values.is_empty() {
+                return None;
             }
-            return None;
-        }
 
-        // For any other value, it must match the request's Origin header byte-for-byte.
-        // Byte-serializing an opaque origin yields the lowercase literal `null`, so no
-        // case normalisation is applied on either side.
-        // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
-        if acao_val != origin {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",
-                    acao_val, origin
-                ),
-            });
-        }
+            // Multiple header fields are not permitted; treat as violation early
+            // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
+            if acao_values.len() > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into(),
+                });
+            }
 
-        None
+            // Now we have exactly one header field; validate its value semantics
+            let acao_raw = acao_values[0].trim();
+            // Must be a single value (not a comma-separated list)
+            let members: Vec<String> = crate::helpers::headers::list_members(acao_raw)
+                .map(|m| m.to_string())
+                .collect();
+            if members.len() != 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Access-Control-Allow-Origin must be a single value".into(),
+                });
+            }
+
+            let acao_val = members.into_iter().next().unwrap().trim().to_string();
+
+            // `*` is permitted only when credentials are not allowed. The CORS check short-
+            // circuits on `*` *only* for a request that does not carry credentials; a
+            // credentialed one falls through to the byte-serialized comparison below, which
+            // `*` can never satisfy.
+            // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
+            if acao_val == "*" {
+                if let Some(cred) = crate::helpers::headers::get_header_str(
+                    &resp.headers,
+                    "access-control-allow-credentials",
+                ) {
+                    if cred.trim().eq_ignore_ascii_case("true") {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true".into(),
+                        });
+                    }
+                }
+                return None;
+            }
+
+            // For any other value, it must match the request's Origin header byte-for-byte.
+            // Byte-serializing an opaque origin yields the lowercase literal `null`, so no
+            // case normalisation is applied on either side.
+            // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
+            if acao_val != origin {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",
+                        acao_val, origin
+                    ),
+                });
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

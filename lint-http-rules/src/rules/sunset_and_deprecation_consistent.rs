@@ -18,101 +18,109 @@ impl Rule for SunsetAndDeprecationConsistent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // only applies to responses
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // only applies to responses
+            let resp = tx.response.as_ref()?;
 
-        // Get Sunset header if present and parseable. Recipient parse (all three
-        // HTTP-date formats, helper-owned), so a failure is "not any HTTP-date" —
-        // not "IMF-fixdate"; RFC 8594 itself calls the value an HTTP-date.
-        // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
-        let sunset_opt = match crate::helpers::headers::get_header_str(&resp.headers, "sunset") {
-            Some(s) => match crate::http_date::parse_http_date_to_datetime(s) {
-                Ok(dt) => Some((s.to_string(), dt)),
-                Err(_) => {
+            // Get Sunset header if present and parseable. Recipient parse (all three
+            // HTTP-date formats, helper-owned), so a failure is "not any HTTP-date" —
+            // not "IMF-fixdate"; RFC 8594 itself calls the value an HTTP-date.
+            // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
+            let sunset_opt = match crate::helpers::headers::get_header_str(&resp.headers, "sunset")
+            {
+                Some(s) => match crate::http_date::parse_http_date_to_datetime(s) {
+                    Ok(dt) => Some((s.to_string(), dt)),
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
+                        });
+                    }
+                },
+                None => None,
+            };
+
+            // Get Deprecation header (structured '@<seconds>' form) if present and parseable
+            // We intentionally only consider the structured '@' form here; legacy forms are
+            // validated by `deprecation_header_syntax` and we avoid duplicate errors.
+            let deprecation_opt = match resp.headers.get_all("deprecation").iter().next() {
+                Some(hv) => match hv.to_str() {
+                    Ok(s_raw) => {
+                        let s = s_raw.trim();
+                        // Deprecation is a Structured Field Date (`@` + integer epoch
+                        // seconds); this recognises exactly that form and defers the
+                        // legacy/invalid forms to `deprecation_header_syntax`.
+                        // (The previous cites here were mis-anchored — a Sunset
+                        // *definition* and an Abstract blurb, neither governing this parse.)
+                        // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
+                        // cite(RFC 9651 § 3.3.7): "their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@"."
+                        // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970
+                        // instant — is treated as non-structured and deferred; recorded
+                        // in the audit ledger. Such a Deprecation date is pathological.)
+                        if s.starts_with('@')
+                            && s.len() > 1
+                            && s[1..].chars().all(|c| c.is_ascii_digit())
+                        {
+                            // parse seconds since epoch
+                            match s[1..].parse::<i64>() {
+                                Ok(secs) => {
+                                    // Build a UTC DateTime safely from epoch seconds.
+                                    chrono::Utc
+                                        .timestamp_opt(secs, 0)
+                                        .single()
+                                        .map(|dt| (s.to_string(), dt)) // treat out-of-range as non-parseable
+                                }
+                                Err(_) => None,
+                            }
+                        } else {
+                            // Not structured '@' form -> ignore here (other rule flags legacy forms)
+                            None
+                        }
+                    }
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Deprecation header contains non-UTF8 value".into(),
+                        })
+                    }
+                },
+                None => None,
+            };
+
+            // If both parseable values present, enforce the ordering RFC 9745 §4
+            // requires (Sunset not before Deprecation). The 60s skew is a linter
+            // tolerance — no spec licenses it; against a strict MUST NOT it only makes
+            // the rule more lenient (recorded in the audit ledger, not cited).
+            // cite(RFC 9745 § 4): "The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field."
+            if let (Some((dep_raw, dep_dt)), Some((sun_raw, sun_dt))) =
+                (deprecation_opt, sunset_opt)
+            {
+                let allowed_skew = chrono::Duration::seconds(60);
+                if dep_dt > sun_dt + allowed_skew {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
+                        message: format!(
+                            "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
+                            dep_raw, sun_raw
+                        ),
                     });
                 }
-            },
-            None => None,
-        };
-
-        // Get Deprecation header (structured '@<seconds>' form) if present and parseable
-        // We intentionally only consider the structured '@' form here; legacy forms are
-        // validated by `deprecation_header_syntax` and we avoid duplicate errors.
-        let deprecation_opt = match resp.headers.get_all("deprecation").iter().next() {
-            Some(hv) => match hv.to_str() {
-                Ok(s_raw) => {
-                    let s = s_raw.trim();
-                    // Deprecation is a Structured Field Date (`@` + integer epoch
-                    // seconds); this recognises exactly that form and defers the
-                    // legacy/invalid forms to `deprecation_header_syntax`.
-                    // (The previous cites here were mis-anchored — a Sunset
-                    // *definition* and an Abstract blurb, neither governing this parse.)
-                    // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
-                    // cite(RFC 9651 § 3.3.7): "their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@"."
-                    // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970
-                    // instant — is treated as non-structured and deferred; recorded
-                    // in the audit ledger. Such a Deprecation date is pathological.)
-                    if s.starts_with('@')
-                        && s.len() > 1
-                        && s[1..].chars().all(|c| c.is_ascii_digit())
-                    {
-                        // parse seconds since epoch
-                        match s[1..].parse::<i64>() {
-                            Ok(secs) => {
-                                // Build a UTC DateTime safely from epoch seconds.
-                                chrono::Utc
-                                    .timestamp_opt(secs, 0)
-                                    .single()
-                                    .map(|dt| (s.to_string(), dt)) // treat out-of-range as non-parseable
-                            }
-                            Err(_) => None,
-                        }
-                    } else {
-                        // Not structured '@' form -> ignore here (other rule flags legacy forms)
-                        None
-                    }
-                }
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Deprecation header contains non-UTF8 value".into(),
-                    })
-                }
-            },
-            None => None,
-        };
-
-        // If both parseable values present, enforce the ordering RFC 9745 §4
-        // requires (Sunset not before Deprecation). The 60s skew is a linter
-        // tolerance — no spec licenses it; against a strict MUST NOT it only makes
-        // the rule more lenient (recorded in the audit ledger, not cited).
-        // cite(RFC 9745 § 4): "The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field."
-        if let (Some((dep_raw, dep_dt)), Some((sun_raw, sun_dt))) = (deprecation_opt, sunset_opt) {
-            let allowed_skew = chrono::Duration::seconds(60);
-            if dep_dt > sun_dt + allowed_skew {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
-                        dep_raw, sun_raw
-                    ),
-                });
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

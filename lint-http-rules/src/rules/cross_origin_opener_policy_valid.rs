@@ -16,35 +16,40 @@ impl Rule for CrossOriginOpenerPolicyValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // COOP is a response-only header per spec; ignore requests
-        let resp = if let Some(resp) = &tx.response {
-            resp
-        } else {
-            return None;
-        };
-        let headers = &resp.headers;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // COOP is a response-only header per spec; ignore requests
+            let resp = if let Some(resp) = &tx.response {
+                resp
+            } else {
+                return None;
+            };
+            let headers = &resp.headers;
 
-        let count = headers.get_all("cross-origin-opener-policy").iter().count();
-        if count == 0 {
-            return None;
-        }
+            let count = headers.get_all("cross-origin-opener-policy").iter().count();
+            if count == 0 {
+                return None;
+            }
 
-        if count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple Cross-Origin-Opener-Policy header fields present".into(),
-            });
-        }
+            if count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Multiple Cross-Origin-Opener-Policy header fields present".into(),
+                });
+            }
 
-        let val =
-            match crate::helpers::headers::get_header_str(headers, "cross-origin-opener-policy") {
+            let val = match crate::helpers::headers::get_header_str(
+                headers,
+                "cross-origin-opener-policy",
+            ) {
                 Some(v) => v.trim(),
                 None => return Some(Violation {
                     rule: self.id().into(),
@@ -55,39 +60,41 @@ impl Rule for CrossOriginOpenerPolicyValid {
                 }),
             };
 
-        // Must not be a comma-separated list
-        if crate::helpers::headers::list_members(val).count() != 1 {
-            return Some(Violation {
+            // Must not be a comma-separated list
+            if crate::helpers::headers::list_members(val).count() != 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Cross-Origin-Opener-Policy must be a single value".into(),
+                });
+            }
+
+            // Acceptable values: same-origin, same-origin-allow-popups, unsafe-none (case-insensitive)
+            // `noopener-allow-popups` was added to the opener policy values and was missing
+            // here — a valid, deployable header this rule used to reject. `same-origin-plus-COEP`
+            // is deliberately absent: the parsing algorithm produces it only from the `same-origin`
+            // token combined with a compatible COEP, never from a token of its own, so a response
+            // literally carrying `same-origin-plus-COEP` *is* wrong. The header value is a single
+            // structured-field item (token), which is also why the list check above applies.
+            // cite(HTML § 7.1.3.1): "Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list."
+            if val.eq_ignore_ascii_case("same-origin")
+                || val.eq_ignore_ascii_case("same-origin-allow-popups")
+                || val.eq_ignore_ascii_case("noopener-allow-popups")
+                || val.eq_ignore_ascii_case("unsafe-none")
+            {
+                return None;
+            }
+
+            Some(Violation {
                 rule: self.id().into(),
                 severity: ctx.severity,
-                message: "Cross-Origin-Opener-Policy must be a single value".into(),
-            });
-        }
-
-        // Acceptable values: same-origin, same-origin-allow-popups, unsafe-none (case-insensitive)
-        // `noopener-allow-popups` was added to the opener policy values and was missing
-        // here — a valid, deployable header this rule used to reject. `same-origin-plus-COEP`
-        // is deliberately absent: the parsing algorithm produces it only from the `same-origin`
-        // token combined with a compatible COEP, never from a token of its own, so a response
-        // literally carrying `same-origin-plus-COEP` *is* wrong. The header value is a single
-        // structured-field item (token), which is also why the list check above applies.
-        // cite(HTML § 7.1.3.1): "Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list."
-        if val.eq_ignore_ascii_case("same-origin")
-            || val.eq_ignore_ascii_case("same-origin-allow-popups")
-            || val.eq_ignore_ascii_case("noopener-allow-popups")
-            || val.eq_ignore_ascii_case("unsafe-none")
-        {
-            return None;
-        }
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Cross-Origin-Opener-Policy contains unsupported value: '{}'",
-                val
-            ),
-        })
+                message: format!(
+                    "Cross-Origin-Opener-Policy contains unsupported value: '{}'",
+                    val
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

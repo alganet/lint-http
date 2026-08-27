@@ -23,73 +23,78 @@ impl ProtocolRule for Http3MaxPushId {
         "http3_max_push_id"
     }
 
-    fn check_event(
+    fn findings(
         &self,
         event: &ProtocolEvent,
         history: &ProtocolEventHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The event this rule recognizes is the MAX_PUSH_ID frame itself; every
-        // other protocol event is out of scope.
-        // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
-        let (current, direction) = match &event.kind {
-            ProtocolEventKind::H3MaxPushId { push_id, direction } => (*push_id, *direction),
-            _ => return None,
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The event this rule recognizes is the MAX_PUSH_ID frame itself; every
+            // other protocol event is out of scope.
+            // cite(RFC 9114 § 7.2.7): "The MAX_PUSH_ID frame (type=0x0d) is used by clients to control the number of server pushes that the server can initiate."
+            let (current, direction) = match &event.kind {
+                ProtocolEventKind::H3MaxPushId { push_id, direction } => (*push_id, *direction),
+                _ => return None,
+            };
 
-        // MAX_PUSH_ID is a client-only frame: a server sending one at all is the
-        // violation, whatever its value. This became checkable once the upstream
-        // leg is observed with a sender direction — a `Server` MAX_PUSH_ID is one
-        // the origin sent to this proxy, which as the receiving client must reject.
-        // cite(RFC 9114 § 7.2.7): "A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED."
-        if direction == MessageDirection::Server {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "HTTP/3 MAX_PUSH_ID (push_id {}) sent by a server; a server MUST NOT \
-                     send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)",
-                    current
-                ),
-            });
-        }
-
-        // A value strictly smaller than one already received is the violation;
-        // the comparison is `<`, not `<=`, because equal does not reduce the
-        // maximum and is a legitimate idempotent re-send.
-        // cite(RFC 9114 § 7.2.7): "A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR"
-        for prev in history.iter() {
-            if let ProtocolEventKind::H3MaxPushId {
-                push_id: prev_id, ..
-            } = &prev.kind
-            {
-                if current < *prev_id {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "HTTP/3 MAX_PUSH_ID {} decreased from previous {} \
-                             (RFC 9114 §7.2.7, H3_ID_ERROR)",
-                            current, prev_id
-                        ),
-                    });
-                }
-                // Compare only against the most recent prior MAX_PUSH_ID. On any
-                // connection that has not already violated, the running maximum
-                // is the most recent value, so this is exact; the spec's
-                // "previously received" only diverges from "most recent" after
-                // an earlier decrease, which was itself flagged at that step.
-                // Not a spec-licensed construct — a deliberate choice to avoid a
-                // redundant second finding.
-                break;
+            // MAX_PUSH_ID is a client-only frame: a server sending one at all is the
+            // violation, whatever its value. This became checkable once the upstream
+            // leg is observed with a sender direction — a `Server` MAX_PUSH_ID is one
+            // the origin sent to this proxy, which as the receiving client must reject.
+            // cite(RFC 9114 § 7.2.7): "A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED."
+            if direction == MessageDirection::Server {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "HTTP/3 MAX_PUSH_ID (push_id {}) sent by a server; a server MUST NOT \
+                         send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)",
+                        current
+                    ),
+                });
             }
-        }
 
-        // No prior MAX_PUSH_ID: the maximum is unset at connection creation, so
-        // the first frame establishes it at any value (zero included) and is
-        // always accepted.
-        // cite(RFC 9114 § 7.2.7): "The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame"
-        None
+            // A value strictly smaller than one already received is the violation;
+            // the comparison is `<`, not `<=`, because equal does not reduce the
+            // maximum and is a legitimate idempotent re-send.
+            // cite(RFC 9114 § 7.2.7): "A MAX_PUSH_ID frame cannot reduce the maximum push ID; receipt of a MAX_PUSH_ID frame that contains a smaller value than previously received MUST be treated as a connection error of type H3_ID_ERROR"
+            for prev in history.iter() {
+                if let ProtocolEventKind::H3MaxPushId {
+                    push_id: prev_id, ..
+                } = &prev.kind
+                {
+                    if current < *prev_id {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "HTTP/3 MAX_PUSH_ID {} decreased from previous {} \
+                                 (RFC 9114 §7.2.7, H3_ID_ERROR)",
+                                current, prev_id
+                            ),
+                        });
+                    }
+                    // Compare only against the most recent prior MAX_PUSH_ID. On any
+                    // connection that has not already violated, the running maximum
+                    // is the most recent value, so this is exact; the spec's
+                    // "previously received" only diverges from "most recent" after
+                    // an earlier decrease, which was itself flagged at that step.
+                    // Not a spec-licensed construct — a deliberate choice to avoid a
+                    // redundant second finding.
+                    break;
+                }
+            }
+
+            // No prior MAX_PUSH_ID: the maximum is unset at connection creation, so
+            // the first frame establishes it at any value (zero included) and is
+            // always accepted.
+            // cite(RFC 9114 § 7.2.7): "The maximum push ID is unset when an HTTP/3 connection is created, meaning that a server cannot push until it receives a MAX_PUSH_ID frame"
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

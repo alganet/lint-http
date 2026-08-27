@@ -23,28 +23,33 @@ impl Rule for HttpVersionSyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The request's version sits in the first line of the request message,
-        // the response's in the first line of the response message. One
-        // production, two start-lines, and the request is asked first because
-        // it is the one a capture always holds.
-        // cite(RFC 9112 § 3): "A request-line begins with a method token, followed by a single space (SP), the request-target, and another single space (SP), and ends with the protocol version."
-        // cite(RFC 9112 § 4): "The first line of a response message is the status-line, consisting of the protocol version, a space (SP), the status code, and another space and ending with an OPTIONAL textual phrase describing the status code."
-        let finding = judge("request", &tx.request.version).or_else(|| {
-            let resp = tx.response.as_ref()?;
-            judge("response", &resp.version)
-        })?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The request's version sits in the first line of the request message,
+            // the response's in the first line of the response message. One
+            // production, two start-lines, and the request is asked first because
+            // it is the one a capture always holds.
+            // cite(RFC 9112 § 3): "A request-line begins with a method token, followed by a single space (SP), the request-target, and another single space (SP), and ends with the protocol version."
+            // cite(RFC 9112 § 4): "The first line of a response message is the status-line, consisting of the protocol version, a space (SP), the status code, and another space and ending with an OPTIONAL textual phrase describing the status code."
+            let finding = judge("request", &tx.request.version).or_else(|| {
+                let resp = tx.response.as_ref()?;
+                judge("response", &resp.version)
+            })?;
 
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: finding,
-        })
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: finding,
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

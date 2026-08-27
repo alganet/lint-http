@@ -16,63 +16,71 @@ impl Rule for ContentLengthValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The field is defined by what it describes, not by direction, so it is checked
-        // on both sides below. The `1*DIGIT` grammar and the §6.3 comma-list rule are
-        // deliberately *not* re-quoted here: `validate_content_length` owns both, and a
-        // second copy of a helper's production is the duplicate-transcription trap.
-        // What this rule keeps is its own claim — that a malformed or self-contradictory
-        // Content-Length is worth reporting wherever it appears.
-        // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
-        let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
-            match crate::helpers::headers::validate_content_length(headers) {
-                Ok(_) => None,
-                Err(e) => {
-                    let message = match e {
-                        crate::helpers::headers::ContentLengthError::NonUtf8 => {
-                            "Invalid Content-Length value (non-UTF8)".into()
-                        }
-                        crate::helpers::headers::ContentLengthError::InvalidCharacter(s) => {
-                            format!("Invalid Content-Length value: '{}'", s)
-                        }
-                        crate::helpers::headers::ContentLengthError::TooLarge(s) => {
-                            format!("Content-Length value too large: '{}'", s)
-                        }
-                        crate::helpers::headers::ContentLengthError::MultipleValuesDiffer(a, b) => {
-                            format!(
-                                "Multiple Content-Length headers with differing values: '{}' vs '{}'",
-                                a, b
-                            )
-                        }
-                    };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The field is defined by what it describes, not by direction, so it is checked
+            // on both sides below. The `1*DIGIT` grammar and the §6.3 comma-list rule are
+            // deliberately *not* re-quoted here: `validate_content_length` owns both, and a
+            // second copy of a helper's production is the duplicate-transcription trap.
+            // What this rule keeps is its own claim — that a malformed or self-contradictory
+            // Content-Length is worth reporting wherever it appears.
+            // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
+            let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
+                match crate::helpers::headers::validate_content_length(headers) {
+                    Ok(_) => None,
+                    Err(e) => {
+                        let message = match e {
+                            crate::helpers::headers::ContentLengthError::NonUtf8 => {
+                                "Invalid Content-Length value (non-UTF8)".into()
+                            }
+                            crate::helpers::headers::ContentLengthError::InvalidCharacter(s) => {
+                                format!("Invalid Content-Length value: '{}'", s)
+                            }
+                            crate::helpers::headers::ContentLengthError::TooLarge(s) => {
+                                format!("Content-Length value too large: '{}'", s)
+                            }
+                            crate::helpers::headers::ContentLengthError::MultipleValuesDiffer(
+                                a,
+                                b,
+                            ) => {
+                                format!(
+                                    "Multiple Content-Length headers with differing values: '{}' vs '{}'",
+                                    a, b
+                                )
+                            }
+                        };
 
-                    Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message,
-                    })
+                        Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message,
+                        })
+                    }
                 }
-            }
-        };
+            };
 
-        // Request
-        if let Some(v) = check(&tx.request.headers) {
-            return Some(v);
-        }
-
-        // Response
-        if let Some(resp) = &tx.response {
-            if let Some(v) = check(&resp.headers) {
+            // Request
+            if let Some(v) = check(&tx.request.headers) {
                 return Some(v);
             }
-        }
 
-        None
+            // Response
+            if let Some(resp) = &tx.response {
+                if let Some(v) = check(&resp.headers) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

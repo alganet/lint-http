@@ -134,110 +134,118 @@ impl Rule for EarlyDataHeaderSafeMethod {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &EarlyDataConfig = ctx.state();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &EarlyDataConfig = ctx.state();
 
-        // A count, not a value: the field is a singleton whose whole grammar is one
-        // literal, so several field lines is a defect of its own rather than a longer
-        // value — and the sentence that says so also says what a recipient does with
-        // them.
-        // cite(RFC 8470 § 5.1): "The Early-Data header field carries a single bit of information, and clients MUST include at most one instance."
-        let instances = tx.request.headers.get_all(FIELD).iter().count();
+            // A count, not a value: the field is a singleton whose whole grammar is one
+            // literal, so several field lines is a defect of its own rather than a longer
+            // value — and the sentence that says so also says what a recipient does with
+            // them.
+            // cite(RFC 8470 § 5.1): "The Early-Data header field carries a single bit of information, and clients MUST include at most one instance."
+            let instances = tx.request.headers.get_all(FIELD).iter().count();
 
-        if instances > 0 {
-            // The finding rests on the field being *there*, not on it saying "1". A
-            // server MUST read any number of instances carrying anything as one
-            // instance saying 1, so `Early-Data: 0` is a request a server treats as
-            // having come through early data — which is what the next sentence says
-            // such a request is.
-            // cite(RFC 8470 § 5.1): "Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server."
-            // cite(RFC 8470 § 5.1): "A request that is marked with Early-Data was sent in early data on a previous hop."
-            // cite(RFC 8470 § 5.1): "The Early-Data request header field indicates that the request has been conveyed in early data and that a client understands the 425 (Too Early) status code."
-            //
-            // The method is compared as it was written, and nothing is trimmed off it:
-            // `method = token`, a `token` is `1*tchar`, and there is no whitespace in
-            // that production for a trim to find.
-            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-            //
-            // The parenthesis is the half that decides an unrecognized method: a method
-            // this deployment does not list is not thereby unsafe, it is a method whose
-            // safety is not known, and the sentence names that case beside the unsafe
-            // one.
-            // cite(RFC 8470 § 4): "Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data."
-            // cite(RFC 9110 § 9.2.1): "Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource."
-            if !config.safe_methods.iter().any(|m| m == &tx.request.method) {
-                return Some(self.violation(
-                    config.severity,
-                    format!(
-                        "Request carrying an Early-Data header field was conveyed in TLS early data on a previous hop (RFC 8470 §5.1), and its method '{}' is not one this deployment lists as safe; RFC 8470 §4 has a client send only safe methods in early data, because a replayed unsafe request takes effect twice",
-                        tx.request.method
-                    ),
-                ));
-            }
-
-            // Where a second line comes from is in the parenthesis of the sentence that
-            // has an intermediary write the field: it adds one only where there is none.
-            // cite(RFC 8470 § 5.1): "An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request)."
-            if instances > 1 {
-                return Some(self.violation(
-                    config.severity,
-                    format!(
-                        "Request carries {instances} Early-Data header field lines, and a client may send at most one — the field holds a single bit. A server reads them as one instance with the value 1, so the extra lines change nothing about the request; an intermediary marking early data adds the field only when it is not already there"
-                    ),
-                ));
-            }
-
-            // Exactly one line here, so the value is that line's octets, and the `else`
-            // is unreachable rather than a judgement. Compared as octets, because the
-            // only question asked of them is whether they are this one literal — and
-            // equality of two field values is equality of two octet strings, which no
-            // decode is needed to answer.
-            // cite(RFC 8470 § 5.1): "It has just one valid value: "1"."
-            if let Some(hv) = tx.request.headers.get(FIELD) {
-                let written = hv.as_bytes();
-                if written != b"1" {
+            if instances > 0 {
+                // The finding rests on the field being *there*, not on it saying "1". A
+                // server MUST read any number of instances carrying anything as one
+                // instance saying 1, so `Early-Data: 0` is a request a server treats as
+                // having come through early data — which is what the next sentence says
+                // such a request is.
+                // cite(RFC 8470 § 5.1): "Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server."
+                // cite(RFC 8470 § 5.1): "A request that is marked with Early-Data was sent in early data on a previous hop."
+                // cite(RFC 8470 § 5.1): "The Early-Data request header field indicates that the request has been conveyed in early data and that a client understands the 425 (Too Early) status code."
+                //
+                // The method is compared as it was written, and nothing is trimmed off it:
+                // `method = token`, a `token` is `1*tchar`, and there is no whitespace in
+                // that production for a trim to find.
+                // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+                //
+                // The parenthesis is the half that decides an unrecognized method: a method
+                // this deployment does not list is not thereby unsafe, it is a method whose
+                // safety is not known, and the sentence names that case beside the unsafe
+                // one.
+                // cite(RFC 8470 § 4): "Absent other information, clients MAY send requests with safe HTTP methods ([RFC7231], Section 4.2.1) in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data."
+                // cite(RFC 9110 § 9.2.1): "Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource."
+                if !config.safe_methods.iter().any(|m| m == &tx.request.method) {
                     return Some(self.violation(
                         config.severity,
                         format!(
-                            "Early-Data header field carries {}, and the field has exactly one valid value, \"1\". A server treats an invalid instance as though it said 1, so the request is marked as early data all the same — the value is simply wrong",
-                            describe_value(written)
+                            "Request carrying an Early-Data header field was conveyed in TLS early data on a previous hop (RFC 8470 §5.1), and its method '{}' is not one this deployment lists as safe; RFC 8470 §4 has a client send only safe methods in early data, because a replayed unsafe request takes effect twice",
+                            tx.request.method
                         ),
                     ));
                 }
-            }
-        }
 
-        // The prohibition is on what a `Connection` field says, in either direction and
-        // whether or not `Early-Data` is present — so it is asked of both sections at
-        // the sentence's own width. The request is the case it exists for: naming the
-        // field as a connection-option has every intermediary strip it before
-        // forwarding, which is the one thing the field must survive, and the sentence
-        // before this one forbids removing it.
-        // cite(RFC 8470 § 5.1): "An intermediary MUST NOT remove this header field if it is present in a request."
-        // cite(RFC 8470 § 5.1): "Early-Data MUST NOT appear in a Connection header field."
-        if let Some(v) = self.connection_names_early_data(config, "request", &tx.request.headers) {
-            return Some(v);
-        }
+                // Where a second line comes from is in the parenthesis of the sentence that
+                // has an intermediary write the field: it adds one only where there is none.
+                // cite(RFC 8470 § 5.1): "An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request)."
+                if instances > 1 {
+                    return Some(self.violation(
+                        config.severity,
+                        format!(
+                            "Request carries {instances} Early-Data header field lines, and a client may send at most one — the field holds a single bit. A server reads them as one instance with the value 1, so the extra lines change nothing about the request; an intermediary marking early data adds the field only when it is not already there"
+                        ),
+                    ));
+                }
 
-        if let Some(resp) = &tx.response {
-            // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
-            if resp.headers.contains_key(FIELD) {
-                return Some(self.violation(
-                    config.severity,
-                    "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
-                ));
+                // Exactly one line here, so the value is that line's octets, and the `else`
+                // is unreachable rather than a judgement. Compared as octets, because the
+                // only question asked of them is whether they are this one literal — and
+                // equality of two field values is equality of two octet strings, which no
+                // decode is needed to answer.
+                // cite(RFC 8470 § 5.1): "It has just one valid value: "1"."
+                if let Some(hv) = tx.request.headers.get(FIELD) {
+                    let written = hv.as_bytes();
+                    if written != b"1" {
+                        return Some(self.violation(
+                            config.severity,
+                            format!(
+                                "Early-Data header field carries {}, and the field has exactly one valid value, \"1\". A server treats an invalid instance as though it said 1, so the request is marked as early data all the same — the value is simply wrong",
+                                describe_value(written)
+                            ),
+                        ));
+                    }
+                }
             }
-            if let Some(v) = self.connection_names_early_data(config, "response", &resp.headers) {
+
+            // The prohibition is on what a `Connection` field says, in either direction and
+            // whether or not `Early-Data` is present — so it is asked of both sections at
+            // the sentence's own width. The request is the case it exists for: naming the
+            // field as a connection-option has every intermediary strip it before
+            // forwarding, which is the one thing the field must survive, and the sentence
+            // before this one forbids removing it.
+            // cite(RFC 8470 § 5.1): "An intermediary MUST NOT remove this header field if it is present in a request."
+            // cite(RFC 8470 § 5.1): "Early-Data MUST NOT appear in a Connection header field."
+            if let Some(v) =
+                self.connection_names_early_data(config, "request", &tx.request.headers)
+            {
                 return Some(v);
             }
-        }
 
-        None
+            if let Some(resp) = &tx.response {
+                // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
+                if resp.headers.contains_key(FIELD) {
+                    return Some(self.violation(
+                        config.severity,
+                        "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
+                    ));
+                }
+                if let Some(v) = self.connection_names_early_data(config, "response", &resp.headers)
+                {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -16,77 +16,84 @@ impl Rule for CrossOriginEmbedderPolicyValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // COEP is a response-only header per spec; ignore requests
-        let resp = if let Some(resp) = &tx.response {
-            resp
-        } else {
-            return None;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // COEP is a response-only header per spec; ignore requests
+            let resp = if let Some(resp) = &tx.response {
+                resp
+            } else {
+                return None;
+            };
+            let headers = &resp.headers;
+
+            let count = headers
+                .get_all("cross-origin-embedder-policy")
+                .iter()
+                .count();
+            if count == 0 {
+                return None;
+            }
+
+            if count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Multiple Cross-Origin-Embedder-Policy header fields present".into(),
+                });
+            }
+
+            let val = match crate::helpers::headers::get_header_str(
+                headers,
+                "cross-origin-embedder-policy",
+            ) {
+                Some(v) => v.trim(),
+                None => return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message:
+                        "Cross-Origin-Embedder-Policy header contains non-ASCII or control characters"
+                            .into(),
+                }),
+            };
+
+            // Must not be a comma-separated list
+            if crate::helpers::headers::list_members(val).count() != 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Cross-Origin-Embedder-Policy must be a single value".into(),
+                });
+            }
+
+            // Acceptable values for our correctness check: require-corp or credentialless
+            // (case-insensitive). `unsafe-none` is rejected on purpose, and the quote below is
+            // why: it is a *valid* value, and it is the one that turns the protection off. This
+            // rule is stricter than the grammar by choice, which is a thing a linter may be —
+            // as long as it says so, which is what this cite makes it do.
+            // cite(HTML § 7.1.4): "An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners."
+            if val.eq_ignore_ascii_case("require-corp")
+                || val.eq_ignore_ascii_case("credentialless")
+            {
+                return None;
+            }
+
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "Cross-Origin-Embedder-Policy value '{}' does not enable cross-origin isolation (use 'require-corp' or 'credentialless')",
+                    val
+                ),
+            })
         };
-        let headers = &resp.headers;
-
-        let count = headers
-            .get_all("cross-origin-embedder-policy")
-            .iter()
-            .count();
-        if count == 0 {
-            return None;
-        }
-
-        if count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple Cross-Origin-Embedder-Policy header fields present".into(),
-            });
-        }
-
-        let val = match crate::helpers::headers::get_header_str(
-            headers,
-            "cross-origin-embedder-policy",
-        ) {
-            Some(v) => v.trim(),
-            None => return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message:
-                    "Cross-Origin-Embedder-Policy header contains non-ASCII or control characters"
-                        .into(),
-            }),
-        };
-
-        // Must not be a comma-separated list
-        if crate::helpers::headers::list_members(val).count() != 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Cross-Origin-Embedder-Policy must be a single value".into(),
-            });
-        }
-
-        // Acceptable values for our correctness check: require-corp or credentialless
-        // (case-insensitive). `unsafe-none` is rejected on purpose, and the quote below is
-        // why: it is a *valid* value, and it is the one that turns the protection off. This
-        // rule is stricter than the grammar by choice, which is a thing a linter may be —
-        // as long as it says so, which is what this cite makes it do.
-        // cite(HTML § 7.1.4): "An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners."
-        if val.eq_ignore_ascii_case("require-corp") || val.eq_ignore_ascii_case("credentialless") {
-            return None;
-        }
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Cross-Origin-Embedder-Policy value '{}' does not enable cross-origin isolation (use 'require-corp' or 'credentialless')",
-                val
-            ),
-        })
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

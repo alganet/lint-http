@@ -16,87 +16,92 @@ impl Rule for PostCreatesResource {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The sentence this rule enforces is in the POST method's own section, so the
-        // method is the first gate. It is compared exactly: a request whose method is
-        // `post` is a request with an unrecognized method, and §9.3.3 says nothing
-        // about it. `request_method_token_valid` is the rule that reports it.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        if tx.request.method != "POST" {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The sentence this rule enforces is in the POST method's own section, so the
+            // method is the first gate. It is compared exactly: a request whose method is
+            // `post` is a request with an unrecognized method, and §9.3.3 says nothing
+            // about it. `request_method_token_valid` is the rule that reports it.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method != "POST" {
+                return None;
+            }
 
-        // What a POST did is stated by the status code the origin server chose, so
-        // there is nothing for this rule to read until a response has arrived — which
-        // is what `RuleScope::Server` declares.
-        // cite(RFC 9110 § 9.3.3): "An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable))."
-        let resp = tx.response.as_ref()?;
+            // What a POST did is stated by the status code the origin server chose, so
+            // there is nothing for this rule to read until a response has arrived — which
+            // is what `RuleScope::Server` declares.
+            // cite(RFC 9110 § 9.3.3): "An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable))."
+            let resp = tx.response.as_ref()?;
 
-        // §9.3.3's SHOULD opens on a condition nothing in a message states directly —
-        // *"If one or more resources has been created on the origin server"*. The 201
-        // is what makes it observable: the status's own definition says that is what
-        // it indicates, so a server that chose it has asserted the condition holds.
-        // No other status is read here. A 200 or a 204 answering a POST asserts no
-        // creation, and §9.3.3 asks nothing of it — including when it carries a
-        // `Location`, which is `redirect_status_and_location_valid`'s
-        // finding on every status rather than this rule's on the 2xx ones.
-        // cite(RFC 9110 § 15.3.2): "The 201 (Created) status code indicates that the request has been fulfilled and has resulted in one or more new resources being created."
-        if resp.status != 201 {
-            return None;
-        }
+            // §9.3.3's SHOULD opens on a condition nothing in a message states directly —
+            // *"If one or more resources has been created on the origin server"*. The 201
+            // is what makes it observable: the status's own definition says that is what
+            // it indicates, so a server that chose it has asserted the condition holds.
+            // No other status is read here. A 200 or a 204 answering a POST asserts no
+            // creation, and §9.3.3 asks nothing of it — including when it carries a
+            // `Location`, which is `redirect_status_and_location_valid`'s
+            // finding on every status rather than this rule's on the 2xx ones.
+            // cite(RFC 9110 § 15.3.2): "The 201 (Created) status code indicates that the request has been fulfilled and has resulted in one or more new resources being created."
+            if resp.status != 201 {
+                return None;
+            }
 
-        // Presence is the whole test, and the field's own status definition is what
-        // makes presence the right question: the sentence below distinguishes exactly
-        // the two states, received and not received. A value this rule cannot decode
-        // is still a field the message carries, so nothing here reads the value —
-        // whether it is a usable `URI-reference` is `location_header_uri_valid`'s
-        // question. The lowercase key is the field name as §5.1 defines names.
-        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
-        // cite(RFC 9110 § 15.3.2): "The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI."
-        //
-        // Only the header section is read. §10.2.2 defines `Location` without
-        // permitting it in trailers, and a sender may only generate a trailer field
-        // where the field's own definition permits it — so a `Location` written after
-        // the content is not the field §9.3.3 asks for.
-        // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-        if resp.headers.contains_key("location") {
-            return None;
-        }
+            // Presence is the whole test, and the field's own status definition is what
+            // makes presence the right question: the sentence below distinguishes exactly
+            // the two states, received and not received. A value this rule cannot decode
+            // is still a field the message carries, so nothing here reads the value —
+            // whether it is a usable `URI-reference` is `location_header_uri_valid`'s
+            // question. The lowercase key is the field name as §5.1 defines names.
+            // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"; see Section 16.3.1."
+            // cite(RFC 9110 § 15.3.2): "The primary resource created by the request is identified by either a Location header field in the response or, if no Location header field is received, by the target URI."
+            //
+            // Only the header section is read. §10.2.2 defines `Location` without
+            // permitting it in trailers, and a sender may only generate a trailer field
+            // where the field's own definition permits it — so a `Location` written after
+            // the content is not the field §9.3.3 asks for.
+            // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+            if resp.headers.contains_key("location") {
+                return None;
+            }
 
-        // The SHOULD, quoted whole so the identifier it asks for travels with the
-        // condition that asks for it.
-        // cite(RFC 9110 § 9.3.3): "If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created (Section 10.2.2) and a representation that describes the status of the request while referring to the new resource(s)."
-        // cite(RFC 9110 § 10.2.2): "For 201 (Created) responses, the Location value refers to the primary resource created by the request."
-        //
-        // §15.3.2's fallback is the *target URI*, and `tx.request.uri` is the
-        // **request-target** — the same string only when the request-target is in
-        // absolute-form. Over HTTP/1.1 it arrives in origin-form, where it is the
-        // target URI's path and query and nothing more: the authority comes from
-        // `Host` and the scheme from whether the connection was secured, which no
-        // part of the message records. So the message names the request-target as
-        // the request-target and says what §15.3.2 does with it, rather than
-        // printing a path under the words "the target URI".
-        // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
-        // cite(RFC 9112 § 3.3): "Otherwise, the target URI's combined path and query component is the request-target."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "201 Created response to a POST request carries no Location header field. \
-                 RFC 9110 §9.3.3 asks an origin server that has created one or more resources \
-                 to answer with a 201 containing a Location field that provides an identifier \
-                 for the primary resource created, with a SHOULD. Nothing is malformed without \
-                 it — RFC 9110 §15.3.2 says the primary resource created is then identified by \
-                 the target URI, which this request addressed as '{}' — so what is missing is \
-                 the identifier being stated rather than left to be inferred",
-                tx.request.uri
-            ),
-        })
+            // The SHOULD, quoted whole so the identifier it asks for travels with the
+            // condition that asks for it.
+            // cite(RFC 9110 § 9.3.3): "If one or more resources has been created on the origin server as a result of successfully processing a POST request, the origin server SHOULD send a 201 (Created) response containing a Location header field that provides an identifier for the primary resource created (Section 10.2.2) and a representation that describes the status of the request while referring to the new resource(s)."
+            // cite(RFC 9110 § 10.2.2): "For 201 (Created) responses, the Location value refers to the primary resource created by the request."
+            //
+            // §15.3.2's fallback is the *target URI*, and `tx.request.uri` is the
+            // **request-target** — the same string only when the request-target is in
+            // absolute-form. Over HTTP/1.1 it arrives in origin-form, where it is the
+            // target URI's path and query and nothing more: the authority comes from
+            // `Host` and the scheme from whether the connection was secured, which no
+            // part of the message records. So the message names the request-target as
+            // the request-target and says what §15.3.2 does with it, rather than
+            // printing a path under the words "the target URI".
+            // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
+            // cite(RFC 9112 § 3.3): "Otherwise, the target URI's combined path and query component is the request-target."
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "201 Created response to a POST request carries no Location header field. \
+                     RFC 9110 §9.3.3 asks an origin server that has created one or more resources \
+                     to answer with a 201 containing a Location field that provides an identifier \
+                     for the primary resource created, with a SHOULD. Nothing is malformed without \
+                     it — RFC 9110 §15.3.2 says the primary resource created is then identified by \
+                     the target URI, which this request addressed as '{}' — so what is missing is \
+                     the identifier being stated rather than left to be inferred",
+                    tx.request.uri
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

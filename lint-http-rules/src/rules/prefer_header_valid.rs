@@ -100,201 +100,206 @@ impl Rule for PreferHeaderValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message,
-            })
-        };
-
-        // Read as octets, one `char` each, and joined across the field's lines.
-        // Both halves are load-bearing here. A `word` may be a `quoted-string`,
-        // `qdtext` admits `obs-text`, and `HeaderValue::to_str` refuses every
-        // octet above %x7E — so the decode this loop used to open with reported
-        // `Prefer: foo="café"` as invalid while calling it "non-UTF8", which is
-        // wrong about the value twice over. And the document says a client may
-        // spread its preferences over several field lines, so a member written
-        // across a boundary is one member rather than two unreadable halves.
-        //
-        // cite(RFC 7240 § 2): "A client MAY use multiple instances of the Prefer header field in a single message, or it MAY use a single Prefer header field with multiple comma-separated preference tokens."
-        // cite(RFC 7240 § 2): "If multiple Prefer header fields are used, it is equivalent to a single Prefer header field with the comma-separated concatenation of all of the tokens."
-        let value = combined_field_value_as_written(&tx.request.headers, "prefer")?;
-
-        // The `,` inside a `quoted-string` is `qdtext` and not a separator,
-        // which is why the split is quote-aware: `foo="a,b"` is one member
-        // carrying one value, and the naive split this replaced reported both
-        // halves of it.
-        //
-        // cite(RFC 7240 § 2): "Prefer     = "Prefer" ":" 1#preference"
-        let members = list_members_as_written(&value);
-
-        // `1#` sets a floor, and the floor counts *non-empty* elements — so
-        // `Prefer:`, `Prefer: ,` and `Prefer: ,   ,` are three spellings of one
-        // defect. They are the three values § 5.6.1.2's worked example prints
-        // for exactly this cardinality, and the last two drew nothing from any
-        // rule in the catalogue before this one.
-        //
-        // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
-        // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
-        if members.iter().all(|m| m.is_empty()) {
-            return violation(
-                "Prefer header states no preference; its value is 1#preference, which requires at least one non-empty member".into(),
-            );
-        }
-
-        // An empty element beside a real one is the other half of the same
-        // grammar and a different requirement: § 5.6.1.2 makes a recipient
-        // accept it, § 5.6.1.1 forbids the sender writing it. This rule measures
-        // the sender.
-        //
-        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-        if members.iter().any(|m| m.is_empty()) {
-            return violation(format!(
-                "Prefer header contains an empty list element: '{}'",
-                shown_in_finding(&value)
-            ));
-        }
-
-        // The names this request has already used, lowercased, in the order the
-        // client wrote them.
-        let mut seen: Vec<String> = Vec::new();
-
-        // No member below is empty: the two checks above return on an empty list
-        // and on an empty element, so a filter here would be an arm no input can
-        // reach. The neighbouring `Preference-Applied` rule still carries one.
-        for member in members.iter() {
-            // A preference is a name-and-value followed by any number of
-            // parameters, so only the part before the first top-level `;` is the
-            // preference itself. A `;` inside the `word`'s quoted-string is
-            // `qdtext` and not a separator, which is why this search is
-            // quote-aware too — `foo="a;b"` was being reported for parameters it
-            // does not have.
-            //
-            // cite(RFC 7240 § 2): "preference = token [ BWS "=" BWS word ]"
-            // cite(RFC 7240 § 2): "*( OWS ";" [ OWS parameter ] )"
-            let mut segments = split_semicolons_respecting_quotes(member).into_iter();
-            let first = segments.next().unwrap_or("");
-
-            let parsed = match parse_token_bws_word(first) {
-                Ok(parsed) => parsed,
-                Err(e) => {
-                    return violation(format!(
-                        "Prefer member '{}' does not match preference: {}",
-                        shown_in_finding(member),
-                        e
-                    ))
-                }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let violation = |message: String| {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message,
+                })
             };
 
-            // The `BWS` in the production is why the parse trims around the `=`
-            // at all — a recipient is required to. The sender is required not to
-            // have written it, and that half was going unsaid because the trim
-            // it licenses happens first and leaves nothing behind to look at.
+            // Read as octets, one `char` each, and joined across the field's lines.
+            // Both halves are load-bearing here. A `word` may be a `quoted-string`,
+            // `qdtext` admits `obs-text`, and `HeaderValue::to_str` refuses every
+            // octet above %x7E — so the decode this loop used to open with reported
+            // `Prefer: foo="café"` as invalid while calling it "non-UTF8", which is
+            // wrong about the value twice over. And the document says a client may
+            // spread its preferences over several field lines, so a member written
+            // across a boundary is one member rather than two unreadable halves.
             //
-            // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
-            // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
-            if parsed.bws {
+            // cite(RFC 7240 § 2): "A client MAY use multiple instances of the Prefer header field in a single message, or it MAY use a single Prefer header field with multiple comma-separated preference tokens."
+            // cite(RFC 7240 § 2): "If multiple Prefer header fields are used, it is equivalent to a single Prefer header field with the comma-separated concatenation of all of the tokens."
+            let value = combined_field_value_as_written(&tx.request.headers, "prefer")?;
+
+            // The `,` inside a `quoted-string` is `qdtext` and not a separator,
+            // which is why the split is quote-aware: `foo="a,b"` is one member
+            // carrying one value, and the naive split this replaced reported both
+            // halves of it.
+            //
+            // cite(RFC 7240 § 2): "Prefer     = "Prefer" ":" 1#preference"
+            let members = list_members_as_written(&value);
+
+            // `1#` sets a floor, and the floor counts *non-empty* elements — so
+            // `Prefer:`, `Prefer: ,` and `Prefer: ,   ,` are three spellings of one
+            // defect. They are the three values § 5.6.1.2's worked example prints
+            // for exactly this cardinality, and the last two drew nothing from any
+            // rule in the catalogue before this one.
+            //
+            // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+            // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
+            if members.iter().all(|m| m.is_empty()) {
+                return violation(
+                    "Prefer header states no preference; its value is 1#preference, which requires at least one non-empty member".into(),
+                );
+            }
+
+            // An empty element beside a real one is the other half of the same
+            // grammar and a different requirement: § 5.6.1.2 makes a recipient
+            // accept it, § 5.6.1.1 forbids the sender writing it. This rule measures
+            // the sender.
+            //
+            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            if members.iter().any(|m| m.is_empty()) {
                 return violation(format!(
-                    "Prefer member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
-                    shown_in_finding(member)
+                    "Prefer header contains an empty list element: '{}'",
+                    shown_in_finding(&value)
                 ));
             }
 
-            // `foo=""` is not a preference carrying the empty string, it is the
-            // same statement as `foo` — the document prints all three spellings
-            // side by side. Normalising here is what stops the value checks
-            // below from measuring `""` against a production's literals.
-            //
-            // cite(RFC 7240 § 2): "Empty or zero-length values on both the preference token and within parameters are equivalent to no value being specified at all."
-            let value_of = parsed.value.as_deref().filter(|v| !v.is_empty());
+            // The names this request has already used, lowercased, in the order the
+            // client wrote them.
+            let mut seen: Vec<String> = Vec::new();
 
-            // cite(RFC 7240 § 2): "For both preference token names and parameter names, comparison is case insensitive while values are case sensitive regardless of whether token or quoted-string values are used."
-            let name = parsed.name.to_ascii_lowercase();
+            // No member below is empty: the two checks above return on an empty list
+            // and on an empty element, so a filter here would be an arm no input can
+            // reach. The neighbouring `Preference-Applied` rule still carries one.
+            for member in members.iter() {
+                // A preference is a name-and-value followed by any number of
+                // parameters, so only the part before the first top-level `;` is the
+                // preference itself. A `;` inside the `word`'s quoted-string is
+                // `qdtext` and not a separator, which is why this search is
+                // quote-aware too — `foo="a;b"` was being reported for parameters it
+                // does not have.
+                //
+                // cite(RFC 7240 § 2): "preference = token [ BWS "=" BWS word ]"
+                // cite(RFC 7240 § 2): "*( OWS ";" [ OWS parameter ] )"
+                let mut segments = split_semicolons_respecting_quotes(member).into_iter();
+                let first = segments.next().unwrap_or("");
 
-            // A member can match `preference` and still not match the production
-            // for the preference it names, and that is what § 2.2 makes a
-            // finding rather than a curiosity. This is the only sentence in
-            // reach that says so: RFC 7240 states no requirement of its own
-            // about a value, it writes the grammar and leaves it there.
-            //
-            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-            // `parsed.name` reaches the message unescaped where every value
-            // around it goes through [`shown_in_finding`], and the difference is
-            // not an oversight: the parse returns a name only after finding
-            // every octet in it to be a `tchar`, which is visible US-ASCII. A
-            // `word`'s content has no such guarantee — `qdtext` admits HTAB and
-            // `obs-text`.
-            if let Some(defect) = defined_value_defect(&name, value_of) {
-                return violation(format!(
-                    "Prefer names the '{}' preference, which {}",
-                    parsed.name, defect
-                ));
-            }
-
-            // Parameters carry the same production as the preference itself, and
-            // the optional bracket around `parameter` is why a bare `;` is not a
-            // defect: `foo; ; bar` writes two empty repetitions of the group and
-            // derives from the grammar as written.
-            //
-            // cite(RFC 7240 § 2): "parameter  = token [ BWS "=" BWS word ]"
-            // cite(RFC 7240 § 2): "An optional set of parameters can be specified for any preference token."
-            for segment in segments {
-                let param = trim_ows(segment);
-                if param.is_empty() {
-                    continue;
-                }
-                let parsed_param = match parse_token_bws_word(param) {
-                    Ok(parsed_param) => parsed_param,
+                let parsed = match parse_token_bws_word(first) {
+                    Ok(parsed) => parsed,
                     Err(e) => {
                         return violation(format!(
-                            "Prefer parameter '{}' in member '{}' does not match parameter: {}",
-                            shown_in_finding(param),
+                            "Prefer member '{}' does not match preference: {}",
                             shown_in_finding(member),
                             e
                         ))
                     }
                 };
-                // The same pair of sentences at the same construct: the trim is
-                // the recipient's requirement and the finding is the sender's.
+
+                // The `BWS` in the production is why the parse trims around the `=`
+                // at all — a recipient is required to. The sender is required not to
+                // have written it, and that half was going unsaid because the trim
+                // it licenses happens first and leaves nothing behind to look at.
                 //
                 // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
                 // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
-                if parsed_param.bws {
+                if parsed.bws {
                     return violation(format!(
-                        "Prefer parameter '{}' in member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
-                        shown_in_finding(param),
+                        "Prefer member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
                         shown_in_finding(member)
                     ));
                 }
+
+                // `foo=""` is not a preference carrying the empty string, it is the
+                // same statement as `foo` — the document prints all three spellings
+                // side by side. Normalising here is what stops the value checks
+                // below from measuring `""` against a production's literals.
+                //
+                // cite(RFC 7240 § 2): "Empty or zero-length values on both the preference token and within parameters are equivalent to no value being specified at all."
+                let value_of = parsed.value.as_deref().filter(|v| !v.is_empty());
+
+                // cite(RFC 7240 § 2): "For both preference token names and parameter names, comparison is case insensitive while values are case sensitive regardless of whether token or quoted-string values are used."
+                let name = parsed.name.to_ascii_lowercase();
+
+                // A member can match `preference` and still not match the production
+                // for the preference it names, and that is what § 2.2 makes a
+                // finding rather than a curiosity. This is the only sentence in
+                // reach that says so: RFC 7240 states no requirement of its own
+                // about a value, it writes the grammar and leaves it there.
+                //
+                // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+                // `parsed.name` reaches the message unescaped where every value
+                // around it goes through [`shown_in_finding`], and the difference is
+                // not an oversight: the parse returns a name only after finding
+                // every octet in it to be a `tchar`, which is visible US-ASCII. A
+                // `word`'s content has no such guarantee — `qdtext` admits HTAB and
+                // `obs-text`.
+                if let Some(defect) = defined_value_defect(&name, value_of) {
+                    return violation(format!(
+                        "Prefer names the '{}' preference, which {}",
+                        parsed.name, defect
+                    ));
+                }
+
+                // Parameters carry the same production as the preference itself, and
+                // the optional bracket around `parameter` is why a bare `;` is not a
+                // defect: `foo; ; bar` writes two empty repetitions of the group and
+                // derives from the grammar as written.
+                //
+                // cite(RFC 7240 § 2): "parameter  = token [ BWS "=" BWS word ]"
+                // cite(RFC 7240 § 2): "An optional set of parameters can be specified for any preference token."
+                for segment in segments {
+                    let param = trim_ows(segment);
+                    if param.is_empty() {
+                        continue;
+                    }
+                    let parsed_param = match parse_token_bws_word(param) {
+                        Ok(parsed_param) => parsed_param,
+                        Err(e) => {
+                            return violation(format!(
+                                "Prefer parameter '{}' in member '{}' does not match parameter: {}",
+                                shown_in_finding(param),
+                                shown_in_finding(member),
+                                e
+                            ))
+                        }
+                    };
+                    // The same pair of sentences at the same construct: the trim is
+                    // the recipient's requirement and the finding is the sender's.
+                    //
+                    // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
+                    // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
+                    if parsed_param.bws {
+                        return violation(format!(
+                            "Prefer parameter '{}' in member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
+                            shown_in_finding(param),
+                            shown_in_finding(member)
+                        ));
+                    }
+                }
+
+                // Writing a preference twice costs the second one, and the document
+                // states the consequence rather than leaving it to the server: the
+                // first instance is the one that counts. The two preferences whose
+                // sections call them mutually exclusive are this case — `return`
+                // written twice is one name twice — and there the cost is both.
+                //
+                // cite(RFC 7240 § 2): "To avoid any possible ambiguity, individual preference tokens SHOULD NOT appear multiple times within a single request."
+                // cite(RFC 7240 § 2): "If any preference is specified more than once, only the first instance is to be considered."
+                // cite(RFC 7240 § 4.2): "The "return=minimal" and "return=representation" preferences are mutually exclusive directives."
+                // cite(RFC 7240 § 4.4): "The "handling=strict" and "handling=lenient" preferences are mutually exclusive directives."
+                if seen.contains(&name) {
+                    return violation(format!(
+                        "Prefer names the '{}' preference more than once; only the first instance is considered",
+                        parsed.name
+                    ));
+                }
+                seen.push(name);
             }
 
-            // Writing a preference twice costs the second one, and the document
-            // states the consequence rather than leaving it to the server: the
-            // first instance is the one that counts. The two preferences whose
-            // sections call them mutually exclusive are this case — `return`
-            // written twice is one name twice — and there the cost is both.
-            //
-            // cite(RFC 7240 § 2): "To avoid any possible ambiguity, individual preference tokens SHOULD NOT appear multiple times within a single request."
-            // cite(RFC 7240 § 2): "If any preference is specified more than once, only the first instance is to be considered."
-            // cite(RFC 7240 § 4.2): "The "return=minimal" and "return=representation" preferences are mutually exclusive directives."
-            // cite(RFC 7240 § 4.4): "The "handling=strict" and "handling=lenient" preferences are mutually exclusive directives."
-            if seen.contains(&name) {
-                return violation(format!(
-                    "Prefer names the '{}' preference more than once; only the first instance is considered",
-                    parsed.name
-                ));
-            }
-            seen.push(name);
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

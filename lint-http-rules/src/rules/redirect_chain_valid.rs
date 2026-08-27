@@ -105,143 +105,150 @@ impl Rule for RedirectChainValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        let referent = location_names_another_resource(resp.status)?;
+            let referent = location_names_another_resource(resp.status)?;
 
-        // Everything about the field's own shape is `location_header_uri_valid`'s.
-        // Each decline below is a case that rule already reports, and reporting
-        // it a second time here would say the same thing with less of the reason.
-        let lines = resp.headers.get_all("location").iter().count();
-        if lines != 1 {
-            // No field: nothing to compare. Several field lines: the value in
-            // force is a `URI-reference` naming neither of the resources the
-            // sender wrote, so resolving it would compare against a URI nobody
-            // meant.
-            return None;
-        }
-
-        // Read as the sender wrote it. `to_str` admits only visible US-ASCII, so
-        // a `Location` carrying %xFF read through it becomes "this response has
-        // no Location field" — and the previous version of this rule instead
-        // announced it as "not valid UTF-8", a claim about the value that is
-        // wrong twice over: every octet `to_str` refuses is outside the URI
-        // alphabet, and most of them are perfectly good UTF-8.
-        //
-        // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
-        let raw = combined_field_value_as_written(&resp.headers, "location")?;
-        let value = trim_ows(&raw);
-
-        // An empty value *is* the self-referential case — a same-document
-        // reference resolving to the target URI — and the owning rule says so in
-        // those words. Nothing is gained by saying it twice.
-        if value.is_empty() {
-            return None;
-        }
-
-        // A value carrying an octet no `URI-reference` admits identifies no
-        // resource at all, so there is nothing to resolve. The octet is named by
-        // the rule that owns the grammar.
-        if crate::helpers::uri::find_non_uri_char(value).is_some() {
-            return None;
-        }
-
-        // The comparison is between absolute forms. A `Location` is a
-        // `URI-reference`, which means nothing on its own: `page`, `/dir/page`
-        // and `https://host/dir/page` can all name the resource just requested,
-        // and only resolution against the target URI decides which.
-        //
-        // cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
-        // cite(RFC 9110 § 10.2.2): "When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5)."
-        let target_path_and_query =
-            crate::helpers::uri::extract_path_and_query_from_request_target(&tx.request.uri)
-                .map(|p| crate::helpers::uri::normalize_path_and_query(&p))?;
-
-        // Neither side's fragment takes part: §10.2.2 hands a fragmentless
-        // `Location` the target's own fragment, so two references differing only
-        // there redirect to the same place. Both helpers drop it.
-        //
-        // cite(RFC 9110 § 10.2.2): "If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any)."
-        let location_path_and_query =
-            crate::helpers::uri::resolve_reference_path_and_query(&target_path_and_query, value)?;
-
-        // All of §6.2.2 is applied to both sides, by the helper above: two
-        // references differing in the percent-encoding of an `unreserved`
-        // character are equivalent under §6.2.2.2, and `Location: /a%2Db`
-        // answering a request for `/a-b` is a redirect to the resource just
-        // requested however it is spelled. §6.2.3's scheme-based normalization
-        // is not applied — see the default-port note below — so the two sides
-        // still have to agree about anything only the `http` scheme's own
-        // definition makes equivalent.
-        if location_path_and_query != target_path_and_query {
-            return None;
-        }
-
-        // An equal path decides nothing on its own: a `Location` naming another
-        // host with the same path is where the web keeps its canonicalizing
-        // redirects, and this rule used to report every one of them, because an
-        // origin-form request-target carries no authority to disagree with. The
-        // target URI's authority is in `Host` for exactly that reason.
-        let target_authority =
-            crate::helpers::uri::target_uri_authority(&tx.request.uri, &tx.request.headers);
-        let location_authority = crate::helpers::uri::reference_authority(value);
-        match (target_authority.as_deref(), location_authority.as_deref()) {
-            // cite(RFC 3986 § 6.2.2.1): "the scheme and host are case-insensitive and therefore should be normalized to lowercase"
-            (Some(target), Some(location)) if !target.eq_ignore_ascii_case(location) => {
-                return None
+            // Everything about the field's own shape is `location_header_uri_valid`'s.
+            // Each decline below is a case that rule already reports, and reporting
+            // it a second time here would say the same thing with less of the reason.
+            let lines = resp.headers.get_all("location").iter().count();
+            if lines != 1 {
+                // No field: nothing to compare. Several field lines: the value in
+                // force is a `URI-reference` naming neither of the resources the
+                // sender wrote, so resolving it would compare against a URI nobody
+                // meant.
+                return None;
             }
-            // The reference names a host and nothing in the message says which
-            // host was addressed, so the two cannot be compared.
-            (None, Some(_)) => return None,
-            // The reference defines no authority of its own and inherits the
-            // target's, whatever that is.
-            _ => {}
-        }
 
-        // Two authorities differing only in a default port are equivalent under
-        // §6.2.3, and are not recognised here. That is a *scheme-based*
-        // normalization — the rung above the one the paths get — and it needs
-        // the scheme, which an origin-form request-target does not carry. An
-        // under-report, and the safe direction for a finding this rule offers as
-        // advice.
+            // Read as the sender wrote it. `to_str` admits only visible US-ASCII, so
+            // a `Location` carrying %xFF read through it becomes "this response has
+            // no Location field" — and the previous version of this rule instead
+            // announced it as "not valid UTF-8", a claim about the value that is
+            // wrong twice over: every octet `to_str` refuses is outside the URI
+            // alphabet, and most of them are perfectly good UTF-8.
+            //
+            // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
+            let raw = combined_field_value_as_written(&resp.headers, "location")?;
+            let value = trim_ows(&raw);
 
-        // The last component, and the one the capture does not record. A
-        // request-target in origin-form carries no scheme: RFC 9112 §3.3 takes it
-        // from whether the connection was secured, which is connection context
-        // and not part of the message. So a scheme-bearing `Location` under an
-        // origin-form request cannot be compared — and the case hiding there is
-        // the plain HTTP-to-HTTPS redirect, which names this same authority and
-        // this same path and is not a redirect to the same resource at all.
-        //
-        // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
-        // cite(RFC 9112 § 3.3): "Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http"."
-        let target_origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
-        let location_origin = crate::helpers::uri::extract_origin_if_absolute(value);
-        match (target_origin.as_deref(), location_origin.as_deref()) {
-            (Some(target), Some(location)) if !target.eq_ignore_ascii_case(location) => {
-                return None
+            // An empty value *is* the self-referential case — a same-document
+            // reference resolving to the target URI — and the owning rule says so in
+            // those words. Nothing is gained by saying it twice.
+            if value.is_empty() {
+                return None;
             }
-            (None, Some(_)) => return None,
-            _ => {}
-        }
 
-        // cite(RFC 9110 § 15.4): "A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops)."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Location '{}' resolves to '{}', the target URI of the request it answers, so the response redirects the client to where it already was: {}. A client that follows it issues the same request again — RFC 9110 §15.4 asks one to detect and intervene in cyclical redirections, and this is the shortest one there is",
-                value.escape_debug(),
-                location_path_and_query.escape_debug(),
-                referent
-            ),
-        })
+            // A value carrying an octet no `URI-reference` admits identifies no
+            // resource at all, so there is nothing to resolve. The octet is named by
+            // the rule that owns the grammar.
+            if crate::helpers::uri::find_non_uri_char(value).is_some() {
+                return None;
+            }
+
+            // The comparison is between absolute forms. A `Location` is a
+            // `URI-reference`, which means nothing on its own: `page`, `/dir/page`
+            // and `https://host/dir/page` can all name the resource just requested,
+            // and only resolution against the target URI decides which.
+            //
+            // cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
+            // cite(RFC 9110 § 10.2.2): "When it has the form of a relative reference ([URI], Section 4.2), the final value is computed by resolving it against the target URI ([URI], Section 5)."
+            let target_path_and_query =
+                crate::helpers::uri::extract_path_and_query_from_request_target(&tx.request.uri)
+                    .map(|p| crate::helpers::uri::normalize_path_and_query(&p))?;
+
+            // Neither side's fragment takes part: §10.2.2 hands a fragmentless
+            // `Location` the target's own fragment, so two references differing only
+            // there redirect to the same place. Both helpers drop it.
+            //
+            // cite(RFC 9110 § 10.2.2): "If the Location value provided in a 3xx (Redirection) response does not have a fragment component, a user agent MUST process the redirection as if the value inherits the fragment component of the URI reference used to generate the target URI (i.e., the redirection inherits the original reference's fragment, if any)."
+            let location_path_and_query = crate::helpers::uri::resolve_reference_path_and_query(
+                &target_path_and_query,
+                value,
+            )?;
+
+            // All of §6.2.2 is applied to both sides, by the helper above: two
+            // references differing in the percent-encoding of an `unreserved`
+            // character are equivalent under §6.2.2.2, and `Location: /a%2Db`
+            // answering a request for `/a-b` is a redirect to the resource just
+            // requested however it is spelled. §6.2.3's scheme-based normalization
+            // is not applied — see the default-port note below — so the two sides
+            // still have to agree about anything only the `http` scheme's own
+            // definition makes equivalent.
+            if location_path_and_query != target_path_and_query {
+                return None;
+            }
+
+            // An equal path decides nothing on its own: a `Location` naming another
+            // host with the same path is where the web keeps its canonicalizing
+            // redirects, and this rule used to report every one of them, because an
+            // origin-form request-target carries no authority to disagree with. The
+            // target URI's authority is in `Host` for exactly that reason.
+            let target_authority =
+                crate::helpers::uri::target_uri_authority(&tx.request.uri, &tx.request.headers);
+            let location_authority = crate::helpers::uri::reference_authority(value);
+            match (target_authority.as_deref(), location_authority.as_deref()) {
+                // cite(RFC 3986 § 6.2.2.1): "the scheme and host are case-insensitive and therefore should be normalized to lowercase"
+                (Some(target), Some(location)) if !target.eq_ignore_ascii_case(location) => {
+                    return None
+                }
+                // The reference names a host and nothing in the message says which
+                // host was addressed, so the two cannot be compared.
+                (None, Some(_)) => return None,
+                // The reference defines no authority of its own and inherits the
+                // target's, whatever that is.
+                _ => {}
+            }
+
+            // Two authorities differing only in a default port are equivalent under
+            // §6.2.3, and are not recognised here. That is a *scheme-based*
+            // normalization — the rung above the one the paths get — and it needs
+            // the scheme, which an origin-form request-target does not carry. An
+            // under-report, and the safe direction for a finding this rule offers as
+            // advice.
+
+            // The last component, and the one the capture does not record. A
+            // request-target in origin-form carries no scheme: RFC 9112 §3.3 takes it
+            // from whether the connection was secured, which is connection context
+            // and not part of the message. So a scheme-bearing `Location` under an
+            // origin-form request cannot be compared — and the case hiding there is
+            // the plain HTTP-to-HTTPS redirect, which names this same authority and
+            // this same path and is not a redirect to the same resource at all.
+            //
+            // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
+            // cite(RFC 9112 § 3.3): "Otherwise, if the request is received over a secured connection, the target URI's scheme is "https"; if not, the scheme is "http"."
+            let target_origin = crate::helpers::uri::extract_origin_if_absolute(&tx.request.uri);
+            let location_origin = crate::helpers::uri::extract_origin_if_absolute(value);
+            match (target_origin.as_deref(), location_origin.as_deref()) {
+                (Some(target), Some(location)) if !target.eq_ignore_ascii_case(location) => {
+                    return None
+                }
+                (None, Some(_)) => return None,
+                _ => {}
+            }
+
+            // cite(RFC 9110 § 15.4): "A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops)."
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "Location '{}' resolves to '{}', the target URI of the request it answers, so the response redirects the client to where it already was: {}. A client that follows it issues the same request again — RFC 9110 §15.4 asks one to detect and intervene in cyclical redirections, and this is the shortest one there is",
+                    value.escape_debug(),
+                    location_path_and_query.escape_debug(),
+                    referent
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

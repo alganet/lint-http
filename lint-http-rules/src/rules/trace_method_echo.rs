@@ -63,60 +63,66 @@ impl Rule for TraceMethodEcho {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Matched exactly, never case-folded: `trace` is not the TRACE method,
-        // and § 9.3.8 says nothing about it. A method this specification does
-        // not define has no loop-back semantics for content to be measured
-        // against.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        if tx.request.method != "TRACE" {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Matched exactly, never case-folded: `trace` is not the TRACE method,
+            // and § 9.3.8 says nothing about it. A method this specification does
+            // not define has no loop-back semantics for content to be measured
+            // against.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method != "TRACE" {
+                return None;
+            }
 
-        // Content, not framing: the shared measurement reads § 6.4's octet
-        // stream, so a chunked TRACE whose only chunk is the terminator carries
-        // nothing to report, and a TRACE carrying an HTTP/2 DATA frame — which
-        // declares no framing field at all — does.
-        // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
-        if let Some(evidence) =
-            crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)
-        {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"
-                ),
-            });
-        }
+            // Content, not framing: the shared measurement reads § 6.4's octet
+            // stream, so a chunked TRACE whose only chunk is the terminator carries
+            // nothing to report, and a TRACE carrying an HTTP/2 DATA frame — which
+            // declares no framing field at all — does.
+            // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
+            if let Some(evidence) = crate::helpers::headers::content_evidence(
+                &tx.request.headers,
+                tx.request.body_length,
+            ) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"
+                    ),
+                });
+            }
 
-        // The response is a loop-back of this request, so a field is disclosed
-        // by having been sent — which is why the finding is about the request
-        // and does not wait for the response to arrive.
-        // cite(RFC 9110 § 9.3.8): "A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response."
-        let present: Vec<&str> = SENSITIVE_FIELDS
-            .iter()
-            .filter(|(lowercase, _)| carries_a_value(&tx.request.headers, lowercase))
-            .map(|(_, name)| *name)
-            .collect();
+            // The response is a loop-back of this request, so a field is disclosed
+            // by having been sent — which is why the finding is about the request
+            // and does not wait for the response to arrive.
+            // cite(RFC 9110 § 9.3.8): "A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response."
+            let present: Vec<&str> = SENSITIVE_FIELDS
+                .iter()
+                .filter(|(lowercase, _)| carries_a_value(&tx.request.headers, lowercase))
+                .map(|(_, name)| *name)
+                .collect();
 
-        if !present.is_empty() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names credentials and cookies as its example",
-                    present.join(", ")
-                ),
-            });
-        }
+            if !present.is_empty() {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names credentials and cookies as its example",
+                        present.join(", ")
+                    ),
+                });
+            }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

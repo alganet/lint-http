@@ -21,84 +21,89 @@ impl Rule for VaryHeaderValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Vary is a response header field; the rule inspects responses only.
-        // cite(RFC 9110 § 12.5.5): "The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response."
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Vary is a response header field; the rule inspects responses only.
+            // cite(RFC 9110 § 12.5.5): "The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response."
+            let resp = tx.response.as_ref()?;
 
-        // The whole check transcribes the field grammar: a comma list whose members
-        // are each "*" or a field-name.
-        // cite(RFC 9110 § 12.5.5): "Vary = #( "*" / field-name )"
-        for hv in resp.headers.get_all("vary").iter() {
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Vary header contains non-UTF8 value".into(),
-                    })
-                }
-            };
+            // The whole check transcribes the field grammar: a comma list whose members
+            // are each "*" or a field-name.
+            // cite(RFC 9110 § 12.5.5): "Vary = #( "*" / field-name )"
+            for hv in resp.headers.get_all("vary").iter() {
+                let s = match hv.to_str() {
+                    Ok(s) => s,
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Vary header contains non-UTF8 value".into(),
+                        })
+                    }
+                };
 
-            // Vary is a `#`-list, so an entirely empty value is a legal zero-element
-            // list (the degenerate "does not vary" case), not a malformed header.
-            // Distinct from an empty *element* within a non-empty list, flagged below.
-            if s.trim().is_empty() {
-                continue;
-            }
-
-            // An empty element within the list (trailing/leading/consecutive commas)
-            // is forbidden, unlike the empty whole value skipped above.
-            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-            for raw in s.split(',') {
-                if raw.trim().is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Vary header contains empty token (e.g., trailing or consecutive commas)".into(),
-                    });
-                }
-            }
-
-            for token in crate::helpers::headers::list_members(s) {
-                // "*" is a valid list member. Under RFC 9110 it may appear alongside
-                // field-names (RFC 7231's "*"-or-a-list exclusivity was dropped), so
-                // no combination check is made — only field-name tokens are validated.
-                //
-                // §12.5.5's one MUST on "*" — "A proxy MUST NOT generate "*" in a Vary
-                // field value." — is deliberately not enforced, and not merely because
-                // the sender's role is unknown. It forbids *generating*, not carrying:
-                // an intermediary that forwards an origin's `Vary: *` is compliant, and
-                // an origin may send it freely. So even a definite "a proxy handled
-                // this" signal (a `Via` field) would not identify who authored the
-                // header, and no field records authorship. The check is undecidable
-                // from an observed response rather than merely unimplemented, so the
-                // sentence stays uncited here: the code does not enforce it.
-                if token == "*" {
+                // Vary is a `#`-list, so an entirely empty value is a legal zero-element
+                // list (the degenerate "does not vary" case), not a malformed header.
+                // Distinct from an empty *element* within a non-empty list, flagged below.
+                if s.trim().is_empty() {
                     continue;
                 }
 
-                // Every other member is a field-name, i.e. a token.
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Vary header contains invalid field-name token character: '{}'",
-                            c
-                        ),
-                    });
+                // An empty element within the list (trailing/leading/consecutive commas)
+                // is forbidden, unlike the empty whole value skipped above.
+                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                for raw in s.split(',') {
+                    if raw.trim().is_empty() {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Vary header contains empty token (e.g., trailing or consecutive commas)".into(),
+                        });
+                    }
+                }
+
+                for token in crate::helpers::headers::list_members(s) {
+                    // "*" is a valid list member. Under RFC 9110 it may appear alongside
+                    // field-names (RFC 7231's "*"-or-a-list exclusivity was dropped), so
+                    // no combination check is made — only field-name tokens are validated.
+                    //
+                    // §12.5.5's one MUST on "*" — "A proxy MUST NOT generate "*" in a Vary
+                    // field value." — is deliberately not enforced, and not merely because
+                    // the sender's role is unknown. It forbids *generating*, not carrying:
+                    // an intermediary that forwards an origin's `Vary: *` is compliant, and
+                    // an origin may send it freely. So even a definite "a proxy handled
+                    // this" signal (a `Via` field) would not identify who authored the
+                    // header, and no field records authorship. The check is undecidable
+                    // from an observed response rather than merely unimplemented, so the
+                    // sentence stays uncited here: the code does not enforce it.
+                    if token == "*" {
+                        continue;
+                    }
+
+                    // Every other member is a field-name, i.e. a token.
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Vary header contains invalid field-name token character: '{}'",
+                                c
+                            ),
+                        });
+                    }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

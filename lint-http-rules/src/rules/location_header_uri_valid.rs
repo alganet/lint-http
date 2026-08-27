@@ -22,140 +22,145 @@ impl Rule for LocationHeaderUriValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let Some(resp) = &tx.response else {
-            return None;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let Some(resp) = &tx.response else {
+                return None;
+            };
+            let violation = |message: String| {
+                Some(Violation {
+                    rule: self.id().to_string(),
+                    severity: ctx.severity,
+                    message,
+                })
+            };
+
+            // The field, and the one production its value is measured against. No
+            // status gate: which statuses may carry the field at all is
+            // `redirect_status_and_location_valid`'s question, and the
+            // grammar is the same whatever status line preceded it.
+            //
+            // The value is read as the sender wrote it, every octet decoded to the
+            // `char` of the same value. `to_str` admits only visible US-ASCII, so a
+            // `Location` carrying %xFF would otherwise become "this response has no
+            // `Location` field" — a claim about the message, where the defect belongs
+            // to one octet. A URI *is* written in a subset of US-ASCII, which is why
+            // the old guard produced the right verdict; it announced the wrong reason
+            // ("not valid UTF-8" of a value that may be perfectly good UTF-8) and the
+            // octet check below states the real one.
+            //
+            // The header section only. Whether *any* field may appear in a trailer
+            // section is § 6.5.1's deny-by-default question and
+            // `trailer_fields_valid`'s finding, and a `Location` arriving
+            // after the content could not have redirected anything.
+            //
+            // And the sentence that makes every finding below a violation rather than
+            // advice, which is § 2.2's and not § 10.2.2's: § 10.2.2 defines the field
+            // and forbids nothing about it, so a `Location` on a status that has no use
+            // for one is advice (`redirect_status_and_location_valid` says so
+            // on its own page). A value that is not a `URI-reference` is a different
+            // matter — the field has an ABNF rule, and a sender is forbidden from
+            // generating a protocol element that does not match it.
+            //
+            // cite(RFC 9110 § 10.2.2): "The "Location" header field is used in some responses to refer to a specific resource in relation to the response."
+            // cite(RFC 9110 § 10.2.2, label: Location grammar): "Location = URI-reference"
+            // cite(RFC 3986 § 4.1): "URI-reference = URI / relative-ref"
+            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+            let value = combined_field_value_as_written(&resp.headers, "location")?;
+            let lines = resp.headers.get_all("location").iter().count();
+
+            if lines > 1 {
+                // `Location = URI-reference` has no `#(...)` alternative, so § 5.3's
+                // exception does not apply and one message carries at most one field
+                // line.
+                //
+                // The detection has to be this count, and cannot be the join that
+                // works for every other singleton in the tree: § 5.2 recombines the
+                // lines with a comma, and "," is a `sub-delim` — a valid data
+                // character anywhere in a URI. So the combined value is still a
+                // well-formed `URI-reference`, identifying neither of the resources
+                // the sender named. § 5.5 says as much about fields carrying a
+                // URI-reference, and § 10.2.2's Note says it about this field by
+                // name, including what a recipient downstream is left with. § 16.3.2.2
+                // names this very field as the counter-example new field definitions
+                // should not emulate.
+                //
+                // cite(RFC 9110 § 5.5): "Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators."
+                // cite(RFC 9110 § 10.2.2): "A Location field value cannot | allow a list of members because the comma list separator is a | valid data character within a URI-reference."
+                // cite(RFC 9110 § 10.2.2): "If an invalid | message is sent with multiple Location field lines, a recipient | along the path might combine those field lines into one value."
+                // cite(RFC 9110 § 16.3.2.2): "because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values"
+                return violation(format!(
+                    "{}. The comma a recipient joins them with is a valid data character inside a URI-reference, so the combined value is a well-formed reference to neither resource (RFC 9110 §10.2.2)",
+                    crate::helpers::headers::singleton_field_preamble(
+                        "Location",
+                        lines,
+                        &value.escape_debug().to_string(),
+                        "`Location = URI-reference` has no comma-separated-list alternative",
+                    )
+                ));
+            }
+
+            // Trimming `OWS` and only `OWS`: the value carries one `char` per octet, so
+            // U+00A0 in it is the octet %xA0, which is `obs-text` and not whitespace of
+            // any kind — removing it would report an empty value for a defect that
+            // octet has.
+            //
+            // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
+            let value = trim_ows(&value);
+
+            if value.is_empty() {
+                // **No honest quote for this one**, and it is the rule's only finding
+                // that has none. An empty value is a *legal* `URI-reference`:
+                // `relative-part` admits `path-empty`, which makes it a same-document
+                // reference resolving to the target URI. Nothing in RFC 9110 or
+                // RFC 3986 forbids it, and § 10.2.2 forbids nothing about this field
+                // in any case. What is left is the operator's reading — a sender that
+                // writes `Location:` with nothing after it means to name a resource
+                // and named the one already in hand — so the finding says so in the
+                // message rather than claiming a violation. `content_location_and_uri_consistent`
+                // reaches the same answer for the same reason on the sibling field.
+                //
+                // cite(RFC 3986 § 4.4): "The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier."
+                return violation(
+                    "Location is present with an empty value, which resolves to the target URI itself. This is advice, not a violation: an empty `URI-reference` is a same-document reference (RFC 3986 §4.4) and no sentence in RFC 9110 or RFC 3986 forbids sending one".to_string(),
+                );
+            }
+
+            if let Some(ch) = crate::helpers::uri::find_non_uri_char(value) {
+                // The alphabet check, which the whitespace check this replaced was one
+                // sixth of: SP is not a URI character, and neither are `"`, `<`, `>`,
+                // `\`, `^`, `` ` ``, `{`, `|`, `}`, DEL, any CTL, or any octet above
+                // %x7F. Each `char` here came from one octet and goes back to it
+                // unchanged, so the finding names the octet that stopped the parse.
+                return violation(format!(
+                    "Location value carries the octet {}, which no URI-reference admits; a URI is written from `unreserved`, `gen-delims` and `sub-delims` characters and `pct-encoded` triplets, and every other octet must be percent-encoded before the URI is formed (RFC 3986 §2.1)",
+                    describe_octet(ch as u8)
+                ));
+            }
+
+            // `%` passed the alphabet check because it opens a triplet; whether it
+            // actually does is the triplet's own production, and the helper carries it.
+            if let Some(msg) = crate::helpers::uri::check_percent_encoding(value) {
+                return violation(msg);
+            }
+
+            // Only the `URI` alternative has a scheme; the helper is a no-op on a
+            // `relative-ref`, which is why nothing here gates on which alternative the
+            // value took.
+            if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(value) {
+                return violation(msg);
+            }
+
+            None
         };
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().to_string(),
-                severity: ctx.severity,
-                message,
-            })
-        };
-
-        // The field, and the one production its value is measured against. No
-        // status gate: which statuses may carry the field at all is
-        // `redirect_status_and_location_valid`'s question, and the
-        // grammar is the same whatever status line preceded it.
-        //
-        // The value is read as the sender wrote it, every octet decoded to the
-        // `char` of the same value. `to_str` admits only visible US-ASCII, so a
-        // `Location` carrying %xFF would otherwise become "this response has no
-        // `Location` field" — a claim about the message, where the defect belongs
-        // to one octet. A URI *is* written in a subset of US-ASCII, which is why
-        // the old guard produced the right verdict; it announced the wrong reason
-        // ("not valid UTF-8" of a value that may be perfectly good UTF-8) and the
-        // octet check below states the real one.
-        //
-        // The header section only. Whether *any* field may appear in a trailer
-        // section is § 6.5.1's deny-by-default question and
-        // `trailer_fields_valid`'s finding, and a `Location` arriving
-        // after the content could not have redirected anything.
-        //
-        // And the sentence that makes every finding below a violation rather than
-        // advice, which is § 2.2's and not § 10.2.2's: § 10.2.2 defines the field
-        // and forbids nothing about it, so a `Location` on a status that has no use
-        // for one is advice (`redirect_status_and_location_valid` says so
-        // on its own page). A value that is not a `URI-reference` is a different
-        // matter — the field has an ABNF rule, and a sender is forbidden from
-        // generating a protocol element that does not match it.
-        //
-        // cite(RFC 9110 § 10.2.2): "The "Location" header field is used in some responses to refer to a specific resource in relation to the response."
-        // cite(RFC 9110 § 10.2.2, label: Location grammar): "Location = URI-reference"
-        // cite(RFC 3986 § 4.1): "URI-reference = URI / relative-ref"
-        // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-        let value = combined_field_value_as_written(&resp.headers, "location")?;
-        let lines = resp.headers.get_all("location").iter().count();
-
-        if lines > 1 {
-            // `Location = URI-reference` has no `#(...)` alternative, so § 5.3's
-            // exception does not apply and one message carries at most one field
-            // line.
-            //
-            // The detection has to be this count, and cannot be the join that
-            // works for every other singleton in the tree: § 5.2 recombines the
-            // lines with a comma, and "," is a `sub-delim` — a valid data
-            // character anywhere in a URI. So the combined value is still a
-            // well-formed `URI-reference`, identifying neither of the resources
-            // the sender named. § 5.5 says as much about fields carrying a
-            // URI-reference, and § 10.2.2's Note says it about this field by
-            // name, including what a recipient downstream is left with. § 16.3.2.2
-            // names this very field as the counter-example new field definitions
-            // should not emulate.
-            //
-            // cite(RFC 9110 § 5.5): "Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators."
-            // cite(RFC 9110 § 10.2.2): "A Location field value cannot | allow a list of members because the comma list separator is a | valid data character within a URI-reference."
-            // cite(RFC 9110 § 10.2.2): "If an invalid | message is sent with multiple Location field lines, a recipient | along the path might combine those field lines into one value."
-            // cite(RFC 9110 § 16.3.2.2): "because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values"
-            return violation(format!(
-                "{}. The comma a recipient joins them with is a valid data character inside a URI-reference, so the combined value is a well-formed reference to neither resource (RFC 9110 §10.2.2)",
-                crate::helpers::headers::singleton_field_preamble(
-                    "Location",
-                    lines,
-                    &value.escape_debug().to_string(),
-                    "`Location = URI-reference` has no comma-separated-list alternative",
-                )
-            ));
-        }
-
-        // Trimming `OWS` and only `OWS`: the value carries one `char` per octet, so
-        // U+00A0 in it is the octet %xA0, which is `obs-text` and not whitespace of
-        // any kind — removing it would report an empty value for a defect that
-        // octet has.
-        //
-        // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
-        let value = trim_ows(&value);
-
-        if value.is_empty() {
-            // **No honest quote for this one**, and it is the rule's only finding
-            // that has none. An empty value is a *legal* `URI-reference`:
-            // `relative-part` admits `path-empty`, which makes it a same-document
-            // reference resolving to the target URI. Nothing in RFC 9110 or
-            // RFC 3986 forbids it, and § 10.2.2 forbids nothing about this field
-            // in any case. What is left is the operator's reading — a sender that
-            // writes `Location:` with nothing after it means to name a resource
-            // and named the one already in hand — so the finding says so in the
-            // message rather than claiming a violation. `content_location_and_uri_consistent`
-            // reaches the same answer for the same reason on the sibling field.
-            //
-            // cite(RFC 3986 § 4.4): "The most frequent examples of same-document references are relative references that are empty or include only the number sign ("#") separator followed by a fragment identifier."
-            return violation(
-                "Location is present with an empty value, which resolves to the target URI itself. This is advice, not a violation: an empty `URI-reference` is a same-document reference (RFC 3986 §4.4) and no sentence in RFC 9110 or RFC 3986 forbids sending one".to_string(),
-            );
-        }
-
-        if let Some(ch) = crate::helpers::uri::find_non_uri_char(value) {
-            // The alphabet check, which the whitespace check this replaced was one
-            // sixth of: SP is not a URI character, and neither are `"`, `<`, `>`,
-            // `\`, `^`, `` ` ``, `{`, `|`, `}`, DEL, any CTL, or any octet above
-            // %x7F. Each `char` here came from one octet and goes back to it
-            // unchanged, so the finding names the octet that stopped the parse.
-            return violation(format!(
-                "Location value carries the octet {}, which no URI-reference admits; a URI is written from `unreserved`, `gen-delims` and `sub-delims` characters and `pct-encoded` triplets, and every other octet must be percent-encoded before the URI is formed (RFC 3986 §2.1)",
-                describe_octet(ch as u8)
-            ));
-        }
-
-        // `%` passed the alphabet check because it opens a triplet; whether it
-        // actually does is the triplet's own production, and the helper carries it.
-        if let Some(msg) = crate::helpers::uri::check_percent_encoding(value) {
-            return violation(msg);
-        }
-
-        // Only the `URI` alternative has a scheme; the helper is a no-op on a
-        // `relative-ref`, which is why nothing here gates on which alternative the
-        // value took.
-        if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(value) {
-            return violation(msg);
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

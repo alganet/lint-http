@@ -61,106 +61,111 @@ impl Rule for AcceptRangesOnPartialContent {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The subject is a request that asks for a range, and presence is the
-        // whole of it: the advice below is against attempting a range request at
-        // all, so a value this rule cannot read is still a range request.
-        //
-        // The method is not filtered on, and the second sentence is why. A
-        // server must ignore `Range` on a method for which range handling is not
-        // defined, so such a request is answered with the whole representation
-        // -- more of the wasted transfer this field exists to prevent than a GET
-        // would be, not less.
-        //
-        // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
-        // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined."
-        tx.request.headers.get_all("range").iter().next()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The subject is a request that asks for a range, and presence is the
+            // whole of it: the advice below is against attempting a range request at
+            // all, so a value this rule cannot read is still a range request.
+            //
+            // The method is not filtered on, and the second sentence is why. A
+            // server must ignore `Range` on a method for which range handling is not
+            // defined, so such a request is answered with the whole representation
+            // -- more of the wasted transfer this field exists to prevent than a GET
+            // would be, not less.
+            //
+            // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
+            // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined."
+            tx.request.headers.get_all("range").iter().next()?;
 
-        // The engine hands this rule a history scoped to this client and this
-        // request URI, which is the whole reason the advice below applies at
-        // all: it is advice about the same request path. Only the most recent
-        // response is read -- a later response supersedes what an earlier one
-        // advised about the resource as it is now.
-        //
-        // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
-        let prev = history.previous()?;
+            // The engine hands this rule a history scoped to this client and this
+            // request URI, which is the whole reason the advice below applies at
+            // all: it is advice about the same request path. Only the most recent
+            // response is read -- a later response supersedes what an earlier one
+            // advised about the resource as it is now.
+            //
+            // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
+            let prev = history.previous()?;
 
-        // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
-        let resp = prev.response.as_ref()?;
+            // cite(RFC 9110 § 14.3): "The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource."
+            let resp = prev.response.as_ref()?;
 
-        // What the response advertised, read by the code both readers of this
-        // field share -- including its trailer section, which is part of the
-        // field's definition.
-        let advertised = crate::helpers::accept_ranges::read_advertisement(resp);
+            // What the response advertised, read by the code both readers of this
+            // field share -- including its trailer section, which is part of the
+            // field's definition.
+            let advertised = crate::helpers::accept_ranges::read_advertisement(resp);
 
-        // No advertisement is not a reason to say anything, and the sentences
-        // below are as explicit as this specification gets. This rule used to
-        // report exactly this when the previous response was a 206 -- a client
-        // that had just been served a partial response, reported for asking for
-        // the next part of it.
-        //
-        // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
-        // cite(RFC 9110 § 14.3): "A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers."
-        if !advertised.present {
-            return None;
-        }
+            // No advertisement is not a reason to say anything, and the sentences
+            // below are as explicit as this specification gets. This rule used to
+            // report exactly this when the previous response was a 206 -- a client
+            // that had just been served a partial response, reported for asking for
+            // the next part of it.
+            //
+            // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
+            // cite(RFC 9110 § 14.3): "A client MAY generate range requests regardless of having received an Accept-Ranges field.  The information only provides advice for the sake of improving performance and reducing unnecessary network transfers."
+            if !advertised.present {
+                return None;
+            }
 
-        // `none` is the one thing this field says that is addressed to the
-        // client's next request, and it says not to make this one.
-        //
-        // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
-        if advertised.advertises("none") {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Previous response for this resource sent Accept-Ranges: none, advising against a range request on the same request path, and this request sends Range anyway (advice: nothing forbids it)".into(),
-            });
-        }
+            // `none` is the one thing this field says that is addressed to the
+            // client's next request, and it says not to make this one.
+            //
+            // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
+            if advertised.advertises("none") {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Previous response for this resource sent Accept-Ranges: none, advising against a range request on the same request path, and this request sends Range anyway (advice: nothing forbids it)".into(),
+                });
+            }
 
-        // A field line that could not be read may have been the one naming this
-        // request's unit, so a mismatch below would rest on nothing.
-        if !advertised.complete {
-            return None;
-        }
+            // A field line that could not be read may have been the one naming this
+            // request's unit, so a mismatch below would rest on nothing.
+            if !advertised.complete {
+                return None;
+            }
 
-        let unit = requested_unit(&tx.request.headers)?;
+            let unit = requested_unit(&tx.request.headers)?;
 
-        // What the mismatch costs, and all it costs: an origin server must
-        // ignore a `Range` field in a unit it does not understand, so the
-        // request is answered with the whole representation. That is the
-        // unnecessary transfer this field exists to prevent, and it is still
-        // advice -- nothing makes the advertised list exhaustive, and the
-        // sentence at the top of this function permits the request outright.
-        //
-        // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
-        if !advertised.advertises(&unit) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Range asks in '{}', a unit the previous response for this resource did not advertise, so a server that does not understand it will ignore the field and send the whole representation (advice: nothing forbids it)",
-                    unit
-                ),
-            });
-        }
+            // What the mismatch costs, and all it costs: an origin server must
+            // ignore a `Range` field in a unit it does not understand, so the
+            // request is answered with the whole representation. That is the
+            // unnecessary transfer this field exists to prevent, and it is still
+            // advice -- nothing makes the advertised list exhaustive, and the
+            // sentence at the top of this function permits the request outright.
+            //
+            // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
+            if !advertised.advertises(&unit) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Range asks in '{}', a unit the previous response for this resource did not advertise, so a server that does not understand it will ignore the field and send the whole representation (advice: nothing forbids it)",
+                        unit
+                    ),
+                });
+            }
 
-        // Where the rule stops, and no parser gets past it. Both sentences below
-        // are requirements on a conclusion the client drew -- what it assumed,
-        // what it inspected -- and nothing on the wire records a conclusion: a
-        // client that assumed and a client that did not send the same bytes.
-        // Their strength is not the obstacle. The first is a MUST NOT and is as
-        // undecidable as the weakest advice in this file, which is why it is
-        // said out loud here and in the description rather than approximated by
-        // a check on something else.
-        //
-        // cite(RFC 9110 § 14.3): "Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses."
-        // cite(RFC 9110 § 15.3.7): "A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed."
-        None
+            // Where the rule stops, and no parser gets past it. Both sentences below
+            // are requirements on a conclusion the client drew -- what it assumed,
+            // what it inspected -- and nothing on the wire records a conclusion: a
+            // client that assumed and a client that did not send the same bytes.
+            // Their strength is not the obstacle. The first is a MUST NOT and is as
+            // undecidable as the weakest advice in this file, which is why it is
+            // said out loud here and in the description rather than approximated by
+            // a check on something else.
+            //
+            // cite(RFC 9110 § 14.3): "Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses."
+            // cite(RFC 9110 § 15.3.7): "A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed."
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

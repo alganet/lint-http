@@ -19,24 +19,29 @@ impl Rule for HeaderFieldNamesTokenValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // All four, in wire order, from the shared walk. A trailer field name is
-        // a field name, so the same grammar reaches it; a transaction the
-        // upstream never answered has no response half; and which sections exist
-        // at all is the framing's answer, not this rule's.
-        // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
-        for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-            if let Some(v) = check_section(section, headers, ctx.severity) {
-                return Some(v);
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // All four, in wire order, from the shared walk. A trailer field name is
+            // a field name, so the same grammar reaches it; a transaction the
+            // upstream never answered has no response half; and which sections exist
+            // at all is the framing's answer, not this rule's.
+            // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
+            for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
+                if let Some(v) = check_section(section, headers, ctx.severity) {
+                    return Some(v);
+                }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

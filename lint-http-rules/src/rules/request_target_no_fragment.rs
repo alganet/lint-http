@@ -23,104 +23,109 @@ impl Rule for RequestTargetNoFragment {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // What this field holds is version-specific -- an HTTP/1.x
-        // request-target, or the target URI the transport reassembled from
-        // pseudo-header fields -- and the one name that covers both is § 7.1's,
-        // where the components a message carries are collectively the request
-        // target whatever the major version puts them in.
-        // cite(RFC 9110 § 7.1): "For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field"
-        let target = tx.request.uri.as_str();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // What this field holds is version-specific -- an HTTP/1.x
+            // request-target, or the target URI the transport reassembled from
+            // pseudo-header fields -- and the one name that covers both is § 7.1's,
+            // where the components a message carries are collectively the request
+            // target whatever the major version puts them in.
+            // cite(RFC 9110 § 7.1): "For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field"
+            let target = tx.request.uri.as_str();
 
-        // One character opens the component and the end of the value closes it,
-        // so the first number sign is the whole detection and everything from it
-        // onwards is the fragment. A number sign that is *data* rather than the
-        // delimiter arrives percent-encoded and this test does not see it, which
-        // is the second sentence: `/a%23b` is a path segment containing a number
-        // sign and is nobody's finding.
-        // cite(RFC 3986 § 3.5): "A fragment identifier component is indicated by the presence of a number sign ("#") character and terminated by the end of the URI."
-        // cite(RFC 3986 § 2.2): "If data for a URI component would conflict with a reserved character's purpose as a delimiter, then the conflicting data must be percent-encoded before the URI is formed."
-        let hash = target.find('#')?;
+            // One character opens the component and the end of the value closes it,
+            // so the first number sign is the whole detection and everything from it
+            // onwards is the fragment. A number sign that is *data* rather than the
+            // delimiter arrives percent-encoded and this test does not see it, which
+            // is the second sentence: `/a%23b` is a path segment containing a number
+            // sign and is nobody's finding.
+            // cite(RFC 3986 § 3.5): "A fragment identifier component is indicated by the presence of a number sign ("#") character and terminated by the end of the URI."
+            // cite(RFC 3986 § 2.2): "If data for a URI component would conflict with a reserved character's purpose as a delimiter, then the conflicting data must be percent-encoded before the URI is formed."
+            let hash = target.find('#')?;
 
-        // Read after the finding is certain: parsing the config is several map
-        // probes and a hash of the rule id, where the test above is one scan of
-        // a string the transaction already holds, and every return above this
-        // one ends the rule.
-        let severity = ctx.severity;
+            // Read after the finding is certain: parsing the config is several map
+            // probes and a hash of the rule id, where the test above is one scan of
+            // a string the transaction already holds, and every return above this
+            // one ends the rule.
+            let severity = ctx.severity;
 
-        // A target read back from a capture can hold characters that print as
-        // nothing or, worse, print as something else: an escape sequence in a
-        // finding is a finding nobody can read.
-        let shown = crate::helpers::headers::shown_in_finding(target);
-        let fragment = crate::helpers::headers::shown_in_finding(&target[hash..]);
+            // A target read back from a capture can hold characters that print as
+            // nothing or, worse, print as something else: an escape sequence in a
+            // finding is a finding nobody can read.
+            let shown = crate::helpers::headers::shown_in_finding(target);
+            let fragment = crate::helpers::headers::shown_in_finding(&target[hash..]);
 
-        // Which productions the components had to derive from is the major
-        // version's question, and the answer is the same on both sides -- so the
-        // finding is version-independent and only its last sentence is not.
-        //
-        // HTTP/1.x sends them on a request-line, where `absolute-form` is
-        // `absolute-URI`: the `URI` production with `[ "#" fragment ]` dropped,
-        // which is § 4.2.5's "specific rule that excludes fragments" in the
-        // clearest form the generic syntax has. The other three forms are an
-        // absolute path with an optional query, a host and a port, and one
-        // character.
-        //
-        // HTTP/2 and HTTP/3 have no request-line at all: the components arrive
-        // as pseudo-header fields, and `:path` is the same absolute path and
-        // query. A version this proxy does not record gets no clause rather than
-        // a guess -- the sentences above it hold on every version.
-        //
-        // All three arms read the major digit, which is the digit the first
-        // sentence below gives the meaning to, so HTTP/1.0 and HTTP/1.1 are one
-        // case and `HTTP/1x` is nobody's version. Only the first arm is reading
-        // something a message carried; the other two versions have no
-        // `HTTP-version` field, and what a capture records for them is the
-        // protocol version their own specifications state in words, `HTTP/2.0`
-        // and `HTTP/3.0` (RFC 9113 § 8.3.1, RFC 9114 § 4.3.1). Until 2026-08-03
-        // these were two `starts_with` hand copies of the production, one of
-        // which admitted `HTTP/2x`; `http_version` owns it now.
-        // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
-        // cite(RFC 9112 § 2.3, label: HTTP-version): "HTTP-version  = HTTP-name "/" DIGIT "." DIGIT"
-        // cite(RFC 9110 § 4.2.5): "Some protocol elements that refer to a URI allow inclusion of a fragment, while others do not."
-        // cite(RFC 9110 § 4.2.5): "They are distinguished by use of the ABNF rule for elements where fragment is allowed; otherwise, a specific rule that excludes fragments is used."
-        // cite(RFC 3986 § 3, label: URI): "URI         = scheme ":" hier-part [ "?" query ] [ "#" fragment ]"
-        // cite(RFC 3986 § 4.3, label: absolute-URI): "absolute-URI  = scheme ":" hier-part [ "?" query ]"
-        // cite(RFC 9112 § 3.2.2, label: absolute-form): "absolute-form  = absolute-URI"
-        // cite(RFC 9112 § 3.2.1, label: origin-form): "origin-form    = absolute-path [ "?" query ]"
-        // cite(RFC 9113 § 8.3.1): "The ":path" pseudo-header field includes the path and query parts of the target URI"
-        // cite(RFC 9114 § 4.3.1): "Contains the path and query parts of the target URI"
-        let carried_in = match crate::http_version::major(&tx.request.version) {
-            Some(1) => " No form of an HTTP/1.x request-line's request-target derives it: absolute-form is an absolute-URI, which is the URI production with the fragment component dropped, and the other three are an absolute path with an optional query, a host and a port, and the asterisk.",
-            Some(2 | 3) => " This version sends no request-line: the components arrive as pseudo-header fields, and ':path' carries the path and query parts of the target URI, which is where the fragment is not.",
-            _ => "",
+            // Which productions the components had to derive from is the major
+            // version's question, and the answer is the same on both sides -- so the
+            // finding is version-independent and only its last sentence is not.
+            //
+            // HTTP/1.x sends them on a request-line, where `absolute-form` is
+            // `absolute-URI`: the `URI` production with `[ "#" fragment ]` dropped,
+            // which is § 4.2.5's "specific rule that excludes fragments" in the
+            // clearest form the generic syntax has. The other three forms are an
+            // absolute path with an optional query, a host and a port, and one
+            // character.
+            //
+            // HTTP/2 and HTTP/3 have no request-line at all: the components arrive
+            // as pseudo-header fields, and `:path` is the same absolute path and
+            // query. A version this proxy does not record gets no clause rather than
+            // a guess -- the sentences above it hold on every version.
+            //
+            // All three arms read the major digit, which is the digit the first
+            // sentence below gives the meaning to, so HTTP/1.0 and HTTP/1.1 are one
+            // case and `HTTP/1x` is nobody's version. Only the first arm is reading
+            // something a message carried; the other two versions have no
+            // `HTTP-version` field, and what a capture records for them is the
+            // protocol version their own specifications state in words, `HTTP/2.0`
+            // and `HTTP/3.0` (RFC 9113 § 8.3.1, RFC 9114 § 4.3.1). Until 2026-08-03
+            // these were two `starts_with` hand copies of the production, one of
+            // which admitted `HTTP/2x`; `http_version` owns it now.
+            // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
+            // cite(RFC 9112 § 2.3, label: HTTP-version): "HTTP-version  = HTTP-name "/" DIGIT "." DIGIT"
+            // cite(RFC 9110 § 4.2.5): "Some protocol elements that refer to a URI allow inclusion of a fragment, while others do not."
+            // cite(RFC 9110 § 4.2.5): "They are distinguished by use of the ABNF rule for elements where fragment is allowed; otherwise, a specific rule that excludes fragments is used."
+            // cite(RFC 3986 § 3, label: URI): "URI         = scheme ":" hier-part [ "?" query ] [ "#" fragment ]"
+            // cite(RFC 3986 § 4.3, label: absolute-URI): "absolute-URI  = scheme ":" hier-part [ "?" query ]"
+            // cite(RFC 9112 § 3.2.2, label: absolute-form): "absolute-form  = absolute-URI"
+            // cite(RFC 9112 § 3.2.1, label: origin-form): "origin-form    = absolute-path [ "?" query ]"
+            // cite(RFC 9113 § 8.3.1): "The ":path" pseudo-header field includes the path and query parts of the target URI"
+            // cite(RFC 9114 § 4.3.1): "Contains the path and query parts of the target URI"
+            let carried_in = match crate::http_version::major(&tx.request.version) {
+                Some(1) => " No form of an HTTP/1.x request-line's request-target derives it: absolute-form is an absolute-URI, which is the URI production with the fragment component dropped, and the other three are an absolute path with an optional query, a host and a port, and the asterisk.",
+                Some(2 | 3) => " This version sends no request-line: the components arrive as pseudo-header fields, and ':path' carries the path and query parts of the target URI, which is where the fragment is not.",
+                _ => "",
+            };
+
+            // The requirement is the grammar's, so the sentence that makes a value
+            // matching no production a finding is § 2.2's -- and reaching it from an
+            // HTTP/1.1 production needs § 1.1, which puts this document's conformance
+            // criteria in the other one.
+            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+            // cite(RFC 9112 § 1.1): "Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP]."
+            // cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
+            // cite(RFC 9110 § 7.1): "The target URI excludes the reference's fragment component, if any, since fragment identifiers are reserved for client-side processing"
+            // cite(RFC 3986 § 3.5): "the fragment identifier is separated from the rest of the URI prior to a dereference, and thus the identifying information within the fragment itself is dereferenced solely by the user agent, regardless of the URI scheme"
+            Some(Violation {
+                rule: self.id().into(),
+                severity,
+                message: format!(
+                    "Request target '{shown}' carries a fragment identifier, '{fragment}' -- \
+                     the number sign and everything after it to the end of the value. A client \
+                     resolves the reference it started from into a target URI that excludes that \
+                     reference's fragment, because a fragment is separated from the rest of the URI \
+                     before any dereference and is resolved solely by the user agent: the recipient \
+                     of this message is being sent a component addressed to the sender.{carried_in}"
+                ),
+            })
         };
-
-        // The requirement is the grammar's, so the sentence that makes a value
-        // matching no production a finding is § 2.2's -- and reaching it from an
-        // HTTP/1.1 production needs § 1.1, which puts this document's conformance
-        // criteria in the other one.
-        // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-        // cite(RFC 9112 § 1.1): "Conformance criteria and considerations regarding error handling are defined in Section 2 of [HTTP]."
-        // cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
-        // cite(RFC 9110 § 7.1): "The target URI excludes the reference's fragment component, if any, since fragment identifiers are reserved for client-side processing"
-        // cite(RFC 3986 § 3.5): "the fragment identifier is separated from the rest of the URI prior to a dereference, and thus the identifying information within the fragment itself is dereferenced solely by the user agent, regardless of the URI scheme"
-        Some(Violation {
-            rule: self.id().into(),
-            severity,
-            message: format!(
-                "Request target '{shown}' carries a fragment identifier, '{fragment}' -- \
-                 the number sign and everything after it to the end of the value. A client \
-                 resolves the reference it started from into a target URI that excludes that \
-                 reference's fragment, because a fragment is separated from the rest of the URI \
-                 before any dereference and is resolved solely by the user agent: the recipient \
-                 of this message is being sent a component addressed to the sender.{carried_in}"
-            ),
-        })
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

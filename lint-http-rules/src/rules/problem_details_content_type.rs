@@ -20,89 +20,94 @@ impl Rule for ProblemDetailsContentType {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // The permission is unconditional and the fit is not, so the gate is the
-        // second half of the sentence: nothing is wrong with problem details on
-        // a 200, and there is nothing to advise about one either.
-        // cite(RFC 9457 § 1): "Problem details can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses."
-        if resp.status < 400 {
-            return None;
-        }
+            // The permission is unconditional and the fit is not, so the gate is the
+            // second half of the sentence: nothing is wrong with problem details on
+            // a 200, and there is nothing to advise about one either.
+            // cite(RFC 9457 § 1): "Problem details can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses."
+            if resp.status < 400 {
+                return None;
+            }
 
-        // A response with no `Content-Type` is `content_type_present`'s
-        // finding, and a value that is not a media type is
-        // `content_type_valid`'s. Neither is answered here.
-        //
-        // Neither is a second field line: that rule reports it, and this one
-        // cannot advise past it, because `get` reads the first value while the
-        // recipient is likely to act on the last. Advising against a media type
-        // the peer never reads would be advice about a message that does not
-        // exist -- and the last line here may well be `application/problem+json`.
-        // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
-        if resp.headers.get_all("content-type").iter().count() > 1 {
-            return None;
-        }
+            // A response with no `Content-Type` is `content_type_present`'s
+            // finding, and a value that is not a media type is
+            // `content_type_valid`'s. Neither is answered here.
+            //
+            // Neither is a second field line: that rule reports it, and this one
+            // cannot advise past it, because `get` reads the first value while the
+            // recipient is likely to act on the last. Advising against a media type
+            // the peer never reads would be advice about a message that does not
+            // exist -- and the last line here may well be `application/problem+json`.
+            // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
+            if resp.headers.get_all("content-type").iter().count() > 1 {
+                return None;
+            }
 
-        let ct_str = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
-        let parsed = crate::helpers::headers::parse_media_type(ct_str).ok()?;
+            let ct_str = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
+            let parsed = crate::helpers::headers::parse_media_type(ct_str).ok()?;
 
-        // Folded once, here, rather than at each comparison below.
-        // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-        let t = parsed.type_.to_ascii_lowercase();
-        let sub = parsed.subtype.to_ascii_lowercase();
+            // Folded once, here, rather than at each comparison below.
+            // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
+            let t = parsed.type_.to_ascii_lowercase();
+            let sub = parsed.subtype.to_ascii_lowercase();
 
-        // The response already carries problem details. The JSON serialization
-        // is named in the body of the document and the XML one only in an
-        // appendix, so the two halves of this test come from two places.
-        // cite(RFC 9457 § 3): "When serialized in a JSON document, that format is identified with the "application/problem+json" media type."
-        // cite(RFC 9457 § B): "The media type for this format is "application/problem+xml"."
-        if t == "application" && (sub == "problem+json" || sub == "problem+xml") {
-            return None;
-        }
+            // The response already carries problem details. The JSON serialization
+            // is named in the body of the document and the XML one only in an
+            // appendix, so the two halves of this test come from two places.
+            // cite(RFC 9457 § 3): "When serialized in a JSON document, that format is identified with the "application/problem+json" media type."
+            // cite(RFC 9457 § B): "The media type for this format is "application/problem+xml"."
+            if t == "application" && (sub == "problem+json" || sub == "problem+xml") {
+                return None;
+            }
 
-        // Only the three media types that name a syntax and no format on top of
-        // it: `application/json` is the media type for JSON text, and RFC 7303
-        // names its two XML counterparts in the same breath as "a more specific
-        // media type", which is the distinction this table draws. What the
-        // §4.1 SHOULD requires is not borrowed here -- it is the *document
-        // entities* bullet of a four-way list, and it is quoted for the contrast
-        // it draws, not for its modal. `text/xml` is in the table because its
-        // registration is `application/xml`'s with one field changed.
-        // cite(RFC 8259 § 11): "The media type for JSON text is application/json."
-        // cite(RFC 7303 § 4.1): "The media types application/xml or text/xml, or a more specific media type (see Section 9.6), SHOULD be used."
-        // cite(RFC 7303 § 9.2): "The registration information for text/xml is in all respects the same as that given for application/xml above (Section 9.1), except that the "Type name" is "text"."
-        //
-        // A `+json` or `+xml` subtype is a sender naming a format it already
-        // has, which is the case the document twice says to leave alone.
-        // cite(RFC 9457 § 1): "If the response is still a representation of a resource, for example, it's often preferable to describe the relevant details in that application's format."
-        // cite(RFC 9457 § 4): "Problem details are intended to avoid the necessity of establishing new "fault" or "error" document formats, not to replace existing domain-specific formats."
-        if !matches!(
-            (t.as_str(), sub.as_str()),
-            ("application", "json") | ("application", "xml") | ("text", "xml")
-        ) {
-            return None;
-        }
+            // Only the three media types that name a syntax and no format on top of
+            // it: `application/json` is the media type for JSON text, and RFC 7303
+            // names its two XML counterparts in the same breath as "a more specific
+            // media type", which is the distinction this table draws. What the
+            // §4.1 SHOULD requires is not borrowed here -- it is the *document
+            // entities* bullet of a four-way list, and it is quoted for the contrast
+            // it draws, not for its modal. `text/xml` is in the table because its
+            // registration is `application/xml`'s with one field changed.
+            // cite(RFC 8259 § 11): "The media type for JSON text is application/json."
+            // cite(RFC 7303 § 4.1): "The media types application/xml or text/xml, or a more specific media type (see Section 9.6), SHOULD be used."
+            // cite(RFC 7303 § 9.2): "The registration information for text/xml is in all respects the same as that given for application/xml above (Section 9.1), except that the "Type name" is "text"."
+            //
+            // A `+json` or `+xml` subtype is a sender naming a format it already
+            // has, which is the case the document twice says to leave alone.
+            // cite(RFC 9457 § 1): "If the response is still a representation of a resource, for example, it's often preferable to describe the relevant details in that application's format."
+            // cite(RFC 9457 § 4): "Problem details are intended to avoid the necessity of establishing new "fault" or "error" document formats, not to replace existing domain-specific formats."
+            if !matches!(
+                (t.as_str(), sub.as_str()),
+                ("application", "json") | ("application", "xml") | ("text", "xml")
+            ) {
+                return None;
+            }
 
-        // No sentence in RFC 9457 is violated by any of this: what is left once
-        // the document's own exemptions are honoured is the case it was written
-        // for, an application with no error format of its own. So the finding is
-        // advice and the message says so.
-        // cite(RFC 9457 § 1): "This specification's aim is to define common error formats for applications that need one so that they aren't required to define their own or, worse, tempted to redefine the semantics of existing HTTP status codes."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Error response carries the generic media type '{}'; problem details (RFC 9457) would describe the error in a machine-readable form, as 'application/problem+json' or 'application/problem+xml'. Advisory: no RFC requires them, and an application that already has an error format of its own should keep using it",
-                ct_str
-            ),
-        })
+            // No sentence in RFC 9457 is violated by any of this: what is left once
+            // the document's own exemptions are honoured is the case it was written
+            // for, an application with no error format of its own. So the finding is
+            // advice and the message says so.
+            // cite(RFC 9457 § 1): "This specification's aim is to define common error formats for applications that need one so that they aren't required to define their own or, worse, tempted to redefine the semantics of existing HTTP status codes."
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "Error response carries the generic media type '{}'; problem details (RFC 9457) would describe the error in a machine-readable form, as 'application/problem+json' or 'application/problem+xml'. Advisory: no RFC requires them, and an application that already has an error format of its own should keep using it",
+                    ct_str
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

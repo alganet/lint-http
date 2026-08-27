@@ -18,78 +18,83 @@ impl Rule for EtagSyntax {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // ETag is a response field, which is why this rule is Server-scoped and only
-        // inspects the response.
-        // cite(RFC 9110 § 8.8.3): "The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request."
-        let Some(resp) = &tx.response else {
-            return None;
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // ETag is a response field, which is why this rule is Server-scoped and only
+            // inspects the response.
+            // cite(RFC 9110 § 8.8.3): "The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request."
+            let Some(resp) = &tx.response else {
+                return None;
+            };
 
-        let mut count = 0usize;
-        for hv in resp.headers.get_all("etag").iter() {
-            count += 1;
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => {
+            let mut count = 0usize;
+            for hv in resp.headers.get_all("etag").iter() {
+                count += 1;
+                let s = match hv.to_str() {
+                    Ok(s) => s,
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "ETag header value is not valid UTF-8".into(),
+                        })
+                    }
+                };
+
+                let t = s.trim();
+                // The `*` kept its own branch, and the reason changed. It stood here
+                // because `validate_entity_tag` admitted a `*` -- which no
+                // `entity-tag` generates, and the helper refuses now -- so the branch
+                // is no longer a correction of the helper. It stays because this
+                // finding is worth more than the helper's: `*` is the one non-tag an
+                // `ETag` plausibly holds, written by a server copying the shape of
+                // the conditional fields that do take it.
+                // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
+                if t == "*" {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: "ETag header value is not valid UTF-8".into(),
-                    })
+                        message:
+                            "ETag header value '*' is invalid for responses; ETag must be an entity-tag"
+                                .into(),
+                    });
                 }
-            };
 
-            let t = s.trim();
-            // The `*` kept its own branch, and the reason changed. It stood here
-            // because `validate_entity_tag` admitted a `*` -- which no
-            // `entity-tag` generates, and the helper refuses now -- so the branch
-            // is no longer a correction of the helper. It stays because this
-            // finding is worth more than the helper's: `*` is the one non-tag an
-            // `ETag` plausibly holds, written by a server copying the shape of
-            // the conditional fields that do take it.
-            // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
-            if t == "*" {
+                // The entity-tag grammar itself (§8.8.3) is owned by `validate_entity_tag`.
+                if let Err(msg) = crate::helpers::headers::validate_entity_tag(t) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!("ETag header invalid: {}", msg),
+                    });
+                }
+            }
+
+            // `ETag = entity-tag` is a single value, not a list (`#entity-tag`), so ETag is
+            // not a field whose lines may be recombined as a comma-separated list — the §5.3
+            // exception does not apply, and a sender must emit at most one ETag field line.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            if count > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message:
-                        "ETag header value '*' is invalid for responses; ETag must be an entity-tag"
-                            .into(),
+                    message: format!(
+                        "Multiple ETag header fields present ({}); ETag must be a single entity-tag",
+                        count
+                    ),
                 });
             }
 
-            // The entity-tag grammar itself (§8.8.3) is owned by `validate_entity_tag`.
-            if let Err(msg) = crate::helpers::headers::validate_entity_tag(t) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("ETag header invalid: {}", msg),
-                });
-            }
-        }
-
-        // `ETag = entity-tag` is a single value, not a list (`#entity-tag`), so ETag is
-        // not a field whose lines may be recombined as a comma-separated list — the §5.3
-        // exception does not apply, and a sender must emit at most one ETag field line.
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        if count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Multiple ETag header fields present ({}); ETag must be a single entity-tag",
-                    count
-                ),
-            });
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

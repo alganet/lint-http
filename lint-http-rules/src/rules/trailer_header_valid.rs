@@ -144,23 +144,28 @@ impl Rule for TrailerHeaderValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
-            return Some(v);
-        }
-
-        if let Some(resp) = &tx.response {
-            if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
                 return Some(v);
             }
-        }
 
-        None
+            if let Some(resp) = &tx.response {
+                if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

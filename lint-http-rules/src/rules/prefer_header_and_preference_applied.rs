@@ -104,97 +104,102 @@ impl Rule for PreferHeaderAndPreferenceApplied {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // § 2's requirement is conditioned on a variance to *a cache's* handling
-        // of the entity, and a captured exchange establishes that only where a
-        // cache would store the response under the target URI alone. GET and
-        // HEAD are those methods. POST is cacheable too and is deliberately out:
-        // its responses become storable only with explicit freshness information
-        // and a `Content-Location`, so a `Preference-Applied` on a POST is not by
-        // itself evidence that any cache is holding anything -- which is why
-        // § 4.2's own `POST /collection` example, a 201 carrying only a
-        // `Location`, is not a finding here. Neither is § 3's `PATCH` example.
-        //
-        // The comparison is against the octets as written: an unrecognized method
-        // is not GET however it is spelled, so folding case would put a request
-        // this document says nothing about inside the gate.
-        //
-        // cite(RFC 9110 § 9.2.3): "This specification defines caching semantics for GET, HEAD, and POST, although the overwhelming majority of cache implementations only support GET and HEAD."
-        // cite(RFC 9110 § 9.3.3): "Responses to POST requests are only cacheable when they include explicit freshness information"
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive"
-        if !matches!(tx.request.method.as_str(), "GET" | "HEAD") {
-            return None;
-        }
+            // § 2's requirement is conditioned on a variance to *a cache's* handling
+            // of the entity, and a captured exchange establishes that only where a
+            // cache would store the response under the target URI alone. GET and
+            // HEAD are those methods. POST is cacheable too and is deliberately out:
+            // its responses become storable only with explicit freshness information
+            // and a `Content-Location`, so a `Preference-Applied` on a POST is not by
+            // itself evidence that any cache is holding anything -- which is why
+            // § 4.2's own `POST /collection` example, a 201 carrying only a
+            // `Location`, is not a finding here. Neither is § 3's `PATCH` example.
+            //
+            // The comparison is against the octets as written: an unrecognized method
+            // is not GET however it is spelled, so folding case would put a request
+            // this document says nothing about inside the gate.
+            //
+            // cite(RFC 9110 § 9.2.3): "This specification defines caching semantics for GET, HEAD, and POST, although the overwhelming majority of cache implementations only support GET and HEAD."
+            // cite(RFC 9110 § 9.3.3): "Responses to POST requests are only cacheable when they include explicit freshness information"
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive"
+            if !matches!(tx.request.method.as_str(), "GET" | "HEAD") {
+                return None;
+            }
 
-        // The one thing a captured message says about the antecedent. A request's
-        // `Prefer` says what a client asked for and nothing about the server, but
-        // a response naming a preference applied is the server stating it applies
-        // that preference -- which is why the trigger is this field and not the
-        // request's, exactly as the sentence's "regardless of whether the client
-        // actually used Prefer in the request" says it should be.
-        //
-        // Read as octets and joined across the field's lines, for the reasons
-        // `preference_applied_header_valid` reads the same field the same
-        // way: a `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and
-        // a member may be written at a line boundary.
-        //
-        // cite(RFC 7240 § 3, label: Preference-Applied grammar): "Preference-Applied = "Preference-Applied" ":" 1#applied-pref"
-        let applied = combined_field_value_as_written(&resp.headers, "preference-applied")?;
+            // The one thing a captured message says about the antecedent. A request's
+            // `Prefer` says what a client asked for and nothing about the server, but
+            // a response naming a preference applied is the server stating it applies
+            // that preference -- which is why the trigger is this field and not the
+            // request's, exactly as the sentence's "regardless of whether the client
+            // actually used Prefer in the request" says it should be.
+            //
+            // Read as octets and joined across the field's lines, for the reasons
+            // `preference_applied_header_valid` reads the same field the same
+            // way: a `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and
+            // a member may be written at a line boundary.
+            //
+            // cite(RFC 7240 § 3, label: Preference-Applied grammar): "Preference-Applied = "Preference-Applied" ":" 1#applied-pref"
+            let applied = combined_field_value_as_written(&resp.headers, "preference-applied")?;
 
-        // The first member naming a preference whose application varies the
-        // entity. A member this cannot parse is one whose name is not readable,
-        // so it cannot establish the antecedent either -- the finding below is
-        // that a field is *absent*, and a claim of absence rests on the rest of
-        // the message being legible. Its syntax is the neighbouring rule's
-        // finding, reported there rather than twice. An empty member needs no
-        // filter of its own: it has no `token` before the optional `=` either, so
-        // the parse below is where it stops.
-        //
-        // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
-        let (name, why) = list_members_as_written(&applied)
-            .into_iter()
-            .filter_map(|member| parse_token_bws_word(member).ok())
-            .find_map(|parsed| {
-                varies_the_response_entity(parsed.name).map(|why| (parsed.name, why))
-            })?;
+            // The first member naming a preference whose application varies the
+            // entity. A member this cannot parse is one whose name is not readable,
+            // so it cannot establish the antecedent either -- the finding below is
+            // that a field is *absent*, and a claim of absence rests on the rest of
+            // the message being legible. Its syntax is the neighbouring rule's
+            // finding, reported there rather than twice. An empty member needs no
+            // filter of its own: it has no `token` before the optional `=` either, so
+            // the parse below is where it stops.
+            //
+            // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
+            let (name, why) = list_members_as_written(&applied)
+                .into_iter()
+                .filter_map(|member| parse_token_bws_word(member).ok())
+                .find_map(|parsed| {
+                    varies_the_response_entity(parsed.name).map(|why| (parsed.name, why))
+                })?;
 
-        // Read once and used twice: the value decides the verdict, and on the
-        // reporting path it is also what the finding has to show.
-        if vary_nominates_prefer(&resp.headers) {
-            return None;
-        }
+            // Read once and used twice: the value decides the verdict, and on the
+            // reporting path it is also what the finding has to show.
+            if vary_nominates_prefer(&resp.headers) {
+                return None;
+            }
 
-        // Read last, where the severity it carries is finally needed: every gate
-        // above ends the rule, and each of them is a map lookup or a comparison
-        // where the config read is several. Only a response that is about to be
-        // reported pays for it.
+            // Read last, where the severity it carries is finally needed: every gate
+            // above ends the rule, and each of them is a map lookup or a comparison
+            // where the config read is several. Only a response that is about to be
+            // reported pays for it.
 
-        // The name reached here through `parse_token_bws_word`, which admits only
-        // `tchar`, so it is safe in a message as written; the `Vary` value is
-        // whatever the server sent, so it is read as written and escaped. Read
-        // here rather than at the gate above, which asks the shared predicate a
-        // question about the field rather than for its text.
-        let vary = combined_field_value_as_written(&resp.headers, "vary");
-        let vary_state = match &vary {
-            Some(v) => format!("its Vary field is '{}'", shown_in_finding(v)),
-            None => "it carries no Vary field".to_string(),
+            // The name reached here through `parse_token_bws_word`, which admits only
+            // `tchar`, so it is safe in a message as written; the `Vary` value is
+            // whatever the server sent, so it is read as written and escaped. Read
+            // here rather than at the gate above, which asks the shared predicate a
+            // question about the field rather than for its text.
+            let vary = combined_field_value_as_written(&resp.headers, "vary");
+            let vary_state = match &vary {
+                Some(v) => format!("its Vary field is '{}'", shown_in_finding(v)),
+                None => "it carries no Vary field".to_string(),
+            };
+
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "Response states the '{}' preference was applied — {} — but {}, so a cache holding this response under the target URI alone can serve it to a request that preferred otherwise",
+                    name, why, vary_state
+                ),
+            })
         };
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Response states the '{}' preference was applied — {} — but {}, so a cache holding this response under the target URI alone can serve it to a request that preferred otherwise",
-                name, why, vary_state
-            ),
-        })
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

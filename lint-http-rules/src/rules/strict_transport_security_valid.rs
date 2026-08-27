@@ -16,197 +16,207 @@ impl Rule for StrictTransportSecurityValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only applicable to responses
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only applicable to responses
+            let resp = tx.response.as_ref()?;
 
-        // A malformed STS header is not a weaker policy — the UA drops it whole and the
-        // host is not treated as Known HSTS, so every syntax check below enforces this MUST.
-        // cite(RFC 6797 § 6.1): "UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification."
-        for hv in resp.headers.get_all("strict-transport-security").iter() {
-            let v = match hv.to_str() {
-                Ok(s) => s.trim(),
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Strict-Transport-Security header contains non-UTF8 value".into(),
-                    });
-                }
-            };
-
-            if v.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Strict-Transport-Security header must not be empty".into(),
-                });
-            }
-
-            let mut saw_max_age = false;
-            let mut max_age_count = 0usize;
-
-            for member in crate::helpers::headers::split_semicolons_respecting_quotes(v) {
-                let member = member.trim();
-                if member.is_empty() {
-                    // skip stray semicolons but flag as violation
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Empty directive in Strict-Transport-Security header".into(),
-                    });
-                }
-
-                // directive = token [ "=" token ]
-                let mut kv = member.splitn(2, '=');
-                let name = kv.next().unwrap().trim();
-                if name.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Empty directive name in Strict-Transport-Security header".into(),
-                    });
-                }
-
-                // cite(RFC 6797 § 6.1): "directive-name            = token"
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Strict-Transport-Security directive name contains invalid character: '{}'", c),
-                    });
-                }
-
-                let lname = name.to_ascii_lowercase();
-                match lname.as_str() {
-                    // max-age is REQUIRED (enforced by the `saw_max_age` check after the loop)
-                    // and its value is a count of seconds, i.e. all-digits (checked below).
-                    // cite(RFC 6797 § 6.1.1): "The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field, during which the UA regards the host (from whom the message was received) as a Known HSTS Host."
-                    "max-age" => {
-                        max_age_count += 1;
-                        saw_max_age = true;
-                        // must have a value
-                        if let Some(vpart) = kv.next() {
-                            let vpart = vpart.trim();
-                            if vpart.is_empty() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Strict-Transport-Security 'max-age' must have a numeric value".into(),
-                                });
-                            }
-                            if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!("Strict-Transport-Security 'max-age' contains invalid character: '{}'", c),
-                                });
-                            }
-                            if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Strict-Transport-Security 'max-age' must be a non-negative integer".into(),
-                                });
-                            }
-                            if vpart.parse::<u64>().is_err() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Strict-Transport-Security 'max-age' value is not a valid integer".into(),
-                                });
-                            }
-                        } else {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Strict-Transport-Security 'max-age' must have a value"
-                                    .into(),
-                            });
-                        }
+            // A malformed STS header is not a weaker policy — the UA drops it whole and the
+            // host is not treated as Known HSTS, so every syntax check below enforces this MUST.
+            // cite(RFC 6797 § 6.1): "UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification."
+            for hv in resp.headers.get_all("strict-transport-security").iter() {
+                let v = match hv.to_str() {
+                    Ok(s) => s.trim(),
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Strict-Transport-Security header contains non-UTF8 value"
+                                .into(),
+                        });
                     }
-                    // cite(RFC 6797 § 6.1.2): "The OPTIONAL "includeSubDomains" directive is a valueless directive which, if present (i.e., it is "asserted"), signals the UA that the HSTS Policy applies to this HSTS Host as well as any subdomains of the host's domain name."
-                    "includesubdomains" => {
-                        // canonical name is includeSubDomains, but accept case-insensitively
-                        // must NOT have a value (it is "valueless" per §6.1.2)
-                        if kv.next().is_some() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Strict-Transport-Security 'includeSubDomains' directive must not have a value".into(),
-                            });
-                        }
+                };
+
+                if v.is_empty() {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Strict-Transport-Security header must not be empty".into(),
+                    });
+                }
+
+                let mut saw_max_age = false;
+                let mut max_age_count = 0usize;
+
+                for member in crate::helpers::headers::split_semicolons_respecting_quotes(v) {
+                    let member = member.trim();
+                    if member.is_empty() {
+                        // skip stray semicolons but flag as violation
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Empty directive in Strict-Transport-Security header".into(),
+                        });
                     }
-                    // `preload` is not an RFC 6797 directive — it is a de-facto extension (the
-                    // browser HSTS preload list), the kind §6.1 anticipates being "defined in
-                    // other specifications". Its valueless form is convention, so no 6797 quote
-                    // governs this branch; it is validated like a known valueless directive.
-                    "preload" => {
-                        if kv.next().is_some() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Strict-Transport-Security 'preload' directive must not have a value".into(),
-                            });
-                        }
+
+                    // directive = token [ "=" token ]
+                    let mut kv = member.splitn(2, '=');
+                    let name = kv.next().unwrap().trim();
+                    if name.is_empty() {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Empty directive name in Strict-Transport-Security header"
+                                .into(),
+                        });
                     }
-                    _ => {
-                        // Unknown directives: allow but ensure if a value is present it is token or quoted-string
-                        // cite(RFC 6797 § 6.1): "directive-value           = token | quoted-string"
-                        if let Some(vpart) = kv.next() {
-                            let vpart = vpart.trim();
-                            if vpart.starts_with('"') {
-                                if let Err(e) =
-                                    crate::helpers::headers::validate_quoted_string(vpart)
+
+                    // cite(RFC 6797 § 6.1): "directive-name            = token"
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!("Strict-Transport-Security directive name contains invalid character: '{}'", c),
+                        });
+                    }
+
+                    let lname = name.to_ascii_lowercase();
+                    match lname.as_str() {
+                        // max-age is REQUIRED (enforced by the `saw_max_age` check after the loop)
+                        // and its value is a count of seconds, i.e. all-digits (checked below).
+                        // cite(RFC 6797 § 6.1.1): "The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field, during which the UA regards the host (from whom the message was received) as a Known HSTS Host."
+                        "max-age" => {
+                            max_age_count += 1;
+                            saw_max_age = true;
+                            // must have a value
+                            if let Some(vpart) = kv.next() {
+                                let vpart = vpart.trim();
+                                if vpart.is_empty() {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: "Strict-Transport-Security 'max-age' must have a numeric value".into(),
+                                    });
+                                }
+                                if let Some(c) =
+                                    crate::helpers::token::find_invalid_token_char(vpart)
                                 {
                                     return Some(Violation {
                                         rule: self.id().into(),
                                         severity: ctx.severity,
-                                        message: format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e),
+                                        message: format!("Strict-Transport-Security 'max-age' contains invalid character: '{}'", c),
                                     });
                                 }
-                            } else if let Some(c) =
-                                crate::helpers::token::find_invalid_token_char(vpart)
-                            {
+                                if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: "Strict-Transport-Security 'max-age' must be a non-negative integer".into(),
+                                    });
+                                }
+                                if vpart.parse::<u64>().is_err() {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: "Strict-Transport-Security 'max-age' value is not a valid integer".into(),
+                                    });
+                                }
+                            } else {
                                 return Some(Violation {
                                     rule: self.id().into(),
                                     severity: ctx.severity,
-                                    message: format!("Strict-Transport-Security directive '{}' value contains invalid character: '{}'", name, c),
+                                    message:
+                                        "Strict-Transport-Security 'max-age' must have a value"
+                                            .into(),
                                 });
+                            }
+                        }
+                        // cite(RFC 6797 § 6.1.2): "The OPTIONAL "includeSubDomains" directive is a valueless directive which, if present (i.e., it is "asserted"), signals the UA that the HSTS Policy applies to this HSTS Host as well as any subdomains of the host's domain name."
+                        "includesubdomains" => {
+                            // canonical name is includeSubDomains, but accept case-insensitively
+                            // must NOT have a value (it is "valueless" per §6.1.2)
+                            if kv.next().is_some() {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: "Strict-Transport-Security 'includeSubDomains' directive must not have a value".into(),
+                                });
+                            }
+                        }
+                        // `preload` is not an RFC 6797 directive — it is a de-facto extension (the
+                        // browser HSTS preload list), the kind §6.1 anticipates being "defined in
+                        // other specifications". Its valueless form is convention, so no 6797 quote
+                        // governs this branch; it is validated like a known valueless directive.
+                        "preload" => {
+                            if kv.next().is_some() {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: "Strict-Transport-Security 'preload' directive must not have a value".into(),
+                                });
+                            }
+                        }
+                        _ => {
+                            // Unknown directives: allow but ensure if a value is present it is token or quoted-string
+                            // cite(RFC 6797 § 6.1): "directive-value           = token | quoted-string"
+                            if let Some(vpart) = kv.next() {
+                                let vpart = vpart.trim();
+                                if vpart.starts_with('"') {
+                                    if let Err(e) =
+                                        crate::helpers::headers::validate_quoted_string(vpart)
+                                    {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: ctx.severity,
+                                            message: format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e),
+                                        });
+                                    }
+                                } else if let Some(c) =
+                                    crate::helpers::token::find_invalid_token_char(vpart)
+                                {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: format!("Strict-Transport-Security directive '{}' value contains invalid character: '{}'", name, c),
+                                    });
+                                }
                             }
                         }
                     }
                 }
+
+                // cite(RFC 6797 § 6.1): "All directives MUST appear only once in an STS header field."
+                if max_age_count > 1 {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message:
+                            "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
+                                .into(),
+                    });
+                }
+
+                if !saw_max_age {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message:
+                            "Strict-Transport-Security header missing required 'max-age' directive"
+                                .into(),
+                    });
+                }
             }
 
-            // cite(RFC 6797 § 6.1): "All directives MUST appear only once in an STS header field."
-            if max_age_count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
-                            .into(),
-                });
-            }
-
-            if !saw_max_age {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "Strict-Transport-Security header missing required 'max-age' directive"
-                            .into(),
-                });
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

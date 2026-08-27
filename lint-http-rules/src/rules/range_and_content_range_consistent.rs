@@ -112,267 +112,274 @@ impl Rule for RangeAndContentRangeConsistent {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &RangeConsistencyConfig = ctx.state();
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &RangeConsistencyConfig = ctx.state();
+            let resp = tx.response.as_ref()?;
 
-        let status = resp.status;
-        let has_range_request = tx.request.headers.get("range").is_some();
-        // What the request asked for, read from its first `Range` field line: the
-        // unit it named and the range-set it named it over. A value that is not a
-        // `ranges-specifier` at all is `range_header_syntax`'s
-        // finding, and leaves this rule knowing less rather than guessing.
-        let requested = crate::helpers::headers::get_header_str(&tx.request.headers, "range")
-            .and_then(crate::helpers::content_range::split_ranges_specifier);
+            let status = resp.status;
+            let has_range_request = tx.request.headers.get("range").is_some();
+            // What the request asked for, read from its first `Range` field line: the
+            // unit it named and the range-set it named it over. A value that is not a
+            // `ranges-specifier` at all is `range_header_syntax`'s
+            // finding, and leaves this rule knowing less rather than guessing.
+            let requested = crate::helpers::headers::get_header_str(&tx.request.headers, "range")
+                .and_then(crate::helpers::content_range::split_ranges_specifier);
 
-        // A 206 is *defined* as the answer to a range request, so one returned to a
-        // request that asked for no range contradicts its own status code. No MUST
-        // states this, and none is needed: the sentence says what the code
-        // indicates, and here it indicates something that did not happen. This
-        // check used to sit two branches deeper, where only a 206 carrying a
-        // well-formed satisfied Content-Range could reach it.
-        // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
-        if status == 206 && !has_range_request {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message:
-                    "206 Partial Content response received but request did not include a Range header"
-                        .into(),
-            });
-        }
-
-        // 206 Partial Content rules
-        // cite(RFC 9110 § 14.4): "The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation."
-        if status == 206 {
-            let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
-
-            // Which half of § 15.3.7 governs is decided by the response's own
-            // Content-Type, and the two halves want opposite things of this header
-            // section. The rule knew only the single-part half -- it required a
-            // Content-Range of every 206 -- so a conforming multipart response was
-            // reported for obeying a MUST NOT, and that MUST NOT went unenforced.
-            // The § 15.3.7 SpecRef note has said "single-part" since the rule was
-            // written; the code never had the condition.
-            // cite(RFC 9110 § 15.3.7.2): "If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter."
-            if response_is_multipart_byteranges(&resp.headers) {
-                // cite(RFC 9110 § 15.3.7.2): "To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead)."
-                if cr.is_some() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into(),
-                    });
-                }
-
-                // One requested range may not be answered with a multipart
-                // response at all. The count is exact rather than a guess: a
-                // range-set is a `#`-list, whose separator is the comma, and no
-                // range-spec may contain one. Empty elements are not elements, so
-                // the shared list splitter is the one that counts them -- and a
-                // `Range` this rule could not split into a specifier leaves
-                // `requested` empty, which reports nothing.
-                // cite(RFC 9110 § 15.3.7.2): "A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses."
-                // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-                let requested_ranges = requested
-                    .as_ref()
-                    .map(|(_, set)| crate::helpers::headers::list_members(set).count());
-                if requested_ranges == Some(1) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message:
-                            "multipart/byteranges 206 response sent to a request for a single range"
-                                .into(),
-                    });
-                }
-
-                // Each part's own Content-Range is in the message content, which
-                // this rule does not read. The requirement below is therefore
-                // neither checked nor waived here.
-                // cite(RFC 9110 § 15.3.7.2): "Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part."
-                return None;
-            }
-
-            // Single part: the field is required, and this is the sentence the
-            // rule has been reporting all along -- with its opening condition gone.
-            // cite(RFC 9110 § 15.3.7.1): "If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range."
-            let cr = match cr {
-                Some(v) => v,
-                None => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "206 Partial Content response missing Content-Range header".into(),
-                    })
-                }
-            };
-            match crate::helpers::content_range::parse_content_range(cr) {
-                Ok(crate::helpers::content_range::ContentRange::Satisfied {
-                    ref unit,
-                    first,
-                    last,
-                    ..
-                }) => {
-                    // Everything above holds whatever the unit is. What follows does not:
-                    // first-pos and last-pos count units, Content-Length counts octets, and
-                    // the two are the same number only for `bytes`. For any other unit this
-                    // is not a violation we are declining to report -- it is an equation we
-                    // have no basis to write down.
-                    //
-                    // The first sentence is where the equation comes from, and it is
-                    // stated of one unit: for `bytes` the positions are octet offsets,
-                    // inclusive and zero-based, so a range spans `last - first + 1` of
-                    // them. Nothing says that of any other unit, and a configured one
-                    // is the operator asserting it rather than the spec. The second is
-                    // the specification stopping at the same place for its own reason:
-                    // where a recipient does not understand the unit, it is told not to
-                    // act on the value.
-                    // cite(RFC 9110 § 14.1.2): "The first-pos value in a bytes int-range gives the offset of the first byte in a range.  The last-pos value gives the offset of the last byte in the range; that is, the byte positions specified are inclusive.  Byte offsets start at zero."
-                    // cite(RFC 9110 § 14.4): "If a 206 (Partial Content) response contains a Content-Range header field with a range unit (Section 14.1) that the recipient does not understand, the recipient MUST NOT attempt to recombine it with a stored representation."
-                    if !config.units.iter().any(|u| u == unit) {
-                        return None;
-                    }
-
-                    // What makes the comparison mean anything: in a 206 the
-                    // Content-Length counts the octets of *this* message's content,
-                    // which for a single part is the enclosed range. A content
-                    // coding does not put the two numbers on different scales --
-                    // byte ranges are calculated over the encoded octets, which are
-                    // the ones being counted here.
-                    // cite(RFC 9110 § 15.3.7): "A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation."
-                    // cite(RFC 9110 § 14.1.2): "If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding."
-                    //
-                    // The value is read through the field's owner rather than
-                    // re-parsed here. The private copy this replaces had already
-                    // diverged from it: `parse::<u128>()` on the whole value
-                    // rejected `Content-Length: 500, 500`, which § 6.3 makes valid,
-                    // and its "Invalid Content-Length value" finding duplicated
-                    // `content_length_valid`'s word for word. A value that does
-                    // not parse leaves nothing to compare, so this rule declines
-                    // and its owner reports.
-                    match crate::helpers::headers::validate_content_length(&resp.headers) {
-                        Ok(Some(cl_v)) => {
-                            let expected = (last - first) + 1;
-                            if cl_v != expected {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: config.severity,
-                                    message: format!("Content-Length ({}) does not match Content-Range length ({})", cl_v, expected),
-                                });
-                            }
-                        }
-                        Ok(None) => {}
-                        Err(_) => return None,
-                    }
-                }
-                Ok(crate::helpers::content_range::ContentRange::Unsatisfiable { .. }) => {
-                    // In a 206 the field says which part of the representation is
-                    // enclosed; the unsatisfied-range form says only how long the
-                    // whole thing is, which is what a 416 has to say and a 206
-                    // never does. The message used to call this form
-                    // `byte-range-resp-spec`, RFC 7233's name for a production
-                    // RFC 9110 splits into `range-resp` and `unsatisfied-range`.
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "206 response uses the unsatisfied-range form ('*/complete-length'), which describes no enclosed range (that form belongs in a 416)".into(),
-                    });
-                }
-                Err(e) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Invalid Content-Range header '{}': {}", cr, e),
-                    });
-                }
-            }
-        }
-
-        // 416 Range Not Satisfiable rules
-        if status == 416 {
-            // The status names the request field it is about, the same way 206's
-            // definition does, so a 416 to a request carrying no Range announces
-            // the rejection of nothing.
-            //
-            // Unless the range is in the other field. A partial PUT names the
-            // range it is writing in the request's own Content-Range, so a server
-            // answering "that range is not satisfiable" has something to be about
-            // even with no Range field in sight. § 14.5 leaves that whole exchange
-            // to private agreement between the two parties, which means there is
-            // no sentence here to measure it against -- and a rule that reported
-            // it would be supplying one. The 206 side above keeps its finding:
-            // nothing in § 14.5 gives a response to a PUT an enclosed part to
-            // describe, which is the only thing a 206 says.
-            // cite(RFC 9110 § 15.5.17): "The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack)."
-            // cite(RFC 9110 § 14.5): "Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents."
-            let request_names_a_range_elsewhere = tx.request.headers.get("content-range").is_some();
-            if !has_range_request && !request_names_a_range_elsewhere {
+            // A 206 is *defined* as the answer to a range request, so one returned to a
+            // request that asked for no range contradicts its own status code. No MUST
+            // states this, and none is needed: the sentence says what the code
+            // indicates, and here it indicates something that did not happen. This
+            // check used to sit two branches deeper, where only a 206 carrying a
+            // well-formed satisfied Content-Range could reach it.
+            // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
+            if status == 206 && !has_range_request {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: config.severity,
                     message:
-                        "416 Range Not Satisfiable response sent to a request with no Range header"
+                        "206 Partial Content response received but request did not include a Range header"
                             .into(),
                 });
             }
 
-            let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
-            if cr.is_none() {
-                // Both sentences asking for the field say SHOULD, and both say it
-                // of a *byte*-range request only. For any other unit nothing asks
-                // for a Content-Range here, so its absence is not a finding this
-                // rule can make -- what a `pages` range set makes unsatisfiable,
-                // and what a server ought to say about it, is the unit's business.
-                // The rule used to require the field of every 416.
-                // cite(RFC 9110 § 15.5.17): "A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4)."
-                // cite(RFC 9110 § 14.4): "A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:"
-                if requested.as_ref().is_some_and(|(unit, _)| unit == "bytes") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "416 Range Not Satisfiable response to a byte-range request should include a Content-Range header (bytes */<complete-length>)".into(),
-                    });
+            // 206 Partial Content rules
+            // cite(RFC 9110 § 14.4): "The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation."
+            if status == 206 {
+                let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
+
+                // Which half of § 15.3.7 governs is decided by the response's own
+                // Content-Type, and the two halves want opposite things of this header
+                // section. The rule knew only the single-part half -- it required a
+                // Content-Range of every 206 -- so a conforming multipart response was
+                // reported for obeying a MUST NOT, and that MUST NOT went unenforced.
+                // The § 15.3.7 SpecRef note has said "single-part" since the rule was
+                // written; the code never had the condition.
+                // cite(RFC 9110 § 15.3.7.2): "If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter."
+                if response_is_multipart_byteranges(&resp.headers) {
+                    // cite(RFC 9110 § 15.3.7.2): "To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead)."
+                    if cr.is_some() {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into(),
+                        });
+                    }
+
+                    // One requested range may not be answered with a multipart
+                    // response at all. The count is exact rather than a guess: a
+                    // range-set is a `#`-list, whose separator is the comma, and no
+                    // range-spec may contain one. Empty elements are not elements, so
+                    // the shared list splitter is the one that counts them -- and a
+                    // `Range` this rule could not split into a specifier leaves
+                    // `requested` empty, which reports nothing.
+                    // cite(RFC 9110 § 15.3.7.2): "A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses."
+                    // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+                    let requested_ranges = requested
+                        .as_ref()
+                        .map(|(_, set)| crate::helpers::headers::list_members(set).count());
+                    if requested_ranges == Some(1) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message:
+                                "multipart/byteranges 206 response sent to a request for a single range"
+                                    .into(),
+                        });
+                    }
+
+                    // Each part's own Content-Range is in the message content, which
+                    // this rule does not read. The requirement below is therefore
+                    // neither checked nor waived here.
+                    // cite(RFC 9110 § 15.3.7.2): "Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part."
+                    return None;
                 }
-                return None;
+
+                // Single part: the field is required, and this is the sentence the
+                // rule has been reporting all along -- with its opening condition gone.
+                // cite(RFC 9110 § 15.3.7.1): "If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range."
+                let cr = match cr {
+                    Some(v) => v,
+                    None => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: "206 Partial Content response missing Content-Range header"
+                                .into(),
+                        })
+                    }
+                };
+                match crate::helpers::content_range::parse_content_range(cr) {
+                    Ok(crate::helpers::content_range::ContentRange::Satisfied {
+                        ref unit,
+                        first,
+                        last,
+                        ..
+                    }) => {
+                        // Everything above holds whatever the unit is. What follows does not:
+                        // first-pos and last-pos count units, Content-Length counts octets, and
+                        // the two are the same number only for `bytes`. For any other unit this
+                        // is not a violation we are declining to report -- it is an equation we
+                        // have no basis to write down.
+                        //
+                        // The first sentence is where the equation comes from, and it is
+                        // stated of one unit: for `bytes` the positions are octet offsets,
+                        // inclusive and zero-based, so a range spans `last - first + 1` of
+                        // them. Nothing says that of any other unit, and a configured one
+                        // is the operator asserting it rather than the spec. The second is
+                        // the specification stopping at the same place for its own reason:
+                        // where a recipient does not understand the unit, it is told not to
+                        // act on the value.
+                        // cite(RFC 9110 § 14.1.2): "The first-pos value in a bytes int-range gives the offset of the first byte in a range.  The last-pos value gives the offset of the last byte in the range; that is, the byte positions specified are inclusive.  Byte offsets start at zero."
+                        // cite(RFC 9110 § 14.4): "If a 206 (Partial Content) response contains a Content-Range header field with a range unit (Section 14.1) that the recipient does not understand, the recipient MUST NOT attempt to recombine it with a stored representation."
+                        if !config.units.iter().any(|u| u == unit) {
+                            return None;
+                        }
+
+                        // What makes the comparison mean anything: in a 206 the
+                        // Content-Length counts the octets of *this* message's content,
+                        // which for a single part is the enclosed range. A content
+                        // coding does not put the two numbers on different scales --
+                        // byte ranges are calculated over the encoded octets, which are
+                        // the ones being counted here.
+                        // cite(RFC 9110 § 15.3.7): "A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation."
+                        // cite(RFC 9110 § 14.1.2): "If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding."
+                        //
+                        // The value is read through the field's owner rather than
+                        // re-parsed here. The private copy this replaces had already
+                        // diverged from it: `parse::<u128>()` on the whole value
+                        // rejected `Content-Length: 500, 500`, which § 6.3 makes valid,
+                        // and its "Invalid Content-Length value" finding duplicated
+                        // `content_length_valid`'s word for word. A value that does
+                        // not parse leaves nothing to compare, so this rule declines
+                        // and its owner reports.
+                        match crate::helpers::headers::validate_content_length(&resp.headers) {
+                            Ok(Some(cl_v)) => {
+                                let expected = (last - first) + 1;
+                                if cl_v != expected {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: config.severity,
+                                        message: format!("Content-Length ({}) does not match Content-Range length ({})", cl_v, expected),
+                                    });
+                                }
+                            }
+                            Ok(None) => {}
+                            Err(_) => return None,
+                        }
+                    }
+                    Ok(crate::helpers::content_range::ContentRange::Unsatisfiable { .. }) => {
+                        // In a 206 the field says which part of the representation is
+                        // enclosed; the unsatisfied-range form says only how long the
+                        // whole thing is, which is what a 416 has to say and a 206
+                        // never does. The message used to call this form
+                        // `byte-range-resp-spec`, RFC 7233's name for a production
+                        // RFC 9110 splits into `range-resp` and `unsatisfied-range`.
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: "206 response uses the unsatisfied-range form ('*/complete-length'), which describes no enclosed range (that form belongs in a 416)".into(),
+                        });
+                    }
+                    Err(e) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!("Invalid Content-Range header '{}': {}", cr, e),
+                        });
+                    }
+                }
             }
-            let cr = cr.unwrap();
-            match crate::helpers::content_range::parse_content_range(cr) {
-                Ok(crate::helpers::content_range::ContentRange::Unsatisfiable { .. }) => {
-                    // ok
-                }
-                Ok(crate::helpers::content_range::ContentRange::Satisfied { .. }) => {
-                    // A 416 encloses no part of the representation, so the only
-                    // thing its Content-Range has to say is how long the
-                    // representation currently is -- which is the unsatisfied-range
-                    // form and nothing else. This is checked whatever the unit,
-                    // because it is about a field the server chose to send rather
-                    // than about one the spec asked it for.
-                    // cite(RFC 9110 § 14.4): "The complete-length in a 416 response indicates the current length of the selected representation."
+
+            // 416 Range Not Satisfiable rules
+            if status == 416 {
+                // The status names the request field it is about, the same way 206's
+                // definition does, so a 416 to a request carrying no Range announces
+                // the rejection of nothing.
+                //
+                // Unless the range is in the other field. A partial PUT names the
+                // range it is writing in the request's own Content-Range, so a server
+                // answering "that range is not satisfiable" has something to be about
+                // even with no Range field in sight. § 14.5 leaves that whole exchange
+                // to private agreement between the two parties, which means there is
+                // no sentence here to measure it against -- and a rule that reported
+                // it would be supplying one. The 206 side above keeps its finding:
+                // nothing in § 14.5 gives a response to a PUT an enclosed part to
+                // describe, which is the only thing a 206 says.
+                // cite(RFC 9110 § 15.5.17): "The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack)."
+                // cite(RFC 9110 § 14.5): "Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents."
+                let request_names_a_range_elsewhere =
+                    tx.request.headers.get("content-range").is_some();
+                if !has_range_request && !request_names_a_range_elsewhere {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: config.severity,
                         message:
-                            "416 response should use the '*/complete-length' form in Content-Range"
+                            "416 Range Not Satisfiable response sent to a request with no Range header"
                                 .into(),
                     });
                 }
-                Err(e) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!("Invalid Content-Range header '{}': {}", cr, e),
-                    });
+
+                let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
+                if cr.is_none() {
+                    // Both sentences asking for the field say SHOULD, and both say it
+                    // of a *byte*-range request only. For any other unit nothing asks
+                    // for a Content-Range here, so its absence is not a finding this
+                    // rule can make -- what a `pages` range set makes unsatisfiable,
+                    // and what a server ought to say about it, is the unit's business.
+                    // The rule used to require the field of every 416.
+                    // cite(RFC 9110 § 15.5.17): "A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4)."
+                    // cite(RFC 9110 § 14.4): "A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:"
+                    if requested.as_ref().is_some_and(|(unit, _)| unit == "bytes") {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: "416 Range Not Satisfiable response to a byte-range request should include a Content-Range header (bytes */<complete-length>)".into(),
+                        });
+                    }
+                    return None;
+                }
+                let cr = cr.unwrap();
+                match crate::helpers::content_range::parse_content_range(cr) {
+                    Ok(crate::helpers::content_range::ContentRange::Unsatisfiable { .. }) => {
+                        // ok
+                    }
+                    Ok(crate::helpers::content_range::ContentRange::Satisfied { .. }) => {
+                        // A 416 encloses no part of the representation, so the only
+                        // thing its Content-Range has to say is how long the
+                        // representation currently is -- which is the unsatisfied-range
+                        // form and nothing else. This is checked whatever the unit,
+                        // because it is about a field the server chose to send rather
+                        // than about one the spec asked it for.
+                        // cite(RFC 9110 § 14.4): "The complete-length in a 416 response indicates the current length of the selected representation."
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message:
+                                "416 response should use the '*/complete-length' form in Content-Range"
+                                    .into(),
+                        });
+                    }
+                    Err(e) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: config.severity,
+                            message: format!("Invalid Content-Range header '{}': {}", cr, e),
+                        });
+                    }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

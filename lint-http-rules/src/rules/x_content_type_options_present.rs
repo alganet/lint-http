@@ -76,67 +76,74 @@ impl Rule for XContentTypeOptionsPresent {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &XContentTypeOptionsConfig = ctx.state();
-        let Some(resp) = &tx.response else {
-            return None;
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &XContentTypeOptionsConfig = ctx.state();
+            let Some(resp) = &tx.response else {
+                return None;
+            };
 
-        // A present header must actually enable the protection: browsers read the
-        // first list element case-insensitively, so anything else means sniffing
-        // stays on while the sender believes otherwise. A conforming extra element
-        // after a valid first one is tolerated (the processing model ignores it).
-        // cite(Fetch § 3.6): "X-Content-Type-Options = "nosniff" ; case-insensitive"
-        // cite(Fetch § 3.6): "If values[0] is an ASCII case-insensitive match for "nosniff", then return true."
-        if let Some(xcto) =
-            crate::helpers::headers::get_header_str(&resp.headers, "x-content-type-options")
-        {
-            let first = xcto.split(',').next().unwrap_or("").trim();
-            if !first.eq_ignore_ascii_case("nosniff") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
-                        "X-Content-Type-Options value '{}' does not enable nosniff (the value must be `nosniff`, case-insensitive)",
-                        xcto.trim()
-                    ),
-                });
-            }
-        }
-
-        // Get the response's content-type (without parameters)
-        let content_type_header =
-            crate::helpers::headers::get_header_str(&resp.headers, "content-type").and_then(|s| {
-                crate::helpers::headers::parse_semicolon_list(s)
-                    .next()
-                    .map(|v| v.to_ascii_lowercase())
-            });
-
-        if let Some(content_type) = content_type_header {
-            // cite(Fetch § 3.6): "The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request."
-            // The 2xx gate is the rule's own tolerance (no sentence scopes the header
-            // to successful responses). The configured content-type list stands in for
-            // the request destination, which a proxy cannot know: the spec only blocks
-            // for script-like and style destinations, so the config names the types a
-            // deployment serves to those destinations.
-            // cite(Fetch § 3.6.1): "Only request destinations that are script-like or "style" are considered as any exploits pertain to them."
-            if (200..300).contains(&resp.status)
-                && config.content_types.contains(&content_type)
-                && !resp.headers.contains_key("x-content-type-options")
+            // A present header must actually enable the protection: browsers read the
+            // first list element case-insensitively, so anything else means sniffing
+            // stays on while the sender believes otherwise. A conforming extra element
+            // after a valid first one is tolerated (the processing model ignores it).
+            // cite(Fetch § 3.6): "X-Content-Type-Options = "nosniff" ; case-insensitive"
+            // cite(Fetch § 3.6): "If values[0] is an ASCII case-insensitive match for "nosniff", then return true."
+            if let Some(xcto) =
+                crate::helpers::headers::get_header_str(&resp.headers, "x-content-type-options")
             {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: "Missing X-Content-Type-Options: nosniff header".into(),
-                });
+                let first = xcto.split(',').next().unwrap_or("").trim();
+                if !first.eq_ignore_ascii_case("nosniff") {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: format!(
+                            "X-Content-Type-Options value '{}' does not enable nosniff (the value must be `nosniff`, case-insensitive)",
+                            xcto.trim()
+                        ),
+                    });
+                }
             }
-        }
-        None
+
+            // Get the response's content-type (without parameters)
+            let content_type_header =
+                crate::helpers::headers::get_header_str(&resp.headers, "content-type").and_then(
+                    |s| {
+                        crate::helpers::headers::parse_semicolon_list(s)
+                            .next()
+                            .map(|v| v.to_ascii_lowercase())
+                    },
+                );
+
+            if let Some(content_type) = content_type_header {
+                // cite(Fetch § 3.6): "The `X-Content-Type-Options` response header can be used to require checking of a response’s `Content-Type` header against the destination of a request."
+                // The 2xx gate is the rule's own tolerance (no sentence scopes the header
+                // to successful responses). The configured content-type list stands in for
+                // the request destination, which a proxy cannot know: the spec only blocks
+                // for script-like and style destinations, so the config names the types a
+                // deployment serves to those destinations.
+                // cite(Fetch § 3.6.1): "Only request destinations that are script-like or "style" are considered as any exploits pertain to them."
+                if (200..300).contains(&resp.status)
+                    && config.content_types.contains(&content_type)
+                    && !resp.headers.contains_key("x-content-type-options")
+                {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: config.severity,
+                        message: "Missing X-Content-Type-Options: nosniff header".into(),
+                    });
+                }
+            }
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

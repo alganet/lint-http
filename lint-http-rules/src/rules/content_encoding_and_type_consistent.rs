@@ -16,134 +16,140 @@ impl Rule for ContentEncodingAndTypeConsistent {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Helper to validate a Content-Encoding-like header value (comma-separated members).
-        // This helper validates members in `val` and updates `seen` with found codings so duplicates
-        // across multiple header fields can be detected when `seen` is shared between calls.
-        let check_encoding_header = |hdr_name: &str,
-                                     val: &str,
-                                     seen: &mut std::collections::HashSet<String>|
-         -> Option<Violation> {
-            // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
-            for part in crate::helpers::headers::list_members(val) {
-                // Strip parameters (not expected for Content-Encoding but be forgiving)
-                let token = part.split(';').next().unwrap().trim();
-                if token.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("{} header contains empty member", hdr_name),
-                    });
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Helper to validate a Content-Encoding-like header value (comma-separated members).
+            // This helper validates members in `val` and updates `seen` with found codings so duplicates
+            // across multiple header fields can be detected when `seen` is shared between calls.
+            let check_encoding_header = |hdr_name: &str,
+                                         val: &str,
+                                         seen: &mut std::collections::HashSet<String>|
+             -> Option<Violation> {
+                // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
+                for part in crate::helpers::headers::list_members(val) {
+                    // Strip parameters (not expected for Content-Encoding but be forgiving)
+                    let token = part.split(';').next().unwrap().trim();
+                    if token.is_empty() {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!("{} header contains empty member", hdr_name),
+                        });
+                    }
+                    if token == "*" && hdr_name.eq_ignore_ascii_case("Content-Encoding") {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!("Wildcard '*' is not valid in {} header", hdr_name),
+                        });
+                    }
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!("Invalid token '{}' in {} header", c, hdr_name),
+                        });
+                    }
+                    // Repeating a coding is not forbidden anywhere: §8.4 has the sender list
+                    // the codings "in the order in which they were applied", which makes
+                    // `gzip, gzip` a well-formed way to say gzip was applied twice. Flagging
+                    // it is this rule's judgement that a repeat is far more often a
+                    // configuration accident (two layers each adding the header) than a
+                    // deliberate double-encoding. Uncited, since no sentence licenses it.
+                    let key = token.to_ascii_lowercase();
+                    if !seen.insert(key.clone()) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Duplicate content-coding '{}' in {} header",
+                                key, hdr_name
+                            ),
+                        });
+                    }
                 }
-                if token == "*" && hdr_name.eq_ignore_ascii_case("Content-Encoding") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Wildcard '*' is not valid in {} header", hdr_name),
-                    });
+                None
+            };
+
+            // Check request Content-Encoding header(s) (track across multiple header fields)
+            {
+                let mut seen = std::collections::HashSet::new();
+                for hv in tx.request.headers.get_all("content-encoding").iter() {
+                    if let Ok(val) = hv.to_str() {
+                        if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
+                            return Some(v);
+                        }
+                    } else {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Content-Encoding header value is not valid UTF-8".into(),
+                        });
+                    }
                 }
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Invalid token '{}' in {} header", c, hdr_name),
-                    });
-                }
-                // Repeating a coding is not forbidden anywhere: §8.4 has the sender list
-                // the codings "in the order in which they were applied", which makes
-                // `gzip, gzip` a well-formed way to say gzip was applied twice. Flagging
-                // it is this rule's judgement that a repeat is far more often a
-                // configuration accident (two layers each adding the header) than a
-                // deliberate double-encoding. Uncited, since no sentence licenses it.
-                let key = token.to_ascii_lowercase();
-                if !seen.insert(key.clone()) {
+            }
+
+            // Check response Content-Encoding header(s)
+            if let Some(resp) = &tx.response {
+                // No-body statuses should not carry Content-Encoding
+                let status = resp.status;
+                // These three statuses reach the same verdict by different routes, and only
+                // one of them is a stated requirement.
+                //
+                // 304 is the grounded case: Content-Encoding is representation metadata,
+                // it is not among the fields a 304 is told to send, and it does not guide
+                // cache updates — so the sentence below covers it directly (a SHOULD NOT,
+                // which is why the message says "should not").
+                // cite(RFC 9110 § 15.4.5): "a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates"
+                //
+                // 1xx and 204 are the linter's inference: those responses carry no content,
+                // so a coding describing how the content was encoded has nothing to
+                // describe. No sentence says this, and for 204 the spec arguably leans the
+                // other way — §15.3.5 has metadata "refer to the target resource and its
+                // selected representation", which would make representation metadata
+                // meaningful even with no content to send. Kept because a Content-Encoding
+                // on a bodyless response is far more often a misconfiguration than a
+                // deliberate description of a representation the client is not receiving;
+                // recorded as the possible false positive it is.
+                let is_no_body_status =
+                    (100..200).contains(&status) || status == 204 || status == 304;
+                if is_no_body_status && resp.headers.contains_key("content-encoding") {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
                         message: format!(
-                            "Duplicate content-coding '{}' in {} header",
-                            key, hdr_name
+                            "Response {} carries no content, so it should not send Content-Encoding",
+                            status
                         ),
                     });
                 }
+
+                let mut seen = std::collections::HashSet::new();
+                for hv in resp.headers.get_all("content-encoding").iter() {
+                    if let Ok(val) = hv.to_str() {
+                        if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
+                            return Some(v);
+                        }
+                    } else {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Content-Encoding header value is not valid UTF-8".into(),
+                        });
+                    }
+                }
             }
+
             None
         };
-
-        // Check request Content-Encoding header(s) (track across multiple header fields)
-        {
-            let mut seen = std::collections::HashSet::new();
-            for hv in tx.request.headers.get_all("content-encoding").iter() {
-                if let Ok(val) = hv.to_str() {
-                    if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
-                        return Some(v);
-                    }
-                } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-Encoding header value is not valid UTF-8".into(),
-                    });
-                }
-            }
-        }
-
-        // Check response Content-Encoding header(s)
-        if let Some(resp) = &tx.response {
-            // No-body statuses should not carry Content-Encoding
-            let status = resp.status;
-            // These three statuses reach the same verdict by different routes, and only
-            // one of them is a stated requirement.
-            //
-            // 304 is the grounded case: Content-Encoding is representation metadata,
-            // it is not among the fields a 304 is told to send, and it does not guide
-            // cache updates — so the sentence below covers it directly (a SHOULD NOT,
-            // which is why the message says "should not").
-            // cite(RFC 9110 § 15.4.5): "a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates"
-            //
-            // 1xx and 204 are the linter's inference: those responses carry no content,
-            // so a coding describing how the content was encoded has nothing to
-            // describe. No sentence says this, and for 204 the spec arguably leans the
-            // other way — §15.3.5 has metadata "refer to the target resource and its
-            // selected representation", which would make representation metadata
-            // meaningful even with no content to send. Kept because a Content-Encoding
-            // on a bodyless response is far more often a misconfiguration than a
-            // deliberate description of a representation the client is not receiving;
-            // recorded as the possible false positive it is.
-            let is_no_body_status = (100..200).contains(&status) || status == 204 || status == 304;
-            if is_no_body_status && resp.headers.contains_key("content-encoding") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Response {} carries no content, so it should not send Content-Encoding",
-                        status
-                    ),
-                });
-            }
-
-            let mut seen = std::collections::HashSet::new();
-            for hv in resp.headers.get_all("content-encoding").iter() {
-                if let Ok(val) = hv.to_str() {
-                    if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
-                        return Some(v);
-                    }
-                } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-Encoding header value is not valid UTF-8".into(),
-                    });
-                }
-            }
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

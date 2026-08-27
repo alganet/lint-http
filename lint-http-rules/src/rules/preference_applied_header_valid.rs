@@ -114,158 +114,163 @@ impl Rule for PreferenceAppliedHeaderValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message,
-            })
-        };
-
-        // Read as octets, one `char` each, and joined across the field's lines.
-        // A `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and
-        // `HeaderValue::to_str` refuses every octet above %x7E — so the decode
-        // that used to guard this loop reported `Preference-Applied: foo="café"`
-        // as invalid while calling it "non-UTF8", which is wrong about the value
-        // twice over. The same call answers the field's other structural
-        // question: several lines are one value, so a member written across a
-        // line boundary is a member.
-        let applied = combined_field_value_as_written(&resp.headers, "preference-applied")?;
-
-        // cite(RFC 7240 § 3): "Preference-Applied = "Preference-Applied" ":" 1#applied-pref"
-        let members = list_members_as_written(&applied);
-
-        // `1#` sets a floor, and the floor counts *non-empty* elements. The
-        // sender expansion is where the floor is: one element, then any number
-        // of further ones. What names the values is the worked example a section
-        // later — `""`, `","` and `",   ,"`, which is this field value under
-        // three spellings, and the second of them drew nothing from any rule in
-        // the catalogue before this one.
-        //
-        // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
-        // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
-        if members.iter().all(|m| m.is_empty()) {
-            return violation(
-                "Preference-Applied header carries no applied preference; its value is 1#applied-pref, which requires at least one non-empty member".into(),
-            );
-        }
-
-        // An empty element beside a real one is the other half of the same
-        // grammar, and a different requirement: § 5.6.1.2 makes a recipient
-        // accept it, § 5.6.1.1 forbids the sender writing it. This rule measures
-        // the sender.
-        //
-        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-        if members.iter().any(|m| m.is_empty()) {
-            return violation(format!(
-                "Preference-Applied header contains an empty list element: '{}'",
-                shown_in_finding(&applied)
-            ));
-        }
-
-        let prefer = read_prefer(&tx.request.headers);
-
-        for member in members.iter().filter(|m| !m.is_empty()) {
-            // The two fields share a production and differ by exactly this, and
-            // the document says so rather than leaving it to be inferred from
-            // the two ABNF blocks. A `;` inside the `word`'s quoted-string is
-            // `qdtext` and not a parameter, which is why the search is
-            // quote-aware.
-            //
-            // cite(RFC 7240 § 3): "The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included."
-            if split_semicolons_respecting_quotes(member).len() > 1 {
-                return violation(format!(
-                    "Preference-Applied member '{}' carries parameters, which its grammar does not include",
-                    shown_in_finding(member)
-                ));
-            }
-
-            // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
-            let parsed = match parse_token_bws_word(member) {
-                Ok(parsed) => parsed,
-                Err(e) => {
-                    return violation(format!(
-                        "Preference-Applied member '{}' does not match applied-pref: {}",
-                        shown_in_finding(member),
-                        e
-                    ))
-                }
+            let violation = |message: String| {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message,
+                })
             };
 
-            // The `BWS` in the production is why the parse trims around the `=`
-            // at all — a recipient is required to. The sender is required not to
-            // put it there, and that half was going unsaid because the trim it
-            // licenses happens first and leaves nothing behind.
+            // Read as octets, one `char` each, and joined across the field's lines.
+            // A `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and
+            // `HeaderValue::to_str` refuses every octet above %x7E — so the decode
+            // that used to guard this loop reported `Preference-Applied: foo="café"`
+            // as invalid while calling it "non-UTF8", which is wrong about the value
+            // twice over. The same call answers the field's other structural
+            // question: several lines are one value, so a member written across a
+            // line boundary is a member.
+            let applied = combined_field_value_as_written(&resp.headers, "preference-applied")?;
+
+            // cite(RFC 7240 § 3): "Preference-Applied = "Preference-Applied" ":" 1#applied-pref"
+            let members = list_members_as_written(&applied);
+
+            // `1#` sets a floor, and the floor counts *non-empty* elements. The
+            // sender expansion is where the floor is: one element, then any number
+            // of further ones. What names the values is the worked example a section
+            // later — `""`, `","` and `",   ,"`, which is this field value under
+            // three spellings, and the second of them drew nothing from any rule in
+            // the catalogue before this one.
             //
-            // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
-            // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
-            if parsed.bws {
+            // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
+            // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
+            if members.iter().all(|m| m.is_empty()) {
+                return violation(
+                    "Preference-Applied header carries no applied preference; its value is 1#applied-pref, which requires at least one non-empty member".into(),
+                );
+            }
+
+            // An empty element beside a real one is the other half of the same
+            // grammar, and a different requirement: § 5.6.1.2 makes a recipient
+            // accept it, § 5.6.1.1 forbids the sender writing it. This rule measures
+            // the sender.
+            //
+            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            if members.iter().any(|m| m.is_empty()) {
                 return violation(format!(
-                    "Preference-Applied member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
-                    shown_in_finding(member)
+                    "Preference-Applied header contains an empty list element: '{}'",
+                    shown_in_finding(&applied)
                 ));
             }
 
-            // One sentence decides both comparisons this rule makes, and it
-            // decides them differently.
-            //
-            // cite(RFC 7240 § 2): "For both preference token names and parameter names, comparison is case insensitive while values are case sensitive regardless of whether token or quoted-string values are used."
-            let name = parsed.name.to_ascii_lowercase();
-            // Same sentence's other clause, applied to the value: `foo=""` and
-            // `foo` say the same thing, so neither can contradict the other.
-            //
-            // cite(RFC 7240 § 2): "Empty or zero-length values on both the preference token and within parameters are equivalent to no value being specified at all."
-            let value = parsed.value.filter(|v| !v.is_empty());
+            let prefer = read_prefer(&tx.request.headers);
 
-            if !prefer.readable {
-                continue;
-            }
-
-            // The field's own definition is what makes this a finding: its
-            // members are the request's preferences, so a member the request
-            // never carried is the message contradicting itself. Nothing in
-            // RFC 7240 states it as a requirement, and nothing needs to — a
-            // server cannot have honored a preference that was not asked for.
-            //
-            // cite(RFC 7240 § 3): "The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request."
-            // `parsed.name` needs no escaping where the values around it do: the
-            // parse returns a name only after finding every octet in it to be a
-            // `tchar`, which is visible US-ASCII. A `word`'s content has no such
-            // guarantee — `qdtext` admits HTAB and `obs-text` — so the two
-            // values below go through [`shown_in_finding`] and the name does not.
-            let Some(requested) = prefer.prefs.get(&name) else {
-                return violation(format!(
-                    "Preference-Applied names '{}', which the request's Prefer header did not ask for",
-                    parsed.name
-                ));
-            };
-
-            // Both sides carry the `word`'s content rather than its written
-            // form, so `return="representation"` and `return=representation` are
-            // the same preference honored — the same sentence that makes the
-            // comparison case-sensitive says it holds "regardless of whether
-            // token or quoted-string values are used".
-            if let (Some(applied_value), Some(requested_value)) = (&value, requested) {
-                if applied_value != requested_value {
+            for member in members.iter().filter(|m| !m.is_empty()) {
+                // The two fields share a production and differ by exactly this, and
+                // the document says so rather than leaving it to be inferred from
+                // the two ABNF blocks. A `;` inside the `word`'s quoted-string is
+                // `qdtext` and not a parameter, which is why the search is
+                // quote-aware.
+                //
+                // cite(RFC 7240 § 3): "The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included."
+                if split_semicolons_respecting_quotes(member).len() > 1 {
                     return violation(format!(
-                        "Preference-Applied reports '{}' applied with value '{}', where the request asked for '{}'",
-                        parsed.name,
-                        shown_in_finding(applied_value),
-                        shown_in_finding(requested_value)
+                        "Preference-Applied member '{}' carries parameters, which its grammar does not include",
+                        shown_in_finding(member)
                     ));
                 }
-            }
-        }
 
-        None
+                // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
+                let parsed = match parse_token_bws_word(member) {
+                    Ok(parsed) => parsed,
+                    Err(e) => {
+                        return violation(format!(
+                            "Preference-Applied member '{}' does not match applied-pref: {}",
+                            shown_in_finding(member),
+                            e
+                        ))
+                    }
+                };
+
+                // The `BWS` in the production is why the parse trims around the `=`
+                // at all — a recipient is required to. The sender is required not to
+                // put it there, and that half was going unsaid because the trim it
+                // licenses happens first and leaves nothing behind.
+                //
+                // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
+                // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
+                if parsed.bws {
+                    return violation(format!(
+                        "Preference-Applied member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
+                        shown_in_finding(member)
+                    ));
+                }
+
+                // One sentence decides both comparisons this rule makes, and it
+                // decides them differently.
+                //
+                // cite(RFC 7240 § 2): "For both preference token names and parameter names, comparison is case insensitive while values are case sensitive regardless of whether token or quoted-string values are used."
+                let name = parsed.name.to_ascii_lowercase();
+                // Same sentence's other clause, applied to the value: `foo=""` and
+                // `foo` say the same thing, so neither can contradict the other.
+                //
+                // cite(RFC 7240 § 2): "Empty or zero-length values on both the preference token and within parameters are equivalent to no value being specified at all."
+                let value = parsed.value.filter(|v| !v.is_empty());
+
+                if !prefer.readable {
+                    continue;
+                }
+
+                // The field's own definition is what makes this a finding: its
+                // members are the request's preferences, so a member the request
+                // never carried is the message contradicting itself. Nothing in
+                // RFC 7240 states it as a requirement, and nothing needs to — a
+                // server cannot have honored a preference that was not asked for.
+                //
+                // cite(RFC 7240 § 3): "The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request."
+                // `parsed.name` needs no escaping where the values around it do: the
+                // parse returns a name only after finding every octet in it to be a
+                // `tchar`, which is visible US-ASCII. A `word`'s content has no such
+                // guarantee — `qdtext` admits HTAB and `obs-text` — so the two
+                // values below go through [`shown_in_finding`] and the name does not.
+                let Some(requested) = prefer.prefs.get(&name) else {
+                    return violation(format!(
+                        "Preference-Applied names '{}', which the request's Prefer header did not ask for",
+                        parsed.name
+                    ));
+                };
+
+                // Both sides carry the `word`'s content rather than its written
+                // form, so `return="representation"` and `return=representation` are
+                // the same preference honored — the same sentence that makes the
+                // comparison case-sensitive says it holds "regardless of whether
+                // token or quoted-string values are used".
+                if let (Some(applied_value), Some(requested_value)) = (&value, requested) {
+                    if applied_value != requested_value {
+                        return violation(format!(
+                            "Preference-Applied reports '{}' applied with value '{}', where the request asked for '{}'",
+                            parsed.name,
+                            shown_in_finding(applied_value),
+                            shown_in_finding(requested_value)
+                        ));
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

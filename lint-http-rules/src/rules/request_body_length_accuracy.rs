@@ -16,104 +16,110 @@ impl Rule for RequestBodyLengthAccuracy {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req = &tx.request;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req = &tx.request;
 
-        // This rule used to transcribe the whole `Content-Length` grammar
-        // inline -- `1*DIGIT`, the u128 ceiling, the multiple-values-differ
-        // check, the non-UTF8 branch -- and emit findings for each, with
-        // message strings byte-identical to `content_length_valid`'s. That
-        // rule owns the field's syntax, on both sides, and delegates to
-        // `validate_content_length`. So every malformed value here produced two
-        // identical findings for one defect.
-        //
-        // Worse, the copy had fallen behind the original. § 6.3 makes a
-        // comma-separated list valid when every value parses and they all
-        // agree, and says what such a message means; the helper implements
-        // that, and the inline copy rejected `Content-Length: 5, 5` as an
-        // invalid value.
-        // cite(RFC 9112 § 6.3): "If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value)."
-        //
-        // Nothing is re-quoted here on purpose. A syntax error means there is
-        // no number to compare a body against, so this rule declines and
-        // `content_length_valid` makes the report.
-        // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
-        let declared = crate::helpers::headers::validate_content_length(&req.headers).ok()??;
+            // This rule used to transcribe the whole `Content-Length` grammar
+            // inline -- `1*DIGIT`, the u128 ceiling, the multiple-values-differ
+            // check, the non-UTF8 branch -- and emit findings for each, with
+            // message strings byte-identical to `content_length_valid`'s. That
+            // rule owns the field's syntax, on both sides, and delegates to
+            // `validate_content_length`. So every malformed value here produced two
+            // identical findings for one defect.
+            //
+            // Worse, the copy had fallen behind the original. § 6.3 makes a
+            // comma-separated list valid when every value parses and they all
+            // agree, and says what such a message means; the helper implements
+            // that, and the inline copy rejected `Content-Length: 5, 5` as an
+            // invalid value.
+            // cite(RFC 9112 § 6.3): "If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value)."
+            //
+            // Nothing is re-quoted here on purpose. A syntax error means there is
+            // no number to compare a body against, so this rule declines and
+            // `content_length_valid` makes the report.
+            // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
+            let declared =
+                crate::helpers::headers::validate_content_length(&req.headers).ok()??;
 
-        // The sentence that licenses this entire rule carries a condition the
-        // rule did not honour. § 6.3's sixth item is what makes a declared
-        // length mean anything about a body -- and it applies only *without*
-        // Transfer-Encoding:
-        // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
-        //
-        // When both are present, the number this rule was comparing is one the
-        // specification says to disregard, and the body length comes from
-        // decoding the transfer coding instead:
-        // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
-        // cite(RFC 9112 § 6.3): "If a Transfer-Encoding header field is present and the chunked transfer coding (Section 7.1) is the final encoding, the message body length is determined by reading and decoding the chunked data until the transfer coding indicates the data is complete."
-        //
-        // So `Content-Length: 10` beside `Transfer-Encoding: chunked` and a
-        // three-octet chunked body was reported as an inaccurate length, when
-        // the length was never the operative one. The message is certainly
-        // suspect -- § 6.3 calls it a possible smuggling attempt -- and
-        // `content_length_vs_transfer_encoding` is the rule that says
-        // so. This one has nothing left to measure.
-        //
-        // Presence is all that matters here, not what the field contains: the
-        // overriding is unconditional on the transfer coding being valid or
-        // even parseable. § 6.2 states the condition from the other end, and
-        // makes sending both a MUST NOT in its own right -- which is
-        // `content_length_vs_transfer_encoding`'s finding, not this
-        // rule's.
-        // cite(RFC 9112 § 6.2): "When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content."
-        // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
-        if req.headers.contains_key(hyper::header::TRANSFER_ENCODING) {
-            return None;
-        }
-
-        // The comparison itself. What makes a difference worth reporting is not
-        // arithmetic: § 6.2 says this number is the framing, and § 6.3 says a
-        // recipient that does not receive that many octets has an incomplete
-        // message on its hands and must close the connection. A request whose
-        // declared length does not match the octets that arrived is one of
-        // those, whichever way the difference runs.
-        // cite(RFC 9112 § 6.2): "For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends."
-        // cite(RFC 9112 § 6.3): "If the sender closes the connection or the recipient times out before the indicated number of octets are received, the recipient MUST consider the message to be incomplete and close the connection."
-        //
-        // `body_length` counts the octets that streamed through, with the
-        // transfer coding already resolved and any `Content-Encoding` left
-        // alone -- which is the same thing `Content-Length` counts, so the two
-        // are comparable as they stand. It is `None` when nothing was captured,
-        // and then there is nothing to compare.
-        //
-        // `request_body_over_limit` is deliberately *not* consulted, and that
-        // was checked rather than assumed. It reads like a reason to distrust
-        // the length -- a truncated capture -- but neither producer makes it
-        // one: the streaming path counts every octet that passes and truncates
-        // only the retained prefix, so the total stays exact; the one buffered
-        // path records no body at all when it rejects an over-limit request, so
-        // the length is `None` and this rule has already declined. Skipping on
-        // the flag would lose real findings and prevent none.
-        // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
-        if let Some(body_len) = req.body_length {
-            if declared != body_len as u128 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Content-Length ({}) does not match captured body bytes ({})",
-                        declared, body_len
-                    ),
-                });
+            // The sentence that licenses this entire rule carries a condition the
+            // rule did not honour. § 6.3's sixth item is what makes a declared
+            // length mean anything about a body -- and it applies only *without*
+            // Transfer-Encoding:
+            // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
+            //
+            // When both are present, the number this rule was comparing is one the
+            // specification says to disregard, and the body length comes from
+            // decoding the transfer coding instead:
+            // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
+            // cite(RFC 9112 § 6.3): "If a Transfer-Encoding header field is present and the chunked transfer coding (Section 7.1) is the final encoding, the message body length is determined by reading and decoding the chunked data until the transfer coding indicates the data is complete."
+            //
+            // So `Content-Length: 10` beside `Transfer-Encoding: chunked` and a
+            // three-octet chunked body was reported as an inaccurate length, when
+            // the length was never the operative one. The message is certainly
+            // suspect -- § 6.3 calls it a possible smuggling attempt -- and
+            // `content_length_vs_transfer_encoding` is the rule that says
+            // so. This one has nothing left to measure.
+            //
+            // Presence is all that matters here, not what the field contains: the
+            // overriding is unconditional on the transfer coding being valid or
+            // even parseable. § 6.2 states the condition from the other end, and
+            // makes sending both a MUST NOT in its own right -- which is
+            // `content_length_vs_transfer_encoding`'s finding, not this
+            // rule's.
+            // cite(RFC 9112 § 6.2): "When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content."
+            // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
+            if req.headers.contains_key(hyper::header::TRANSFER_ENCODING) {
+                return None;
             }
-        }
 
-        None
+            // The comparison itself. What makes a difference worth reporting is not
+            // arithmetic: § 6.2 says this number is the framing, and § 6.3 says a
+            // recipient that does not receive that many octets has an incomplete
+            // message on its hands and must close the connection. A request whose
+            // declared length does not match the octets that arrived is one of
+            // those, whichever way the difference runs.
+            // cite(RFC 9112 § 6.2): "For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends."
+            // cite(RFC 9112 § 6.3): "If the sender closes the connection or the recipient times out before the indicated number of octets are received, the recipient MUST consider the message to be incomplete and close the connection."
+            //
+            // `body_length` counts the octets that streamed through, with the
+            // transfer coding already resolved and any `Content-Encoding` left
+            // alone -- which is the same thing `Content-Length` counts, so the two
+            // are comparable as they stand. It is `None` when nothing was captured,
+            // and then there is nothing to compare.
+            //
+            // `request_body_over_limit` is deliberately *not* consulted, and that
+            // was checked rather than assumed. It reads like a reason to distrust
+            // the length -- a truncated capture -- but neither producer makes it
+            // one: the streaming path counts every octet that passes and truncates
+            // only the retained prefix, so the total stays exact; the one buffered
+            // path records no body at all when it rejects an over-limit request, so
+            // the length is `None` and this rule has already declined. Skipping on
+            // the flag would lose real findings and prevent none.
+            // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
+            if let Some(body_len) = req.body_length {
+                if declared != body_len as u128 {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Content-Length ({}) does not match captured body bytes ({})",
+                            declared, body_len
+                        ),
+                    });
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

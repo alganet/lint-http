@@ -16,36 +16,41 @@ impl Rule for EtagOrLastModifiedPresent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let Some(resp) = &tx.response else {
-            return None;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let Some(resp) = &tx.response else {
+                return None;
+            };
+            let status = resp.status;
+            // A 200 with no validator cannot be revalidated: every later request for it is a
+            // full transfer, and a conditional request has nothing to be conditional on. The rule
+            // accepts *either* validator, so it rests on both parallel SHOULD-send sentences.
+            // (It flags every validator-less 200, not only those where a modification date /
+            // change detection "can be reasonably and consistently determined" — a stricter
+            // default than the conditioned SHOULDs, recorded in the tracker.)
+            // cite(RFC 9110 § 8.8.2.1): "An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined"
+            // cite(RFC 9110 § 8.8.3.1): "An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined"
+            if status == 200
+                && !resp.headers.contains_key("etag")
+                && !resp.headers.contains_key("last-modified")
+            {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Response 200 without ETag or Last-Modified validator".into(),
+                })
+            } else {
+                None
+            }
         };
-        let status = resp.status;
-        // A 200 with no validator cannot be revalidated: every later request for it is a
-        // full transfer, and a conditional request has nothing to be conditional on. The rule
-        // accepts *either* validator, so it rests on both parallel SHOULD-send sentences.
-        // (It flags every validator-less 200, not only those where a modification date /
-        // change detection "can be reasonably and consistently determined" — a stricter
-        // default than the conditioned SHOULDs, recorded in the tracker.)
-        // cite(RFC 9110 § 8.8.2.1): "An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined"
-        // cite(RFC 9110 § 8.8.3.1): "An origin server SHOULD send an ETag for any selected representation for which detection of changes can be reasonably and consistently determined"
-        if status == 200
-            && !resp.headers.contains_key("etag")
-            && !resp.headers.contains_key("last-modified")
-        {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Response 200 without ETag or Last-Modified validator".into(),
-            })
-        } else {
-            None
-        }
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

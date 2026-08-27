@@ -17,52 +17,34 @@ impl Rule for DateAndTimeHeadersConsistent {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        use chrono::Duration;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            use chrono::Duration;
 
-        // Tolerate some small clock skew when comparing dates. 60s is a linter
-        // heuristic — no spec licenses it; §8.8.2.1's "MUST NOT ... later than ...
-        // Date" is strict, so this only makes the rule *more* lenient (recorded in
-        // the audit ledger, not cited).
-        const ALLOWED_SKEW_SECS: i64 = 60;
-        let skew = Duration::seconds(ALLOWED_SKEW_SECS);
+            // Tolerate some small clock skew when comparing dates. 60s is a linter
+            // heuristic — no spec licenses it; §8.8.2.1's "MUST NOT ... later than ...
+            // Date" is strict, so this only makes the rule *more* lenient (recorded in
+            // the audit ledger, not cited).
+            const ALLOWED_SKEW_SECS: i64 = 60;
+            let skew = Duration::seconds(ALLOWED_SKEW_SECS);
 
-        // Check Date header (request or response)
-        if let Some(hv) = tx.request.headers.get_all("date").iter().next() {
-            if let Ok(s) = hv.to_str() {
-                // This is a *recipient* parse: `parse_http_date_to_datetime` owns the
-                // §5.6.7 HTTP-date grammar and the accept-all-three-formats obligation
-                // (so those quotes live there, not duplicated here). The failure below
-                // therefore fires only on an unparseable value — hence "HTTP-date",
-                // not "IMF-fixdate"; the sender's IMF-fixdate obligation is a separate
-                // rule's concern. This rule's own claim is only what Date *is*:
-                // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
-                if crate::http_date::parse_http_date_to_datetime(s).is_err() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
-                    });
-                }
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Date header contains non-UTF8 bytes and is invalid".into(),
-                });
-            }
-        }
-
-        if let Some(resp) = &tx.response {
-            // Response Date check — same recipient parse as the request Date above.
-            // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
-            if let Some(hv) = resp.headers.get_all("date").iter().next() {
+            // Check Date header (request or response)
+            if let Some(hv) = tx.request.headers.get_all("date").iter().next() {
                 if let Ok(s) = hv.to_str() {
+                    // This is a *recipient* parse: `parse_http_date_to_datetime` owns the
+                    // §5.6.7 HTTP-date grammar and the accept-all-three-formats obligation
+                    // (so those quotes live there, not duplicated here). The failure below
+                    // therefore fires only on an unparseable value — hence "HTTP-date",
+                    // not "IMF-fixdate"; the sender's IMF-fixdate obligation is a separate
+                    // rule's concern. This rule's own claim is only what Date *is*:
+                    // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
                     if crate::http_date::parse_http_date_to_datetime(s).is_err() {
                         return Some(Violation {
                             rule: self.id().into(),
@@ -80,136 +62,164 @@ impl Rule for DateAndTimeHeadersConsistent {
                 }
             }
 
-            // If both Date and Last-Modified present and parseable, ensure Last-Modified is not in the future relative to Date
-            if let Some(date_str) = crate::helpers::headers::get_header_str(&resp.headers, "date") {
-                if let Ok(date_dt) = crate::http_date::parse_http_date_to_datetime(date_str) {
-                    if let Some(lm_str_raw) = resp.headers.get_all("last-modified").iter().next() {
-                        // handle non-utf8
-                        match lm_str_raw.to_str() {
-                            Ok(lm_str) => {
-                                match crate::http_date::parse_http_date_to_datetime(lm_str) {
-                                    Ok(lm_dt) => {
-                                        // cite(RFC 9110 § 8.8.2.1): "An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1)."
-                                        if lm_dt > date_dt + skew {
-                                            return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
-                                                "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
-                                                lm_str, date_str
-                                            ),
-                                        });
+            if let Some(resp) = &tx.response {
+                // Response Date check — same recipient parse as the request Date above.
+                // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
+                if let Some(hv) = resp.headers.get_all("date").iter().next() {
+                    if let Ok(s) = hv.to_str() {
+                        if crate::http_date::parse_http_date_to_datetime(s).is_err() {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)"
+                                    .into(),
+                            });
+                        }
+                    } else {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Date header contains non-UTF8 bytes and is invalid".into(),
+                        });
+                    }
+                }
+
+                // If both Date and Last-Modified present and parseable, ensure Last-Modified is not in the future relative to Date
+                if let Some(date_str) =
+                    crate::helpers::headers::get_header_str(&resp.headers, "date")
+                {
+                    if let Ok(date_dt) = crate::http_date::parse_http_date_to_datetime(date_str) {
+                        if let Some(lm_str_raw) =
+                            resp.headers.get_all("last-modified").iter().next()
+                        {
+                            // handle non-utf8
+                            match lm_str_raw.to_str() {
+                                Ok(lm_str) => {
+                                    match crate::http_date::parse_http_date_to_datetime(lm_str) {
+                                        Ok(lm_dt) => {
+                                            // cite(RFC 9110 § 8.8.2.1): "An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1)."
+                                            if lm_dt > date_dt + skew {
+                                                return Some(Violation {
+                                                rule: self.id().into(),
+                                                severity: ctx.severity,
+                                                message: format!(
+                                                    "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
+                                                    lm_str, date_str
+                                                ),
+                                            });
+                                            }
+                                        }
+                                        Err(_) => {
+                                            // Let dedicated Last-Modified format rule report invalid date; avoid duplicate
                                         }
                                     }
-                                    Err(_) => {
-                                        // Let dedicated Last-Modified format rule report invalid date; avoid duplicate
-                                    }
+                                }
+                                Err(_) => {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
+                                    });
                                 }
                             }
-                            Err(_) => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
-                                });
-                            }
                         }
-                    }
 
-                    // Sunset header: a valid HTTP-date that SHOULD be in the future.
-                    // One §3 sentence licenses both halves — the HTTP-date format and
-                    // the future check below (the skew makes the past-check lenient).
-                    // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
-                    for hv in resp.headers.get_all("sunset").iter() {
-                        match hv.to_str() {
-                            Ok(s) => {
-                                match crate::http_date::parse_http_date_to_datetime(s) {
+                        // Sunset header: a valid HTTP-date that SHOULD be in the future.
+                        // One §3 sentence licenses both halves — the HTTP-date format and
+                        // the future check below (the skew makes the past-check lenient).
+                        // cite(RFC 8594 § 3): "The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future."
+                        for hv in resp.headers.get_all("sunset").iter() {
+                            match hv.to_str() {
+                                Ok(s) => match crate::http_date::parse_http_date_to_datetime(s) {
                                     Ok(sunset_dt) => {
                                         if sunset_dt <= date_dt - skew {
                                             return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
-                                                "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
-                                                s, date_str
-                                            ),
-                                        });
+                                                rule: self.id().into(),
+                                                severity: ctx.severity,
+                                                message: format!(
+                                                    "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
+                                                    s, date_str
+                                                ),
+                                            });
                                         }
                                     }
                                     Err(_) => {
                                         return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
-                                    });
+                                            rule: self.id().into(),
+                                            severity: ctx.severity,
+                                            message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
+                                        });
                                     }
-                                }
-                            }
-                            Err(_) => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Sunset header contains non-UTF8 bytes and is invalid"
-                                        .into(),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Request-level If-Modified-Since: if a Date header is present, flag an
-        // If-Modified-Since later than it. No spec sentence mandates this ordering
-        // (a conditional date after the request's own Date is merely nonsensical),
-        // so it is a reasonableness heuristic — uncited, recorded in the ledger. The
-        // format of If-Modified-Since is owned by its dedicated rule (parse errors
-        // are skipped here to avoid duplicate reports).
-        if let Some(ifms_hv) = tx
-            .request
-            .headers
-            .get_all("if-modified-since")
-            .iter()
-            .next()
-        {
-            match ifms_hv.to_str() {
-                Ok(ifms_str) => match crate::http_date::parse_http_date_to_datetime(ifms_str) {
-                    Ok(ifms_dt) => {
-                        if let Some(date_str) =
-                            crate::helpers::headers::get_header_str(&tx.request.headers, "date")
-                        {
-                            if let Ok(date_dt) =
-                                crate::http_date::parse_http_date_to_datetime(date_str)
-                            {
-                                if ifms_dt > date_dt + skew {
+                                },
+                                Err(_) => {
                                     return Some(Violation {
                                         rule: self.id().into(),
                                         severity: ctx.severity,
-                                        message: format!(
-                                            "If-Modified-Since '{}' is later than Date '{}'; conditional requests should not use a future date",
-                                            ifms_str, date_str
-                                        ),
+                                        message:
+                                            "Sunset header contains non-UTF8 bytes and is invalid"
+                                                .into(),
                                     });
                                 }
                             }
                         }
                     }
-                    Err(_) => {
-                        // If-Modified-Since format is validated by dedicated rule; avoid duplicate reporting
-                    }
-                },
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "If-Modified-Since header contains non-UTF8 bytes and is invalid"
-                            .into(),
-                    });
                 }
             }
-        }
 
-        None
+            // Request-level If-Modified-Since: if a Date header is present, flag an
+            // If-Modified-Since later than it. No spec sentence mandates this ordering
+            // (a conditional date after the request's own Date is merely nonsensical),
+            // so it is a reasonableness heuristic — uncited, recorded in the ledger. The
+            // format of If-Modified-Since is owned by its dedicated rule (parse errors
+            // are skipped here to avoid duplicate reports).
+            if let Some(ifms_hv) = tx
+                .request
+                .headers
+                .get_all("if-modified-since")
+                .iter()
+                .next()
+            {
+                match ifms_hv.to_str() {
+                    Ok(ifms_str) => match crate::http_date::parse_http_date_to_datetime(ifms_str) {
+                        Ok(ifms_dt) => {
+                            if let Some(date_str) =
+                                crate::helpers::headers::get_header_str(&tx.request.headers, "date")
+                            {
+                                if let Ok(date_dt) =
+                                    crate::http_date::parse_http_date_to_datetime(date_str)
+                                {
+                                    if ifms_dt > date_dt + skew {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: ctx.severity,
+                                            message: format!(
+                                                "If-Modified-Since '{}' is later than Date '{}'; conditional requests should not use a future date",
+                                                ifms_str, date_str
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            // If-Modified-Since format is validated by dedicated rule; avoid duplicate reporting
+                        }
+                    },
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message:
+                                "If-Modified-Since header contains non-UTF8 bytes and is invalid"
+                                    .into(),
+                        });
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

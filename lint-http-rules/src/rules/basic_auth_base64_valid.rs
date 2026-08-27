@@ -16,52 +16,62 @@ impl Rule for BasicAuthBase64Valid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        for hv in tx.request.headers.get_all("authorization").iter() {
-            match hv.to_str() {
-                Ok(s) => {
-                    // Scheme names match case-insensitively.
-                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                    let mut parts = s.splitn(2, char::is_whitespace);
-                    let scheme = parts.next().unwrap_or("").trim();
-                    if scheme.eq_ignore_ascii_case("Basic") {
-                        let creds = parts.next().unwrap_or("").trim();
-                        if creds.is_empty() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Basic Authorization missing credentials".into(),
-                            });
-                        }
-                        // The rule's own claim: the credential the client sends encodes a
-                        // user-id and password. How that value is built and checked — the
-                        // Base64 alphabet, the ":" separator, control characters — is owned
-                        // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
-                        // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
-                        if let Err(msg) = crate::helpers::auth::validate_basic_credentials(creds) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Invalid Basic credentials: {} (RFC 7617)", msg),
-                            });
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            for hv in tx.request.headers.get_all("authorization").iter() {
+                match hv.to_str() {
+                    Ok(s) => {
+                        // Scheme names match case-insensitively.
+                        // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                        let mut parts = s.splitn(2, char::is_whitespace);
+                        let scheme = parts.next().unwrap_or("").trim();
+                        if scheme.eq_ignore_ascii_case("Basic") {
+                            let creds = parts.next().unwrap_or("").trim();
+                            if creds.is_empty() {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: "Basic Authorization missing credentials".into(),
+                                });
+                            }
+                            // The rule's own claim: the credential the client sends encodes a
+                            // user-id and password. How that value is built and checked — the
+                            // Base64 alphabet, the ":" separator, control characters — is owned
+                            // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
+                            // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
+                            if let Err(msg) =
+                                crate::helpers::auth::validate_basic_credentials(creds)
+                            {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!(
+                                        "Invalid Basic credentials: {} (RFC 7617)",
+                                        msg
+                                    ),
+                                });
+                            }
                         }
                     }
-                }
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Authorization header contains non-UTF8 value".into(),
-                    })
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Authorization header contains non-UTF8 value".into(),
+                        })
+                    }
                 }
             }
-        }
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

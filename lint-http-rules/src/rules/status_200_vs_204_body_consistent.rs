@@ -44,97 +44,102 @@ impl Rule for Status200Vs204BodyConsistent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // Both sentences this rule rests on are written for one status code. The
-        // first is the expectation, and reading it to the end matters: the case
-        // this rule reports -- framing that says the content is empty -- is the
-        // exception the expectation carves out, not a breach of it. What licenses
-        // a finding at all is the second sentence, quoted at the report below.
-        // cite(RFC 9110 § 15.3.1): "The 200 (OK) status code indicates that the request has succeeded."
-        // cite(RFC 9110 § 15.3.1): "Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length."
-        if resp.status != 200 {
-            return None;
-        }
-
-        // The method token is compared byte for byte in both exemptions below. A
-        // fold would exempt `head` and `connect`, which are not those methods and
-        // are not what the sentences quoted there are about.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        //
-        // A response to HEAD cannot carry content whatever the server intended, so
-        // its emptiness is not evidence that 204 was meant.
-        // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
-        // cite(RFC 9110 § 6.4.1): "Responses to the HEAD request method (Section 9.3.2) never include content; the associated response header fields indicate only what their values would have been if the request method had been GET (Section 9.3.1)."
-        //
-        // The exemption has to be here, above the framing, and not only because the
-        // emptiness is uninformative: a `Content-Length` in a HEAD response is the
-        // length of a message that was never sent, so the branch below would read
-        // the GET's content length as this response's.
-        // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
-        if tx.request.method == "HEAD" {
-            return None;
-        }
-
-        // A 200 answering CONNECT is the successful end of the handshake: the tunnel
-        // starts where the content would have been. The advice this rule gives would
-        // be actively wrong here, because a 204 does not open a tunnel -- and the
-        // first sentence quoted above excludes CONNECT before any of that.
-        // cite(RFC 9110 § 15.3.1): "For CONNECT, there is no content because the successful result is a tunnel, which begins immediately after the 200 response header section."
-        // cite(RFC 9110 § 6.4.1): "2xx (Successful) responses to a CONNECT request method (Section 9.3.6) switch the connection to tunnel mode instead of having content."
-        if tx.request.method == "CONNECT" {
-            return None;
-        }
-
-        // A declared length is the message's framing only when nothing overrides it.
-        // The sentence is HTTP/1.1's, and so is the field it names; whether a message
-        // of another version may carry a `Transfer-Encoding` at all is a question for
-        // the rules that own that version, and this one does not answer it. What holds
-        // wherever the field appears is that the length beside it is not the framing.
-        //
-        // Skipping the *field* is all this buys. The captured octet count below is
-        // still evidence, and consulting it is the only way a chunked 200 with an
-        // empty body is seen at all -- chunked framing is precisely the case that
-        // declares no length.
-        // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
-        if !resp.headers.contains_key("transfer-encoding") {
-            // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
-            // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
-            match crate::helpers::headers::validate_content_length(&resp.headers) {
-                // Zero octets, said by the sender rather than counted by the capture.
-                Ok(Some(0)) => return Some(self.report(ctx.severity, "Content-Length: 0")),
-                // A declared length above zero is content, and the expectation quoted
-                // at the status gate is met.
-                Ok(Some(_)) => return None,
-                // No declared length: the capture's count is the remaining evidence.
-                Ok(None) => {}
-                // An invalid `Content-Length` is a framing error, not a statement that
-                // the content is empty, and `content_length_valid` is the rule that
-                // reports it. There is nothing left here to conclude "no content" from,
-                // so this declines rather than falling through to the captured count.
-                Err(_) => return None,
+            // Both sentences this rule rests on are written for one status code. The
+            // first is the expectation, and reading it to the end matters: the case
+            // this rule reports -- framing that says the content is empty -- is the
+            // exception the expectation carves out, not a breach of it. What licenses
+            // a finding at all is the second sentence, quoted at the report below.
+            // cite(RFC 9110 § 15.3.1): "The 200 (OK) status code indicates that the request has succeeded."
+            // cite(RFC 9110 § 15.3.1): "Aside from responses to CONNECT, a 200 response is expected to contain message content unless the message framing explicitly indicates that the content has zero length."
+            if resp.status != 200 {
+                return None;
             }
-        }
 
-        match resp.body_length {
-            // Nothing was declared, and the capture counted no content octets. The
-            // count is of content, not of framing: chunk sizes and the trailer section
-            // are not in it.
-            // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
-            Some(0) => Some(self.report(ctx.severity, "captured length 0")),
-            // Content was counted.
-            Some(_) => None,
-            // Neither the sender nor the capture says how long the content is (a
-            // close-delimited response, or a transaction deserialized without the
-            // field). Emptiness is not observable, so nothing is reported.
-            None => None,
-        }
+            // The method token is compared byte for byte in both exemptions below. A
+            // fold would exempt `head` and `connect`, which are not those methods and
+            // are not what the sentences quoted there are about.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            //
+            // A response to HEAD cannot carry content whatever the server intended, so
+            // its emptiness is not evidence that 204 was meant.
+            // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            // cite(RFC 9110 § 6.4.1): "Responses to the HEAD request method (Section 9.3.2) never include content; the associated response header fields indicate only what their values would have been if the request method had been GET (Section 9.3.1)."
+            //
+            // The exemption has to be here, above the framing, and not only because the
+            // emptiness is uninformative: a `Content-Length` in a HEAD response is the
+            // length of a message that was never sent, so the branch below would read
+            // the GET's content length as this response's.
+            // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
+            if tx.request.method == "HEAD" {
+                return None;
+            }
+
+            // A 200 answering CONNECT is the successful end of the handshake: the tunnel
+            // starts where the content would have been. The advice this rule gives would
+            // be actively wrong here, because a 204 does not open a tunnel -- and the
+            // first sentence quoted above excludes CONNECT before any of that.
+            // cite(RFC 9110 § 15.3.1): "For CONNECT, there is no content because the successful result is a tunnel, which begins immediately after the 200 response header section."
+            // cite(RFC 9110 § 6.4.1): "2xx (Successful) responses to a CONNECT request method (Section 9.3.6) switch the connection to tunnel mode instead of having content."
+            if tx.request.method == "CONNECT" {
+                return None;
+            }
+
+            // A declared length is the message's framing only when nothing overrides it.
+            // The sentence is HTTP/1.1's, and so is the field it names; whether a message
+            // of another version may carry a `Transfer-Encoding` at all is a question for
+            // the rules that own that version, and this one does not answer it. What holds
+            // wherever the field appears is that the length beside it is not the framing.
+            //
+            // Skipping the *field* is all this buys. The captured octet count below is
+            // still evidence, and consulting it is the only way a chunked 200 with an
+            // empty body is seen at all -- chunked framing is precisely the case that
+            // declares no length.
+            // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
+            if !resp.headers.contains_key("transfer-encoding") {
+                // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
+                // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
+                match crate::helpers::headers::validate_content_length(&resp.headers) {
+                    // Zero octets, said by the sender rather than counted by the capture.
+                    Ok(Some(0)) => return Some(self.report(ctx.severity, "Content-Length: 0")),
+                    // A declared length above zero is content, and the expectation quoted
+                    // at the status gate is met.
+                    Ok(Some(_)) => return None,
+                    // No declared length: the capture's count is the remaining evidence.
+                    Ok(None) => {}
+                    // An invalid `Content-Length` is a framing error, not a statement that
+                    // the content is empty, and `content_length_valid` is the rule that
+                    // reports it. There is nothing left here to conclude "no content" from,
+                    // so this declines rather than falling through to the captured count.
+                    Err(_) => return None,
+                }
+            }
+
+            match resp.body_length {
+                // Nothing was declared, and the capture counted no content octets. The
+                // count is of content, not of framing: chunk sizes and the trailer section
+                // are not in it.
+                // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
+                Some(0) => Some(self.report(ctx.severity, "captured length 0")),
+                // Content was counted.
+                Some(_) => None,
+                // Neither the sender nor the capture says how long the content is (a
+                // close-delimited response, or a transaction deserialized without the
+                // field). Emptiness is not observable, so nothing is reported.
+                None => None,
+            }
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -59,162 +59,167 @@ impl Rule for RangeRequestAndCaching {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req = &tx.request;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req = &tx.request;
 
-        // `Range` asks something of a GET and of nothing else. On any other
-        // method the server discards the field, so the request is not a
-        // re-request of a stored partial copy and there is no stored response
-        // being validated. A resumable upload naming its range in the *request's*
-        // `Content-Range` reaches here as a PUT and leaves here.
-        //
-        // The comparison is case-sensitive on purpose, and most of this crate's
-        // method tests are not: `get` is not the GET method, it is an
-        // unrecognized one — which the same sentence sends down the same path.
-        // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined."
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        if req.method != "GET" {
-            return None;
-        }
-
-        // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
-        req.headers.get("range")?;
-
-        // The premise. `history` is scoped to this (client, resource) pair by the
-        // rule's `ByResource` query, so a 206 anywhere in it is a partial copy of
-        // the representation this request is ranging over.
-        // cite(RFC 9111 § 3.3): "A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4."
-        // cite(RFC 9110 § 15.3.7.3): "A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator."
-        let holds_a_partial_copy = history
-            .iter()
-            .any(|past| past.response.as_ref().is_some_and(|r| r.status == 206));
-        if !holds_a_partial_copy {
-            return None;
-        }
-
-        // What the client holds *now*. Newest first, stopping at the first
-        // response that carried any validator at all: that response's metadata is
-        // what a stored entry would have been updated to, whether it was the 206,
-        // a later 200, or a 304 that freshened it.
-        // "The same URI" is what this walk implements; the cache key it narrows to
-        // is what the walk cannot see, and the second sentence is here so that the
-        // approximation is on the record next to the code making it.
-        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI."
-        // cite(RFC 9111 § 4.3.1): "Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending"
-        let mut newest_validators: Option<(Option<String>, Option<String>)> = None;
-        for past in history.iter() {
-            if let Some(resp) = &past.response {
-                let (etag, last_modified) =
-                    crate::helpers::headers::extract_validators_from_response(&resp.headers);
-                if etag.is_some() || last_modified.is_some() {
-                    newest_validators = Some((etag, last_modified));
-                    break;
-                }
-            }
-        }
-        let (stored_etag, _stored_last_modified) = newest_validators?;
-
-        // No entity tag: every sentence that would put a validator in *this*
-        // request is weaker than a requirement. The SHOULD excludes subranges by
-        // name, and the bullet written for subranges is a MAY — so a date-only
-        // stored response leaves the client free to send nothing, and a rule that
-        // reported the silence would be inventing the modal.
-        // cite(RFC 9111 § 4.3.1): "SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value."
-        // cite(RFC 9111 § 4.3.1): "MAY send the Last-Modified value (using If-Unmodified-Since or If-Range) if the request is for a subrange, a single stored response is being validated, and that response contains only a Last-Modified value (not an entity tag)."
-        let stored_etag = stored_etag?;
-
-        // A weak tag names a representation that cannot be recombined with
-        // anything, so no phrasing of this request would help.
-        // cite(RFC 9110 § 15.3.7.3): "These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1)."
-        // cite(RFC 9111 § 3.4): "A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator"
-        if stored_etag.starts_with("W/") {
-            return None;
-        }
-
-        // A malformed stored tag is the server's defect and `etag_syntax`
-        // reports it there. Asking the client to echo it would be this rule
-        // charging one party for another's field. The `stored_etag == "*"` beside
-        // this was a workaround for `validate_entity_tag` admitting a `*`, which
-        // no `entity-tag` generates; the helper answers it now.
-        if crate::helpers::headers::validate_entity_tag(&stored_etag).is_err() {
-            return None;
-        }
-
-        // The MUST names three fields. A request carrying `If-Match` or
-        // `If-None-Match` has put the entity tag where the sentence allows it,
-        // and whether the value it carries matches history is
-        // `cache_validation_chain`'s question, asked there against this
-        // same sentence. Reporting here would report a conforming request and
-        // double-report a non-conforming one.
-        // cite(RFC 9111 § 4.3.1): "MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated."
-        if req.headers.contains_key("if-match") || req.headers.contains_key("if-none-match") {
-            return None;
-        }
-
-        let Some(raw_if_range) = req.headers.get("if-range") else {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Range request for a resource this client holds a 206 of, whose stored entity tag is {stored_etag}, carries none of If-Range, If-Match or If-None-Match; the entity tags of the stored response being validated have to be sent in one of those three"
-                ),
-            });
-        };
-
-        // Present and unreadable is not absent. `conditional_headers_consistent`
-        // reports a non-ASCII `If-Range`; a "carries none of them" finding here
-        // would be false about the message on the wire.
-        let Ok(if_range) = raw_if_range.to_str() else {
-            return None;
-        };
-        let if_range = if_range.trim();
-
-        // A weak tag in `If-Range` violates §13.1.5 outright, and the rule that
-        // owns the field's syntax says so. Declining keeps the two findings from
-        // landing on one field; the precondition for the decline is that an owner
-        // exists, and here it does.
-        if if_range.starts_with("W/") {
-            return None;
-        }
-
-        // cite(RFC 9110 § 13.1.5): "A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE."
-        if !if_range.chars().take(3).any(|c| c == '"') {
-            // Neither a tag nor a date is a syntax defect, and this rule holds no
-            // sentence about the shape of the field — only about which validator
-            // belongs in it.
-            if !crate::http_date::is_valid_http_date(if_range) {
+            // `Range` asks something of a GET and of nothing else. On any other
+            // method the server discards the field, so the request is not a
+            // re-request of a stored partial copy and there is no stored response
+            // being validated. A resumable upload naming its range in the *request's*
+            // `Content-Range` reaches here as a PUT and leaves here.
+            //
+            // The comparison is case-sensitive on purpose, and most of this crate's
+            // method tests are not: `get` is not the GET method, it is an
+            // unrecognized one — which the same sentence sends down the same path.
+            // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined."
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if req.method != "GET" {
                 return None;
             }
 
-            // The client was given an entity tag for this representation, so the
-            // date is the one validator it was not permitted to choose.
-            // cite(RFC 9110 § 13.1.5): "Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "If-Range carries the date '{if_range}' although entity tag {stored_etag} was provided for this representation; a date is only permitted there when the client has no entity tag"
-                ),
-            });
-        }
+            // cite(RFC 9110 § 14.2): "The "Range" header field on a GET request modifies the method semantics to request transfer of only one or more subranges of the selected representation data (Section 8.1), rather than the entire selected representation."
+            req.headers.get("range")?;
 
-        // cite(RFC 9110 § 13.1.5): "Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional."
-        if if_range != stored_etag {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "If-Range entity tag {if_range} is not {stored_etag}, the tag most recently provided for this representation; a server still holding that tag will ignore Range and send the whole representation"
-                ),
-            });
-        }
+            // The premise. `history` is scoped to this (client, resource) pair by the
+            // rule's `ByResource` query, so a 206 anywhere in it is a partial copy of
+            // the representation this request is ranging over.
+            // cite(RFC 9111 § 3.3): "A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4."
+            // cite(RFC 9110 § 15.3.7.3): "A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator."
+            let holds_a_partial_copy = history
+                .iter()
+                .any(|past| past.response.as_ref().is_some_and(|r| r.status == 206));
+            if !holds_a_partial_copy {
+                return None;
+            }
 
-        None
+            // What the client holds *now*. Newest first, stopping at the first
+            // response that carried any validator at all: that response's metadata is
+            // what a stored entry would have been updated to, whether it was the 206,
+            // a later 200, or a 304 that freshened it.
+            // "The same URI" is what this walk implements; the cache key it narrows to
+            // is what the walk cannot see, and the second sentence is here so that the
+            // approximation is on the record next to the code making it.
+            // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields.  These contain validator metadata sourced from a stored response(s) that has the same URI."
+            // cite(RFC 9111 § 4.3.1): "Typically, this will include only the stored response(s) that has the same cache key, although a cache is allowed to validate a response that it cannot choose with the request header fields it is sending"
+            let mut newest_validators: Option<(Option<String>, Option<String>)> = None;
+            for past in history.iter() {
+                if let Some(resp) = &past.response {
+                    let (etag, last_modified) =
+                        crate::helpers::headers::extract_validators_from_response(&resp.headers);
+                    if etag.is_some() || last_modified.is_some() {
+                        newest_validators = Some((etag, last_modified));
+                        break;
+                    }
+                }
+            }
+            let (stored_etag, _stored_last_modified) = newest_validators?;
+
+            // No entity tag: every sentence that would put a validator in *this*
+            // request is weaker than a requirement. The SHOULD excludes subranges by
+            // name, and the bullet written for subranges is a MAY — so a date-only
+            // stored response leaves the client free to send nothing, and a rule that
+            // reported the silence would be inventing the modal.
+            // cite(RFC 9111 § 4.3.1): "SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value."
+            // cite(RFC 9111 § 4.3.1): "MAY send the Last-Modified value (using If-Unmodified-Since or If-Range) if the request is for a subrange, a single stored response is being validated, and that response contains only a Last-Modified value (not an entity tag)."
+            let stored_etag = stored_etag?;
+
+            // A weak tag names a representation that cannot be recombined with
+            // anything, so no phrasing of this request would help.
+            // cite(RFC 9110 § 15.3.7.3): "These ranges can only be safely combined if they all have in common the same strong validator (Section 8.8.1)."
+            // cite(RFC 9111 § 3.4): "A cache MAY combine these ranges into a single stored response, and reuse that response to satisfy later requests, if they all share the same strong validator"
+            if stored_etag.starts_with("W/") {
+                return None;
+            }
+
+            // A malformed stored tag is the server's defect and `etag_syntax`
+            // reports it there. Asking the client to echo it would be this rule
+            // charging one party for another's field. The `stored_etag == "*"` beside
+            // this was a workaround for `validate_entity_tag` admitting a `*`, which
+            // no `entity-tag` generates; the helper answers it now.
+            if crate::helpers::headers::validate_entity_tag(&stored_etag).is_err() {
+                return None;
+            }
+
+            // The MUST names three fields. A request carrying `If-Match` or
+            // `If-None-Match` has put the entity tag where the sentence allows it,
+            // and whether the value it carries matches history is
+            // `cache_validation_chain`'s question, asked there against this
+            // same sentence. Reporting here would report a conforming request and
+            // double-report a non-conforming one.
+            // cite(RFC 9111 § 4.3.1): "MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated."
+            if req.headers.contains_key("if-match") || req.headers.contains_key("if-none-match") {
+                return None;
+            }
+
+            let Some(raw_if_range) = req.headers.get("if-range") else {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Range request for a resource this client holds a 206 of, whose stored entity tag is {stored_etag}, carries none of If-Range, If-Match or If-None-Match; the entity tags of the stored response being validated have to be sent in one of those three"
+                    ),
+                });
+            };
+
+            // Present and unreadable is not absent. `conditional_headers_consistent`
+            // reports a non-ASCII `If-Range`; a "carries none of them" finding here
+            // would be false about the message on the wire.
+            let Ok(if_range) = raw_if_range.to_str() else {
+                return None;
+            };
+            let if_range = if_range.trim();
+
+            // A weak tag in `If-Range` violates §13.1.5 outright, and the rule that
+            // owns the field's syntax says so. Declining keeps the two findings from
+            // landing on one field; the precondition for the decline is that an owner
+            // exists, and here it does.
+            if if_range.starts_with("W/") {
+                return None;
+            }
+
+            // cite(RFC 9110 § 13.1.5): "A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE."
+            if !if_range.chars().take(3).any(|c| c == '"') {
+                // Neither a tag nor a date is a syntax defect, and this rule holds no
+                // sentence about the shape of the field — only about which validator
+                // belongs in it.
+                if !crate::http_date::is_valid_http_date(if_range) {
+                    return None;
+                }
+
+                // The client was given an entity tag for this representation, so the
+                // date is the one validator it was not permitted to choose.
+                // cite(RFC 9110 § 13.1.5): "Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "If-Range carries the date '{if_range}' although entity tag {stored_etag} was provided for this representation; a date is only permitted there when the client has no entity tag"
+                    ),
+                });
+            }
+
+            // cite(RFC 9110 § 13.1.5): "Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional."
+            if if_range != stored_etag {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "If-Range entity tag {if_range} is not {stored_etag}, the tag most recently provided for this representation; a server still holding that tag will ignore Range and send the whole representation"
+                    ),
+                });
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

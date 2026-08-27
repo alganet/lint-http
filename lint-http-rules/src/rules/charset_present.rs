@@ -16,84 +16,91 @@ impl Rule for CharsetPresent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Response-only, though Content-Type is equally a request field. The concern
-        // driving this rule — a recipient guessing the encoding of text it renders —
-        // is a response-side one, so a request that omits charset is left alone.
-        // A scope choice, not something a sentence narrows.
-        let Some(resp) = &tx.response else {
-            return None;
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Response-only, though Content-Type is equally a request field. The concern
+            // driving this rule — a recipient guessing the encoding of text it renders —
+            // is a response-side one, so a request that omits charset is left alone.
+            // A scope choice, not something a sentence narrows.
+            let Some(resp) = &tx.response else {
+                return None;
+            };
 
-        if let Some(ct_str) = crate::helpers::headers::get_header_str(&resp.headers, "content-type")
-        {
-            // Parse content-type to inspect type and parameters reliably
-            // The `media-type` grammar itself is owned by the helper; what matters
-            // here is that the top-level type compares case-insensitively, so
-            // `TEXT/HTML` is in scope exactly as `text/html` is.
-            // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-            if let Ok(parsed) = crate::helpers::headers::parse_media_type(ct_str) {
-                if parsed.type_.eq_ignore_ascii_case("text") {
-                    // Parameter *names* are case-insensitive too, which is why the
-                    // key comparison folds case. Only the name is compared — the
-                    // charset value is never inspected here, so this rule takes no
-                    // position on whether it is registered (that is the IANA-charset
-                    // rule's job).
-                    // cite(RFC 9110 § 8.3.2): "HTTP uses "charset" names to indicate or negotiate the character encoding scheme"
-                    let params = parsed.params.unwrap_or("");
+            if let Some(ct_str) =
+                crate::helpers::headers::get_header_str(&resp.headers, "content-type")
+            {
+                // Parse content-type to inspect type and parameters reliably
+                // The `media-type` grammar itself is owned by the helper; what matters
+                // here is that the top-level type compares case-insensitively, so
+                // `TEXT/HTML` is in scope exactly as `text/html` is.
+                // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
+                if let Ok(parsed) = crate::helpers::headers::parse_media_type(ct_str) {
+                    if parsed.type_.eq_ignore_ascii_case("text") {
+                        // Parameter *names* are case-insensitive too, which is why the
+                        // key comparison folds case. Only the name is compared — the
+                        // charset value is never inspected here, so this rule takes no
+                        // position on whether it is registered (that is the IANA-charset
+                        // rule's job).
+                        // cite(RFC 9110 § 8.3.2): "HTTP uses "charset" names to indicate or negotiate the character encoding scheme"
+                        let params = parsed.params.unwrap_or("");
 
-                    // An odd number of DQUOTEs means the quoting never closes,
-                    // and then no parameter boundary after it can be trusted.
-                    // Saying "missing charset" about such a value would be a
-                    // false statement — `text/html; p="x; charset=utf-8` plainly
-                    // carries one — so the rule declines to judge instead. The
-                    // malformed value is `content_type_valid`'s
-                    // finding; unreadable parameters are not an absent charset.
-                    // The check lives beside the splitter it guards, so the two
-                    // cannot drift apart over what counts as a quote.
-                    if !crate::helpers::headers::quoting_is_balanced(params) {
-                        return None;
-                    }
+                        // An odd number of DQUOTEs means the quoting never closes,
+                        // and then no parameter boundary after it can be trusted.
+                        // Saying "missing charset" about such a value would be a
+                        // false statement — `text/html; p="x; charset=utf-8` plainly
+                        // carries one — so the rule declines to judge instead. The
+                        // malformed value is `content_type_valid`'s
+                        // finding; unreadable parameters are not an absent charset.
+                        // The check lives beside the splitter it guards, so the two
+                        // cannot drift apart over what counts as a quote.
+                        if !crate::helpers::headers::quoting_is_balanced(params) {
+                            return None;
+                        }
 
-                    // Quote-aware: a `;` inside a quoted parameter value does not
-                    // start a new parameter. A raw `split(';')` cut such a value
-                    // apart and then read the pieces as parameters, so text that
-                    // merely *looks* like `charset=` inside another value — say
-                    // `boundary="x; charset=utf-8"` — satisfied this check and
-                    // suppressed the finding for a response that has no charset.
-                    let has_charset =
-                        crate::helpers::headers::split_semicolons_respecting_quotes(params)
-                            .into_iter()
-                            .any(|p| {
-                                let p = p.trim();
-                                p.split_once('=')
-                                    .map(|(k, _)| k.trim().eq_ignore_ascii_case("charset"))
-                                    .unwrap_or(false)
+                        // Quote-aware: a `;` inside a quoted parameter value does not
+                        // start a new parameter. A raw `split(';')` cut such a value
+                        // apart and then read the pieces as parameters, so text that
+                        // merely *looks* like `charset=` inside another value — say
+                        // `boundary="x; charset=utf-8"` — satisfied this check and
+                        // suppressed the finding for a response that has no charset.
+                        let has_charset =
+                            crate::helpers::headers::split_semicolons_respecting_quotes(params)
+                                .into_iter()
+                                .any(|p| {
+                                    let p = p.trim();
+                                    p.split_once('=')
+                                        .map(|(k, _)| k.trim().eq_ignore_ascii_case("charset"))
+                                        .unwrap_or(false)
+                                });
+
+                        // No specification requires `charset` on a `text/*` response — searched
+                        // for, not found. RFC 9110 mentions the parameter twice and mandates
+                        // nothing; MDN defines it and stops there. Requiring it is this linter's
+                        // policy, and the cite is the definition it rests on, not a MUST it does
+                        // not have.
+                        // cite(MDN Content-Type): "Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred."
+                        if !has_charset {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message:
+                                    "Text-based Content-Type header missing charset parameter."
+                                        .into(),
                             });
-
-                    // No specification requires `charset` on a `text/*` response — searched
-                    // for, not found. RFC 9110 mentions the parameter twice and mandates
-                    // nothing; MDN defines it and stops there. Requiring it is this linter's
-                    // policy, and the cite is the definition it rests on, not a MUST it does
-                    // not have.
-                    // cite(MDN Content-Type): "Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred."
-                    if !has_charset {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Text-based Content-Type header missing charset parameter."
-                                .into(),
-                        });
+                        }
                     }
                 }
             }
-        }
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

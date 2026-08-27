@@ -19,78 +19,83 @@ impl Rule for StatusAndCachingSemantics {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        let status = resp.status;
+            let status = resp.status;
 
-        // The heuristically cacheable status codes (RFC 9111 §4.2.2 calls the older name
-        // "cacheable by default"), enumerated in RFC 9110 §15.1. Such a response can be reused
-        // with heuristic expiration, so it needs no explicit freshness.
-        // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
-        const DEFAULT_CACHEABLE: [u16; 12] =
-            [200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501];
-        if DEFAULT_CACHEABLE.contains(&status) {
-            return None;
-        }
+            // The heuristically cacheable status codes (RFC 9111 §4.2.2 calls the older name
+            // "cacheable by default"), enumerated in RFC 9110 §15.1. Such a response can be reused
+            // with heuristic expiration, so it needs no explicit freshness.
+            // cite(RFC 9110 § 15.1): "Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls"
+            const DEFAULT_CACHEABLE: [u16; 12] =
+                [200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501];
+            if DEFAULT_CACHEABLE.contains(&status) {
+                return None;
+            }
 
-        // Helper: check Cache-Control directives for explicit freshness (max-age or s-maxage)
-        for hv in resp.headers.get_all("cache-control").iter() {
-            if let Ok(s) = hv.to_str() {
-                for part in s.split(',') {
-                    let p = part.trim();
-                    if p.is_empty() {
-                        continue;
-                    }
-                    // split on '=' to check for max-age / s-maxage. Directive names are
-                    // case-insensitive; a present max-age or s-maxage is explicit freshness that
-                    // makes the response storable (RFC 9111 §3), so no violation.
-                    // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
-                    // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires"
-                    let mut it = p.splitn(2, '=');
-                    let name = it.next().unwrap().trim().to_ascii_lowercase();
-                    if name == "max-age" || name == "s-maxage" {
-                        if let Some(val) = it.next() {
-                            // Accept non-negative integer delta-seconds (allow whitespace)
-                            if let Ok(n) = val.trim().parse::<i64>() {
-                                if n >= 0 {
-                                    return None; // explicit freshness present
+            // Helper: check Cache-Control directives for explicit freshness (max-age or s-maxage)
+            for hv in resp.headers.get_all("cache-control").iter() {
+                if let Ok(s) = hv.to_str() {
+                    for part in s.split(',') {
+                        let p = part.trim();
+                        if p.is_empty() {
+                            continue;
+                        }
+                        // split on '=' to check for max-age / s-maxage. Directive names are
+                        // case-insensitive; a present max-age or s-maxage is explicit freshness that
+                        // makes the response storable (RFC 9111 §3), so no violation.
+                        // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
+                        // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires"
+                        let mut it = p.splitn(2, '=');
+                        let name = it.next().unwrap().trim().to_ascii_lowercase();
+                        if name == "max-age" || name == "s-maxage" {
+                            if let Some(val) = it.next() {
+                                // Accept non-negative integer delta-seconds (allow whitespace)
+                                if let Ok(n) = val.trim().parse::<i64>() {
+                                    if n >= 0 {
+                                        return None; // explicit freshness present
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
 
-        // A present, well-formed Expires is explicit freshness. Note this is stricter than
-        // §3, which counts the mere presence of an Expires field: a malformed date is treated
-        // here as no freshness (it establishes none), a deliberate hygiene choice.
-        // cite(RFC 9111 § 5.3): "The "Expires" response header field gives the date/time after which the response is considered stale."
-        if let Some(hv) = resp.headers.get_all("expires").iter().next() {
-            if let Ok(s) = hv.to_str() {
-                if crate::http_date::is_valid_http_date(s.trim()) {
-                    return None;
+            // A present, well-formed Expires is explicit freshness. Note this is stricter than
+            // §3, which counts the mere presence of an Expires field: a malformed date is treated
+            // here as no freshness (it establishes none), a deliberate hygiene choice.
+            // cite(RFC 9111 § 5.3): "The "Expires" response header field gives the date/time after which the response is considered stale."
+            if let Some(hv) = resp.headers.get_all("expires").iter().next() {
+                if let Ok(s) = hv.to_str() {
+                    if crate::http_date::is_valid_http_date(s.trim()) {
+                        return None;
+                    }
                 }
             }
-        }
 
-        // None of the storability signals §3 requires are present, and the status is not
-        // heuristically cacheable — so a cache cannot store this response.
-        // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless"
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Response {} is not cacheable by default and lacks explicit freshness information (Cache-Control: max-age/s-maxage or Expires)",
-                status
-            ),
-        })
+            // None of the storability signals §3 requires are present, and the status is not
+            // heuristically cacheable — so a cache cannot store this response.
+            // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless"
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "Response {} is not cacheable by default and lacks explicit freshness information (Cache-Control: max-age/s-maxage or Expires)",
+                    status
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {
