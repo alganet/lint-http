@@ -461,13 +461,19 @@ fn render_lint_report(
                     }
                 }
                 for v in block.violations() {
-                    writeln!(
+                    write!(
                         out,
                         "  {:<5} {}  {}",
                         severity_label(v.severity),
                         v.rule,
                         v.message
                     )?;
+                    // The specification text the finding enforces, when the
+                    // rule attached one at the violation site.
+                    if let Some(cite) = &v.cite {
+                        write!(out, "  [{cite}]")?;
+                    }
+                    writeln!(out)?;
                 }
             }
             let total: usize = findings.iter().map(|f| f.violations().len()).sum();
@@ -939,11 +945,11 @@ severity = "warn"
     }
 
     fn sample_violation() -> lint::Violation {
-        lint::Violation {
-            rule: "cache_control_present".to_string(),
-            severity: lint::Severity::Warn,
-            message: "missing Cache-Control".to_string(),
-        }
+        lint::Violation::new(
+            "cache_control_present",
+            lint::Severity::Warn,
+            "missing Cache-Control",
+        )
     }
 
     fn sample_findings() -> Vec<FindingsBlock> {
@@ -979,6 +985,30 @@ severity = "warn"
         let out = render_lint_report(&findings, 1, 0, OutputFormat::Json)?;
         let parsed: Vec<serde_json::Value> = serde_json::from_str(&out)?;
         assert!(parsed[0]["status"].is_null());
+        Ok(())
+    }
+
+    #[test]
+    fn render_lint_report_text_appends_the_citation_when_present() -> anyhow::Result<()> {
+        let mut v = sample_violation();
+        v.cite = Some(lint::SpecCitation {
+            spec: "RFC 9111".to_string(),
+            section: Some("5.2".to_string()),
+            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2".to_string(),
+        });
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![v, sample_violation()],
+        })];
+        let out = render_lint_report(&findings, 1, 0, OutputFormat::Text)?;
+        assert!(
+            out.contains("[RFC 9111 §5.2 https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2]"),
+            "{out}"
+        );
+        // The un-cited finding's line is unchanged — no empty bracket.
+        assert!(!out.contains("[]"), "{out}");
         Ok(())
     }
 

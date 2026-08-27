@@ -143,6 +143,19 @@ pub struct SpecRef {
     pub note: &'static str,
 }
 
+impl SpecRef {
+    /// This reference as an owned, serializable [`crate::lint::SpecCitation`]
+    /// — what a finding carries. The `note` stays behind: it is rule-scoped
+    /// prose for the docs, not part of locating the text.
+    pub fn citation(&self) -> crate::lint::SpecCitation {
+        crate::lint::SpecCitation {
+            spec: self.spec.to_string(),
+            section: self.section.map(str::to_string),
+            url: self.url.to_string(),
+        }
+    }
+}
+
 impl std::fmt::Display for SpecRef {
     /// The markdown bullet body the docs render. One spelling now, derived —
     /// which is what retires the format drift rather than merely tidying it.
@@ -220,6 +233,29 @@ pub trait Rule: Send + Sync {
             rule: self.id().into(),
             severity,
             message,
+            cite: None,
+        }
+    }
+
+    /// Build one of this rule's findings, carrying the specification text it
+    /// enforces. `spec` must be one of the rule's own [`Rule::specifications`]
+    /// — a finding may only cite a reference its rule declares, which also
+    /// keeps the docs' Specifications section covering every citable target.
+    /// Checked in debug builds, so the whole test suite enforces it.
+    ///
+    /// Attachment is per violation site and opt-in, never derived from the
+    /// rule: the median rule declares several references, and a wrong
+    /// citation is worse than none. The `// cite` comment beside the call is
+    /// the reviewer's oracle that the right one was named.
+    fn cited(&self, spec: &SpecRef, severity: crate::lint::Severity, message: String) -> Violation {
+        debug_assert!(
+            self.specifications().contains(spec),
+            "{}: a finding may only cite a spec the rule declares",
+            self.id()
+        );
+        Violation {
+            cite: Some(spec.citation()),
+            ..self.violation(severity, message)
         }
     }
 
@@ -459,6 +495,29 @@ pub trait ProtocolRule: Send + Sync {
             rule: self.id().into(),
             severity,
             message,
+            cite: None,
+        }
+    }
+
+    /// Build one of this rule's findings, carrying the specification text it
+    /// enforces. `spec` must be one of the rule's own [`ProtocolRule::specifications`]
+    /// — a finding may only cite a reference its rule declares, which also
+    /// keeps the docs' Specifications section covering every citable target.
+    /// Checked in debug builds, so the whole test suite enforces it.
+    ///
+    /// Attachment is per violation site and opt-in, never derived from the
+    /// rule: the median rule declares several references, and a wrong
+    /// citation is worse than none. The `// cite` comment beside the call is
+    /// the reviewer's oracle that the right one was named.
+    fn cited(&self, spec: &SpecRef, severity: crate::lint::Severity, message: String) -> Violation {
+        debug_assert!(
+            self.specifications().contains(spec),
+            "{}: a finding may only cite a spec the rule declares",
+            self.id()
+        );
+        Violation {
+            cite: Some(spec.citation()),
+            ..self.violation(severity, message)
         }
     }
 
@@ -1349,6 +1408,37 @@ severity = "warn"
             .find(|r| r.id() == "host_header")
             .expect("host_header registered");
         assert!(rule.prepare(&cfg).is_err());
+    }
+
+    #[test]
+    fn cited_attaches_a_declared_spec() {
+        let rule = RULES
+            .iter()
+            .find(|r| r.id() == "host_header")
+            .expect("host_header registered");
+        let spec = &rule.specifications()[0];
+        let v = rule.cited(spec, crate::lint::Severity::Warn, "m".to_string());
+        let cite = v.cite.expect("citation attached");
+        assert_eq!(cite.spec, spec.spec);
+        assert_eq!(cite.section.as_deref(), spec.section);
+        assert_eq!(cite.url, spec.url);
+        assert_eq!(v.rule, "host_header");
+    }
+
+    #[test]
+    #[should_panic(expected = "may only cite a spec the rule declares")]
+    fn cited_refuses_a_spec_the_rule_does_not_declare() {
+        let rule = RULES
+            .iter()
+            .find(|r| r.id() == "host_header")
+            .expect("host_header registered");
+        let foreign = SpecRef {
+            spec: "RFC 0000",
+            section: None,
+            url: "https://example.com/",
+            note: "",
+        };
+        let _ = rule.cited(&foreign, crate::lint::Severity::Warn, "m".to_string());
     }
 
     #[test]

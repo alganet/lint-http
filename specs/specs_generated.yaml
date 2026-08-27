@@ -10351,7 +10351,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 77
     - file: lint-http-proxy/src/proxy/http3.rs
-      line: 384
+      line: 394
   - label: lint-http-proxy/src/h3_instrument.rs
     section: § 6.2.1
     snippet: A control stream is indicated by a stream type of 0x00.

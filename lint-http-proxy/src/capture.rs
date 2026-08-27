@@ -442,11 +442,11 @@ mod tests {
         let mut req_headers = HeaderMap::new();
         req_headers.insert("x-test", "1".parse()?);
 
-        let violations = vec![crate::lint::Violation {
-            rule: "r1".into(),
-            severity: crate::lint::Severity::Warn,
-            message: "m".into(),
-        }];
+        let violations = vec![crate::lint::Violation::new(
+            "r1",
+            crate::lint::Severity::Warn,
+            "m",
+        )];
 
         // Build a minimal transaction using helper
         use crate::http_transaction::TimingInfo;

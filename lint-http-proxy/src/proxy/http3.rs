@@ -297,12 +297,22 @@ fn emit_h3_protocol_event(
     };
     let violations = shared.protocol_event_pipeline().commit(&pe);
     for v in &violations {
-        warn!(
-            rule = %v.rule,
-            severity = ?v.severity,
-            "H3 protocol violation: {}",
-            v.message
-        );
+        if let Some(cite) = &v.cite {
+            warn!(
+                rule = %v.rule,
+                severity = ?v.severity,
+                cite = %cite,
+                "H3 protocol violation: {}",
+                v.message
+            );
+        } else {
+            warn!(
+                rule = %v.rule,
+                severity = ?v.severity,
+                "H3 protocol violation: {}",
+                v.message
+            );
+        }
     }
 }
 
