@@ -37,13 +37,12 @@ impl ProblemDetailsStructureValid {
     // cite(RFC 9110 § 8.3): "The indicated media type defines both the data format and how that data is intended to be processed by a recipient, within the scope of the received message semantics, after any content codings indicated by Content-Encoding are decoded."
     // cite(RFC 9110 § 8.3): "In practice, resource owners do not always properly configure their origin server to provide the correct Content-Type for a given representation."
     fn report(&self, severity: crate::lint::Severity, detail: &str) -> Violation {
-        Violation {
-            rule: self.id().into(),
+        self.violation(
             severity,
-            message: format!(
+            format!(
                 "Response declares 'application/problem+json' but {detail}; the content is not the problem details JSON object that media type identifies"
             ),
-        }
+        )
     }
 }
 

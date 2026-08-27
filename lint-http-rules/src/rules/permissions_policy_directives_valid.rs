@@ -44,14 +44,15 @@ impl Rule for PermissionsPolicyDirectivesValid {
                 // is consulted -- so the whole field goes.
                 // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
                 let Ok(v) = hv.to_str() else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Permissions-Policy contains a byte outside ASCII, so the field \
+                    return Some(
+                        self.violation(
+                            ctx.severity,
+                            "Permissions-Policy contains a byte outside ASCII, so the field \
                                   fails Structured Fields parsing and every directive in it is \
                                   discarded"
-                            .into(),
-                    });
+                                .into(),
+                        ),
+                    );
                 };
                 lines.push(v);
             }
@@ -71,14 +72,14 @@ impl Rule for PermissionsPolicyDirectivesValid {
                 // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
                 // cite(RFC 9651 § 3.2): "As with Lists, an empty Dictionary is represented by omitting the entire field."
                 if s.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
+                    return Some(
+                        self.violation(
+                            ctx.severity,
                             "Permissions-Policy is empty, which grants and denies nothing; an \
                                   empty policy is written by omitting the field"
                                 .into(),
-                    });
+                        ),
+                    );
                 }
 
                 // Neither specification says "invalid" about any of this, and the
@@ -101,14 +102,13 @@ impl Rule for PermissionsPolicyDirectivesValid {
                 // not be enforced, which is what the message says now.
                 // cite(Permissions Policy § 6.1): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
                 if let Some(msg) = validate_permissions_policy(s) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "Permissions-Policy will not be enforced as written: {}",
                             msg
                         ),
-                    });
+                    ));
                 }
             }
 

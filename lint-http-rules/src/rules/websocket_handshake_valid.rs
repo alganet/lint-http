@@ -430,11 +430,10 @@ impl Rule for WebsocketHandshakeValid {
             .flatten()
             .next()?;
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("This 101 completes a WebSocket opening handshake, but {defect}"),
-            })
+            Some(self.violation(
+                ctx.severity,
+                format!("This 101 completes a WebSocket opening handshake, but {defect}"),
+            ))
         };
         Vec::from_iter(finding())
     }

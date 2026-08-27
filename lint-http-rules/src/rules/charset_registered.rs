@@ -90,14 +90,13 @@ impl Rule for CharsetRegistered {
                             // is not a parameter value at all.
                             // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
                             if value.is_empty() {
-                                return Some(Violation {
-                                    rule: CharsetRegistered.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(CharsetRegistered.violation(
+                                    ctx.severity,
+                                    format!(
                                         "Invalid Content-Type in {}: empty 'charset' parameter",
                                         which
                                     ),
-                                });
+                                ));
                             }
 
                             // The two alternatives of `parameter-value`, each
@@ -111,14 +110,10 @@ impl Rule for CharsetRegistered {
                                 match crate::helpers::headers::unescape_quoted_string(value) {
                                     Ok(u) => value_owned = Some(u),
                                     Err(e) => {
-                                        return Some(Violation {
-                                            rule: CharsetRegistered.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(CharsetRegistered.violation(ctx.severity, format!(
                                                 "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
                                                 which, e
-                                            ),
-                                        })
+                                            )))
                                     }
                                 }
                             } else {
@@ -142,27 +137,22 @@ impl Rule for CharsetRegistered {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(value)
                                 {
-                                    return Some(Violation {
-                                        rule: CharsetRegistered.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                    return Some(CharsetRegistered.violation(ctx.severity, format!(
                                             "Invalid Content-Type in {}: charset contains invalid character '{}'",
                                             which, c
-                                        ),
-                                    });
+                                        )));
                                 }
                             }
                             let value = value_owned.as_deref().unwrap_or(value);
 
                             if value.is_empty() {
-                                return Some(Violation {
-                                    rule: CharsetRegistered.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(CharsetRegistered.violation(
+                                    ctx.severity,
+                                    format!(
                                         "Invalid Content-Type in {}: empty 'charset' parameter",
                                         which
                                     ),
-                                });
+                                ));
                             }
 
                             // The rule's name says IANA; the code says the
@@ -174,14 +164,10 @@ impl Rule for CharsetRegistered {
                             // cite(RFC 9110 § 8.3.2): "Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978]."
                             // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
                             if !config.allowed.contains(&value.to_ascii_lowercase()) {
-                                return Some(Violation {
-                                    rule: CharsetRegistered.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
-                                        "Unrecognized charset '{}' in {} header",
-                                        value, which
-                                    ),
-                                });
+                                return Some(CharsetRegistered.violation(
+                                    ctx.severity,
+                                    format!("Unrecognized charset '{}' in {} header", value, which),
+                                ));
                             }
                         }
                     }

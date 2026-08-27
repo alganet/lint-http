@@ -73,11 +73,7 @@ impl Rule for AcceptRangesValuesValid {
                     // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
                     // cite(RFC 9110 § 5.6.2, label: tchar grammar): "tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA ; any VCHAR, except delimiters"
                     let Ok(value) = hv.to_str() else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Accept-Ranges holds an octet no range-unit admits: a range unit name is a token, whose characters are all visible US-ASCII".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Accept-Ranges holds an octet no range-unit admits: a range unit name is a token, whose characters are all visible US-ASCII".into()));
                     };
                     lines.push(value.trim());
                 }
@@ -97,11 +93,10 @@ impl Rule for AcceptRangesValuesValid {
                 let value = lines.join(", ");
 
                 if let Err(e) = read_units(&value, &mut units) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Invalid Accept-Ranges field value '{}': {}", value, e),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!("Invalid Accept-Ranges field value '{}': {}", value, e),
+                    ));
                 }
             }
 
@@ -136,14 +131,10 @@ impl Rule for AcceptRangesValuesValid {
                 }
             }
             if units.iter().any(|u| u == "none") && !others.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Accept-Ranges advertises '{}' beside 'none', which is reserved for advising that no kind of range request is supported: the field says both that this resource supports range requests and that it does not (advice: nothing forbids it)",
                         others.join("', '")
-                    ),
-                });
+                    )));
             }
 
             // Three things a well-formed `Accept-Ranges` can still be, none of them

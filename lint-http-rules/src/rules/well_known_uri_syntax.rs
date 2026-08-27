@@ -190,13 +190,7 @@ impl Rule for WellKnownUriSyntax {
             // The config after the probe: a request whose path holds no such segment
             // — every request but a handful — should not pay a map lookup and a hash
             // of the rule id to learn that there is nothing to say.
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().to_string(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // A path is reported as written; when normalizing it moved the segment
             // being talked about, the normalized form is named beside it, so the

@@ -42,11 +42,10 @@ impl Rule for CrossOriginResourcePolicyValid {
             }
 
             if count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple Cross-Origin-Resource-Policy header fields present".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Multiple Cross-Origin-Resource-Policy header fields present".into(),
+                ));
             }
 
             let val = match crate::helpers::headers::get_header_str(
@@ -54,22 +53,16 @@ impl Rule for CrossOriginResourcePolicyValid {
                 "cross-origin-resource-policy",
             ) {
                 Some(v) => v.trim(),
-                None => return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "Cross-Origin-Resource-Policy header contains non-ASCII or control characters"
-                            .into(),
-                }),
+                None => return Some(self.violation(ctx.severity, "Cross-Origin-Resource-Policy header contains non-ASCII or control characters"
+                            .into())),
             };
 
             // Must not be a comma-separated list
             if crate::helpers::headers::list_members(val).count() != 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Cross-Origin-Resource-Policy must be a single value".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Cross-Origin-Resource-Policy must be a single value".into(),
+                ));
             }
 
             // Acceptable values: same-site, same-origin, cross-origin — and the ABNF says
@@ -83,14 +76,13 @@ impl Rule for CrossOriginResourcePolicyValid {
                 return None;
             }
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(
+                ctx.severity,
+                format!(
                     "Cross-Origin-Resource-Policy contains unsupported value: '{}'",
                     val
                 ),
-            })
+            ))
         };
         Vec::from_iter(finding())
     }

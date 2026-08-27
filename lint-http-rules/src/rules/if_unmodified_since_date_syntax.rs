@@ -32,11 +32,10 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
                 let s = match hv.to_str() {
                     Ok(s) => s,
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "If-Unmodified-Since header contains non-UTF8 value".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "If-Unmodified-Since header contains non-UTF8 value".into(),
+                        ))
                     }
                 };
 
@@ -45,12 +44,10 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
                 // and say "contains only whitespace" about a value holding one.
                 // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
                 if crate::helpers::headers::trim_ows(s).is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "If-Unmodified-Since header is empty or contains only whitespace"
-                            .into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "If-Unmodified-Since header is empty or contains only whitespace".into(),
+                    ));
                 }
 
                 // The field is defined as HTTP-date, which is the grammar; it is not the
@@ -68,13 +65,8 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
                 // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
                 // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
                 if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
-                            "If-Unmodified-Since header is not a valid IMF-fixdate (RFC 9110 §5.6.7)"
-                                .into(),
-                    });
+                    return Some(self.violation(ctx.severity, "If-Unmodified-Since header is not a valid IMF-fixdate (RFC 9110 §5.6.7)"
+                                .into()));
                 }
             }
 

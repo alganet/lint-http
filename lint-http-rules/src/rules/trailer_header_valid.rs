@@ -35,13 +35,7 @@ impl TrailerHeaderValid {
         hdrs: &hyper::HeaderMap,
         severity: crate::lint::Severity,
     ) -> Option<Violation> {
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().to_string(),
-                severity,
-                message,
-            })
-        };
+        let violation = |message: String| Some(self.violation(severity, message));
 
         let value = combined_field_value_as_written(hdrs, "trailer")?;
         let connection_val = combined_field_value_as_written(hdrs, "connection");

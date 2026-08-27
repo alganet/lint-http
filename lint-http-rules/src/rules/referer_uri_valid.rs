@@ -86,13 +86,7 @@ impl Rule for RefererUriValid {
             // cite(RFC 9110 § 10.1.3): "The "Referer" [sic] header field allows the user agent to specify a URI reference for the resource from which the target URI was obtained (i.e., the "referrer", though the field name is misspelled)."
             // cite(RFC 9110 § 10.1.3, label: Referer grammar): "Referer = absolute-URI / partial-URI"
             let value = combined_field_value_as_written(&req.headers, "referer")?;
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().to_string(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             let lines = req.headers.get_all("referer").iter().count();
             if lines > 1 {

@@ -128,15 +128,14 @@ impl Rule for LocationOnRedirectPresent {
             // No cite of its own: what makes this a violation is the sentence
             // `location_asked_for` matched, cited at the branch that matched it and
             // carried into the message from there.
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(
+                ctx.severity,
+                format!(
                     "Response with status {status} carries no Location header field, and {reason}. \
                      A user agent has no target to redirect to",
                     status = resp.status,
                 ),
-            })
+            ))
         };
         Vec::from_iter(finding())
     }

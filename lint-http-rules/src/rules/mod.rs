@@ -451,6 +451,17 @@ pub trait ProtocolRule: Send + Sync {
         })
     }
 
+    /// Build one of this rule's findings. See [`Rule::violation`] for the
+    /// contract; the body is the same because `Violation.rule` is the id
+    /// whichever trait the rule implements.
+    fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
+        Violation {
+            rule: self.id().into(),
+            severity,
+            message,
+        }
+    }
+
     /// Every finding this rule has about the event; empty means clean. See
     /// [`Rule::findings`] for the contract — everything config-derived
     /// arrives resolved in `ctx`, and the `Vec` return is what lets one
@@ -878,6 +889,37 @@ severity = "warn"
             let _ = r.examples();
             let _ = r.title();
         }
+    }
+
+    /// A rule builds findings through the `violation` helper (and, later, its
+    /// cited sibling), never a struct literal: the helper is what guarantees
+    /// `Violation.rule` is the rule's own id, and it is the one place a new
+    /// field on `Violation` gets a default instead of 600 compile errors.
+    /// Enforced by scanning the sources because privatizing the struct's
+    /// fields would break every legitimate read downstream.
+    #[test]
+    fn no_rule_constructs_a_violation_literal() -> anyhow::Result<()> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        for entry in std::fs::read_dir(&dir)? {
+            let path = entry?.path();
+            if path.extension().is_none_or(|e| e != "rs")
+                || path.file_name().is_some_and(|n| n == "mod.rs")
+            {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path)?;
+            for (i, line) in src.lines().enumerate() {
+                if let Some(pos) = line.find("Violation {") {
+                    assert!(
+                        line[..pos].ends_with("-> "),
+                        "{}:{}: findings are built with the violation() helper, not a struct literal",
+                        path.display(),
+                        i + 1
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     #[test]

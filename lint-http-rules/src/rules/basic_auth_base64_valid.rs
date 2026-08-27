@@ -35,11 +35,10 @@ impl Rule for BasicAuthBase64Valid {
                         if scheme.eq_ignore_ascii_case("Basic") {
                             let creds = parts.next().unwrap_or("").trim();
                             if creds.is_empty() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Basic Authorization missing credentials".into(),
-                                });
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    "Basic Authorization missing credentials".into(),
+                                ));
                             }
                             // The rule's own claim: the credential the client sends encodes a
                             // user-id and password. How that value is built and checked — the
@@ -49,23 +48,18 @@ impl Rule for BasicAuthBase64Valid {
                             if let Err(msg) =
                                 crate::helpers::auth::validate_basic_credentials(creds)
                             {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
-                                        "Invalid Basic credentials: {} (RFC 7617)",
-                                        msg
-                                    ),
-                                });
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!("Invalid Basic credentials: {} (RFC 7617)", msg),
+                                ));
                             }
                         }
                     }
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Authorization header contains non-UTF8 value".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Authorization header contains non-UTF8 value".into(),
+                        ))
                     }
                 }
             }

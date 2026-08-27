@@ -76,14 +76,14 @@ impl ProtocolRule for Http3SettingsFrame {
                     if *prev_dir != direction {
                         continue;
                     }
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
+                    return Some(
+                        self.violation(
+                            ctx.severity,
                             "HTTP/3 duplicate SETTINGS frame from the same peer on one connection \
                              (RFC 9114 §7.2.4)"
                                 .into(),
-                    });
+                        ),
+                    );
                 }
             }
 
@@ -92,15 +92,14 @@ impl ProtocolRule for Http3SettingsFrame {
             // cite(RFC 9114 § 7.2.4.1): "These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR"
             for &(id, _) in settings {
                 if RESERVED_SETTING_IDS.contains(&id) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "HTTP/3 SETTINGS contains reserved HTTP/2 setting identifier \
                              0x{:02X} (RFC 9114 §7.2.4.1)",
                             id
                         ),
-                    });
+                    ));
                 }
             }
 
@@ -111,15 +110,14 @@ impl ProtocolRule for Http3SettingsFrame {
             // cite(RFC 9114 § 7.2.4): "The same setting identifier MUST NOT occur more than once in the SETTINGS frame"
             for (i, &(id, _)) in settings.iter().enumerate() {
                 if settings[..i].iter().any(|&(prev_id, _)| prev_id == id) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \
                              than once (RFC 9114 §7.2.4)",
                             id
                         ),
-                    });
+                    ));
                 }
             }
 

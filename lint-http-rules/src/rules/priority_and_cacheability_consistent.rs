@@ -71,14 +71,10 @@ impl Rule for PriorityAndCacheabilityConsistent {
             // the Priority expectation nor the Vary half of the check.)
             // cite(RFC 9218 § 5): "the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
             if !has_cache_control && !has_vary {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Response includes Priority header ('{}') but lacks Cache-Control or Vary to control cacheability; origin servers emitting Priority should control cacheability per RFC 9218 §5",
                         priority
-                    ),
-                });
+                    )));
             }
 
             None

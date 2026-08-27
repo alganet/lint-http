@@ -128,11 +128,7 @@ impl Rule for KeepAliveHeaderValid {
                 })
             })?;
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: config.severity,
-                message,
-            })
+            Some(self.violation(config.severity, message))
         };
         Vec::from_iter(finding())
     }

@@ -64,11 +64,10 @@ impl Rule for FormDataContentDispositionValid {
                 // value is a linter judgement rather than a quoted requirement.
                 // cite(RFC 7578 § 4.2): "The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form"
                 if params_part.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-Disposition: 'form-data' missing 'name' parameter".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Content-Disposition: 'form-data' missing 'name' parameter".into(),
+                    ));
                 }
 
                 let mut name_found = false;
@@ -92,38 +91,25 @@ impl Rule for FormDataContentDispositionValid {
                             // quoted-string: check if inner trimmed content is empty or invalid
                             match crate::helpers::headers::quoted_string_inner_trimmed_is_empty(raw) {
                                 Ok(true) => {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: "Content-Disposition 'form-data' has empty 'name' parameter"
-                                            .into(),
-                                    });
+                                    return Some(self.violation(ctx.severity, "Content-Disposition 'form-data' has empty 'name' parameter"
+                                            .into()));
                                 }
                                 Ok(false) => {
                                     name_found = true;
                                     break;
                                 }
                                 Err(e) => {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                    return Some(self.violation(ctx.severity, format!(
                                             "Content-Disposition 'form-data' has invalid quoted 'name' parameter: {}",
                                             e
-                                        ),
-                                    })
+                                        )))
                                 }
                             }
                         } else {
                             // token/unquoted value
                             if raw.is_empty() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message:
-                                        "Content-Disposition 'form-data' has empty 'name' parameter"
-                                            .into(),
-                                });
+                                return Some(self.violation(ctx.severity, "Content-Disposition 'form-data' has empty 'name' parameter"
+                                            .into()));
                             }
                             name_found = true;
                             break;
@@ -139,11 +125,10 @@ impl Rule for FormDataContentDispositionValid {
                 // claim about absence. A name the scan did find is judged above and
                 // needs no such gate.
                 if !name_found && crate::helpers::headers::quoting_is_balanced(params_part) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-Disposition: 'form-data' missing 'name' parameter".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Content-Disposition: 'form-data' missing 'name' parameter".into(),
+                    ));
                 }
 
                 None
@@ -159,12 +144,10 @@ impl Rule for FormDataContentDispositionValid {
                             }
                         }
                         Err(_) => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Content-Disposition header value is not valid UTF-8"
-                                    .into(),
-                            })
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Content-Disposition header value is not valid UTF-8".into(),
+                            ))
                         }
                     }
                 }
@@ -179,11 +162,10 @@ impl Rule for FormDataContentDispositionValid {
                         }
                     }
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Content-Disposition header value is not valid UTF-8".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Content-Disposition header value is not valid UTF-8".into(),
+                        ))
                     }
                 }
             }

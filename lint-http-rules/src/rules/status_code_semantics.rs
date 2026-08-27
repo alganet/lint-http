@@ -81,14 +81,15 @@ impl Rule for StatusCodeSemantics {
                 // cite(RFC 9110 § 11.6.1): "A proxy forwarding a response MUST NOT modify any WWW-Authenticate header fields in that response."
                 // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
                 if !resp.headers.contains_key("www-authenticate") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "401 Unauthorized response carries no WWW-Authenticate field; a \
+                    return Some(
+                        self.violation(
+                            ctx.severity,
+                            "401 Unauthorized response carries no WWW-Authenticate field; a \
                                   server generating a 401 MUST send one containing at least one \
                                   challenge applicable to the target resource"
-                            .into(),
-                    });
+                                .into(),
+                        ),
+                    );
                 }
 
                 // "containing at least one challenge" is the other half of the same MUST,
@@ -101,15 +102,11 @@ impl Rule for StatusCodeSemantics {
                 // cite(RFC 9110 § A): "WWW-Authenticate = [ challenge *( OWS "," OWS challenge ) ]"
                 // cite(RFC 9110 § 15.5.2): "The server generating a 401 response MUST send a WWW-Authenticate header field (Section 11.6.1) containing at least one challenge applicable to the target resource."
                 if !carries_a_challenge(&resp.headers, "www-authenticate") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "401 Unauthorized response carries a WWW-Authenticate field with no \
+                    return Some(self.violation(ctx.severity, "401 Unauthorized response carries a WWW-Authenticate field with no \
                                   challenge in it (the value is empty, or every element of it is); a \
                                   server generating a 401 MUST send at least one challenge applicable \
                                   to the target resource"
-                            .into(),
-                    });
+                            .into()));
                 }
             }
 
@@ -131,15 +128,11 @@ impl Rule for StatusCodeSemantics {
                 // cite(RFC 9110 § 15.5.8): "The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request."
                 // cite(RFC 9110 § 11.7.1): "A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates."
                 if !resp.headers.contains_key("proxy-authenticate") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "407 Proxy Authentication Required response carries no \
+                    return Some(self.violation(ctx.severity, "407 Proxy Authentication Required response carries no \
                                   Proxy-Authenticate field; the proxy generating a 407 MUST send at \
                                   least one, containing a challenge applicable to that proxy for the \
                                   request"
-                            .into(),
-                    });
+                            .into()));
                 }
 
                 // Same shape as the 401 above: the grammar permits a value with no
@@ -147,15 +140,11 @@ impl Rule for StatusCodeSemantics {
                 // cite(RFC 9110 § A): "Proxy-Authenticate = [ challenge *( OWS "," OWS challenge ) ]"
                 // cite(RFC 9110 § 15.5.8): "The proxy MUST send a Proxy-Authenticate header field (Section 11.7.1) containing a challenge applicable to that proxy for the request."
                 if !carries_a_challenge(&resp.headers, "proxy-authenticate") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "407 Proxy Authentication Required response carries a \
+                    return Some(self.violation(ctx.severity, "407 Proxy Authentication Required response carries a \
                                   Proxy-Authenticate field with no challenge in it (the value is \
                                   empty, or every element of it is); the proxy generating a 407 MUST \
                                   send a challenge applicable to that proxy for the request"
-                            .into(),
-                    });
+                            .into()));
                 }
 
                 return None;
@@ -172,18 +161,14 @@ impl Rule for StatusCodeSemantics {
             // an operator reads it.
             // cite(RFC 9110 § 11.7.1): "Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain."
             if resp.headers.contains_key("proxy-authenticate") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Proxy-Authenticate arrived on status {status}; RFC 9110 pairs this field \
                          with 407 Proxy Authentication Required, the one response a proxy MUST send \
                          it in. No requirement forbids it here — the field's definition puts no \
                          condition on the status code — so a client is simply not told what to do \
                          with the challenge. WWW-Authenticate is not reported this way: its own \
                          definition permits it on any response"
-                    ),
-                });
+                    )));
             }
 
             None

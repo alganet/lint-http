@@ -57,12 +57,10 @@ impl Rule for RangeHeaderSyntax {
             // cite(RFC 9110 § 14.1.1, label: other-range grammar): "other-range   = 1*( %x21-2B / %x2D-7E )"
             for hv in hdrs.iter() {
                 if hv.to_str().is_err() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Range header holds an octet no part of a ranges-specifier admits"
-                            .into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Range header holds an octet no part of a ranges-specifier admits".into(),
+                    ));
                 }
             }
 
@@ -95,14 +93,10 @@ impl Rule for RangeHeaderSyntax {
             let Some((unit, range_set)) =
                 crate::helpers::content_range::split_ranges_specifier(&value)
             else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Invalid Range header '{}': not a ranges-specifier (a range-unit token, '=', then a range-set)",
                         value
-                    ),
-                });
+                    )));
             };
 
             // The one sentence that makes any of the checks below mean something. It
@@ -111,11 +105,10 @@ impl Rule for RangeHeaderSyntax {
             //
             // cite(RFC 9110 § 14.1.1): "A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit."
             if let Err(e) = validate_range_set(&unit, range_set) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("Invalid Range header '{}': {}", value, e),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    format!("Invalid Range header '{}': {}", value, e),
+                ));
             }
 
             // Three things a well-formed ranges-specifier can still be, none of them

@@ -135,11 +135,7 @@ impl Rule for UpgradeAndConnectionConsistent {
 
             // Read last: every gate above ends the rule, so only a message about to be
             // reported pays for the map probes and the hash over the rule id.
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message,
-            })
+            Some(self.violation(ctx.severity, message))
         };
         Vec::from_iter(finding())
     }

@@ -141,13 +141,8 @@ impl Rule for RangeAndContentRangeConsistent {
             // well-formed satisfied Content-Range could reach it.
             // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
             if status == 206 && !has_range_request {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message:
-                        "206 Partial Content response received but request did not include a Range header"
-                            .into(),
-                });
+                return Some(self.violation(config.severity, "206 Partial Content response received but request did not include a Range header"
+                            .into()));
             }
 
             // 206 Partial Content rules
@@ -166,11 +161,7 @@ impl Rule for RangeAndContentRangeConsistent {
                 if response_is_multipart_byteranges(&resp.headers) {
                     // cite(RFC 9110 § 15.3.7.2): "To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead)."
                     if cr.is_some() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into(),
-                        });
+                        return Some(self.violation(config.severity, "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into()));
                     }
 
                     // One requested range may not be answered with a multipart
@@ -186,13 +177,8 @@ impl Rule for RangeAndContentRangeConsistent {
                         .as_ref()
                         .map(|(_, set)| crate::helpers::headers::list_members(set).count());
                     if requested_ranges == Some(1) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message:
-                                "multipart/byteranges 206 response sent to a request for a single range"
-                                    .into(),
-                        });
+                        return Some(self.violation(config.severity, "multipart/byteranges 206 response sent to a request for a single range"
+                                    .into()));
                     }
 
                     // Each part's own Content-Range is in the message content, which
@@ -208,12 +194,10 @@ impl Rule for RangeAndContentRangeConsistent {
                 let cr = match cr {
                     Some(v) => v,
                     None => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "206 Partial Content response missing Content-Range header"
-                                .into(),
-                        })
+                        return Some(self.violation(
+                            config.severity,
+                            "206 Partial Content response missing Content-Range header".into(),
+                        ))
                     }
                 };
                 match crate::helpers::content_range::parse_content_range(cr) {
@@ -264,11 +248,7 @@ impl Rule for RangeAndContentRangeConsistent {
                             Ok(Some(cl_v)) => {
                                 let expected = (last - first) + 1;
                                 if cl_v != expected {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: config.severity,
-                                        message: format!("Content-Length ({}) does not match Content-Range length ({})", cl_v, expected),
-                                    });
+                                    return Some(self.violation(config.severity, format!("Content-Length ({}) does not match Content-Range length ({})", cl_v, expected)));
                                 }
                             }
                             Ok(None) => {}
@@ -282,18 +262,13 @@ impl Rule for RangeAndContentRangeConsistent {
                         // never does. The message used to call this form
                         // `byte-range-resp-spec`, RFC 7233's name for a production
                         // RFC 9110 splits into `range-resp` and `unsatisfied-range`.
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "206 response uses the unsatisfied-range form ('*/complete-length'), which describes no enclosed range (that form belongs in a 416)".into(),
-                        });
+                        return Some(self.violation(config.severity, "206 response uses the unsatisfied-range form ('*/complete-length'), which describes no enclosed range (that form belongs in a 416)".into()));
                     }
                     Err(e) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Invalid Content-Range header '{}': {}", cr, e),
-                        });
+                        return Some(self.violation(
+                            config.severity,
+                            format!("Invalid Content-Range header '{}': {}", cr, e),
+                        ));
                     }
                 }
             }
@@ -318,13 +293,8 @@ impl Rule for RangeAndContentRangeConsistent {
                 let request_names_a_range_elsewhere =
                     tx.request.headers.get("content-range").is_some();
                 if !has_range_request && !request_names_a_range_elsewhere {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message:
-                            "416 Range Not Satisfiable response sent to a request with no Range header"
-                                .into(),
-                    });
+                    return Some(self.violation(config.severity, "416 Range Not Satisfiable response sent to a request with no Range header"
+                                .into()));
                 }
 
                 let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
@@ -338,11 +308,7 @@ impl Rule for RangeAndContentRangeConsistent {
                     // cite(RFC 9110 § 15.5.17): "A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4)."
                     // cite(RFC 9110 § 14.4): "A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:"
                     if requested.as_ref().is_some_and(|(unit, _)| unit == "bytes") {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: "416 Range Not Satisfiable response to a byte-range request should include a Content-Range header (bytes */<complete-length>)".into(),
-                        });
+                        return Some(self.violation(config.severity, "416 Range Not Satisfiable response to a byte-range request should include a Content-Range header (bytes */<complete-length>)".into()));
                     }
                     return None;
                 }
@@ -359,20 +325,14 @@ impl Rule for RangeAndContentRangeConsistent {
                         // because it is about a field the server chose to send rather
                         // than about one the spec asked it for.
                         // cite(RFC 9110 § 14.4): "The complete-length in a 416 response indicates the current length of the selected representation."
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message:
-                                "416 response should use the '*/complete-length' form in Content-Range"
-                                    .into(),
-                        });
+                        return Some(self.violation(config.severity, "416 response should use the '*/complete-length' form in Content-Range"
+                                    .into()));
                     }
                     Err(e) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: config.severity,
-                            message: format!("Invalid Content-Range header '{}': {}", cr, e),
-                        });
+                        return Some(self.violation(
+                            config.severity,
+                            format!("Invalid Content-Range header '{}': {}", cr, e),
+                        ));
                     }
                 }
             }

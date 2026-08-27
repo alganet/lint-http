@@ -31,11 +31,10 @@ impl Rule for CookiePathValid {
                 let s = match hv.to_str() {
                     Ok(v) => v,
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Set-Cookie header value is not valid UTF-8".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Set-Cookie header value is not valid UTF-8".into(),
+                        ))
                     }
                 };
 
@@ -59,20 +58,18 @@ impl Rule for CookiePathValid {
                         let v = match val_opt {
                             Some(v) => v,
                             None => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Set-Cookie attribute 'Path' requires a value".into(),
-                                })
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    "Set-Cookie attribute 'Path' requires a value".into(),
+                                ))
                             }
                         };
 
                         if let Err(e) = crate::helpers::cookie::validate_cookie_path(v) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Set-Cookie attribute 'Path' invalid: {}", e),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("Set-Cookie attribute 'Path' invalid: {}", e),
+                            ));
                         }
                     }
                 }

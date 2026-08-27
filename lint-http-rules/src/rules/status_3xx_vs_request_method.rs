@@ -101,18 +101,14 @@ impl Rule for Status3xxVsRequestMethod {
             // the message from there. The 303 clause is §9.3.3's MAY, and it travels with
             // the condition that sentence puts on it.
             // cite(RFC 9110 § 9.3.3): "If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field."
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "{status} response to a POST request: for historical reasons a user agent MAY \
                      change the method to GET before following this redirect (RFC 9110 {section}), so \
                      the response does not say which method reaches the Location. Send {alternative} \
                      to keep the method, or 303 (See Other) where the result of the POST is an \
                      existing resource the user agent should retrieve",
                     status = resp.status,
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

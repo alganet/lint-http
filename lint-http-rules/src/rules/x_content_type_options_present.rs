@@ -101,14 +101,10 @@ impl Rule for XContentTypeOptionsPresent {
             {
                 let first = xcto.split(',').next().unwrap_or("").trim();
                 if !first.eq_ignore_ascii_case("nosniff") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: format!(
+                    return Some(self.violation(config.severity, format!(
                             "X-Content-Type-Options value '{}' does not enable nosniff (the value must be `nosniff`, case-insensitive)",
                             xcto.trim()
-                        ),
-                    });
+                        )));
                 }
             }
 
@@ -134,11 +130,10 @@ impl Rule for XContentTypeOptionsPresent {
                     && config.content_types.contains(&content_type)
                     && !resp.headers.contains_key("x-content-type-options")
                 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: config.severity,
-                        message: "Missing X-Content-Type-Options: nosniff header".into(),
-                    });
+                    return Some(self.violation(
+                        config.severity,
+                        "Missing X-Content-Type-Options: nosniff header".into(),
+                    ));
                 }
             }
             None

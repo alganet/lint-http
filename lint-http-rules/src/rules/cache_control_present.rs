@@ -41,11 +41,10 @@ impl Rule for CacheControlPresent {
                 // same advice applies to those too. 200 is the overwhelmingly common case and
                 // the least noisy to flag; widening the set is a behavior change, left out.
                 if resp.status == 200 && !resp.headers.contains_key("cache-control") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Response 200 without Cache-Control header".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Response 200 without Cache-Control header".into(),
+                    ));
                 }
             }
             None

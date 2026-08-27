@@ -112,10 +112,9 @@ impl Rule for RequestTargetNoFragment {
             // cite(RFC 9110 § 7.1): "A URI reference is resolved to its absolute form in order to obtain the "target URI"."
             // cite(RFC 9110 § 7.1): "The target URI excludes the reference's fragment component, if any, since fragment identifiers are reserved for client-side processing"
             // cite(RFC 3986 § 3.5): "the fragment identifier is separated from the rest of the URI prior to a dereference, and thus the identifying information within the fragment itself is dereferenced solely by the user agent, regardless of the URI scheme"
-            Some(Violation {
-                rule: self.id().into(),
+            Some(self.violation(
                 severity,
-                message: format!(
+                format!(
                     "Request target '{shown}' carries a fragment identifier, '{fragment}' -- \
                      the number sign and everything after it to the end of the value. A client \
                      resolves the reference it started from into a target URI that excludes that \
@@ -123,7 +122,7 @@ impl Rule for RequestTargetNoFragment {
                      before any dereference and is resolved solely by the user agent: the recipient \
                      of this message is being sent a component addressed to the sender.{carried_in}"
                 ),
-            })
+            ))
         };
         Vec::from_iter(finding())
     }

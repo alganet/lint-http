@@ -14,11 +14,7 @@ impl NoBodyFor1xx204304 {
     /// clause is what a test keys on, because the rest of the message is a rule
     /// invariant and asserting it asserts nothing.
     fn report(&self, severity: crate::lint::Severity, status: u16, detail: &str) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity,
-            message: format!("A {status} response {detail}"),
-        }
+        self.violation(severity, format!("A {status} response {detail}"))
     }
 }
 

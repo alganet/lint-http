@@ -213,22 +213,14 @@ impl Rule for Http2PseudoHeadersValid {
                     // HTTP/3 rule's reading of the same pair of documents.
                     // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
                     if !tx.request.headers.contains_key("host") {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "CONNECT request carries a path and no authority: an extended \
+                        return Some(self.violation(ctx.severity, "CONNECT request carries a path and no authority: an extended \
                                       CONNECT sends ':scheme' and ':path' beside an ':authority', and \
                                       a basic one sends only the host and port to connect to"
-                                .into(),
-                        });
+                                .into()));
                     }
                 } else if absolute_form.is_none() {
                     if let Some(msg) = connect_authority_finding(target) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: msg,
-                        });
+                        return Some(self.violation(ctx.severity, msg));
                     }
                 }
             } else {
@@ -240,29 +232,21 @@ impl Rule for Http2PseudoHeadersValid {
                 // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
                 if target == "*" {
                     if method != "OPTIONS" {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(ctx.severity, format!(
                                 "Asterisk ('*') is the ':path' value of a server-wide OPTIONS request \
                                  and of nothing else, and this request's ':method' is '{method}'"
-                            ),
-                        });
+                            )));
                     }
                 } else {
                     // cite(RFC 9113 § 8.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of '/'."
                     // cite(RFC 9113 § 8.3.1): "All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5)."
                     if crate::helpers::uri::extract_path_from_request_target(target).is_none() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(ctx.severity, format!(
                                 "Request target '{}' carries no path, and every non-CONNECT request \
                                  sends exactly one ':path': an 'http' or 'https' URI with no path \
                                  component sends '/'",
                                 crate::helpers::headers::shown_in_finding(target)
-                            ),
-                        });
+                            )));
                     }
                 }
             }
@@ -282,11 +266,10 @@ impl Rule for Http2PseudoHeadersValid {
                 // anybody serves: this pseudo-header is deliberately open.
                 // cite(RFC 9113 § 8.3.1): "":scheme" is not restricted to "http" and "https" schemed URIs."
                 if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(target) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Request target's scheme is not a scheme name: {msg}"),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!("Request target's scheme is not a scheme name: {msg}"),
+                    ));
                 }
 
                 let scheme = &target[..marker];
@@ -300,14 +283,13 @@ impl Rule for Http2PseudoHeadersValid {
                 let Some(authority) =
                     crate::helpers::uri::extract_authority_from_request_target(target)
                 else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "Request target '{}' names the scheme '{scheme}' and then no authority",
                             crate::helpers::headers::shown_in_finding(target)
                         ),
-                    });
+                    ));
                 };
 
                 // The MUST NOT names the two schemes it is about, and the scheme is
@@ -322,15 +304,11 @@ impl Rule for Http2PseudoHeadersValid {
                 {
                     let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
                         .unwrap_or_else(|| authority.to_string());
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Authority '{}' of an '{scheme}' target carries the deprecated userinfo \
                              subcomponent and its '@' delimiter",
                             crate::helpers::headers::shown_in_finding(&shown)
-                        ),
-                    });
+                        )));
                 }
 
                 // `uri-host [ ":" port ]` is one question with one answer, and the
@@ -339,14 +317,13 @@ impl Rule for Http2PseudoHeadersValid {
                 // copy this replaced guessed at an unbracketed IPv6 literal by
                 // counting colons.
                 if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(&authority) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "Authority '{}' is not a host and port: {msg}",
                             crate::helpers::headers::shown_in_finding(&authority)
                         ),
-                    });
+                    ));
                 }
             }
 

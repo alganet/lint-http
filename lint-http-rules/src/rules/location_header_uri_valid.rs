@@ -34,13 +34,7 @@ impl Rule for LocationHeaderUriValid {
             let Some(resp) = &tx.response else {
                 return None;
             };
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().to_string(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // The field, and the one production its value is measured against. No
             // status gate: which statuses may carry the field at all is

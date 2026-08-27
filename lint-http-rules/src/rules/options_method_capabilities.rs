@@ -102,13 +102,9 @@ impl Rule for OptionsMethodCapabilities {
                 tx.request.body_length,
             ) {
                 if !tx.request.headers.contains_key("content-type") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "OPTIONS request carries content ({evidence}) with no Content-Type header field; RFC 9110 § 9.3.7 says a client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type"
-                        ),
-                    });
+                        )));
                 }
             }
 
@@ -158,15 +154,11 @@ impl Rule for OptionsMethodCapabilities {
                 })
             {
                 let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Successful OPTIONS response ({}) carries none of {}; RFC 9110 § 9.3.7 says a server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource",
                         resp.status,
                         named.join(", ")
-                    ),
-                });
+                    )));
             }
 
             None

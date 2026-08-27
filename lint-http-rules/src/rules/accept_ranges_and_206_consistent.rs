@@ -57,11 +57,7 @@ impl Rule for AcceptRangesAnd206Consistent {
             // cite(RFC 9110 § 14.3): "to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path."
             // cite(RFC 9110 § 15.3.7): "A server that generates a 206 response MUST generate the following header fields, in addition to those required in the subsections below, if the field would have been sent in a 200 (OK) response to the same request: Date, Cache-Control, ETag, Expires, Content-Location, and Vary."
             if !advertised.present {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "206 Partial Content response carries no Accept-Ranges field, so a client resuming this transfer has nothing telling it which range units the resource supports (advice: nothing requires the field)".into(),
-                });
+                return Some(self.violation(ctx.severity, "206 Partial Content response carries no Accept-Ranges field, so a client resuming this transfer has nothing telling it which range units the resource supports (advice: nothing requires the field)".into()));
             }
 
             // The permission to send `none` belongs to a server that supports no kind
@@ -72,11 +68,7 @@ impl Rule for AcceptRangesAnd206Consistent {
             // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
             // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
             if advertised.advertises("none") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into(),
-                });
+                return Some(self.violation(ctx.severity, "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into()));
             }
 
             // A unit that could not be read may be the one the Content-Range names,
@@ -106,14 +98,10 @@ impl Rule for AcceptRangesAnd206Consistent {
             //
             // cite(RFC 9110 § 14.2): "If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested."
             if !advertised.advertises(unit) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Content-Range describes a range in '{}', a unit this response's Accept-Ranges does not advertise (advice: nothing requires the two to agree)",
                         unit
-                    ),
-                });
+                    )));
             }
 
             None

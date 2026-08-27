@@ -54,11 +54,7 @@ impl Rule for UserAgentPresent {
             // the wrong defect and report one field twice.
             // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
             if !tx.request.headers.contains_key("user-agent") {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Request missing User-Agent header".into(),
-                })
+                Some(self.violation(ctx.severity, "Request missing User-Agent header".into()))
             } else {
                 None
             }

@@ -71,26 +71,21 @@ impl Rule for AcceptEncodingParameterValid {
                                 // cite(RFC 9110 § 12.5.3): "An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred."
                                 if primary != "*" {
                                     if primary.is_empty() {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                                 "Empty content-coding in Accept-Encoding member '{}'",
                                                 part
-                                            ),
-                                        });
+                                            )));
                                     }
                                     if let Some(c) =
                                         crate::helpers::token::find_invalid_token_char(primary)
                                     {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(self.violation(
+                                            ctx.severity,
+                                            format!(
                                                 "Invalid token '{}' in Accept-Encoding header",
                                                 c
                                             ),
-                                        });
+                                        ));
                                     }
                                 }
 
@@ -117,14 +112,10 @@ impl Rule for AcceptEncodingParameterValid {
                                     // — whether it sits at the end of the member or
                                     // between two others.
                                     if param.is_empty() {
-                                        return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                             "Accept-Encoding member '{}' has a ';' with no weight after it",
                                             part
-                                        ),
-                                    });
+                                        )));
                                     }
 
                                     // The name is matched without regard to case
@@ -137,48 +128,32 @@ impl Rule for AcceptEncodingParameterValid {
                                     let val = nv.next();
 
                                     if !name.eq_ignore_ascii_case("q") {
-                                        return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                             "'{}' is not a weight, and a weight is the only thing an Accept-Encoding coding may carry (member '{}')",
                                             param, part
-                                        ),
-                                    });
+                                        )));
                                     }
                                     if weight_seen {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                                 "More than one weight in Accept-Encoding member '{}'",
                                                 part
-                                            ),
-                                        });
+                                            )));
                                     }
                                     weight_seen = true;
 
                                     let Some(v) = val else {
-                                        return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                             "Missing parameter value for '{}' in Accept-Encoding member '{}'",
                                             name, part
-                                        ),
-                                    });
+                                        )));
                                     };
 
                                     // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                                     if !crate::helpers::headers::valid_qvalue(v) {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                                 "Invalid qvalue '{}' in Accept-Encoding member '{}'",
                                                 v, part
-                                            ),
-                                        });
+                                            )));
                                     }
                                 }
                             }
@@ -192,13 +167,8 @@ impl Rule for AcceptEncodingParameterValid {
                         // Accept-Encoding member is a `token` or the fixed text of a
                         // weight, so an octet `to_str` refuses cannot be a legal part
                         // of this field whatever else the value contains.
-                        return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
-                            "Accept-Encoding contains an octet no part of this field's grammar admits"
-                                .into(),
-                    });
+                        return Some(self.violation(ctx.severity, "Accept-Encoding contains an octet no part of this field's grammar admits"
+                                .into()));
                     }
                 }
                 None

@@ -70,14 +70,13 @@ impl Rule for AcceptLanguageWeightValid {
                         // parameter slots, and `weight` brackets nothing, so a `;`
                         // with nothing after it introduces a weight that is absent.
                         if param.is_empty() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Accept-Language member '{}' has a ';' with no weight after it",
                                     member
                                 ),
-                            });
+                            ));
                         }
                         // Matched without regard to case because §12.4.2 defines
                         // the parameter that way, and this is the only name the
@@ -88,48 +87,38 @@ impl Rule for AcceptLanguageWeightValid {
                         let val_opt = nv.next();
 
                         if !name.eq_ignore_ascii_case("q") {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(ctx.severity, format!(
                                     "'{}' is not a weight, and a weight is the only thing an Accept-Language range may carry (member '{}')",
                                     param, member
-                                ),
-                            });
+                                )));
                         }
                         if weight_seen {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "More than one weight in Accept-Language member '{}'",
                                     member
                                 ),
-                            });
+                            ));
                         }
                         weight_seen = true;
 
                         let Some(val) = val_opt else {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(ctx.severity, format!(
                                     "Missing parameter value for '{}' in Accept-Language member '{}'",
                                     name, member
-                                ),
-                            });
+                                )));
                         };
 
                         // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                         if !crate::helpers::headers::valid_qvalue(val) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Invalid qvalue '{}' in Accept-Language member '{}'",
                                     val, member
                                 ),
-                            });
+                            ));
                         }
                     }
                 }
@@ -143,13 +132,8 @@ impl Rule for AcceptLanguageWeightValid {
                         return Some(v);
                     }
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
-                            "Accept-Language contains an octet no part of this field's grammar admits"
-                                .into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Accept-Language contains an octet no part of this field's grammar admits"
+                                .into()));
                 }
             }
 
@@ -165,13 +149,8 @@ impl Rule for AcceptLanguageWeightValid {
                             return Some(v);
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
-                                "Accept-Language contains an octet no part of this field's grammar admits"
-                                    .into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Accept-Language contains an octet no part of this field's grammar admits"
+                                    .into()));
                     }
                 }
             }

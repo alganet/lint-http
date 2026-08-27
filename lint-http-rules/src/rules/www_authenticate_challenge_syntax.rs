@@ -37,11 +37,7 @@ impl Rule for WwwAuthenticateChallengeSyntax {
                         let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
                             Ok(c) => c,
                             Err(msg) => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: msg,
-                                });
+                                return Some(self.violation(ctx.severity, msg));
                             }
                         };
 
@@ -50,11 +46,7 @@ impl Rule for WwwAuthenticateChallengeSyntax {
                             if let Err(msg) =
                                 crate::helpers::auth::validate_challenge_syntax(challenge)
                             {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: msg,
-                                });
+                                return Some(self.violation(ctx.severity, msg));
                             }
                         }
                     }

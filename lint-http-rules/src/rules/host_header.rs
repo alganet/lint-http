@@ -63,12 +63,10 @@ impl Rule for HostHeader {
                 if sends_authority_as_control_data(tx) {
                     return None;
                 }
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Request carries no Host header field and no :authority pseudo-header"
-                        .into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Request carries no Host header field and no :authority pseudo-header".into(),
+                ));
             }
 
             // Two lines of a field can only be read as one value when the field is a
@@ -78,14 +76,10 @@ impl Rule for HostHeader {
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             // cite(RFC 9112 § 3.2): "A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value."
             if host_count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "{} Host header field lines: the field is not defined as a list, so they are not one value",
                         host_count
-                    ),
-                });
+                    )));
             }
 
             // Every octet of the one field line as the `char` of the same value.
@@ -126,14 +120,10 @@ impl Rule for HostHeader {
             // field value is neither: it is a `uri-host` and a port.
             // cite(RFC 9112 § 3.2): "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP])."
             if s.contains('@') {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Host field value '{}' carries a userinfo subcomponent and its '@' delimiter",
                         s
-                    ),
-                });
+                    )));
             }
 
             // Asked before the grammar so the answer names what is wrong. Without
@@ -145,14 +135,10 @@ impl Rule for HostHeader {
             if s.parse::<std::net::Ipv6Addr>().is_ok()
                 || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(s)
             {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "IPv6 literal '{}' in a Host field value must be enclosed in square brackets",
                         s
-                    ),
-                });
+                    )));
             }
 
             // The field's own grammar, which this rule had never applied: a value
@@ -162,11 +148,10 @@ impl Rule for HostHeader {
             // the whole of what RFC 3986 §3.2.3 says a port looks like.
             // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
             if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(s) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("Host field value '{}' is not a host and port: {}", s, msg),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    format!("Host field value '{}' is not a host and port: {}", s, msg),
+                ));
             }
 
             None

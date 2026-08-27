@@ -44,34 +44,27 @@ impl Rule for SecFetchDestValueValid {
             // the field.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple Sec-Fetch-Dest header fields present".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Multiple Sec-Fetch-Dest header fields present".into(),
+                ));
             }
 
             // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
             let val = match crate::helpers::headers::get_header_str(headers, "sec-fetch-dest") {
                 Some(v) => v.trim(),
                 None => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Sec-Fetch-Dest header contains non-ASCII or control characters"
-                            .into(),
-                    })
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Sec-Fetch-Dest header contains non-ASCII or control characters".into(),
+                    ))
                 }
             };
 
             // An empty value cannot be a token.
             // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
             if val.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Sec-Fetch-Dest header is empty".into(),
-                });
+                return Some(self.violation(ctx.severity, "Sec-Fetch-Dest header is empty".into()));
             }
 
             // Token must not contain invalid token chars. This checks the HTTP `token`
@@ -80,14 +73,13 @@ impl Rule for SecFetchDestValueValid {
             // message a bad value gets.
             // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
             if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(
+                    ctx.severity,
+                    format!(
                         "Sec-Fetch-Dest header contains invalid token character: '{}'",
                         c
                     ),
-                });
+                ));
             }
 
             // The value set is not Fetch Metadata's own — it defers to Fetch, which grows as
@@ -107,11 +99,10 @@ impl Rule for SecFetchDestValueValid {
                 | "iframe" | "image" | "json" | "manifest" | "object" | "paintworklet"
                 | "report" | "script" | "serviceworker" | "sharedworker" | "style" | "text"
                 | "track" | "video" | "webidentity" | "worker" | "xslt" => None,
-                _ => Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("Unrecognized Sec-Fetch-Dest value: '{}'", val),
-                }),
+                _ => Some(self.violation(
+                    ctx.severity,
+                    format!("Unrecognized Sec-Fetch-Dest value: '{}'", val),
+                )),
             }
         };
         Vec::from_iter(finding())

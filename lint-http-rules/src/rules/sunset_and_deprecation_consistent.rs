@@ -39,11 +39,10 @@ impl Rule for SunsetAndDeprecationConsistent {
                 Some(s) => match crate::http_date::parse_http_date_to_datetime(s) {
                     Ok(dt) => Some((s.to_string(), dt)),
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
+                        ));
                     }
                 },
                 None => None,
@@ -87,11 +86,10 @@ impl Rule for SunsetAndDeprecationConsistent {
                         }
                     }
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Deprecation header contains non-UTF8 value".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Deprecation header contains non-UTF8 value".into(),
+                        ))
                     }
                 },
                 None => None,
@@ -107,14 +105,10 @@ impl Rule for SunsetAndDeprecationConsistent {
             {
                 let allowed_skew = chrono::Duration::seconds(60);
                 if dep_dt > sun_dt + allowed_skew {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
                             dep_raw, sun_raw
-                        ),
-                    });
+                        )));
                 }
             }
 

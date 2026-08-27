@@ -153,15 +153,11 @@ impl Rule for CompressionAndTransferEncodingConsistent {
                 overlap.sort();
 
                 if !overlap.is_empty() {
-                    return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                         "Compression coding(s) '{}' appear in both Content-Encoding and Transfer-Encoding of the {}; the representation is coded once and then coded again in transit, which is decodable but almost never intended",
                         overlap.join(", "),
                         side
-                    ),
-                });
+                    )));
                 }
 
                 None

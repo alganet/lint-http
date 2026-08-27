@@ -29,11 +29,10 @@ impl Rule for BearerTokenSyntax {
                 let s = match hv.to_str() {
                     Ok(s) => s,
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Authorization header contains non-UTF8 value".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Authorization header contains non-UTF8 value".into(),
+                        ))
                     }
                 };
 
@@ -48,19 +47,16 @@ impl Rule for BearerTokenSyntax {
                     // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
                     let creds = parts.next().map(|r| r.trim()).unwrap_or("");
                     if creds.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Authorization: Bearer missing token".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Authorization: Bearer missing token".into(),
+                        ));
                     }
 
                     if let Err(msg) = crate::helpers::auth::validate_bearer_token(creds) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Invalid Bearer token: {}", msg),
-                        });
+                        return Some(
+                            self.violation(ctx.severity, format!("Invalid Bearer token: {}", msg)),
+                        );
                     }
                 }
             }

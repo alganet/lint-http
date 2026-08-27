@@ -54,13 +54,7 @@ impl Rule for FromHeaderEmailSyntax {
             // cite(RFC 9110 § 10.1.2): "The address ought to be machine-usable, as defined by "mailbox" in Section 3.4 of [RFC5322]"
             // cite(RFC 9110 § 10.1.2): "mailbox = <mailbox, see [RFC5322], Section 3.4>"
             let value = combined_field_value_as_written(&req.headers, "from")?;
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().to_string(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             let lines = req.headers.get_all("from").iter().count();
             if lines > 1 {

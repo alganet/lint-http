@@ -193,13 +193,7 @@ impl Rule for SecWebsocketHeadersConsistent {
             // Every gate above ends the rule, and reading the configuration is several
             // map probes and a hash of the id -- so only a request about to be measured
             // pays for it.
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // The other half of the sentence the method gate quotes, and the half nobody
             // in this catalogue was reading. The section describing how a server reads

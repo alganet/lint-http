@@ -310,11 +310,10 @@ fn check_body_delimiters(
         } else {
             format!("body does not contain boundary marker '--{}'", shown)
         };
-        return Some(Violation {
-            rule: MultipartContentTypeAndBodyConsistent.id().into(),
+        return Some(MultipartContentTypeAndBodyConsistent.violation(
             severity,
-            message: format!("Invalid multipart Content-Type in {}: {}", which, detail),
-        });
+            format!("Invalid multipart Content-Type in {}: {}", which, detail),
+        ));
     }
 
     // The closing line is defined as the one *following the last body part*, so
@@ -323,28 +322,26 @@ fn check_body_delimiters(
     // cite(RFC 2046 § 5.1.1): "The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow."
     // cite(RFC 2046 § 5.1.1): "The use of the "multipart" media type with only a single body part may be useful in certain contexts, and is explicitly permitted."
     if !scan.opens_a_part {
-        return Some(Violation {
-            rule: MultipartContentTypeAndBodyConsistent.id().into(),
+        return Some(MultipartContentTypeAndBodyConsistent.violation(
             severity,
-            message: format!(
+            format!(
                 "Invalid multipart Content-Type in {}: the only boundary delimiter line is the terminating '--{}--', so the body encapsulates no part",
                 which, shown
             ),
-        });
+        ));
     }
 
     // Without the closing line nothing tells a recipient the parts have ended,
     // which is the whole function §5.1.1 gives it.
     // cite(RFC 2046 § 5.1.1): "Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value."
     if !scan.closes {
-        return Some(Violation {
-            rule: MultipartContentTypeAndBodyConsistent.id().into(),
+        return Some(MultipartContentTypeAndBodyConsistent.violation(
             severity,
-            message: format!(
+            format!(
                 "Invalid multipart Content-Type in {}: body missing terminating boundary '--{}--'",
                 which, boundary
             ),
-        });
+        ));
     }
     None
 }

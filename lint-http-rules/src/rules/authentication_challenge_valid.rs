@@ -104,11 +104,7 @@ impl Rule for AuthenticationChallengeValid {
                             realm,
                             schemes_vec.join(", ")
                         );
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: msg,
-                        });
+                        return Some(self.violation(ctx.severity, msg));
                     }
                 }
             }

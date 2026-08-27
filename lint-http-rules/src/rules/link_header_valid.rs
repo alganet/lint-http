@@ -62,11 +62,7 @@ impl Rule for LinkHeaderValid {
                     .and_then(|resp| judge(&resp.headers, "Response", true))
             })?;
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message,
-            })
+            Some(self.violation(ctx.severity, message))
         };
         Vec::from_iter(finding())
     }

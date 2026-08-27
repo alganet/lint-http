@@ -138,28 +138,20 @@ impl Rule for CookieSameSiteEnforced {
                         match effective {
                             // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
                             crate::helpers::cookie::SameSite::Strict => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(self.violation(ctx.severity, format!(
                                         "Cookie '{}' has SameSite=Strict but is sent in a cross-site context",
                                         name
-                                    ),
-                                });
+                                    )));
                             }
                             // `allow_lax` is the carve-out named in the second half of this
                             // sentence: a top-level navigation is where a Lax cookie legitimately
                             // crosses sites, which is why this arm only fires when it is not one.
                             // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1."
                             crate::helpers::cookie::SameSite::Lax if !allow_lax => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(self.violation(ctx.severity, format!(
                                         "Cookie '{}' has SameSite=Lax but is sent in a restricted cross-site context",
                                         name
-                                    ),
-                                });
+                                    )));
                             }
                             _ => { /* None is allowed */ }
                         }

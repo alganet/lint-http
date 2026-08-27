@@ -106,14 +106,14 @@ impl Rule for Status103EarlyHintsBeforeFinal {
                 crate::http_version::parse(&tx.request.version),
                 Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
             ) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
+                return Some(
+                    self.violation(
+                        ctx.severity,
                         "103 (Early Hints) answering an HTTP/1.0 request: HTTP/1.0 defined no \
                               1xx status codes, so a server must not send one to that client"
                             .into(),
-                });
+                    ),
+                );
             }
 
             // ── The interim response standing where the final one goes ──
@@ -125,16 +125,12 @@ impl Rule for Status103EarlyHintsBeforeFinal {
             // response for the final one records exactly this.
             // cite(RFC 9110 § 15.2): "The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response."
             // cite(RFC 8297 § 3): "In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response."
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "103 (Early Hints) is recorded as the response to '{}', and a 103 is an interim \
                      response that exactly one final response has to follow: either the final \
                      response never arrived, or the interim one was taken for it",
                     tx.request.uri
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

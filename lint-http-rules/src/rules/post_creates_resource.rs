@@ -86,10 +86,9 @@ impl Rule for PostCreatesResource {
             // printing a path under the words "the target URI".
             // cite(RFC 9112 § 3.3): "The target URI is the request-target when the request-target is in absolute-form."
             // cite(RFC 9112 § 3.3): "Otherwise, the target URI's combined path and query component is the request-target."
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(
+                ctx.severity,
+                format!(
                     "201 Created response to a POST request carries no Location header field. \
                      RFC 9110 §9.3.3 asks an origin server that has created one or more resources \
                      to answer with a 201 containing a Location field that provides an identifier \
@@ -99,7 +98,7 @@ impl Rule for PostCreatesResource {
                      the identifier being stated rather than left to be inferred",
                     tx.request.uri
                 ),
-            })
+            ))
         };
         Vec::from_iter(finding())
     }

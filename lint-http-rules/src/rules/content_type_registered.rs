@@ -44,70 +44,68 @@ impl Rule for ContentTypeRegistered {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-            let check_media_type = |hdr_name: &str,
-                                    val: &str,
-                                    allowed: &Vec<String>|
-             -> Option<Violation> {
-                // Parse media-type; if it fails, let other rules (well-formed) report it.
-                let parsed = match crate::helpers::headers::parse_media_type(val) {
-                    Ok(p) => p,
-                    Err(_) => return None,
-                };
-                // Folded to lowercase before every comparison below because the
-                // grammar's tokens are case-insensitive, so `TEXT/PLAIN` and
-                // `text/plain` must reach the same verdict. (The config values are
-                // lowercased at parse time for the same reason.)
-                // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-                let t = parsed.type_.to_ascii_lowercase();
-                let s = parsed.subtype.to_ascii_lowercase();
-                let full = format!("{}/{}", t, s);
+            let check_media_type =
+                |hdr_name: &str, val: &str, allowed: &Vec<String>| -> Option<Violation> {
+                    // Parse media-type; if it fails, let other rules (well-formed) report it.
+                    let parsed = match crate::helpers::headers::parse_media_type(val) {
+                        Ok(p) => p,
+                        Err(_) => return None,
+                    };
+                    // Folded to lowercase before every comparison below because the
+                    // grammar's tokens are case-insensitive, so `TEXT/PLAIN` and
+                    // `text/plain` must reach the same verdict. (The config values are
+                    // lowercased at parse time for the same reason.)
+                    // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
+                    let t = parsed.type_.to_ascii_lowercase();
+                    let s = parsed.subtype.to_ascii_lowercase();
+                    let full = format!("{}/{}", t, s);
 
-                // What follows is an *allowlist* match, not a registry lookup, and the
-                // rule's name oversells it. The sentence below is why such a rule is
-                // wanted — registration is the thing worth encouraging — but it is an
-                // "ought to", it is addressed to people defining media types, and
-                // nothing here consults the IANA registry. An operator's list stands in
-                // for it: entries can be exact (`text/plain`), a type wildcard
-                // (`image/*`), `*/*`, or a structured-syntax suffix (`+json`). The
-                // wildcard and suffix forms are configuration conveniences with no
-                // basis in any specification.
-                // cite(RFC 9110 § 8.3.1): "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."
+                    // What follows is an *allowlist* match, not a registry lookup, and the
+                    // rule's name oversells it. The sentence below is why such a rule is
+                    // wanted — registration is the thing worth encouraging — but it is an
+                    // "ought to", it is addressed to people defining media types, and
+                    // nothing here consults the IANA registry. An operator's list stands in
+                    // for it: entries can be exact (`text/plain`), a type wildcard
+                    // (`image/*`), `*/*`, or a structured-syntax suffix (`+json`). The
+                    // wildcard and suffix forms are configuration conveniences with no
+                    // basis in any specification.
+                    // cite(RFC 9110 § 8.3.1): "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."
 
-                for pat in allowed {
-                    if pat == "*/*" || pat == &full {
-                        return None;
-                    }
-                    if pat.ends_with("/*") {
-                        // type/* form
-                        if let Some(idx) = pat.find('/') {
-                            let ptype = &pat[..idx];
-                            if ptype == t {
+                    for pat in allowed {
+                        if pat == "*/*" || pat == &full {
+                            return None;
+                        }
+                        if pat.ends_with("/*") {
+                            // type/* form
+                            if let Some(idx) = pat.find('/') {
+                                let ptype = &pat[..idx];
+                                if ptype == t {
+                                    return None;
+                                }
+                            }
+                        }
+                        if let Some(suff) = pat.strip_prefix('+') {
+                            // `+suffix` form. This means the *structured syntax suffix* —
+                            // the part after a literal `+` appended to a base subtype —
+                            // so it is matched with the helper that owns that concept
+                            // rather than by a bare `ends_with`, which would also admit
+                            // any subtype whose name happens to end in those letters
+                            // (`text/notjson` against `+json`) and any base subtype of
+                            // the same name (`application/json`), neither of which uses
+                            // the suffix convention at all.
+                            // cite(RFC 6838 § 4.2.8): "it specified a suffix (in that case, "+xml") to be appended to the base subtype name."
+                            if crate::helpers::headers::media_type_subtype_suffix(&s) == Some(suff)
+                            {
                                 return None;
                             }
                         }
                     }
-                    if let Some(suff) = pat.strip_prefix('+') {
-                        // `+suffix` form. This means the *structured syntax suffix* —
-                        // the part after a literal `+` appended to a base subtype —
-                        // so it is matched with the helper that owns that concept
-                        // rather than by a bare `ends_with`, which would also admit
-                        // any subtype whose name happens to end in those letters
-                        // (`text/notjson` against `+json`) and any base subtype of
-                        // the same name (`application/json`), neither of which uses
-                        // the suffix convention at all.
-                        // cite(RFC 6838 § 4.2.8): "it specified a suffix (in that case, "+xml") to be appended to the base subtype name."
-                        if crate::helpers::headers::media_type_subtype_suffix(&s) == Some(suff) {
-                            return None;
-                        }
-                    }
-                }
 
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("Unrecognized media type '{}' in {} header", full, hdr_name),
-                })
-            };
+                    Some(self.violation(
+                        ctx.severity,
+                        format!("Unrecognized media type '{}' in {} header", full, hdr_name),
+                    ))
+                };
 
             // Check request Content-Type
             if let Some(val) =

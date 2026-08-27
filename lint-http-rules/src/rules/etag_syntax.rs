@@ -40,11 +40,10 @@ impl Rule for EtagSyntax {
                 let s = match hv.to_str() {
                     Ok(s) => s,
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "ETag header value is not valid UTF-8".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "ETag header value is not valid UTF-8".into(),
+                        ))
                     }
                 };
 
@@ -58,22 +57,15 @@ impl Rule for EtagSyntax {
                 // the conditional fields that do take it.
                 // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
                 if t == "*" {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
-                            "ETag header value '*' is invalid for responses; ETag must be an entity-tag"
-                                .into(),
-                    });
+                    return Some(self.violation(ctx.severity, "ETag header value '*' is invalid for responses; ETag must be an entity-tag"
+                                .into()));
                 }
 
                 // The entity-tag grammar itself (§8.8.3) is owned by `validate_entity_tag`.
                 if let Err(msg) = crate::helpers::headers::validate_entity_tag(t) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("ETag header invalid: {}", msg),
-                    });
+                    return Some(
+                        self.violation(ctx.severity, format!("ETag header invalid: {}", msg)),
+                    );
                 }
             }
 
@@ -82,14 +74,10 @@ impl Rule for EtagSyntax {
             // exception does not apply, and a sender must emit at most one ETag field line.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Multiple ETag header fields present ({}); ETag must be a single entity-tag",
                         count
-                    ),
-                });
+                    )));
             }
 
             None

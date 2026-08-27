@@ -246,30 +246,24 @@ impl Rule for DigestHeaderSyntax {
                 if let Ok(s) = hv.to_str() {
                     // First validate legacy syntax
                     if let Some(msg) = validate_legacy_digest(s) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "Invalid Digest header in request: {} (obsoleted by RFC 9530)",
                                 msg
                             ),
-                        });
+                        ));
                     }
 
                     // If syntax ok, report obsolescence — the field itself is gone, not
                     // merely discouraged.
                     // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest".into()));
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Digest header value is not valid UTF-8".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Digest header value is not valid UTF-8".into(),
+                    ));
                 }
             }
 
@@ -278,30 +272,24 @@ impl Rule for DigestHeaderSyntax {
                 if let Ok(s) = hv.to_str() {
                     // Validate token list
                     if let Some(msg) = validate_want_digest(s) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "Invalid Want-Digest header in request: {} (obsoleted by RFC 9530)",
                                 msg
                             ),
-                        });
+                        ));
                     }
 
                     // If syntax ok, report obsolescence — the field itself is gone, not
                     // merely discouraged.
                     // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Want-Digest header is obsoleted by RFC 9530; prefer Want-Content-Digest or Want-Repr-Digest".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Want-Digest header is obsoleted by RFC 9530; prefer Want-Content-Digest or Want-Repr-Digest".into()));
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Want-Digest header value is not valid UTF-8".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Want-Digest header value is not valid UTF-8".into(),
+                    ));
                 }
             }
 
@@ -310,27 +298,21 @@ impl Rule for DigestHeaderSyntax {
                 if let Some(hv) = resp.headers.get_all("digest").iter().next() {
                     if let Ok(s) = hv.to_str() {
                         if let Some(msg) = validate_legacy_digest(s) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Invalid Digest header in response: {} (obsoleted by RFC 9530)",
                                     msg
                                 ),
-                            });
+                            ));
                         }
 
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest".into()));
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Digest header value is not valid UTF-8".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Digest header value is not valid UTF-8".into(),
+                        ));
                     }
                 }
             }
@@ -339,42 +321,38 @@ impl Rule for DigestHeaderSyntax {
             for hv in tx.request.headers.get_all("content-digest").iter() {
                 if let Ok(s) = hv.to_str() {
                     if let Some(msg) = validate_structured_digest(s) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "Invalid Content-Digest header in request: {} (RFC 9530 §2)",
                                 msg
                             ),
-                        });
+                        ));
                     }
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-Digest header value is not valid UTF-8".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Content-Digest header value is not valid UTF-8".into(),
+                    ));
                 }
             }
 
             for hv in tx.request.headers.get_all("repr-digest").iter() {
                 if let Ok(s) = hv.to_str() {
                     if let Some(msg) = validate_structured_digest(s) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "Invalid Repr-Digest header in request: {} (RFC 9530 §3)",
                                 msg
                             ),
-                        });
+                        ));
                     }
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Repr-Digest header value is not valid UTF-8".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Repr-Digest header value is not valid UTF-8".into(),
+                    ));
                 }
             }
 
@@ -382,42 +360,38 @@ impl Rule for DigestHeaderSyntax {
             for hv in tx.request.headers.get_all("want-content-digest").iter() {
                 if let Ok(s) = hv.to_str() {
                     if let Some(msg) = validate_want_field(s) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "Invalid Want-Content-Digest header in request: {} (RFC 9530 §4)",
                                 msg
                             ),
-                        });
+                        ));
                     }
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Want-Content-Digest header value is not valid UTF-8".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Want-Content-Digest header value is not valid UTF-8".into(),
+                    ));
                 }
             }
 
             for hv in tx.request.headers.get_all("want-repr-digest").iter() {
                 if let Ok(s) = hv.to_str() {
                     if let Some(msg) = validate_want_field(s) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "Invalid Want-Repr-Digest header in request: {} (RFC 9530 §4)",
                                 msg
                             ),
-                        });
+                        ));
                     }
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Want-Repr-Digest header value is not valid UTF-8".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Want-Repr-Digest header value is not valid UTF-8".into(),
+                    ));
                 }
             }
 
@@ -426,84 +400,73 @@ impl Rule for DigestHeaderSyntax {
                 for hv in resp.headers.get_all("content-digest").iter() {
                     if let Ok(s) = hv.to_str() {
                         if let Some(msg) = validate_structured_digest(s) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Invalid Content-Digest header in response: {} (RFC 9530 §2)",
                                     msg
                                 ),
-                            });
+                            ));
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Content-Digest header value is not valid UTF-8".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Content-Digest header value is not valid UTF-8".into(),
+                        ));
                     }
                 }
 
                 for hv in resp.headers.get_all("repr-digest").iter() {
                     if let Ok(s) = hv.to_str() {
                         if let Some(msg) = validate_structured_digest(s) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Invalid Repr-Digest header in response: {} (RFC 9530 §3)",
                                     msg
                                 ),
-                            });
+                            ));
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Repr-Digest header value is not valid UTF-8".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Repr-Digest header value is not valid UTF-8".into(),
+                        ));
                     }
                 }
 
                 for hv in resp.headers.get_all("want-content-digest").iter() {
                     if let Ok(s) = hv.to_str() {
                         if let Some(msg) = validate_want_field(s) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(ctx.severity, format!(
                                     "Invalid Want-Content-Digest header in response: {} (RFC 9530 §4)",
                                     msg
-                                ),
-                            });
+                                )));
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Want-Content-Digest header value is not valid UTF-8".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Want-Content-Digest header value is not valid UTF-8".into(),
+                        ));
                     }
                 }
 
                 for hv in resp.headers.get_all("want-repr-digest").iter() {
                     if let Ok(s) = hv.to_str() {
                         if let Some(msg) = validate_want_field(s) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Invalid Want-Repr-Digest header in response: {} (RFC 9530 §4)",
                                     msg
                                 ),
-                            });
+                            ));
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Want-Repr-Digest header value is not valid UTF-8".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Want-Repr-Digest header value is not valid UTF-8".into(),
+                        ));
                     }
                 }
             }
@@ -515,36 +478,25 @@ impl Rule for DigestHeaderSyntax {
             // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
             if let Some(hv) = tx.request.headers.get_all("content-md5").iter().next() {
                 if hv.to_str().is_ok() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
-                            "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead"
-                                .into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead"
+                                .into()));
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-MD5 header value is not valid UTF-8".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Content-MD5 header value is not valid UTF-8".into(),
+                    ));
                 }
             }
 
             if let Some(resp) = &tx.response {
                 if let Some(hv) = resp.headers.get_all("content-md5").iter().next() {
                     if hv.to_str().is_ok() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead".into()));
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Content-MD5 header value is not valid UTF-8".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Content-MD5 header value is not valid UTF-8".into(),
+                        ));
                     }
                 }
             }

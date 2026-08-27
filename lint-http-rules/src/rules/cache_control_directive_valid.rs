@@ -36,18 +36,16 @@ impl Rule for CacheControlDirectiveValid {
                         continue;
                     }
                     if let Some(msg) = check_cache_control_directives(v) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Invalid Cache-Control header in request: {}", msg),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Invalid Cache-Control header in request: {}", msg),
+                        ));
                     }
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Cache-Control header contains non-UTF8 value".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Cache-Control header contains non-UTF8 value".into(),
+                    ));
                 }
             }
 
@@ -61,21 +59,16 @@ impl Rule for CacheControlDirectiveValid {
                             continue;
                         }
                         if let Some(msg) = check_cache_control_directives(v) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Invalid Cache-Control header in response: {}",
-                                    msg
-                                ),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("Invalid Cache-Control header in response: {}", msg),
+                            ));
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Cache-Control header contains non-UTF8 value".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Cache-Control header contains non-UTF8 value".into(),
+                        ));
                     }
                 }
             }

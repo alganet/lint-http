@@ -90,16 +90,12 @@ impl Rule for ContentTransferEncodingValid {
                 let hv = headers.get_all("content-transfer-encoding").iter().next()?;
                 let shown = hv.to_str().unwrap_or("<non-UTF-8>");
                 let detail = describe_value(shown).map(|d| format!("; {}", d));
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                Some(self.violation(ctx.severity, format!(
                         "Content-Transfer-Encoding: {} present in {}; HTTP does not use this field and a gateway is required to remove it{}",
                         shown.trim(),
                         which,
                         detail.unwrap_or_default()
-                    ),
-                })
+                    )))
             };
 
             if let Some(resp) = &tx.response {

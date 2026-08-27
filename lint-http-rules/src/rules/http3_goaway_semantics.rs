@@ -37,11 +37,7 @@ impl ProtocolRule for Http3GoawaySemantics {
             // finding is a comparison against the history, so the two sites share
             // one builder.
             let report = |message: String| -> Option<Violation> {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message,
-                })
+                Some(self.violation(ctx.severity, message))
             };
             // cite(RFC 9114 § 7.2.6): "The GOAWAY frame (type=0x07) is used to initiate graceful shutdown of an HTTP/3 connection by either endpoint."
             match &event.kind {

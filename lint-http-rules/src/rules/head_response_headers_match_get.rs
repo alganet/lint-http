@@ -205,13 +205,7 @@ impl Rule for HeadResponseHeadersMatchGet {
             // non-HEAD transactions (the common case) skip the allocation entirely.
             let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
 
-            let report = |message: String| {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let report = |message: String| Some(self.violation(ctx.severity, message));
 
             // For each configured header, enforce presence/value equivalence between GET and HEAD
             for name in &config.headers {

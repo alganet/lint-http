@@ -30,13 +30,7 @@ impl Rule for MaxForwardsNumeric {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().to_string(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // No method gate, and the field is read before anything about the request
             // line is. The mechanism is defined for TRACE and OPTIONS, and what the

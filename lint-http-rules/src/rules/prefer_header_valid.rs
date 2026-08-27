@@ -109,13 +109,7 @@ impl Rule for PreferHeaderValid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // Read as octets, one `char` each, and joined across the field's lines.
             // Both halves are load-bearing here. A `word` may be a `quoted-string`,

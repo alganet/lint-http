@@ -35,11 +35,7 @@ impl Rule for RetryAfterDateOrDelay {
             // comma of its own, so a comma-joined value is ambiguous rather than merely long.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if resp.headers.get_all("retry-after").iter().count() > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into(),
-                });
+                return Some(self.violation(ctx.severity, "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into()));
             }
 
             // Each value is either a delay-seconds count or an HTTP-date.
@@ -48,11 +44,10 @@ impl Rule for RetryAfterDateOrDelay {
                 let s = match val.to_str() {
                     Ok(s) => s.trim(),
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Retry-After header contains non-UTF8 value".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Retry-After header contains non-UTF8 value".into(),
+                        ))
                     }
                 };
 
@@ -72,14 +67,10 @@ impl Rule for RetryAfterDateOrDelay {
                     continue;
                 }
 
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
                         s
-                    ),
-                });
+                    )));
             }
 
             None

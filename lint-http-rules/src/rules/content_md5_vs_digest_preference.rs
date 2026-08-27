@@ -48,14 +48,10 @@ impl Rule for ContentMd5VsDigestPreference {
                 // than repeating the sibling's obsolescence report.
                 // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
                 if has_new && has_md5 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Both Content-Digest and Content-MD5 present in {}; they are independent integrity values that can disagree, and nothing specifies which a recipient validates. Content-MD5 was removed from HTTP by RFC 7231 — send only Content-Digest",
                             which
-                        ),
-                    });
+                        )));
                 }
                 None
             };

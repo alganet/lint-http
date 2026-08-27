@@ -71,11 +71,9 @@ impl Rule for UserAgentTokenValid {
                 // reject the field before the grammar could accept it.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                 if let Err(e) = crate::helpers::product::validate_product_list(hv.as_bytes()) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Invalid User-Agent header: {}", e),
-                    });
+                    return Some(
+                        self.violation(ctx.severity, format!("Invalid User-Agent header: {}", e)),
+                    );
                 }
             }
 

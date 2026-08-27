@@ -90,13 +90,9 @@ impl Rule for TraceMethodEcho {
                 &tx.request.headers,
                 tx.request.body_length,
             ) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"
-                    ),
-                });
+                    )));
             }
 
             // The response is a loop-back of this request, so a field is disclosed
@@ -110,14 +106,10 @@ impl Rule for TraceMethodEcho {
                 .collect();
 
             if !present.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names credentials and cookies as its example",
                         present.join(", ")
-                    ),
-                });
+                    )));
             }
 
             None

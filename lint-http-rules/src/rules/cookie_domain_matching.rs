@@ -103,28 +103,23 @@ impl Rule for CookieDomainMatching {
                 // failing the domain requirement was never eligible to be sent.
                 // cite(RFC 6265 § 5.4): "Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:"
                 if domain_mismatch {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Cookie '{}' with value '{}' was set for a different domain and should not be sent to host '{}'",
                             name, value, req_host
-                        ),
-                    });
+                        )));
                 }
 
                 // The path half of the same §5.4 cookie-list requirement; the
                 // path-match predicate itself is the helper's (§5.1.4).
                 // cite(RFC 6265 § 5.4): "The request-uri's path path-matches the cookie's path."
                 if path_mismatch {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "Cookie '{}' with value '{}' is not valid for path '{}'",
                             name, value, req_path
                         ),
-                    });
+                    ));
                 }
 
                 // otherwise the cookie is unknown to our history; skip

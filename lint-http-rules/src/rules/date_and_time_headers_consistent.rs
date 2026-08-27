@@ -46,19 +46,16 @@ impl Rule for DateAndTimeHeadersConsistent {
                     // rule's concern. This rule's own claim is only what Date *is*:
                     // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
                     if crate::http_date::parse_http_date_to_datetime(s).is_err() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)"
-                                .into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
+                        ));
                     }
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Date header contains non-UTF8 bytes and is invalid".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Date header contains non-UTF8 bytes and is invalid".into(),
+                    ));
                 }
             }
 
@@ -68,19 +65,16 @@ impl Rule for DateAndTimeHeadersConsistent {
                 if let Some(hv) = resp.headers.get_all("date").iter().next() {
                     if let Ok(s) = hv.to_str() {
                         if crate::http_date::parse_http_date_to_datetime(s).is_err() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)"
-                                    .into(),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
+                            ));
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Date header contains non-UTF8 bytes and is invalid".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Date header contains non-UTF8 bytes and is invalid".into(),
+                        ));
                     }
                 }
 
@@ -99,14 +93,10 @@ impl Rule for DateAndTimeHeadersConsistent {
                                         Ok(lm_dt) => {
                                             // cite(RFC 9110 § 8.8.2.1): "An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1)."
                                             if lm_dt > date_dt + skew {
-                                                return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: ctx.severity,
-                                                message: format!(
+                                                return Some(self.violation(ctx.severity, format!(
                                                     "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
                                                     lm_str, date_str
-                                                ),
-                                            });
+                                                )));
                                             }
                                         }
                                         Err(_) => {
@@ -115,11 +105,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                                     }
                                 }
                                 Err(_) => {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
-                                    });
+                                    return Some(self.violation(ctx.severity, "Last-Modified header contains non-UTF8 bytes and is invalid".into()));
                                 }
                             }
                         }
@@ -133,32 +119,24 @@ impl Rule for DateAndTimeHeadersConsistent {
                                 Ok(s) => match crate::http_date::parse_http_date_to_datetime(s) {
                                     Ok(sunset_dt) => {
                                         if sunset_dt <= date_dt - skew {
-                                            return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: ctx.severity,
-                                                message: format!(
+                                            return Some(self.violation(ctx.severity, format!(
                                                     "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
                                                     s, date_str
-                                                ),
-                                            });
+                                                )));
                                         }
                                     }
                                     Err(_) => {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
-                                        });
+                                        return Some(self.violation(ctx.severity, "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into()));
                                     }
                                 },
                                 Err(_) => {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message:
+                                    return Some(
+                                        self.violation(
+                                            ctx.severity,
                                             "Sunset header contains non-UTF8 bytes and is invalid"
                                                 .into(),
-                                    });
+                                        ),
+                                    );
                                 }
                             }
                         }
@@ -189,14 +167,10 @@ impl Rule for DateAndTimeHeadersConsistent {
                                     crate::http_date::parse_http_date_to_datetime(date_str)
                                 {
                                     if ifms_dt > date_dt + skew {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                                 "If-Modified-Since '{}' is later than Date '{}'; conditional requests should not use a future date",
                                                 ifms_str, date_str
-                                            ),
-                                        });
+                                            )));
                                     }
                                 }
                             }
@@ -206,13 +180,13 @@ impl Rule for DateAndTimeHeadersConsistent {
                         }
                     },
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
+                        return Some(
+                            self.violation(
+                                ctx.severity,
                                 "If-Modified-Since header contains non-UTF8 bytes and is invalid"
                                     .into(),
-                        });
+                            ),
+                        );
                     }
                 }
             }

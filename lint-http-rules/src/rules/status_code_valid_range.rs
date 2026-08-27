@@ -103,13 +103,9 @@ impl Rule for StatusCodeValidRange {
                 _ => "No `status-code` can express a value above 999 at all (RFC 9112 §4: `status-code = 3DIGIT`), so this value reached the linter from a capture record rather than from a parsed status-line.",
             };
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "Response status code {status} is outside the range 100-599; RFC 9110 §15 states that values outside it are invalid, and directs a client that receives one to process the response as if it had a 5xx (Server Error) status code. {detail}"
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

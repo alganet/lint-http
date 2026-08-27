@@ -33,38 +33,11 @@ impl Rule for PragmaTokenValid {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Validate request headers
-            // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
-            for header_val in tx.request.headers.get_all("pragma").iter() {
-                if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
-                    // An entirely empty Pragma value is a legal zero-element list, distinct from
-                    // an empty element *within* a list (flagged in check_pragma_value). Skip it.
-                    if v.is_empty() {
-                        continue;
-                    }
-                    if let Some(msg) = check_pragma_value(v) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Invalid Pragma header in request: {}", msg),
-                        });
-                    }
-                } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Pragma header contains non-UTF8 value".into(),
-                    });
-                }
-            }
-
-            // Validate response headers too. Pragma is a deprecated request field whose meaning in
-            // responses was never specified (§5.4 Note), so this is a pure well-formedness check for
-            // a field that should not appear here at all.
-            // cite(RFC 9111 § 5.4): "As a result, this specification deprecates Pragma."
-            if let Some(resp) = &tx.response {
-                for header_val in resp.headers.get_all("pragma").iter() {
+        let finding =
+            || -> Option<Violation> {
+                // Validate request headers
+                // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
+                for header_val in tx.request.headers.get_all("pragma").iter() {
                     if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
                         // An entirely empty Pragma value is a legal zero-element list, distinct from
                         // an empty element *within* a list (flagged in check_pragma_value). Skip it.
@@ -72,24 +45,48 @@ impl Rule for PragmaTokenValid {
                             continue;
                         }
                         if let Some(msg) = check_pragma_value(v) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Invalid Pragma header in response: {}", msg),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("Invalid Pragma header in request: {}", msg),
+                            ));
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Pragma header contains non-UTF8 value".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Pragma header contains non-UTF8 value".into(),
+                        ));
                     }
                 }
-            }
 
-            None
-        };
+                // Validate response headers too. Pragma is a deprecated request field whose meaning in
+                // responses was never specified (§5.4 Note), so this is a pure well-formedness check for
+                // a field that should not appear here at all.
+                // cite(RFC 9111 § 5.4): "As a result, this specification deprecates Pragma."
+                if let Some(resp) = &tx.response {
+                    for header_val in resp.headers.get_all("pragma").iter() {
+                        if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                            // An entirely empty Pragma value is a legal zero-element list, distinct from
+                            // an empty element *within* a list (flagged in check_pragma_value). Skip it.
+                            if v.is_empty() {
+                                continue;
+                            }
+                            if let Some(msg) = check_pragma_value(v) {
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!("Invalid Pragma header in response: {}", msg),
+                                ));
+                            }
+                        } else {
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Pragma header contains non-UTF8 value".into(),
+                            ));
+                        }
+                    }
+                }
+
+                None
+            };
         Vec::from_iter(finding())
     }
 

@@ -49,13 +49,7 @@ impl AcceptPatchHeaderValid {
     /// cite(RFC 5789 § 3.1, label: Accept-Patch grammar): "Accept-Patch = "Accept-Patch" ":" 1#media-type"
     /// cite(RFC 5789 § 3.1): "The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7."
     fn check_value(&self, value: &str, severity: crate::lint::Severity) -> Option<Violation> {
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().to_string(),
-                severity,
-                message,
-            })
-        };
+        let violation = |message: String| Some(self.violation(severity, message));
 
         let mut saw_an_empty_element = false;
         let mut members_present = 0usize;
@@ -254,11 +248,7 @@ impl Rule for AcceptPatchHeaderValid {
                 // cite(RFC 9110 § 15.5.16): "The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly."
                 // cite(RFC 9110 § 15.5.16): "If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used"
                 if resp.status == 415 && !resp.headers.contains_key("accept-encoding") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into()));
                 }
 
                 return None;
@@ -298,14 +288,10 @@ impl Rule for AcceptPatchHeaderValid {
                 // cite(RFC 5789 § 3): "The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised."
                 // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
                 if tx.request.uri != "*" && allow_names_patch(&resp.headers) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "OPTIONS response ({}) advertises PATCH in Allow and carries no Accept-Patch; RFC 5789 § 3.1 says Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method. § 3 leaves the Allow listing conforming without it and names what is lost: the list of allowed patch documents is not advertised",
                             resp.status
-                        ),
-                    });
+                        )));
                 }
             }
 

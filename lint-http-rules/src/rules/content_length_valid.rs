@@ -57,11 +57,7 @@ impl Rule for ContentLengthValid {
                             }
                         };
 
-                        Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message,
-                        })
+                        Some(self.violation(ctx.severity, message))
                     }
                 }
             };

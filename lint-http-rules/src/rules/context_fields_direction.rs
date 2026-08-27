@@ -107,11 +107,7 @@ impl Rule for ContextFieldsDirection {
                 })
             })?;
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message,
-            })
+            Some(self.violation(ctx.severity, message))
         };
         Vec::from_iter(finding())
     }

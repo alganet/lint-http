@@ -226,15 +226,14 @@ impl Rule for RefreshHeaderSyntax {
             // measured after this: judging the first line would judge something no
             // recipient reads.
             if count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(
+                    ctx.severity,
+                    format!(
                         "Response carries {count} Refresh header field lines; HTML specifies no \
                          handling for more than one, so what a recipient does with them is not \
                          interoperable"
                     ),
-                });
+                ));
             }
 
             let raw = lines.iter().next()?.as_bytes();
@@ -256,10 +255,11 @@ impl Rule for RefreshHeaderSyntax {
             // The conformance requirement `refresh_value_error` implements is written
             // for the `meta` pragma's content attribute; this is the sentence that
             // makes it this field's requirement too.
-            refresh_value_error(value).map(|why| Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("Refresh header value '{value}': {why}"),
+            refresh_value_error(value).map(|why| {
+                self.violation(
+                    ctx.severity,
+                    format!("Refresh header value '{value}': {why}"),
+                )
             })
         };
         Vec::from_iter(finding())

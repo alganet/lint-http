@@ -125,13 +125,7 @@ impl Rule for PreferenceAppliedHeaderValid {
         let finding = || -> Option<Violation> {
             let resp = tx.response.as_ref()?;
 
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // Read as octets, one `char` each, and joined across the field's lines.
             // A `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and
