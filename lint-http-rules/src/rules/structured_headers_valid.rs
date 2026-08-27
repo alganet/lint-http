@@ -118,33 +118,24 @@ impl Rule for StructuredHeadersValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
-            // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
-            for hdr in &config.headers {
-                // The two sections are joined separately, never across the pair: the
-                // sentence cited on `check_section` gathers the lines "in the same
-                // section", so a request's field and a response's field of the same
-                // name are two field values, not one.
-                if let Some(v) =
-                    self.check_section(&tx.request.headers, hdr, "request", ctx.severity)
-                {
-                    return Some(v);
-                }
-                if let Some(resp) = &tx.response {
-                    if let Some(v) =
-                        self.check_section(&resp.headers, hdr, "response", ctx.severity)
-                    {
-                        return Some(v);
-                    }
-                }
+        let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
+        // Every configured field is judged, and every failing one is its own
+        // finding: the fields are independent — §4.2 parses each field value
+        // on its own — so stopping at the first failure reported one defect
+        // and silently swallowed the rest of the configured list.
+        // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
+        let mut out = Vec::new();
+        for hdr in &config.headers {
+            // The two sections are joined separately, never across the pair: the
+            // sentence cited on `check_section` gathers the lines "in the same
+            // section", so a request's field and a response's field of the same
+            // name are two field values, not one.
+            out.extend(self.check_section(&tx.request.headers, hdr, "request", ctx.severity));
+            if let Some(resp) = &tx.response {
+                out.extend(self.check_section(&resp.headers, hdr, "response", ctx.severity));
             }
-
-            None
-        };
-        Vec::from_iter(finding())
+        }
+        out
     }
 
     fn description(&self) -> &'static str {
@@ -1253,5 +1244,27 @@ mod tests {
         .expect("should report");
         assert!(v.message.contains("outside ASCII"), "{}", v.message);
         assert!(!v.message.contains("UTF-8"), "{}", v.message);
+    }
+
+    /// Two configured fields, both malformed, are two findings — the split
+    /// the Vec return exists for. Asserted through the all-findings helper;
+    /// the single-finding tests above still read the first.
+    #[test]
+    fn each_failing_configured_field_is_its_own_finding() {
+        let cfg = make_cfg_with_headers(&["x-first", "x-second"]);
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("x-first", "\"unterminated"),
+            ("x-second", "\"also unterminated"),
+        ]);
+        let all = crate::test_helpers::run_rule_all(
+            &StructuredHeadersValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(all[0].message.contains("x-first"), "{}", all[0].message);
+        assert!(all[1].message.contains("x-second"), "{}", all[1].message);
     }
 }
