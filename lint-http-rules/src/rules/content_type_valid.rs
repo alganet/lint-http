@@ -308,8 +308,7 @@ mod tests {
     #[case("text/plain; charset=", true)]
     #[case("text/plain; charset=\"\"", false)]
     fn content_type_parsing_cases(#[case] val: &str, #[case] expect_violation: bool) {
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let res = super::check_content_type("test", val, cfg.severity);
+        let res = super::check_content_type("test", val, crate::lint::Severity::Warn);
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", val);
         } else {
@@ -339,8 +338,7 @@ mod tests {
     #[case("text/plain; foo=\"a\\\"b\"", false)]
     #[case("text/plain; foo=\"\"", false)]
     fn extra_content_type_cases(#[case] val: &str, #[case] expect_violation: bool) {
-        let cfg = crate::test_helpers::make_test_rule_config();
-        let res = super::check_content_type("test", val, cfg.severity);
+        let res = super::check_content_type("test", val, crate::lint::Severity::Warn);
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", val);
         } else {
