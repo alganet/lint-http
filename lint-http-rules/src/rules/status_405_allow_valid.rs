@@ -95,13 +95,7 @@ impl Rule for Status405AllowValid {
                 return None;
             }
 
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().to_string(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // One field section is one value however many lines carry it, and the join
             // is over the octets: a value carrying `obs-text` is a value that is there,

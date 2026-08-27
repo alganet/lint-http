@@ -39,13 +39,7 @@ impl AllowHeaderMethodTokensValid {
         section: &str,
         severity: crate::lint::Severity,
     ) -> Option<Violation> {
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().to_string(),
-                severity,
-                message,
-            })
-        };
+        let violation = |message: String| Some(self.violation(severity, message));
 
         // The field's own production, in the form the collected grammar gives a
         // sender, and the two things it says about emptiness. The outer `[ ]` is why

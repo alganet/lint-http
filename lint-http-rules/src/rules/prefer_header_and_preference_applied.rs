@@ -190,14 +190,10 @@ impl Rule for PreferHeaderAndPreferenceApplied {
                 None => "it carries no Vary field".to_string(),
             };
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "Response states the '{}' preference was applied — {} — but {}, so a cache holding this response under the target URI alone can serve it to a request that preferred otherwise",
                     name, why, vary_state
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

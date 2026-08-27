@@ -50,18 +50,14 @@ impl Rule for TrailerFieldsValid {
             // its `Connection` names options for that message, so neither says anything
             // about what the response may put after its content.
             if let Some(ref trailers) = tx.request.trailers {
-                if let Some(v) =
-                    check_trailers(self.id(), ctx.severity, trailers, &tx.request.headers)
-                {
+                if let Some(v) = check_trailers(self, ctx.severity, trailers, &tx.request.headers) {
                     return Some(v);
                 }
             }
 
             if let Some(ref resp) = tx.response {
                 if let Some(ref trailers) = resp.trailers {
-                    if let Some(v) =
-                        check_trailers(self.id(), ctx.severity, trailers, &resp.headers)
-                    {
+                    if let Some(v) = check_trailers(self, ctx.severity, trailers, &resp.headers) {
                         return Some(v);
                     }
                 }
@@ -191,7 +187,7 @@ fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Option<Vec<String>> 
 
 /// Validate one message's trailer section against its own header section.
 fn check_trailers(
-    rule_id: &str,
+    rule: &dyn crate::rules::Rule,
     severity: crate::lint::Severity,
     trailers: &hyper::HeaderMap,
     headers: &hyper::HeaderMap,
@@ -218,20 +214,19 @@ fn check_trailers(
         //
         // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
         if crate::helpers::headers::is_prohibited_trailer_field(name) {
-            return Some(Violation {
-                rule: rule_id.to_string(),
+            return Some(rule.violation(
                 severity,
                 // The message names the field's own definition rather than the
                 // category §6.5.1 sorts it under, because the category is not what
                 // decides: `Authentication-Info` is an authentication field and its
                 // definition permits the usage.
-                message: format!(
+                format!(
                     "Trailer section contains '{}', whose definition does not permit \
                      it to be sent in a trailer section; its value is one a recipient \
                      needs before it reads the content (RFC 9110 §6.5.1)",
                     name
                 ),
-            });
+            ));
         }
 
         // The other half, and the one that depends on this message rather than on
@@ -245,17 +240,16 @@ fn check_trailers(
         //
         // cite(RFC 9110 § 7.6.1): "When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field."
         if crate::helpers::headers::is_nominated_by_connection(name, connection_val.as_deref()) {
-            return Some(Violation {
-                rule: rule_id.to_string(),
+            return Some(rule.violation(
                 severity,
-                message: format!(
+                format!(
                     "Trailer field '{}' is named as a connection-option in this \
                      message's Connection header, so it is control information for \
                      this connection and every intermediary removes it from the \
                      trailer section before forwarding (RFC 9110 §7.6.1)",
                     name
                 ),
-            });
+            ));
         }
 
         // Undeclared trailer field — asked only of a message that carries a
@@ -267,16 +261,15 @@ fn check_trailers(
         // cite(RFC 9110 § 6.6.2): "A sender that intends to generate one or more trailer fields in a message SHOULD generate a Trailer header field in the header section of that message to indicate which fields might be present in the trailers."
         if let Some(ref declared) = declared {
             if !declared.iter().any(|d| d == name) {
-                return Some(Violation {
-                    rule: rule_id.to_string(),
+                return Some(rule.violation(
                     severity,
-                    message: format!(
+                    format!(
                         "Trailer field '{}' was not declared in the Trailer header; \
                          senders should list the fields that might appear in the \
                          trailers before the message body (RFC 9110 §6.6.2)",
                         name
                     ),
-                });
+                ));
             }
         }
     }

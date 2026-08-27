@@ -41,11 +41,10 @@ impl Rule for EtagOrLastModifiedPresent {
                 && !resp.headers.contains_key("etag")
                 && !resp.headers.contains_key("last-modified")
             {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Response 200 without ETag or Last-Modified validator".into(),
-                })
+                Some(self.violation(
+                    ctx.severity,
+                    "Response 200 without ETag or Last-Modified validator".into(),
+                ))
             } else {
                 None
             }

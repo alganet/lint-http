@@ -368,11 +368,10 @@ impl ProtocolRule for WebsocketFrameOpcodeSequence {
             // several map probes and a hash of the id — so only a frame about to be
             // reported pays for it.
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("A WebSocket frame the {} sent {}", frame.sender(), defect),
-            })
+            Some(self.violation(
+                ctx.severity,
+                format!("A WebSocket frame the {} sent {}", frame.sender(), defect),
+            ))
         };
         Vec::from_iter(finding())
     }

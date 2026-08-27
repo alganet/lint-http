@@ -222,14 +222,13 @@ fn check_multipart_boundary(
                     // all, since both alternatives are non-empty.
                     // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
                     if value.is_empty() {
-                        return Some(Violation {
-                            rule: MultipartBoundarySyntax.id().into(),
+                        return Some(MultipartBoundarySyntax.violation(
                             severity,
-                            message: format!(
+                            format!(
                                 "Invalid multipart Content-Type in {}: empty 'boundary' parameter",
                                 which
                             ),
-                        });
+                        ));
                     }
 
                     // The two alternatives of `parameter-value`, each handed
@@ -251,14 +250,13 @@ fn check_multipart_boundary(
                         match crate::helpers::headers::unescape_quoted_string(value) {
                             Ok(u) => u,
                             Err(e) => {
-                                return Some(Violation {
-                                    rule: MultipartBoundarySyntax.id().into(),
+                                return Some(MultipartBoundarySyntax.violation(
                                     severity,
-                                    message: format!(
+                                    format!(
                                         "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
                                         which, e
                                     ),
-                                })
+                                ))
                             }
                         }
                     } else {
@@ -272,14 +270,13 @@ fn check_multipart_boundary(
                         // are rejected either way and only the wording of the
                         // finding differs.
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
-                            return Some(Violation {
-                                rule: MultipartBoundarySyntax.id().into(),
+                            return Some(MultipartBoundarySyntax.violation(
                                 severity,
-                                message: format!(
+                                format!(
                                     "Invalid multipart Content-Type in {}: boundary contains invalid token character '{}'",
                                     which, c
                                 ),
-                            });
+                            ));
                         }
                         value.to_string()
                     };
@@ -320,14 +317,13 @@ fn check_multipart_boundary(
                         {
                             continue;
                         }
-                        return Some(Violation {
-                            rule: MultipartBoundarySyntax.id().into(),
+                        return Some(MultipartBoundarySyntax.violation(
                             severity,
-                            message: format!(
+                            format!(
                                 "Invalid multipart Content-Type in {}: boundary contains invalid character '{}'",
                                 which, ch
                             ),
-                        });
+                        ));
                     }
 
                     // 70, not 69 and not 71: the production is 0*69 of
@@ -339,14 +335,13 @@ fn check_multipart_boundary(
                     // cite(RFC 2046 § 5.1.1): "The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space."
                     let len = boundary_unquoted.chars().count();
                     if len == 0 || len > 70 {
-                        return Some(Violation {
-                            rule: MultipartBoundarySyntax.id().into(),
+                        return Some(MultipartBoundarySyntax.violation(
                             severity,
-                            message: format!(
+                            format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
                                 which
                             ),
-                        });
+                        ));
                     }
 
                     // Space is the one whitespace character the check above
@@ -359,14 +354,13 @@ fn check_multipart_boundary(
                     // recipient cannot tell it from the delimiter's own.
                     // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
                     if boundary_unquoted.ends_with(' ') {
-                        return Some(Violation {
-                            rule: MultipartBoundarySyntax.id().into(),
+                        return Some(MultipartBoundarySyntax.violation(
                             severity,
-                            message: format!(
+                            format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
                                 which
                             ),
-                        });
+                        ));
                     }
                 }
             }
@@ -385,14 +379,13 @@ fn check_multipart_boundary(
         // what the broken quoting makes unknowable. An unreadable parameter
         // list is `content_type_valid`'s finding.
         if !found && !unreadable {
-            return Some(Violation {
-                rule: MultipartBoundarySyntax.id().into(),
+            return Some(MultipartBoundarySyntax.violation(
                 severity,
-                message: format!(
+                format!(
                     "Invalid multipart Content-Type in {}: missing required 'boundary' parameter",
                     which
                 ),
-            });
+            ));
         }
     }
 

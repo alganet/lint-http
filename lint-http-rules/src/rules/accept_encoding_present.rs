@@ -71,23 +71,17 @@ impl Rule for AcceptEncodingPresent {
             }
 
             if !present {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Request expresses no content-coding preference (no Accept-Encoding \
+                return Some(self.violation(ctx.severity, "Request expresses no content-coding preference (no Accept-Encoding \
                               header); any coding is acceptable, but most servers will not compress \
                               without an explicit signal"
-                        .into(),
-                });
+                        .into()));
             }
 
             if !any_coding {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Request declines all content codings (empty Accept-Encoding header)"
-                        .into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Request declines all content codings (empty Accept-Encoding header)".into(),
+                ));
             }
 
             // Anything that lists a coding stops here, including the values that

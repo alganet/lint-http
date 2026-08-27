@@ -65,14 +65,10 @@ impl Rule for ContentTypeValid {
                 // one would imply the recipient reads it, which is the thing §8.3
                 // says cannot be assumed.
                 if vals.len() > 1 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Multiple Content-Type field lines in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
                             which
-                        ),
-                    });
+                        )));
                 }
 
                 for hv in vals {
@@ -231,11 +227,7 @@ fn check_content_type(
             } else {
                 msg.replace("media-type", "Content-Type")
             };
-            return Some(Violation {
-                rule: ContentTypeValid.id().into(),
-                severity,
-                message,
-            });
+            return Some(ContentTypeValid.violation(severity, message));
         }
     };
 
@@ -247,14 +239,13 @@ fn check_content_type(
     // here identifies nothing, so the field says nothing.
     // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
     if parsed.type_ == "*" || parsed.subtype == "*" {
-        return Some(Violation {
-            rule: ContentTypeValid.id().into(),
+        return Some(ContentTypeValid.violation(
             severity,
-            message: format!(
+            format!(
                 "Content-Type '{}' uses a wildcard, which names a set of media types rather than one; a representation's Content-Type is expected to identify a single media type (wildcards belong to Accept's media-range)",
                 val
             ),
-        });
+        ));
     }
 
     // The helper split on "/" and rejected an empty half; what each half must
@@ -269,11 +260,10 @@ fn check_content_type(
     // The helper returns the reason rather than a message, so this rule still
     // names its own field in the finding.
     if let Some(reason) = crate::helpers::headers::media_type_parts_defect(&parsed) {
-        return Some(Violation {
-            rule: ContentTypeValid.id().into(),
+        return Some(ContentTypeValid.violation(
             severity,
-            message: format!("Invalid Content-Type '{}': {}", val, reason),
-        });
+            format!("Invalid Content-Type '{}': {}", val, reason),
+        ));
     }
 
     None

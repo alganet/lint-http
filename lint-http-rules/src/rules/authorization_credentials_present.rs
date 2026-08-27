@@ -35,19 +35,17 @@ impl Rule for AuthorizationCredentialsPresent {
                         // reasoning and the §11.4 structure cite.
                         // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
                         if let Err(msg) = crate::helpers::auth::validate_authorization_syntax(s) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Invalid Authorization header: {}", msg),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("Invalid Authorization header: {}", msg),
+                            ));
                         }
                     }
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Authorization header contains non-UTF8 value".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Authorization header contains non-UTF8 value".into(),
+                        ))
                     }
                 }
             }

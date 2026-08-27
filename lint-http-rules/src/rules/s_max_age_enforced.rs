@@ -100,14 +100,10 @@ impl Rule for SMaxAgeEnforced {
             // assumes the observed client is private, which cannot be verified from traffic).
             // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires header field."
             if has_conditional && current_age >= s_max_age && current_age < max_age {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Resource revalidated after s-maxage={} but before max-age={} (age {}) — private caches must ignore s-maxage and use max-age for freshness",
                         s_max_age, max_age, current_age
-                    ),
-                });
+                    )));
             }
 
             None

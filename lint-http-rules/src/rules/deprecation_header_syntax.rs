@@ -41,11 +41,7 @@ impl Rule for DeprecationHeaderSyntax {
             // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if vals.len() > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple Deprecation header fields present; Deprecation is a single Structured Field Item (RFC 9745 §2.1), so a response carries at most one Deprecation field line (RFC 9110 §5.3)".into(),
-                });
+                return Some(self.violation(ctx.severity, "Multiple Deprecation header fields present; Deprecation is a single Structured Field Item (RFC 9745 §2.1), so a response carries at most one Deprecation field line (RFC 9110 §5.3)".into()));
             }
 
             let hv = vals.into_iter().next()?;
@@ -53,11 +49,10 @@ impl Rule for DeprecationHeaderSyntax {
             let s = match hv.to_str() {
                 Ok(s) => s.trim(),
                 Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Deprecation header contains non-UTF8 value".into(),
-                    })
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Deprecation header contains non-UTF8 value".into(),
+                    ))
                 }
             };
 
@@ -75,28 +70,16 @@ impl Rule for DeprecationHeaderSyntax {
             // HTTP-date detections below are diagnostics that produce a more helpful message
             // (both are legacy draft-era forms). Recorded as heuristics in the tracker.
             if s.eq_ignore_ascii_case("true") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Deprecation header uses legacy token 'true'; RFC 9745 defines Deprecation as a structured date '@<epoch>' (prefer '@<seconds>' form)".into(),
-                });
+                return Some(self.violation(ctx.severity, "Deprecation header uses legacy token 'true'; RFC 9745 defines Deprecation as a structured date '@<epoch>' (prefer '@<seconds>' form)".into()));
             }
 
             // Accept legacy HTTP-date but report it as deprecated (helpful message)
             if crate::http_date::is_valid_http_date(s) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>' (see RFC 9745 §2.1)".into(),
-                });
+                return Some(self.violation(ctx.severity, "Deprecation header uses legacy HTTP-date format; RFC 9745 specifies Deprecation as a structured date '@<seconds>' (see RFC 9745 §2.1)".into()));
             }
 
             // Otherwise it's invalid
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", s),
-            })
+            Some(self.violation(ctx.severity, format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", s)))
         };
         Vec::from_iter(finding())
     }

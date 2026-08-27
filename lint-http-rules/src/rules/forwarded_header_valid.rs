@@ -82,13 +82,7 @@ impl ForwardedHeaderValid {
     /// its commas. Everything inside it is the element's own production, which
     /// has no `OWS` in it anywhere.
     fn check_element(&self, elem: &str, severity: crate::lint::Severity) -> Option<Violation> {
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().into(),
-                severity,
-                message,
-            })
-        };
+        let violation = |message: String| Some(self.violation(severity, message));
 
         // §7.1's whitespace is the list's, between elements; the element itself
         // is `[ forwarded-pair ] *( ";" [ forwarded-pair ] )` and generates none
@@ -209,13 +203,7 @@ impl ForwardedHeaderValid {
 
     /// One `Forwarded` field line.
     fn check_field_line(&self, line: &str, severity: crate::lint::Severity) -> Option<Violation> {
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().into(),
-                severity,
-                message,
-            })
-        };
+        let violation = |message: String| Some(self.violation(severity, message));
 
         // Quote-aware, because a comma inside a quoted-string is `qdtext` and
         // not a member separator: the recipient's list reader used here before
@@ -335,17 +323,13 @@ impl Rule for ForwardedHeaderValid {
                     .as_ref()
                     .is_some_and(|t| t.contains_key("forwarded"));
                 if resp.headers.contains_key("forwarded") || in_trailers {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Response carries a Forwarded field in its {} section: the field is only for use in HTTP requests, and copying it into a response reveals the proxy chain to the client",
                             match in_trailers && !resp.headers.contains_key("forwarded") {
                                 true => "trailer",
                                 false => "header",
                             }
-                        ),
-                    });
+                        )));
                 }
             }
 

@@ -72,10 +72,9 @@ impl Rule for RequestUriPercentEncodingValid {
                 // in a finding is a finding nobody can read.
                 let shown = crate::helpers::headers::shown_in_finding(target);
 
-                return Some(Violation {
-                    rule: self.id().into(),
+                return Some(self.violation(
                     severity,
-                    message: format!(
+                    format!(
                         "Request target '{shown}': {msg}. The percent character is the indicator for a \
                          percent-encoded octet and opens a triplet -- itself and two hexadecimal \
                          digits -- so one meant as data is written '%25'. Once produced a URI is \
@@ -84,7 +83,7 @@ impl Rule for RequestUriPercentEncodingValid {
                          decodes before it has separated the components can take the result for a \
                          delimiter"
                     ),
-                });
+                ));
             }
 
             // The other half of the same mechanism: percent-encoding is what carries
@@ -116,10 +115,9 @@ impl Rule for RequestUriPercentEncodingValid {
                 let shown = crate::helpers::headers::shown_in_finding(target);
                 let shown_char = crate::helpers::headers::shown_in_finding(&ch.to_string());
 
-                return Some(Violation {
-                    rule: self.id().into(),
+                return Some(self.violation(
                     severity,
-                    message: format!(
+                    format!(
                         "Request target '{shown}' contains '{shown_char}' (U+{:04X}), which is not one \
                          of the characters a URI is composed from -- digits, letters and a few graphic \
                          symbols, the notation's terminals being US-ASCII codepoints. An octet whose \
@@ -127,7 +125,7 @@ impl Rule for RequestUriPercentEncodingValid {
                          was written raw, so no component's production derives this target",
                         ch as u32
                     ),
-                });
+                ));
             }
 
             None

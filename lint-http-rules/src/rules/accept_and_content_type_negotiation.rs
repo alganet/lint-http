@@ -225,14 +225,10 @@ impl Rule for AcceptAndContentTypeNegotiation {
             }
 
             if !matched {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Response Content-Type '{}' does not match request Accept header '{}', consider returning 406 Not Acceptable",
                         content_type, accept
-                    ),
-                });
+                    )));
             }
 
             None

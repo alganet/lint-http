@@ -41,11 +41,10 @@ impl Rule for ContentLengthVsTransferEncoding {
             if tx.request.headers.contains_key("content-length")
                 && tx.request.headers.contains_key("transfer-encoding")
             {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Both Content-Length and Transfer-Encoding present".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Both Content-Length and Transfer-Encoding present".into(),
+                ));
             }
 
             // Check response headers if present
@@ -53,11 +52,10 @@ impl Rule for ContentLengthVsTransferEncoding {
                 if resp.headers.contains_key("content-length")
                     && resp.headers.contains_key("transfer-encoding")
                 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Both Content-Length and Transfer-Encoding present".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Both Content-Length and Transfer-Encoding present".into(),
+                    ));
                 }
             }
 

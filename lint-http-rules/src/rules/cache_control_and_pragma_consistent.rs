@@ -53,11 +53,7 @@ impl Rule for CacheControlAndPragmaConsistent {
                                         // heuristic — Pragma: no-cache asks a cache to revalidate,
                                         // only-if-cached asks it to serve from cache or fail. Recorded
                                         // in the tracker.
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)".to_string(),
-                                        });
+                                        return Some(self.violation(ctx.severity, "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)".to_string()));
                                     }
                                 }
                             }
@@ -73,11 +69,7 @@ impl Rule for CacheControlAndPragmaConsistent {
             // cite(RFC 9111 § 5.4): "However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma."
             if let Some(resp) = &tx.response {
                 if resp.headers.contains_key("pragma") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead (RFC 9111 §5.4)".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead (RFC 9111 §5.4)".into()));
                 }
             }
 

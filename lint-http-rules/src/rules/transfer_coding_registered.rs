@@ -83,14 +83,13 @@ impl Rule for TransferCodingRegistered {
                 // be the whole of the answer.
                 // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
                 if !crate::helpers::headers::quoting_is_balanced(val) {
-                    return Some(Violation {
-                        rule: "transfer_coding_registered".into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(TransferCodingRegistered.violation(
+                        ctx.severity,
+                        format!(
                             "Unterminated quoted-string in {} header: '{}'",
                             hdr_name, val
                         ),
-                    });
+                    ));
                 }
                 // cite(RFC 9112 § 7.3): "The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names."
                 //
@@ -147,28 +146,26 @@ impl Rule for TransferCodingRegistered {
                     // named `''`, which describes the wrong defect.
                     // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
                     if token.is_empty() {
-                        return Some(Violation {
-                            rule: "transfer_coding_registered".into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(TransferCodingRegistered.violation(
+                            ctx.severity,
+                            format!(
                                 "Missing transfer-coding name in {} header member '{}'",
                                 hdr_name, part
                             ),
-                        });
+                        ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(Violation {
-                            rule: "transfer_coding_registered".into(),
-                            severity: ctx.severity,
+                        return Some(TransferCodingRegistered.violation(
+                            ctx.severity,
                             // The offending character alone does not locate itself
                             // on a field with several members -- `Invalid token
                             // '<'` says nothing about which coding carried it.
                             // The name goes in the message.
-                            message: format!(
+                            format!(
                                 "Invalid token '{}' in transfer-coding '{}' of {} header",
                                 c, token, hdr_name
                             ),
-                        });
+                        ));
                     }
                     // `chunked` is a registered coding and sits in the default
                     // `allowed` list, so the registry check below waves it through
@@ -182,14 +179,14 @@ impl Rule for TransferCodingRegistered {
                     // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
                     if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("chunked")
                     {
-                        return Some(Violation {
-                            rule: "transfer_coding_registered".into(),
-                            severity: ctx.severity,
-                            message:
+                        return Some(
+                            TransferCodingRegistered.violation(
+                                ctx.severity,
                                 "A client must not send the chunked transfer coding name in TE; \
                                  chunked is always acceptable for HTTP/1.1 recipients"
                                     .into(),
-                        });
+                            ),
+                        );
                     }
                     // § 7.2 defines exactly these five names by reference to the
                     // content codings of the same name, and then says outright what
@@ -239,15 +236,14 @@ impl Rule for TransferCodingRegistered {
                             {
                                 continue;
                             }
-                            return Some(Violation {
-                                rule: "transfer_coding_registered".into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(TransferCodingRegistered.violation(
+                                ctx.severity,
+                                format!(
                                     "Transfer-coding '{}' defines no parameters, but '{}' is \
                                      present in the {} header",
                                     token, param, hdr_name
                                 ),
-                            });
+                            ));
                         }
                     }
                     // The registry check, and the weakest sentence in the rule.
@@ -269,14 +265,13 @@ impl Rule for TransferCodingRegistered {
                     // is the same sentence the config parser folds by.
                     // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
                     if !allowed.contains(&token.to_ascii_lowercase()) {
-                        return Some(Violation {
-                            rule: "transfer_coding_registered".into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(TransferCodingRegistered.violation(
+                            ctx.severity,
+                            format!(
                                 "Unrecognized transfer-coding '{}' in {} header",
                                 token, hdr_name
                             ),
-                        });
+                        ));
                     }
                 }
                 None

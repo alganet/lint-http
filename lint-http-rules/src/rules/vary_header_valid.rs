@@ -38,16 +38,16 @@ impl Rule for VaryHeaderValid {
             // are each "*" or a field-name.
             // cite(RFC 9110 § 12.5.5): "Vary = #( "*" / field-name )"
             for hv in resp.headers.get_all("vary").iter() {
-                let s = match hv.to_str() {
-                    Ok(s) => s,
-                    Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Vary header contains non-UTF8 value".into(),
-                        })
-                    }
-                };
+                let s =
+                    match hv.to_str() {
+                        Ok(s) => s,
+                        Err(_) => {
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Vary header contains non-UTF8 value".into(),
+                            ))
+                        }
+                    };
 
                 // Vary is a `#`-list, so an entirely empty value is a legal zero-element
                 // list (the degenerate "does not vary" case), not a malformed header.
@@ -61,11 +61,7 @@ impl Rule for VaryHeaderValid {
                 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                 for raw in s.split(',') {
                     if raw.trim().is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Vary header contains empty token (e.g., trailing or consecutive commas)".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Vary header contains empty token (e.g., trailing or consecutive commas)".into()));
                     }
                 }
 
@@ -89,14 +85,13 @@ impl Rule for VaryHeaderValid {
 
                     // Every other member is a field-name, i.e. a token.
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "Vary header contains invalid field-name token character: '{}'",
                                 c
                             ),
-                        });
+                        ));
                     }
                 }
             }

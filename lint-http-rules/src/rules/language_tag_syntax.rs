@@ -53,11 +53,10 @@ impl Rule for LanguageTagSyntax {
             let check_tag = |hdr: &str, tag: &str| -> Option<Violation> {
                 // cite(RFC 9110 § 8.5.1): "A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings."
                 if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Invalid language tag '{}' in {}: {}", tag, hdr, e),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!("Invalid language tag '{}' in {}: {}", tag, hdr, e),
+                    ));
                 }
                 None
             };

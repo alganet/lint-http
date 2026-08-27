@@ -130,28 +130,20 @@ impl Rule for CookieLifecycle {
                             && c.path_matches(&req_path)
                     }) {
                         // cite(RFC 6265 § 4.1.2.5): "The Secure attribute limits the scope of the cookie to "secure" channels"
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "Secure cookie '{}' sent over insecure transport",
-                                name
-                            ),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Secure cookie '{}' sent over insecure transport", name),
+                        ));
                     }
                 }
 
                 if let Some(c) = matching_live {
                     // live cookie exists; ensure value matches
                     if c.value != value {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(ctx.severity, format!(
                                 "Cookie '{}' value '{}' does not match stored value '{}', likely stale",
                                 name, value, c.value
-                            ),
-                        });
+                            )));
                     }
                 } else {
                     // no live cookie.  inspect history to see why it isn't live:
@@ -189,25 +181,20 @@ impl Rule for CookieLifecycle {
                         // still sending it has a store the user agent was required to have
                         // emptied.
                         // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(ctx.severity, format!(
                                 "Cookie '{}' was previously set but is expired or removed and should not be sent",
                                 name
-                            ),
-                        });
+                            )));
                     }
                     if seen_domain {
                         // a cookie existed for the domain but path did not match
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "Cookie '{}' is not valid for path '{}' and should not be sent",
                                 name, req_path
                             ),
-                        });
+                        ));
                     }
                 }
                 // otherwise, the cookie may predate our history; assume it's

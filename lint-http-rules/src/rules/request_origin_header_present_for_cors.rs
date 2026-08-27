@@ -40,19 +40,17 @@ impl Rule for RequestOriginHeaderPresentForCors {
                 match crate::helpers::headers::get_header_str(headers, "origin") {
                     Some(origin_val) => {
                         if let Some(err) = crate::helpers::uri::validate_origin_value(origin_val) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Origin header invalid: {}", err),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("Origin header invalid: {}", err),
+                            ));
                         }
                     }
                     None => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "CORS preflight request missing Origin header".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "CORS preflight request missing Origin header".into(),
+                        ))
                     }
                 }
             }
@@ -71,13 +69,13 @@ impl Rule for RequestOriginHeaderPresentForCors {
                             // cite(Fetch § 3.2): "The `Origin` request header indicates where a fetch originates from."
                             if crate::helpers::headers::get_header_str(headers, "origin").is_none()
                             {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message:
+                                return Some(
+                                    self.violation(
+                                        ctx.severity,
                                         "Cross-origin absolute-form request missing Origin header"
                                             .into(),
-                                });
+                                    ),
+                                );
                             }
                         }
                     }

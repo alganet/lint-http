@@ -171,16 +171,15 @@ fn check_section(
             continue;
         }
         // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
-        return Some(Violation {
-            rule: ExtensionHeadersRegistered.id().into(),
+        return Some(ExtensionHeadersRegistered.violation(
             severity,
-            message: format!(
+            format!(
                 "Field name '{}' in the {} is not in the 'allowed' list for '{}'. That list is the rule's only authority: add the name to it if this deployment expects the field",
                 name.as_str(),
                 section,
                 ExtensionHeadersRegistered.id()
             ),
-        });
+        ));
     }
     None
 }

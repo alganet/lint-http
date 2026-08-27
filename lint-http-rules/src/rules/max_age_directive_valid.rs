@@ -116,14 +116,10 @@ impl Rule for MaxAgeDirectiveValid {
                     // — which is what this reports. (`immutable` is the one directive that
                     // turns this into a SHOULD NOT, and that is a separate rule.)
                     // cite(RFC 9111 § 4.2): "When a response is fresh, it can be used to satisfy subsequent requests without contacting the origin server, thereby improving efficiency"
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Request revalidated resource while response is still fresh (age {} < max-age {})",
                             current_age, max_age
-                        ),
-                    });
+                        )));
                 }
             } else if !has_conditional {
                 // only warn if there was something to validate against
@@ -136,14 +132,10 @@ impl Rule for MaxAgeDirectiveValid {
                     // unconditionally is legal — it just discards the validator already held
                     // and the 304 it could have earned.
                     // cite(RFC 9111 § 4.3): "it can use the conditional request mechanism"
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Stale cached entry (age {} >= max-age {}) refetched without a conditional request, though a validator was available to revalidate with",
                             current_age, max_age
-                        ),
-                    });
+                        )));
                 }
             }
 

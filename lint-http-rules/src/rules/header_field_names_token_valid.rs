@@ -144,14 +144,13 @@ fn check_header_name(
     // transcribed once, in the shared helper, and read from there.
     // cite(RFC 9110 § A): "field-name = token field-value = *field-content"
     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-        return Some(Violation {
-            rule: HeaderFieldNamesTokenValid.id().into(),
+        return Some(HeaderFieldNamesTokenValid.violation(
             severity,
-            message: format!(
+            format!(
                 "Field name '{}' in the {} contains invalid character: '{}'",
                 name, section, c
             ),
-        });
+        ));
     }
     None
 }

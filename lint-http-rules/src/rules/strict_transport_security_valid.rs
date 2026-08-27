@@ -35,21 +35,18 @@ impl Rule for StrictTransportSecurityValid {
                 let v = match hv.to_str() {
                     Ok(s) => s.trim(),
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Strict-Transport-Security header contains non-UTF8 value"
-                                .into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Strict-Transport-Security header contains non-UTF8 value".into(),
+                        ));
                     }
                 };
 
                 if v.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Strict-Transport-Security header must not be empty".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Strict-Transport-Security header must not be empty".into(),
+                    ));
                 }
 
                 let mut saw_max_age = false;
@@ -59,32 +56,25 @@ impl Rule for StrictTransportSecurityValid {
                     let member = member.trim();
                     if member.is_empty() {
                         // skip stray semicolons but flag as violation
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Empty directive in Strict-Transport-Security header".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Empty directive in Strict-Transport-Security header".into(),
+                        ));
                     }
 
                     // directive = token [ "=" token ]
                     let mut kv = member.splitn(2, '=');
                     let name = kv.next().unwrap().trim();
                     if name.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Empty directive name in Strict-Transport-Security header"
-                                .into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Empty directive name in Strict-Transport-Security header".into(),
+                        ));
                     }
 
                     // cite(RFC 6797 § 6.1): "directive-name            = token"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Strict-Transport-Security directive name contains invalid character: '{}'", c),
-                        });
+                        return Some(self.violation(ctx.severity, format!("Strict-Transport-Security directive name contains invalid character: '{}'", c)));
                     }
 
                     let lname = name.to_ascii_lowercase();
@@ -99,43 +89,24 @@ impl Rule for StrictTransportSecurityValid {
                             if let Some(vpart) = kv.next() {
                                 let vpart = vpart.trim();
                                 if vpart.is_empty() {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: "Strict-Transport-Security 'max-age' must have a numeric value".into(),
-                                    });
+                                    return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' must have a numeric value".into()));
                                 }
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(vpart)
                                 {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!("Strict-Transport-Security 'max-age' contains invalid character: '{}'", c),
-                                    });
+                                    return Some(self.violation(ctx.severity, format!("Strict-Transport-Security 'max-age' contains invalid character: '{}'", c)));
                                 }
                                 if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: "Strict-Transport-Security 'max-age' must be a non-negative integer".into(),
-                                    });
+                                    return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' must be a non-negative integer".into()));
                                 }
                                 if vpart.parse::<u64>().is_err() {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: "Strict-Transport-Security 'max-age' value is not a valid integer".into(),
-                                    });
+                                    return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' value is not a valid integer".into()));
                                 }
                             } else {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message:
-                                        "Strict-Transport-Security 'max-age' must have a value"
-                                            .into(),
-                                });
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    "Strict-Transport-Security 'max-age' must have a value".into(),
+                                ));
                             }
                         }
                         // cite(RFC 6797 § 6.1.2): "The OPTIONAL "includeSubDomains" directive is a valueless directive which, if present (i.e., it is "asserted"), signals the UA that the HSTS Policy applies to this HSTS Host as well as any subdomains of the host's domain name."
@@ -143,11 +114,7 @@ impl Rule for StrictTransportSecurityValid {
                             // canonical name is includeSubDomains, but accept case-insensitively
                             // must NOT have a value (it is "valueless" per §6.1.2)
                             if kv.next().is_some() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Strict-Transport-Security 'includeSubDomains' directive must not have a value".into(),
-                                });
+                                return Some(self.violation(ctx.severity, "Strict-Transport-Security 'includeSubDomains' directive must not have a value".into()));
                             }
                         }
                         // `preload` is not an RFC 6797 directive — it is a de-facto extension (the
@@ -156,11 +123,7 @@ impl Rule for StrictTransportSecurityValid {
                         // governs this branch; it is validated like a known valueless directive.
                         "preload" => {
                             if kv.next().is_some() {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Strict-Transport-Security 'preload' directive must not have a value".into(),
-                                });
+                                return Some(self.violation(ctx.severity, "Strict-Transport-Security 'preload' directive must not have a value".into()));
                             }
                         }
                         _ => {
@@ -172,20 +135,12 @@ impl Rule for StrictTransportSecurityValid {
                                     if let Err(e) =
                                         crate::helpers::headers::validate_quoted_string(vpart)
                                     {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e),
-                                        });
+                                        return Some(self.violation(ctx.severity, format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e)));
                                     }
                                 } else if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(vpart)
                                 {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!("Strict-Transport-Security directive '{}' value contains invalid character: '{}'", name, c),
-                                    });
+                                    return Some(self.violation(ctx.severity, format!("Strict-Transport-Security directive '{}' value contains invalid character: '{}'", name, c)));
                                 }
                             }
                         }
@@ -194,23 +149,18 @@ impl Rule for StrictTransportSecurityValid {
 
                 // cite(RFC 6797 § 6.1): "All directives MUST appear only once in an STS header field."
                 if max_age_count > 1 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
-                            "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
-                                .into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
+                                .into()));
                 }
 
                 if !saw_max_age {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
+                    return Some(
+                        self.violation(
+                            ctx.severity,
                             "Strict-Transport-Security header missing required 'max-age' directive"
                                 .into(),
-                    });
+                        ),
+                    );
                 }
             }
 

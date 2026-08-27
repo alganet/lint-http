@@ -46,24 +46,23 @@ impl Rule for TimingAllowOriginValid {
                 // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
                 let s = match hv.to_str() {
                     Ok(v) => v,
-                    Err(_) => return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
+                    Err(_) => return Some(
+                        self.violation(
+                            ctx.severity,
                             "Timing-Allow-Origin header contains non-ASCII or control characters"
                                 .into(),
-                    }),
+                        ),
+                    ),
                 };
 
                 // Empty header value (only whitespace) is invalid: `1#` requires at least
                 // one member.
                 // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
                 if s.trim().is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Timing-Allow-Origin header value is empty".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Timing-Allow-Origin header value is empty".into(),
+                    ));
                 }
 
                 // Detect empty list members caused by consecutive commas or leading empty
@@ -77,11 +76,10 @@ impl Rule for TimingAllowOriginValid {
                         // empty list element.
                         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                         if parts.iter().skip(i + 1).any(|p| !p.trim().is_empty()) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Timing-Allow-Origin header contains empty member".into(),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Timing-Allow-Origin header contains empty member".into(),
+                            ));
                         }
                         // Otherwise it's trailing empty member(s) (e.g., "https://a, ");
                         // tolerated as recipient-side leniency.
@@ -100,14 +98,10 @@ impl Rule for TimingAllowOriginValid {
                     // Anything else must be a serialized origin; the helper owns the
                     // grammar it is validated against.
                     if !crate::helpers::headers::is_valid_serialized_origin(m) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "Timing-Allow-Origin contains invalid origin: '{}'",
-                                m
-                            ),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Timing-Allow-Origin contains invalid origin: '{}'", m),
+                        ));
                     }
                 }
             }

@@ -41,11 +41,7 @@ impl Rule for AccessControlAllowOriginValid {
             // header carries one value — an echoed origin, `null`, or `*` — not a list.
             // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
             if acao_count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into(),
-                });
+                return Some(self.violation(ctx.severity, "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into()));
             }
 
             // There is a single header field; validate its single value semantics and origin syntax.
@@ -56,13 +52,8 @@ impl Rule for AccessControlAllowOriginValid {
                 .unwrap();
             let s = match hv.to_str() {
                 Ok(v) => v.trim(),
-                Err(_) => return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "Access-Control-Allow-Origin header contains non-ASCII or control characters"
-                            .into(),
-                }),
+                Err(_) => return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin header contains non-ASCII or control characters"
+                            .into())),
             };
 
             // Must be a single value (not a comma-separated list)
@@ -70,11 +61,7 @@ impl Rule for AccessControlAllowOriginValid {
                 .map(|m| m.to_string())
                 .collect();
             if members.len() != 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Access-Control-Allow-Origin must be a single value ('*', 'null', or a serialized origin)".into(),
-                });
+                return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin must be a single value ('*', 'null', or a serialized origin)".into()));
             }
 
             let member = members.into_iter().next().unwrap();
@@ -83,14 +70,13 @@ impl Rule for AccessControlAllowOriginValid {
             }
 
             if !crate::helpers::headers::is_valid_serialized_origin(&member) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(
+                    ctx.severity,
+                    format!(
                         "Access-Control-Allow-Origin contains invalid origin: '{}'",
                         member
                     ),
-                });
+                ));
             }
 
             None

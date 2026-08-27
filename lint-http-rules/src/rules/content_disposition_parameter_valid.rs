@@ -58,14 +58,10 @@ impl Rule for ContentDispositionParameterValid {
                     }
                     let eq = p.find('=');
                     if eq.is_none() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "{} has malformed parameter '{}': missing '='",
-                                hdr_name, p
-                            ),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("{} has malformed parameter '{}': missing '='", hdr_name, p),
+                        ));
                     }
                     let eq = eq.unwrap();
                     let (name, value) = p.split_at(eq);
@@ -82,43 +78,36 @@ impl Rule for ContentDispositionParameterValid {
                         name
                     };
                     if bare_name.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("{} contains empty parameter name", hdr_name),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("{} contains empty parameter name", hdr_name),
+                        ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(bare_name) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!(
                                 "{} parameter name contains invalid token character: '{}'",
                                 hdr_name, c
                             ),
-                        });
+                        ));
                     }
 
                     // check duplicates (case-insensitive, include '*')
                     if seen.contains(&name_lc) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "{} contains duplicate parameter: '{}'",
-                                hdr_name, name
-                            ),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("{} contains duplicate parameter: '{}'", hdr_name, name),
+                        ));
                     }
                     seen.insert(name_lc);
 
                     let val = value[1..].trim(); // skip '='
                     if val.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("{} parameter '{}' has empty value", hdr_name, name),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("{} parameter '{}' has empty value", hdr_name, name),
+                        ));
                     }
 
                     // Branch on certain well-known parameter names for stronger checks
@@ -126,39 +115,33 @@ impl Rule for ContentDispositionParameterValid {
                         // filename can be token or quoted-string
                         if val.starts_with('"') {
                             if let Err(e) = crate::helpers::headers::validate_quoted_string(val) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!(
                                         "{} filename parameter invalid quoted-string: {}",
                                         hdr_name, e
                                     ),
-                                });
+                                ));
                             }
                         } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val)
                         {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "{} filename parameter contains invalid token character: '{}'",
                                     hdr_name, c
                                 ),
-                            });
+                            ));
                         }
                     } else if is_ext && name.eq_ignore_ascii_case("filename*") {
                         // ext-value, whose grammar `validate_ext_value` owns. The pointer
                         // here said RFC 5987; RFC 8187 obsoletes it and moved it to
                         // Historic, though the production itself is byte-for-byte the same.
                         if let Err(e) = crate::helpers::headers::validate_ext_value(val) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "{} filename* extended value invalid: {}",
-                                    hdr_name, e
-                                ),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("{} filename* extended value invalid: {}", hdr_name, e),
+                            ));
                         }
                     } else if name.eq_ignore_ascii_case("size") {
                         // allow token or quoted-string with digits only
@@ -166,14 +149,13 @@ impl Rule for ContentDispositionParameterValid {
                             match crate::helpers::headers::unescape_quoted_string(val) {
                                 Ok(u) => u.trim().to_string(),
                                 Err(e) => {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                    return Some(self.violation(
+                                        ctx.severity,
+                                        format!(
                                             "{} size parameter invalid quoted-string: {}",
                                             hdr_name, e
                                         ),
-                                    })
+                                    ))
                                 }
                             }
                         } else {
@@ -181,50 +163,46 @@ impl Rule for ContentDispositionParameterValid {
                         };
 
                         if !raw_val.chars().all(|c| c.is_ascii_digit()) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "{} size parameter must be numeric: '{}'",
                                     hdr_name, raw_val
                                 ),
-                            });
+                            ));
                         }
                     } else {
                         // Generic parameter: value should be token or quoted-string; ext-parameters already handled
                         if is_ext {
                             // extended parameter value must be ext-value
                             if let Err(e) = crate::helpers::headers::validate_ext_value(val) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!(
                                         "{} extended parameter '{}' invalid: {}",
                                         hdr_name, name, e
                                     ),
-                                });
+                                ));
                             }
                         } else if val.starts_with('"') {
                             if let Err(e) = crate::helpers::headers::validate_quoted_string(val) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!(
                                         "{} parameter '{}' invalid quoted-string: {}",
                                         hdr_name, name, e
                                     ),
-                                });
+                                ));
                             }
                         } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val)
                         {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "{} parameter '{}' contains invalid token character: '{}'",
                                     hdr_name, name, c
                                 ),
-                            });
+                            ));
                         }
                     }
                 }

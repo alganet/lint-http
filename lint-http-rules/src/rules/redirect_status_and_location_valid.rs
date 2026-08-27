@@ -100,17 +100,13 @@ impl Rule for RedirectStatusAndLocationValid {
             // cite(RFC 9110 § 10.2.2): "The "Location" header field is used in some responses to refer to a specific resource in relation to the response."
             resp.headers.get_all("location").iter().next()?;
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "Response with status {status} carries a Location header field. RFC 9110 §10.2.2 \
                      defines what the value refers to on a 201 (Created) response and on a 3xx \
                      (Redirection) response, and on no other status — so on a {status} the field has \
                      no relationship to the response that the specification defines. No sentence in \
                      RFC 9110 forbids sending it."
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

@@ -108,14 +108,10 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
             if expires_dt.is_none() {
                 if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory (RFC 9111 §5.3)",
                             expires_raw
-                        ),
-                    });
+                        )));
                 }
                 return None;
             }
@@ -147,15 +143,11 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
             // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field"
             if (cc_no_cache || cc_no_store || cc_max_age == Some(0)) && expires > date_ref {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Response contains Cache-Control directives {:?} that make it non-fresh, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1)",
                         if cc_no_cache { "no-cache" } else if cc_no_store { "no-store" } else { "max-age=0" },
                         expires
-                    ),
-                });
+                    )));
             }
 
             // Same misconfiguration heuristic, the other way round: a positive max-age (or, for a
@@ -166,14 +158,10 @@ impl Rule for ExpiresAndCacheControlConsistent {
             if (cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0)
                 && expires <= date_ref
             {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "Response contains Cache-Control max-age/s-maxage but Expires {} is not in the future relative to Date {} — values are contradictory (RFC 9111 §4.2, §5.3)",
                         expires, date_ref
-                    ),
-                });
+                    )));
             }
 
             // Best-effort consistency: when Date is present, warn if Expires and Date+max-age
@@ -187,14 +175,10 @@ impl Rule for ExpiresAndCacheControlConsistent {
                         // Allow a small leeway (1 second) for formatting/rounding differences
                         let diff = (expected - expires).num_seconds().abs();
                         if diff > 1 {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(ctx.severity, format!(
                                     "Cache-Control max-age={} suggests Expires should be {} (Date + max-age), but Expires is {} — prefer consistent values or omit Expires (RFC 9111 §5.3)",
                                     max_age, expected, expires
-                                ),
-                            });
+                                )));
                         }
                     }
                 }

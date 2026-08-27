@@ -66,13 +66,7 @@ impl Rule for ExpectHeaderValid {
             // Read after the field, not before it: both this and a missing `Expect`
             // end the rule, and the header probe is one map lookup where the config
             // read is several.
-            let report = |message: String| {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let report = |message: String| Some(self.violation(ctx.severity, message));
 
             // A list of no members, which is not a list with an empty member in it —
             // the two look alike and only one of them is a defect. The sender-expanded

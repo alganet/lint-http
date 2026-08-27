@@ -37,25 +37,22 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // Strip parameters (not expected for Content-Encoding but be forgiving)
                     let token = part.split(';').next().unwrap().trim();
                     if token.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("{} header contains empty member", hdr_name),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("{} header contains empty member", hdr_name),
+                        ));
                     }
                     if token == "*" && hdr_name.eq_ignore_ascii_case("Content-Encoding") {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Wildcard '*' is not valid in {} header", hdr_name),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Wildcard '*' is not valid in {} header", hdr_name),
+                        ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Invalid token '{}' in {} header", c, hdr_name),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Invalid token '{}' in {} header", c, hdr_name),
+                        ));
                     }
                     // Repeating a coding is not forbidden anywhere: §8.4 has the sender list
                     // the codings "in the order in which they were applied", which makes
@@ -65,14 +62,10 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // deliberate double-encoding. Uncited, since no sentence licenses it.
                     let key = token.to_ascii_lowercase();
                     if !seen.insert(key.clone()) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "Duplicate content-coding '{}' in {} header",
-                                key, hdr_name
-                            ),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Duplicate content-coding '{}' in {} header", key, hdr_name),
+                        ));
                     }
                 }
                 None
@@ -87,11 +80,10 @@ impl Rule for ContentEncodingAndTypeConsistent {
                             return Some(v);
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Content-Encoding header value is not valid UTF-8".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Content-Encoding header value is not valid UTF-8".into(),
+                        ));
                     }
                 }
             }
@@ -121,14 +113,10 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 let is_no_body_status =
                     (100..200).contains(&status) || status == 204 || status == 304;
                 if is_no_body_status && resp.headers.contains_key("content-encoding") {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Response {} carries no content, so it should not send Content-Encoding",
                             status
-                        ),
-                    });
+                        )));
                 }
 
                 let mut seen = std::collections::HashSet::new();
@@ -138,11 +126,10 @@ impl Rule for ContentEncodingAndTypeConsistent {
                             return Some(v);
                         }
                     } else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Content-Encoding header value is not valid UTF-8".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Content-Encoding header value is not valid UTF-8".into(),
+                        ));
                     }
                 }
             }

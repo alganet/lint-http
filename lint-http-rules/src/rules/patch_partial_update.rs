@@ -100,13 +100,9 @@ impl Rule for PatchPartialUpdate {
             // cite(RFC 5789 § 2): "Servers MUST ensure that a received patch document is appropriate for the type of resource identified by the Request-URI."
             // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
             // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "PATCH request carries content ({evidence}) with no Content-Type naming the patch document format"
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

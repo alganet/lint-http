@@ -33,11 +33,10 @@ impl Rule for OriginMatchingForCors {
 
             // Validate origin syntax using shared helper (handles "null" and serialized origins).
             if let Some(reason) = crate::helpers::uri::validate_origin_value(origin) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("Invalid Origin header value '{}': {}", origin, reason),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    format!("Invalid Origin header value '{}': {}", origin, reason),
+                ));
             }
 
             let resp = tx.response.as_ref()?;
@@ -48,11 +47,7 @@ impl Rule for OriginMatchingForCors {
                 match hv.to_str() {
                     Ok(s) => acao_values.push(s.to_string()),
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Access-Control-Allow-Origin header contains non-ASCII or control characters".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin header contains non-ASCII or control characters".into()));
                     }
                 }
             }
@@ -63,11 +58,7 @@ impl Rule for OriginMatchingForCors {
             // Multiple header fields are not permitted; treat as violation early
             // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
             if acao_values.len() > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into(),
-                });
+                return Some(self.violation(ctx.severity, "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into()));
             }
 
             // Now we have exactly one header field; validate its value semantics
@@ -77,11 +68,10 @@ impl Rule for OriginMatchingForCors {
                 .map(|m| m.to_string())
                 .collect();
             if members.len() != 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Access-Control-Allow-Origin must be a single value".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Access-Control-Allow-Origin must be a single value".into(),
+                ));
             }
 
             let acao_val = members.into_iter().next().unwrap().trim().to_string();
@@ -97,11 +87,7 @@ impl Rule for OriginMatchingForCors {
                     "access-control-allow-credentials",
                 ) {
                     if cred.trim().eq_ignore_ascii_case("true") {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true".into()));
                     }
                 }
                 return None;
@@ -112,14 +98,13 @@ impl Rule for OriginMatchingForCors {
             // case normalisation is applied on either side.
             // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
             if acao_val != origin {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(
+                    ctx.severity,
+                    format!(
                         "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",
                         acao_val, origin
                     ),
-                });
+                ));
             }
 
             None

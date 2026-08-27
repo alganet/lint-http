@@ -43,11 +43,10 @@ impl Rule for CachingDirectiveInteraction {
                     let s = match hv.to_str() {
                         Ok(s) => s,
                         Err(_) => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Cache-Control header contains non-UTF8 value".into(),
-                            })
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Cache-Control header contains non-UTF8 value".into(),
+                            ))
                         }
                     };
 
@@ -64,11 +63,10 @@ impl Rule for CachingDirectiveInteraction {
                             // Cache-Control is a `#cache-directive` list, and the sender (client on a
                             // request, server on a response) must not emit empty list elements.
                             // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Cache-Control header contains empty member".into(),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Cache-Control header contains empty member".into(),
+                            ));
                         }
 
                         let mut kv = m.splitn(2, '=');
@@ -102,11 +100,7 @@ impl Rule for CachingDirectiveInteraction {
                     .get("private")
                     .is_some_and(|vs| vs.iter().any(|v| v.is_none()));
                 if seen.contains_key("public") && private_unqualified {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Cache-Control contains both 'public' and 'private' directives (contradictory visibility)".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Cache-Control contains both 'public' and 'private' directives (contradictory visibility)".into()));
                 }
 
                 // no-store with public/private
@@ -117,11 +111,7 @@ impl Rule for CachingDirectiveInteraction {
                     // only job is to say *which* caches may store is a contradiction: one of
                     // the two is dead text, and the server does not know which it meant.
                     // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Cache-Control contains 'no-store' together with 'public' or 'private' (contradiction)".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Cache-Control contains 'no-store' together with 'public' or 'private' (contradiction)".into()));
                 }
 
                 // Note: combinations like 'no-cache' with 'max-age=0' are allowed per RFC 9111 §3
@@ -150,11 +140,7 @@ impl Rule for CachingDirectiveInteraction {
                             // if at least two are different, flag
                             let first = &nums[0];
                             if nums.iter().any(|x| x != first) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!("Cache-Control contains multiple '{}' directives with differing values", key),
-                                });
+                                return Some(self.violation(ctx.severity, format!("Cache-Control contains multiple '{}' directives with differing values", key)));
                             }
                         }
                     }

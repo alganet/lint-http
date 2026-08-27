@@ -37,11 +37,10 @@ impl Rule for OriginIsolatedHeaderValid {
             }
 
             if count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple Origin-Agent-Cluster header fields present".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Multiple Origin-Agent-Cluster header fields present".into(),
+                ));
             }
 
             let val = match crate::helpers::headers::get_header_str(
@@ -50,24 +49,23 @@ impl Rule for OriginIsolatedHeaderValid {
             ) {
                 Some(v) => v.trim(),
                 None => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message:
+                    return Some(
+                        self.violation(
+                            ctx.severity,
                             "Origin-Agent-Cluster header contains non-ASCII or control characters"
                                 .into(),
-                    })
+                        ),
+                    )
                 }
             };
 
             // Must not be a comma-separated list
             // cite(HTML § 7.1.2): "This header is a structured header whose value must be a boolean."
             if crate::helpers::headers::list_members(val).count() != 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Origin-Agent-Cluster must be a single value".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Origin-Agent-Cluster must be a single value".into(),
+                ));
             }
 
             // `?1` is the structured-header boolean true value that requests an
@@ -79,11 +77,7 @@ impl Rule for OriginIsolatedHeaderValid {
                 return None;
             }
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val),
-            })
+            Some(self.violation(ctx.severity, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val)))
         };
         Vec::from_iter(finding())
     }

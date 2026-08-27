@@ -69,11 +69,10 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // A member that is all parameters has no media-range to carry
                     // them: `[ weight ]` is optional, the media-range is not.
                     if media.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Empty media-range in {} header", hdr),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Empty media-range in {} header", hdr),
+                        ));
                     }
 
                     // No whitespace inside a media-range. The member has already
@@ -85,14 +84,10 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // and the space vanished before any check could see it.
                     // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
                     if media.contains(char::is_whitespace) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(ctx.severity, format!(
                                 "Invalid media-range '{}' in {} header: whitespace inside a media-range",
                                 media, hdr
-                            ),
-                        });
+                            )));
                     }
 
                     // Three shapes, and a bare asterisk is none of them. The
@@ -101,11 +96,10 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
                     // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
                     if media == "*" {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Invalid media-range '*' in {} header", hdr),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Invalid media-range '*' in {} header", hdr),
+                        ));
                     }
 
                     if media == "*/*" {
@@ -113,14 +107,13 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     } else {
                         // must contain '/'
                         if !media.contains('/') {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Invalid media-range '{}' in {} header: missing '/'",
                                     media, hdr
                                 ),
-                            });
+                            ));
                         }
 
                         // Both halves are `token`, which is what these checks
@@ -133,14 +126,13 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             if let Some(c) =
                                 crate::helpers::token::find_invalid_token_char(parsed.type_)
                             {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!(
                                         "Invalid token '{}' in media type '{}' of {}",
                                         c, parsed.type_, hdr
                                     ),
-                                });
+                                ));
                             }
                             // A wildcard type with a concrete subtype is not one of
                             // the shapes the asterisk has a meaning in. This is a
@@ -153,38 +145,29 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // `content_type_valid` takes the same
                             // position on the same shape in Content-Type.
                             if parsed.type_ == "*" {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(self.violation(ctx.severity, format!(
                                         "Invalid media-range '{}' in {} header: a wildcard type is only meaningful with a wildcard subtype ('*/*'), since the asterisk names all media types or all subtypes of one type and nothing else",
                                         media, hdr
-                                    ),
-                                });
+                                    )));
                             }
                             if parsed.subtype != "*" {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(parsed.subtype)
                                 {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                    return Some(self.violation(
+                                        ctx.severity,
+                                        format!(
                                             "Invalid token '{}' in media subtype '{}' of {}",
                                             c, parsed.subtype, hdr
                                         ),
-                                    });
+                                    ));
                                 }
                             }
                         } else {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Invalid media-range '{}' in {} header",
-                                    media, hdr
-                                ),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("Invalid media-range '{}' in {} header", media, hdr),
+                            ));
                         }
                     }
 
@@ -204,14 +187,10 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // cite(RFC 9110 § 12.5.1): "The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields."
                         // cite(RFC 9110 § 12.5.1): "Senders using weights SHOULD send "q" last (after all media-range parameters)."
                         if weight_seen {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(ctx.severity, format!(
                                     "Parameter '{}' follows the weight in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
                                     p, hdr
-                                ),
-                            });
+                                )));
                         }
                         // A parameter is a name, an "=", and a value; none of the
                         // three is optional, so a bare word among the parameters is
@@ -226,14 +205,13 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         let parsed = match parsed {
                             Ok(parsed) => parsed,
                             Err(crate::helpers::headers::ParameterDefect::NoEquals(_)) => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!(
                                         "Invalid parameter '{}' in {} header: missing '='",
                                         p, hdr
                                     ),
-                                })
+                                ))
                             }
                         };
                         let _ = parsed.whitespace_beside_equals;
@@ -249,24 +227,19 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
                         // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
                         if k.is_empty() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(ctx.severity, format!(
                                     "Empty parameter name in '{}' of {} header: a token is one or more characters",
                                     p, hdr
-                                ),
-                            });
+                                )));
                         }
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(k) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Invalid character '{}' in parameter name '{}' in {} header",
                                     c, k, hdr
                                 ),
-                            });
+                            ));
                         }
 
                         // The weight's name is matched without regard to case
@@ -284,11 +257,10 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // the same bound, and it is senders this rule reports.
                             // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
                             if !crate::helpers::headers::valid_qvalue(v) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!("Invalid qvalue '{}' in {} header", v, hdr),
-                                });
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!("Invalid qvalue '{}' in {} header", v, hdr),
+                                ));
                             }
                         } else {
                             // `parameter-value` is `( token / quoted-string )`, and
@@ -306,34 +278,25 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                 // as written derives from no `parameter-value`.
                                 // (`x=""` is a different value and still conforms.)
                                 Err(crate::helpers::headers::WordDefect::Empty) => {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                    return Some(self.violation(ctx.severity, format!(
                                             "Empty parameter value in '{}' of {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
                                             p, hdr
-                                        ),
-                                    });
+                                        )));
                                 }
                                 Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                    return Some(self.violation(
+                                        ctx.severity,
+                                        format!(
                                             "Invalid quoted-string parameter '{}' in {} header: {}",
                                             p, hdr, e
                                         ),
-                                    });
+                                    ));
                                 }
                                 Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
+                                    return Some(self.violation(ctx.severity, format!(
                                             "Invalid token '{}' in parameter value '{}' of {} header",
                                             c, v, hdr
-                                        ),
-                                    });
+                                        )));
                                 }
                             }
                         }

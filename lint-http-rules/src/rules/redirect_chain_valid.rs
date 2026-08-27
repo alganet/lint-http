@@ -237,16 +237,12 @@ impl Rule for RedirectChainValid {
             }
 
             // cite(RFC 9110 § 15.4): "A client SHOULD detect and intervene in cyclical redirections (i.e., "infinite" redirection loops)."
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "Location '{}' resolves to '{}', the target URI of the request it answers, so the response redirects the client to where it already was: {}. A client that follows it issues the same request again — RFC 9110 §15.4 asks one to detect and intervene in cyclical redirections, and this is the shortest one there is",
                     value.escape_debug(),
                     location_path_and_query.escape_debug(),
                     referent
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

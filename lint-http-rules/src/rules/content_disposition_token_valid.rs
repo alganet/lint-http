@@ -43,11 +43,10 @@ impl Rule for ContentDispositionTokenValid {
                 // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
                 let s = val.trim();
                 if s.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("{} header value must not be empty", hdr_name),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!("{} header value must not be empty", hdr_name),
+                    ));
                 }
 
                 // Everything before the first ";" is the disposition-type. Trimming
@@ -57,11 +56,10 @@ impl Rule for ContentDispositionTokenValid {
                 let dispo = s.split(';').next().unwrap().trim();
                 // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
                 if dispo.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("{} header disposition-type must not be empty", hdr_name),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!("{} header disposition-type must not be empty", hdr_name),
+                    ));
                 }
 
                 // The rule's whole purpose, and it had been uncited. Only the third
@@ -73,14 +71,13 @@ impl Rule for ContentDispositionTokenValid {
                 // cite(RFC 6266 § 4.1): "disp-ext-type       = token"
                 // cite(RFC 6266 § 4.2): "Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8)."
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(dispo) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "{} disposition-type contains invalid token character: '{}'",
                             hdr_name, c
                         ),
-                    });
+                    ));
                 }
 
                 None
@@ -135,14 +132,13 @@ impl Rule for ContentDispositionTokenValid {
                     } else {
                         "no definition of this field gives it a comma-separated-list form, so at most one field line may be sent (RFC 9110 §5.3)"
                     };
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "Multiple Content-Disposition header fields in the {}; {}",
                             kind, basis
                         ),
-                    });
+                    ));
                 }
 
                 for hv in vals {
@@ -152,11 +148,7 @@ impl Rule for ContentDispositionTokenValid {
                     // §4.3 has `filename*` for exactly that.
                     // cite(RFC 9110 § 5.5): "Field values are usually constrained to the range of US-ASCII characters [USASCII]."
                     let Ok(s) = hv.to_str() else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Content-Disposition header value contains octets outside visible US-ASCII; non-ASCII filenames belong in a `filename*` parameter (RFC 6266 §4.3)".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Content-Disposition header value contains octets outside visible US-ASCII; non-ASCII filenames belong in a `filename*` parameter (RFC 6266 §4.3)".into()));
                     };
                     if let Some(v) = check_value("Content-Disposition", s) {
                         return Some(v);

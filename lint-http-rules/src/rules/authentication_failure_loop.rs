@@ -58,14 +58,10 @@ impl Rule for AuthenticationFailureLoop {
             // retry-and-re-present; the cite is the nearest governing sentence, not a bound.
             // cite(RFC 9110 § 15.5.2): "If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information."
             if consecutive_401s >= 3 {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                Some(self.violation(ctx.severity, format!(
                         "Authentication failure loop detected: client has received {} consecutive 401 Unauthorized challenges for this origin.",
                         consecutive_401s + 1
-                    ),
-                })
+                    )))
             } else {
                 None
             }

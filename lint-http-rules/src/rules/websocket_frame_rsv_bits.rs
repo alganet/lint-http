@@ -88,15 +88,11 @@ impl ProtocolRule for WebsocketFrameRsvBits {
             //
             // cite(RFC 6455 § 5.2): "RSV1, RSV2, RSV3:  1 bit each"
             if *rsv > 0b111 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "A WebSocket frame the {sender} sent records the reserved bits as {rsv:#05b}, \
                          and the frame header holds three of them — one bit each — so no frame on any \
                          wire carried this value"
-                    ),
-                });
+                    )));
             }
 
             // The MUST is conditional, and this is the antecedent. § 5.8 hands the
@@ -125,17 +121,13 @@ impl ProtocolRule for WebsocketFrameRsvBits {
             // `Rule::violation` is a trait default on the *transaction* trait; a
             // `ProtocolRule` builds the struct, as every other one in this
             // catalogue does.
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "A WebSocket frame the {sender} sent has {} set, and the 101 that opened this \
                      session accepted no extension: RFC 6455 §5.2 makes a reserved bit non-zero only \
                      under an extension that defines a meaning for it, and it has the receiving \
                      endpoint fail the connection when none does",
                     Self::named(*rsv)
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

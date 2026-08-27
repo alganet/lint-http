@@ -154,14 +154,13 @@ impl Rule for NoStoreEnforced {
                         // stored the thing it was told not to store.
                         // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
                         if no_store_etags.contains(&normalized) {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!(
                                     "Conditional request uses ETag '{}' from a no-store response",
                                     member
                                 ),
-                            });
+                            ));
                         }
                     }
                 }
@@ -186,14 +185,10 @@ impl Rule for NoStoreEnforced {
                                 .values()
                                 .any(|lm_dt| lm_dt == &candidate_dt.unwrap()))
                     {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(ctx.severity, format!(
                                 "Conditional request uses Last-Modified '{}' from a no-store response",
                                 candidate
-                            ),
-                        });
+                            )));
                     }
                 }
             }

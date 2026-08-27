@@ -118,15 +118,14 @@ impl Rule for TransferEncodingChunkedFinal {
                 // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed)."
                 let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
                 if chunked_count > 1 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "The chunked transfer coding must not be applied more than once: \
                              codings found '{}'",
                             codings.join(", ")
                         ),
-                    });
+                    ));
                 }
 
                 // § 6.1 gives a response two ways to satisfy the same requirement,
@@ -159,14 +158,10 @@ impl Rule for TransferEncodingChunkedFinal {
                 // If 'chunked' appears anywhere other than the final coding it's a violation
                 if let Some(pos) = codings.iter().position(|c| c == "chunked") {
                     if pos != codings.len() - 1 {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(ctx.severity, format!(
                             "Transfer-Encoding 'chunked' must be the final coding: codings found '{}'",
                             codings.join(", ")
-                        ),
-                        });
+                        )));
                     }
                 }
 
@@ -188,15 +183,11 @@ impl Rule for TransferEncodingChunkedFinal {
                     && codings.iter().any(|c| c != "chunked")
                     && codings.last().map(String::as_str) != Some("chunked")
                 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "A request that applies any transfer coding other than chunked must apply \
                              chunked as the final coding: codings found '{}'",
                             codings.join(", ")
-                        ),
-                    });
+                        )));
                 }
 
                 None

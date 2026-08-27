@@ -108,14 +108,13 @@ impl Rule for CacheCoherence {
             // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
             if let Some(prev_max) = max_prev {
                 if curr_time < prev_max {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "response for '{}' appears stale ({} < previous {})",
                             tx.request.uri, curr_time, prev_max
                         ),
-                    });
+                    ));
                 }
             }
 

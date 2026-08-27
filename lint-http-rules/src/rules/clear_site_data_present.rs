@@ -131,14 +131,10 @@ impl Rule for ClearSiteDataPresent {
             // sign-out that omits it leaves the session's data behind.
             // cite(Clear-Site-Data § 3.1): "The Clear-Site-Data HTTP response header field sends a signal to the user agent that it ought to remove all data of a certain set of types."
             if is_logout_path && !resp.headers.contains_key("clear-site-data") {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: config.severity,
-                    message: format!(
+                Some(self.violation(config.severity, format!(
                         "Logout endpoint '{}' should include Clear-Site-Data header to properly clear client-side storage",
                         resource_path
-                    ),
-                })
+                    )))
             } else {
                 None
             }

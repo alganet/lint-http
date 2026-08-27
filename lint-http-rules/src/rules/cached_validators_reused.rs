@@ -67,10 +67,9 @@ impl Rule for CachedValidatorsReused {
             // cite(RFC 9110 § 13.1.2): "When a client desires to update one or more stored responses that have entity tags, the client SHOULD generate an If-None-Match header field containing a list of those entity tags when making a GET request"
             // cite(RFC 9110 § 13.1.3): "If-Modified-Since is typically used for two distinct purposes: 1) to allow efficient updates of a cached representation that does not have an entity tag"
             if !has_if_none_match && !has_if_modified_since {
-                Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                Some(self.violation(
+                    ctx.severity,
+                    format!(
                         "Client re-requesting resource without conditional headers. \
                          Server provided validators (ETag: {}, Last-Modified: {}) but client \
                          is not using If-None-Match or If-Modified-Since headers.",
@@ -83,7 +82,7 @@ impl Rule for CachedValidatorsReused {
                             .and_then(|v| v.to_str().ok())
                             .unwrap_or("none")
                     ),
-                })
+                ))
             } else {
                 None
             }

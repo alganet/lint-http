@@ -65,11 +65,10 @@ impl Rule for IfNoneMatchEtagSyntax {
             // written. Asked of the whole value, where the old `seen_any` flag asked
             // it of a walk that silently dropped every empty member.
             if value.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "If-None-Match header is empty or contains only whitespace".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "If-None-Match header is empty or contains only whitespace".into(),
+                ));
             }
 
             // The walk is quote-aware, and that is a fix rather than a preference:
@@ -84,22 +83,20 @@ impl Rule for IfNoneMatchEtagSyntax {
                 // about the list and not about a quoted-string that is not there.
                 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                 if member.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "If-None-Match header contains an empty list element".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "If-None-Match header contains an empty list element".into(),
+                    ));
                 }
                 if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "If-None-Match header has invalid member '{}': {}",
                             crate::helpers::headers::shown_in_finding(member),
                             msg
                         ),
-                    });
+                    ));
                 }
             }
 

@@ -48,11 +48,7 @@ impl Rule for ConditionalRequestHandling {
             let prev = match history.previous() {
                 Some(p) => p,
                 None => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into(),
-                    })
+                    return Some(self.violation(ctx.severity, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()))
                 }
             };
 
@@ -64,30 +60,17 @@ impl Rule for ConditionalRequestHandling {
                 // no governing MUST/SHOULD in RFC 9110 (recorded §4.1) — e.g. `If-None-Match: *`
                 // legitimately needs no prior tag — so this construct carries no cite.
                 if (has_inm || has_imatch) && resp.headers.get("etag").is_none() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into()));
                 }
 
                 // Same shape for a date-based precondition (a Last-Modified validator): the
                 // prior-observation requirement is the same uncited stateful heuristic.
                 if (has_ifm || has_iunmod) && resp.headers.get("last-modified").is_none() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into()));
                 }
             } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "Conditional request sent but previous transaction has no response recorded"
-                            .into(),
-                });
+                return Some(self.violation(ctx.severity, "Conditional request sent but previous transaction has no response recorded"
+                            .into()));
             }
 
             // Response-side sanity checks for common conditional patterns (GET/HEAD):
@@ -110,11 +93,7 @@ impl Rule for ConditionalRequestHandling {
                                         for member in crate::helpers::headers::list_members(inm_raw)
                                         {
                                             if member == resp_etag.trim() || member == "*" {
-                                                return Some(Violation {
-                                                    rule: self.id().into(),
-                                                    severity: ctx.severity,
-                                                    message: "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 §13.1.2 requires a 304 (Not Modified) for GET/HEAD".into(),
-                                                });
+                                                return Some(self.violation(ctx.severity, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 §13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()));
                                             }
                                         }
                                     }
@@ -157,11 +136,7 @@ impl Rule for ConditionalRequestHandling {
                                         crate::http_date::parse_http_date_to_datetime(resp_lm),
                                     ) {
                                         if resp_dt <= req_dt {
-                                            return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: ctx.severity,
-                                                message: "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; consider returning 304 Not Modified".into(),
-                                            });
+                                            return Some(self.violation(ctx.severity, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; consider returning 304 Not Modified".into()));
                                         }
                                     }
                                 }

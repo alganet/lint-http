@@ -49,20 +49,17 @@ impl Rule for LastModifiedRfc1123Syntax {
                 // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
                 // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
                 if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Last-Modified header is not a valid IMF-fixdate (RFC 9110)"
-                            .into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Last-Modified header is not a valid IMF-fixdate (RFC 9110)".into(),
+                    ));
                 }
             } else if resp.headers.contains_key("last-modified") {
                 // Non-UTF8 header values are considered invalid for date parsing
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
+                ));
             }
             None
         };

@@ -209,16 +209,12 @@ impl Rule for PatchMethodContentTypeMatch {
             // cite(RFC 9110 § 12.3): "When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource."
             // cite(RFC 9110 § 12.4.3): "If no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable."
             // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "PATCH request sends Content-Type '{}', which no Accept-Patch for this resource has mentioned; the most recent advertisement listed {}. A format the advertisement does not mention is one the server has said it does not accept, and 415 (Unsupported Media Type) is the answer RFC 5789 offers for it{}",
                     sent,
                     advertised.join(", "),
                     wildcard_note
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

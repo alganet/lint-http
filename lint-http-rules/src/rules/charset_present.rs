@@ -87,13 +87,10 @@ impl Rule for CharsetPresent {
                         // not have.
                         // cite(MDN Content-Type): "Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred."
                         if !has_charset {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message:
-                                    "Text-based Content-Type header missing charset parameter."
-                                        .into(),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Text-based Content-Type header missing charset parameter.".into(),
+                            ));
                         }
                     }
                 }

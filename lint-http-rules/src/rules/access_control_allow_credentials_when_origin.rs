@@ -44,11 +44,7 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
                 let s = match hv.to_str() {
                     Ok(v) => v.trim(),
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Access-Control-Allow-Origin header contains non-ASCII or control characters".into(),
-                        })
+                        return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin header contains non-ASCII or control characters".into()))
                     }
                 };
                 for token in crate::helpers::headers::list_members(s) {
@@ -73,11 +69,7 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             let acc_val = match crate::helpers::headers::get_header_str(headers, "access-control-allow-credentials") {
                 Some(v) => v.trim(),
                 None => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Access-Control-Allow-Credentials header contains non-ASCII or control characters".into(),
-                    })
+                    return Some(self.violation(ctx.severity, "Access-Control-Allow-Credentials header contains non-ASCII or control characters".into()))
                 }
             };
 
@@ -89,11 +81,7 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
             // cite(Fetch § 4.10): "If credentials is `true`, then return success."
             if acc_val.eq_ignore_ascii_case("true") && acao_has_star {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'".into(),
-                });
+                return Some(self.violation(ctx.severity, "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'".into()));
             }
 
             None

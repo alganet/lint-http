@@ -93,11 +93,7 @@ impl Rule for RequestVersionMethodValid {
                 // method's definition rather than that a modal was disobeyed.
                 // cite(RFC 9110 § 9.3.6): "A CONNECT request message does not have content."
                 "CONNECT" => {
-                    return request_declares_content(&tx.request).then(|| Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "CONNECT request declares content in its header section; RFC 9110 § 9.3.6 defines a CONNECT request message as having none".into(),
-                    });
+                    return request_declares_content(&tx.request).then(|| self.violation(ctx.severity, "CONNECT request declares content in its header section; RFC 9110 § 9.3.6 defines a CONNECT request message as having none".into()));
                 }
 
                 _ => return None,
@@ -113,14 +109,10 @@ impl Rule for RequestVersionMethodValid {
             // agreement is not something to rely on, and names why: the request
             // chain. So the finding stands and `description()` states the limit.
             // cite(RFC 9110 § 9.3.1): "An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain."
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(ctx.severity, format!(
                     "{} request carries content; RFC 9110 {}, and content received in one has no generally defined semantics",
                     method, sentence
-                ),
-            })
+                )))
         };
         Vec::from_iter(finding())
     }

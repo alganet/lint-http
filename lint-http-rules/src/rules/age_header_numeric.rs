@@ -37,16 +37,16 @@ impl Rule for AgeHeaderNumeric {
             // no such check exists yet, and adding one would be a behavior change.
             // cite(RFC 9111 § 5.1): "Although it is defined as a singleton header field, a cache encountering a message with a list-based Age field value SHOULD use the first member of the field value, discarding subsequent ones."
             for val in resp.headers.get_all("age").iter() {
-                let s = match val.to_str() {
-                    Ok(s) => s.trim(),
-                    Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Age header contains non-UTF8 value".into(),
-                        })
-                    }
-                };
+                let s =
+                    match val.to_str() {
+                        Ok(s) => s.trim(),
+                        Err(_) => {
+                            return Some(self.violation(
+                                ctx.severity,
+                                "Age header contains non-UTF8 value".into(),
+                            ))
+                        }
+                    };
 
                 // Age must be a non-negative integer (delta-seconds). Match the grammar
                 // directly rather than via an integer parse: `u64::from_str` accepts a
@@ -61,14 +61,13 @@ impl Rule for AgeHeaderNumeric {
                     continue;
                 }
 
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(
+                    ctx.severity,
+                    format!(
                         "Age value '{}' is invalid: must be a non-negative integer (delta-seconds)",
                         s
                     ),
-                });
+                ));
             }
 
             None

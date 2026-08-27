@@ -156,11 +156,7 @@ impl Rule for XForwardedConsistent {
                 };
                 for member in members(&value) {
                     if let Some(message) = check_member(field, *kind, member) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message,
-                        });
+                        return Some(self.violation(ctx.severity, message));
                     }
                 }
             }

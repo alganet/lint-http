@@ -106,14 +106,13 @@ impl Rule for RequestBodyLengthAccuracy {
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
             if let Some(body_len) = req.body_length {
                 if declared != body_len as u128 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "Content-Length ({}) does not match captured body bytes ({})",
                             declared, body_len
                         ),
-                    });
+                    ));
                 }
             }
 

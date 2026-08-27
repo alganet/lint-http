@@ -61,10 +61,7 @@ impl Rule for ContentLocationAndUriConsistent {
                     "content-location",
                 )
                 .expect("the branch is reached only when the field has more than one line");
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
+                return Some(self.violation(ctx.severity, format!(
                         "{}. The comma a recipient joins them with is a `sub-delims` character both alternatives admit inside a path or a query (RFC 3986 §2.2), so the joined value is a well-formed reference to a resource neither line named",
                         crate::helpers::headers::singleton_field_preamble(
                             "Content-Location",
@@ -72,8 +69,7 @@ impl Rule for ContentLocationAndUriConsistent {
                             &crate::helpers::headers::shown_in_finding(&joined),
                             "`Content-Location = absolute-URI / partial-URI`, and neither alternative is a comma-separated list",
                         )
-                    ),
-                });
+                    )));
             }
 
             for hv in vals {
@@ -96,11 +92,10 @@ impl Rule for ContentLocationAndUriConsistent {
                 // a sender that emits `Content-Location:` with nothing after it is
                 // stating nothing, and means to state something.
                 if s.trim().is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-Location header must not be empty".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Content-Location header must not be empty".into(),
+                    ));
                 }
 
                 // What follows validates the value as a URI reference, which is what
@@ -119,34 +114,22 @@ impl Rule for ContentLocationAndUriConsistent {
                 // cite(RFC 9110 § 8.7): "The field value is either an absolute-URI or a partial-URI."
                 // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
                 if let Some(c) = crate::helpers::uri::find_non_uri_char(s) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Content-Location value holds {}, which no part of a URI is composed from: an octet outside that set is percent-encoded before the reference is formed, or the value is not a URI reference at all",
                             crate::helpers::headers::describe_char(c)
-                        ),
-                    });
+                        )));
                 }
 
                 // The `pct-encoded` production and the `scheme` production are the
                 // helpers' to state; both carry the grammar at their definitions.
                 if let Some(msg) = crate::helpers::uri::check_percent_encoding(s) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: msg,
-                    });
+                    return Some(self.violation(ctx.severity, msg));
                 }
 
                 // Only the `absolute-URI` alternative has a scheme; the helper is a
                 // no-op on a `partial-URI`, which is why nothing here gates on form.
                 if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(s) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: msg,
-                    });
+                    return Some(self.violation(ctx.severity, msg));
                 }
 
                 // The value's production is not `URI-reference`, and the fragment
@@ -171,15 +154,11 @@ impl Rule for ContentLocationAndUriConsistent {
                 // cite(RFC 3986 § 4.3): "Some protocol elements allow only the absolute form of a URI without a fragment identifier."
                 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
                 if let Some(hash) = s.find('#') {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Content-Location value '{}' carries the fragment component '{}': neither alternative of `Content-Location = absolute-URI / partial-URI` generates one — each is a URI rule with the `[ \"#\" fragment ]` group dropped (RFC 9110 §4.1, RFC 3986 §4.3) — so the value derives from no reading of the grammar (RFC 9110 §2.2)",
                             crate::helpers::headers::shown_in_finding(s),
                             crate::helpers::headers::shown_in_finding(&s[hash..])
-                        ),
-                    });
+                        )));
                 }
 
                 // Both halves of the gate come from one sentence: the comparison is
@@ -278,11 +257,7 @@ impl Rule for ContentLocationAndUriConsistent {
                     // cite(RFC 9110 § 8.7): "For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation."
                     // cite(RFC 9110 § 8.7): "Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP."
                     if !matches {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into()));
                     }
                 }
             }

@@ -81,11 +81,7 @@ impl Rule for Oauth2CodeFlow {
                             // OK
                         }
                         _ => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "OAuth2 authorization request with response_type=code missing or empty state parameter".into(),
-                            });
+                            return Some(self.violation(ctx.severity, "OAuth2 authorization request with response_type=code missing or empty state parameter".into()));
                         }
                     }
                     // nothing else to check for the request itself
@@ -120,21 +116,14 @@ impl Rule for Oauth2CodeFlow {
                             }
                         }
                         if !seen {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "OAuth2 authorization callback used a state value that was not seen in a prior request".into(),
-                            });
+                            return Some(self.violation(ctx.severity, "OAuth2 authorization callback used a state value that was not seen in a prior request".into()));
                         }
                     }
                     _ => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
-                                "OAuth2 authorization callback missing or empty state parameter"
-                                    .into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "OAuth2 authorization callback missing or empty state parameter".into(),
+                        ));
                     }
                 }
             }

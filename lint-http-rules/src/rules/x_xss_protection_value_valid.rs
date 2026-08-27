@@ -41,23 +41,20 @@ impl Rule for XXssProtectionValueValid {
             // not repeat the field.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple X-XSS-Protection header fields present".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Multiple X-XSS-Protection header fields present".into(),
+                ));
             }
 
             // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
             let val = match crate::helpers::headers::get_header_str(headers, "x-xss-protection") {
                 Some(v) => v.trim(),
                 None => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "X-XSS-Protection header contains non-ASCII or control characters"
-                            .into(),
-                    })
+                    return Some(self.violation(
+                        ctx.severity,
+                        "X-XSS-Protection header contains non-ASCII or control characters".into(),
+                    ))
                 }
             };
 
@@ -81,11 +78,10 @@ impl Rule for XXssProtectionValueValid {
                 return None;
             }
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("X-XSS-Protection contains unsupported value: '{}'", val),
-            })
+            Some(self.violation(
+                ctx.severity,
+                format!("X-XSS-Protection contains unsupported value: '{}'", val),
+            ))
         };
         Vec::from_iter(finding())
     }

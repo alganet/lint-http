@@ -40,22 +40,14 @@ impl Rule for ConditionalHeadersConsistent {
             let has_if_modified_since = req.headers.get("if-modified-since").is_some();
             // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field"
             if has_if_none_match && has_if_modified_since {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "If-Modified-Since MUST be ignored when If-None-Match is present; prefer entity-tag conditionals".into(),
-                });
+                return Some(self.violation(ctx.severity, "If-Modified-Since MUST be ignored when If-None-Match is present; prefer entity-tag conditionals".into()));
             }
 
             let has_if_match = req.headers.get("if-match").is_some();
             let has_if_unmodified_since = req.headers.get("if-unmodified-since").is_some();
             // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field"
             if has_if_match && has_if_unmodified_since {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "If-Unmodified-Since MUST be ignored when If-Match is present; prefer entity-tag conditionals".into(),
-                });
+                return Some(self.violation(ctx.severity, "If-Unmodified-Since MUST be ignored when If-Match is present; prefer entity-tag conditionals".into()));
             }
 
             // If-Range should only be sent in requests that contain Range
@@ -63,11 +55,7 @@ impl Rule for ConditionalHeadersConsistent {
                 // If-Range exists
                 // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field."
                 if req.headers.get("range").is_none() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into()));
                 }
 
                 // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak.
@@ -77,20 +65,18 @@ impl Rule for ConditionalHeadersConsistent {
                     let trimmed = s.trim();
                     // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
                     if trimmed.starts_with("W/") {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "If-Range MUST not contain a weak entity-tag (W/...)".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "If-Range MUST not contain a weak entity-tag (W/...)".into(),
+                        ));
                     }
                     // If it starts with a quoted-string, it's a strong ETag and fine; if it's a date, we'll not flag here
                     // (date validity is checked by other rules)
                 } else {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "If-Range header contains non-UTF8 value".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "If-Range header contains non-UTF8 value".into(),
+                    ));
                 }
             }
 
@@ -110,14 +96,10 @@ impl Rule for ConditionalHeadersConsistent {
                 ("if-unmodified-since", "If-Unmodified-Since"),
             ] {
                 if req.headers.get_all(name).iter().count() > 1 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(ctx.severity, format!(
                             "Multiple {} header fields present; the combined value is a list of dates, which the recipient MUST ignore",
                             label
-                        ),
-                    });
+                        )));
                 }
             }
 
@@ -130,11 +112,7 @@ impl Rule for ConditionalHeadersConsistent {
                 && !(req.method.eq_ignore_ascii_case("GET")
                     || req.method.eq_ignore_ascii_case("HEAD"))
             {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into(),
-                });
+                return Some(self.violation(ctx.severity, "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into()));
             }
 
             None

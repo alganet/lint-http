@@ -133,15 +133,11 @@ impl Rule for CacheValidationChain {
                             .as_deref()
                             .unwrap_or("<non-UTF8 If-None-Match>");
                         // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
+                        return Some(self.violation(ctx.severity, format!(
                                 "Conditional request uses If-None-Match '{}' which does not match most recent validator '{}' from history; cache validation chain may be broken",
                                 reported.trim(),
                                 etag
-                            ),
-                        });
+                            )));
                     }
                 }
             } else if let Some(lm) = &known_lm {
@@ -172,15 +168,11 @@ impl Rule for CacheValidationChain {
                         // a stale Last-Modified signals a broken chain.
                         // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
                         if mismatch {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(ctx.severity, format!(
                                     "Conditional request uses If-Modified-Since '{}' which does not match most recent Last-Modified '{}' from history; cache validation chain may be broken",
                                     ims_str,
                                     lm_str
-                                ),
-                            });
+                                )));
                         }
                     }
                 }

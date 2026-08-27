@@ -75,14 +75,10 @@ impl Rule for VaryAndCacheConsistent {
                         // deliberately excluded: it promises no reuse benefit (it requires
                         // revalidation), so pairing it with Vary: * is not a misconfiguration signal.
                         "max-age" | "s-maxage" | "public" => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
+                            return Some(self.violation(ctx.severity, format!(
                                     "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
                                     name, name
-                                ),
-                            });
+                                )));
                         }
                         _ => {}
                     }

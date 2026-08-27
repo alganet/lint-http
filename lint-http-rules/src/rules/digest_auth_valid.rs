@@ -43,12 +43,10 @@ impl Rule for DigestAuthValid {
                         let rest = match parts.next() {
                             Some(r) => r.trim(),
                             None => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: "Authorization Digest scheme missing parameters"
-                                        .into(),
-                                })
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    "Authorization Digest scheme missing parameters".into(),
+                                ))
                             }
                         };
 
@@ -78,25 +76,17 @@ impl Rule for DigestAuthValid {
                                             };
 
                                             if is_empty {
-                                                return Some(Violation {
-                                                    rule: self.id().into(),
-                                                    severity: ctx.severity,
-                                                    message: format!(
+                                                return Some(self.violation(ctx.severity, format!(
                                                         "Digest Authorization missing or empty required parameter '{}'",
                                                         k
-                                                    ),
-                                                })
+                                                    )))
                                             }
                                         }
                                         None => {
-                                            return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: ctx.severity,
-                                                message: format!(
+                                            return Some(self.violation(ctx.severity, format!(
                                                     "Digest Authorization missing or empty required parameter '{}'",
                                                     k
-                                                ),
-                                            })
+                                                )))
                                         }
                                     }
                                 }
@@ -116,13 +106,9 @@ impl Rule for DigestAuthValid {
                                 if map.contains_key("qop") {
                                     for &k in &["cnonce", "nc"] {
                                         if !map.contains_key(k) {
-                                            return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: ctx.severity,
-                                                message: format!(
+                                            return Some(self.violation(ctx.severity, format!(
                                                     "Digest Authorization sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
-                                                ),
-                                            });
+                                                )));
                                         }
                                     }
                                 }
@@ -133,14 +119,13 @@ impl Rule for DigestAuthValid {
                                     if let Some(inv) =
                                         crate::helpers::token::find_invalid_token_char(k)
                                     {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(self.violation(
+                                            ctx.severity,
+                                            format!(
                                                 "Invalid character '{}' in Digest auth-param name",
                                                 inv
                                             ),
-                                        });
+                                        ));
                                     }
                                     // §3.4's two per-parameter quoting MUSTs, enforced in both
                                     // directions. The historical reason is the point: recipients
@@ -161,22 +146,14 @@ impl Rule for DigestAuthValid {
 
                                     let quoted = v.starts_with('"');
                                     if MUST_QUOTE.contains(&k.as_str()) && !quoted {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                                 "Digest Authorization sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
-                                            ),
-                                        });
+                                            )));
                                     }
                                     if MUST_NOT_QUOTE.contains(&k.as_str()) && quoted {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
+                                        return Some(self.violation(ctx.severity, format!(
                                                 "Digest Authorization sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
-                                            ),
-                                        });
+                                            )));
                                     }
 
                                     // A value that opens with a quote is validated as a quoted-string
@@ -185,14 +162,10 @@ impl Rule for DigestAuthValid {
                                         if let Err(msg) =
                                             crate::helpers::headers::validate_quoted_string(v)
                                         {
-                                            return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: ctx.severity,
-                                                message: format!(
+                                            return Some(self.violation(ctx.severity, format!(
                                                     "Invalid quoted-string in Digest auth-param '{}': {}",
                                                     k, msg
-                                                ),
-                                            });
+                                                )));
                                         }
                                     } else {
                                         // Unquoted values are tokens. The `uri` carve-out that
@@ -201,33 +174,27 @@ impl Rule for DigestAuthValid {
                                         if let Some(inv) =
                                             crate::helpers::token::find_invalid_token_char(v)
                                         {
-                                            return Some(Violation {
-                                                rule: self.id().into(),
-                                                severity: ctx.severity,
-                                                message: format!(
+                                            return Some(self.violation(ctx.severity, format!(
                                                     "Invalid character '{}' in Digest auth-param value for '{}'",
                                                     inv, k
-                                                ),
-                                            });
+                                                )));
                                         }
                                     }
                                 }
                             }
                             Err(msg) => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!("Invalid Digest auth parameters: {}", msg),
-                                })
+                                return Some(self.violation(
+                                    ctx.severity,
+                                    format!("Invalid Digest auth parameters: {}", msg),
+                                ))
                             }
                         }
                     }
                     Err(_) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Authorization header contains non-UTF8 value".into(),
-                        })
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Authorization header contains non-UTF8 value".into(),
+                        ))
                     }
                 }
             }

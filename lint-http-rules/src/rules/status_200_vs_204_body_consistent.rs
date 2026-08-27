@@ -25,13 +25,12 @@ impl Status200Vs204BodyConsistent {
         // "succeeded" as a 200 and says the emptiness on purpose.
         // cite(RFC 9110 § 15.3.5): "The 204 (No Content) status code indicates that the server has successfully fulfilled the request and that there is no additional content to send in the response content."
         // cite(RFC 9110 § 15.3.5): "A 204 response is terminated by the end of the header section; it cannot contain content or trailers."
-        Violation {
-            rule: self.id().into(),
+        self.violation(
             severity,
-            message: format!(
+            format!(
                 "200 (OK) response carries no content ({evidence}); RFC 9110 §15.3.1 says an origin server ought to send 204 (No Content) instead if some aspect of the request indicates a preference for no content upon success. That condition is about the request and is not observable here, so this is advice: a 200 whose framing says the content is empty violates nothing"
             ),
-        }
+        )
     }
 }
 

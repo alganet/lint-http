@@ -122,11 +122,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
                 }
                 // CSP permits framing if it had any non-'none' member
                 if csp_self || !csp_origins.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "X-Frame-Options: DENY contradicts Content-Security-Policy frame-ancestors which permits framing".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "X-Frame-Options: DENY contradicts Content-Security-Policy frame-ancestors which permits framing".into()));
                 }
                 return None;
             }
@@ -134,11 +130,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
             if xfo_val.eq_ignore_ascii_case("SAMEORIGIN") {
                 // SAMEORIGIN permits same-origin; contradiction only if CSP explicitly forbids all
                 if csp_none {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-Security-Policy frame-ancestors: 'none' forbids framing while X-Frame-Options: SAMEORIGIN permits same-origin frames".into(),
-                    });
+                    return Some(self.violation(ctx.severity, "Content-Security-Policy frame-ancestors: 'none' forbids framing while X-Frame-Options: SAMEORIGIN permits same-origin frames".into()));
                 }
                 // otherwise compatible (both allow some framing)
                 return None;
@@ -158,11 +150,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
 
                 // If CSP forbids all -> contradiction
                 if csp_none {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("X-Frame-Options: ALLOW-FROM {} permits framing but Content-Security-Policy frame-ancestors is 'none'", rest),
-                    });
+                    return Some(self.violation(ctx.severity, format!("X-Frame-Options: ALLOW-FROM {} permits framing but Content-Security-Policy frame-ancestors is 'none'", rest)));
                 }
 
                 // If CSP has explicit origins, require the ALLOW-FROM origin to be present
@@ -186,11 +174,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
                             }
                         }
 
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("X-Frame-Options: ALLOW-FROM {} is not included in Content-Security-Policy frame-ancestors", rest),
-                        });
+                        return Some(self.violation(ctx.severity, format!("X-Frame-Options: ALLOW-FROM {} is not included in Content-Security-Policy frame-ancestors", rest)));
                     }
                 }
 
@@ -201,11 +185,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
                         if rorig.eq_ignore_ascii_case(allow_origin) {
                             return None;
                         } else {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("X-Frame-Options: ALLOW-FROM {} does not match Content-Security-Policy frame-ancestors 'self' (origin {})", rest, rorig),
-                            });
+                            return Some(self.violation(ctx.severity, format!("X-Frame-Options: ALLOW-FROM {} does not match Content-Security-Policy frame-ancestors 'self' (origin {})", rest, rorig)));
                         }
                     }
                 }

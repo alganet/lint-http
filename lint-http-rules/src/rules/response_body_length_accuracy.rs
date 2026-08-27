@@ -91,17 +91,16 @@ impl Rule for ResponseBodyLengthAccuracy {
                 // reach: a response to HEAD that carries octets whatever its status.
                 // Keeping both would have been two findings for one defect.
                 if !bodiless_status && resp.body_length.is_some_and(|n| n > 0) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "A {} response to {} cannot contain a message body, but {} body \
                              octets were received",
                             resp.status,
                             tx.request.method,
                             resp.body_length.unwrap_or(0)
                         ),
-                    });
+                    ));
                 }
                 return None;
             }
@@ -150,14 +149,13 @@ impl Rule for ResponseBodyLengthAccuracy {
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
             if let Some(body_len) = resp.body_length {
                 if declared != body_len as u128 {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
                             "Content-Length ({}) does not match captured body bytes ({})",
                             declared, body_len
                         ),
-                    });
+                    ));
                 }
             }
 

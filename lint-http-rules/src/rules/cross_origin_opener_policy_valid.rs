@@ -39,11 +39,10 @@ impl Rule for CrossOriginOpenerPolicyValid {
             }
 
             if count > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Multiple Cross-Origin-Opener-Policy header fields present".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Multiple Cross-Origin-Opener-Policy header fields present".into(),
+                ));
             }
 
             let val = match crate::helpers::headers::get_header_str(
@@ -51,22 +50,16 @@ impl Rule for CrossOriginOpenerPolicyValid {
                 "cross-origin-opener-policy",
             ) {
                 Some(v) => v.trim(),
-                None => return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "Cross-Origin-Opener-Policy header contains non-ASCII or control characters"
-                            .into(),
-                }),
+                None => return Some(self.violation(ctx.severity, "Cross-Origin-Opener-Policy header contains non-ASCII or control characters"
+                            .into())),
             };
 
             // Must not be a comma-separated list
             if crate::helpers::headers::list_members(val).count() != 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Cross-Origin-Opener-Policy must be a single value".into(),
-                });
+                return Some(self.violation(
+                    ctx.severity,
+                    "Cross-Origin-Opener-Policy must be a single value".into(),
+                ));
             }
 
             // Acceptable values: same-origin, same-origin-allow-popups, unsafe-none (case-insensitive)
@@ -85,14 +78,13 @@ impl Rule for CrossOriginOpenerPolicyValid {
                 return None;
             }
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
+            Some(self.violation(
+                ctx.severity,
+                format!(
                     "Cross-Origin-Opener-Policy contains unsupported value: '{}'",
                     val
                 ),
-            })
+            ))
         };
         Vec::from_iter(finding())
     }

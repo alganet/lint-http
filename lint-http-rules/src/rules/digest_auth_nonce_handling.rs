@@ -172,11 +172,10 @@ impl Rule for DigestAuthNonceHandling {
 
                 // 1. nonce must have been offered in a challenge
                 if nonce.is_some() && last_challenge_nonce.is_none() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Digest Authorization used without prior Digest challenge".into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Digest Authorization used without prior Digest challenge".into(),
+                    ));
                 }
 
                 // 2. opaque must be echoed unchanged from the challenge (omitting it when
@@ -186,22 +185,20 @@ impl Rule for DigestAuthNonceHandling {
                     (opaque.as_ref(), last_challenge_opaque.as_ref())
                 {
                     if o != expected {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
+                        return Some(
+                            self.violation(
+                                ctx.severity,
                                 "Digest Authorization opaque does not match most recent challenge"
                                     .into(),
-                        });
+                            ),
+                        );
                     }
                 } else if opaque.is_none() && last_challenge_opaque.is_some() {
                     // Challenge included opaque, but client omitted it
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Digest Authorization missing opaque from most recent challenge"
-                            .into(),
-                    });
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Digest Authorization missing opaque from most recent challenge".into(),
+                    ));
                 }
 
                 // 3. nonce must correspond to the most recent challenge value.
@@ -211,13 +208,10 @@ impl Rule for DigestAuthNonceHandling {
                     (nonce.as_ref(), last_challenge_nonce.as_ref())
                 {
                     if n != expected {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
-                                "Digest Authorization nonce differs from most recent challenge"
-                                    .into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Digest Authorization nonce differs from most recent challenge".into(),
+                        ));
                     }
                 }
 
@@ -226,11 +220,10 @@ impl Rule for DigestAuthNonceHandling {
                     let current_nc = match crate::helpers::auth::parse_nc_hex(nc_val) {
                         Ok(v) => v,
                         Err(msg) => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Invalid nc (nonce-count) value: {}", msg),
-                            });
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("Invalid nc (nonce-count) value: {}", msg),
+                            ));
                         }
                     };
 
@@ -244,11 +237,10 @@ impl Rule for DigestAuthNonceHandling {
                     // signature of a replay, which nc exists to let the server detect.
                     // cite(RFC 7616 § 3.4): "if the same nc value is seen twice, then the request is a replay."
                     if current_nc <= highest {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Digest Authorization nonce-count did not increase".into(),
-                        });
+                        return Some(self.violation(
+                            ctx.severity,
+                            "Digest Authorization nonce-count did not increase".into(),
+                        ));
                     }
 
                     // When the most recent challenge is stale, the client keeps the (new)
@@ -261,11 +253,7 @@ impl Rule for DigestAuthNonceHandling {
                         && highest == 0
                         && current_nc != 1
                     {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Digest Authorization with new nonce after stale challenge must reset nc to 00000001".into(),
-                        });
+                        return Some(self.violation(ctx.severity, "Digest Authorization with new nonce after stale challenge must reset nc to 00000001".into()));
                     }
                 }
             }

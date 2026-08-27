@@ -250,13 +250,7 @@ impl Rule for HostAndAuthorityConsistent {
 
             // Every gate above ends the rule, and a request carrying both fields is
             // the only one this can report.
-            let violation = |message: String| {
-                Some(Violation {
-                    rule: self.id().to_string(),
-                    severity: ctx.severity,
-                    message,
-                })
-            };
+            let violation = |message: String| Some(self.violation(ctx.severity, message));
 
             // Both fields are present, and one of them names no authority — which
             // is a difference like any other, and is why this branch is about the

@@ -43,11 +43,7 @@ impl Rule for HttpVersionSyntax {
                 judge("response", &resp.version)
             })?;
 
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: finding,
-            })
+            Some(self.violation(ctx.severity, finding))
         };
         Vec::from_iter(finding())
     }

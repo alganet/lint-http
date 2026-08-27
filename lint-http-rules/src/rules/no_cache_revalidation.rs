@@ -86,11 +86,7 @@ impl Rule for NoCacheRevalidation {
 
             // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
             if !has_conditional {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Possible reuse of response marked 'no-cache' without conditional revalidation: subsequent request lacked If-None-Match/If-Modified-Since despite earlier no-cache response with a validator".into(),
-                });
+                return Some(self.violation(ctx.severity, "Possible reuse of response marked 'no-cache' without conditional revalidation: subsequent request lacked If-None-Match/If-Modified-Since despite earlier no-cache response with a validator".into()));
             }
 
             None
