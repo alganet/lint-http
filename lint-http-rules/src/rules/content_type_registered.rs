@@ -34,15 +34,20 @@ impl Rule for ContentTypeRegistered {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-        let check_media_type =
-            |hdr_name: &str, val: &str, allowed: &Vec<String>| -> Option<Violation> {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+            let check_media_type = |hdr_name: &str,
+                                    val: &str,
+                                    allowed: &Vec<String>|
+             -> Option<Violation> {
                 // Parse media-type; if it fails, let other rules (well-formed) report it.
                 let parsed = match crate::helpers::headers::parse_media_type(val) {
                     Ok(p) => p,
@@ -104,27 +109,29 @@ impl Rule for ContentTypeRegistered {
                 })
             };
 
-        // Check request Content-Type
-        if let Some(val) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "content-type")
-        {
-            if let Some(v) = check_media_type("Content-Type", val, &config.allowed) {
-                return Some(v);
-            }
-        }
-
-        // Check response Content-Type
-        if let Some(resp) = &tx.response {
+            // Check request Content-Type
             if let Some(val) =
-                crate::helpers::headers::get_header_str(&resp.headers, "content-type")
+                crate::helpers::headers::get_header_str(&tx.request.headers, "content-type")
             {
                 if let Some(v) = check_media_type("Content-Type", val, &config.allowed) {
                     return Some(v);
                 }
             }
-        }
 
-        None
+            // Check response Content-Type
+            if let Some(resp) = &tx.response {
+                if let Some(val) =
+                    crate::helpers::headers::get_header_str(&resp.headers, "content-type")
+                {
+                    if let Some(v) = check_media_type("Content-Type", val, &config.allowed) {
+                        return Some(v);
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

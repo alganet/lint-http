@@ -46,51 +46,56 @@ impl Rule for NoCacheRevalidation {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // locate the most recent past response with a no-cache directive.
-        let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
-        for past in history.iter() {
-            if let Some(resp) = &past.response {
-                if header_has_no_cache(&resp.headers) {
-                    candidate = Some(past);
-                    break;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // locate the most recent past response with a no-cache directive.
+            let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
+            for past in history.iter() {
+                if let Some(resp) = &past.response {
+                    if header_has_no_cache(&resp.headers) {
+                        candidate = Some(past);
+                        break;
+                    }
                 }
             }
-        }
 
-        let prev_tx = candidate?;
+            let prev_tx = candidate?;
 
-        // only warn if the original response supplied a validator; without one
-        // there is no way to perform a conditional revalidation, so an
-        // unconditional request may still be legitimate.
-        let resp = prev_tx.response.as_ref().unwrap();
-        let has_validator =
-            resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
-        if !has_validator {
-            return None;
-        }
+            // only warn if the original response supplied a validator; without one
+            // there is no way to perform a conditional revalidation, so an
+            // unconditional request may still be legitimate.
+            let resp = prev_tx.response.as_ref().unwrap();
+            let has_validator =
+                resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
+            if !has_validator {
+                return None;
+            }
 
-        // A conditional request (carrying a precondition header field) is the validation §5.2.2.4
-        // requires; an unconditional one is evidence the entry may have been reused as-is.
-        // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
-        let has_conditional = tx.request.headers.contains_key("if-none-match")
-            || tx.request.headers.contains_key("if-modified-since");
+            // A conditional request (carrying a precondition header field) is the validation §5.2.2.4
+            // requires; an unconditional one is evidence the entry may have been reused as-is.
+            // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields."
+            let has_conditional = tx.request.headers.contains_key("if-none-match")
+                || tx.request.headers.contains_key("if-modified-since");
 
-        // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
-        if !has_conditional {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Possible reuse of response marked 'no-cache' without conditional revalidation: subsequent request lacked If-None-Match/If-Modified-Since despite earlier no-cache response with a validator".into(),
-            });
-        }
+            // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
+            if !has_conditional {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Possible reuse of response marked 'no-cache' without conditional revalidation: subsequent request lacked If-None-Match/If-Modified-Since despite earlier no-cache response with a validator".into(),
+                });
+            }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

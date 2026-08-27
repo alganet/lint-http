@@ -29,193 +29,200 @@ impl Rule for Status101SwitchingProtocols {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // ── Check: HTTP traffic after a prior 101 on the same connection ──
-        // The operative clause is "for a change in the application protocol being
-        // used on this connection": a 101 switches the connection's protocol, so a
-        // later HTTP transaction on it means the hand-off did not take. There is no
-        // hard "MUST NOT send HTTP after 101"; this is derived from that switch, and
-        // it is why the earlier cite quoted the wrong (introductory) half of the
-        // sentence — the connection-change clause is what governs here.
-        // cite(RFC 9110 § 15.2.2): "The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection."
-        if tx.connection_id.is_some() {
-            for prev in history.iter() {
-                if let Some(prev_resp) = &prev.response {
-                    if prev_resp.status == 101 {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
-                                "HTTP traffic after 101 Switching Protocols on the same connection; \
-                                 the connection should have been handed off to the upgraded protocol"
-                                    .into(),
-                        });
+            // ── Check: HTTP traffic after a prior 101 on the same connection ──
+            // The operative clause is "for a change in the application protocol being
+            // used on this connection": a 101 switches the connection's protocol, so a
+            // later HTTP transaction on it means the hand-off did not take. There is no
+            // hard "MUST NOT send HTTP after 101"; this is derived from that switch, and
+            // it is why the earlier cite quoted the wrong (introductory) half of the
+            // sentence — the connection-change clause is what governs here.
+            // cite(RFC 9110 § 15.2.2): "The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection."
+            if tx.connection_id.is_some() {
+                for prev in history.iter() {
+                    if let Some(prev_resp) = &prev.response {
+                        if prev_resp.status == 101 {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message:
+                                    "HTTP traffic after 101 Switching Protocols on the same connection; \
+                                     the connection should have been handed off to the upgraded protocol"
+                                        .into(),
+                            });
+                        }
                     }
                 }
             }
-        }
 
-        // Remaining checks only apply to 101 responses
-        if resp.status != 101 {
-            return None;
-        }
+            // Remaining checks only apply to 101 responses
+            if resp.status != 101 {
+                return None;
+            }
 
-        // ── Check: 101 on HTTP/1.0 ──
-        // A 101 is the server acting on the client's Upgrade request; in HTTP/1.0 it
-        // must ignore Upgrade, so it can never legitimately send a 101. This branch
-        // fires on any 101 over HTTP/1.0; the cited sentence literally covers the
-        // Upgrade-present case (the RFC's only "HTTP/1.0 doesn't do Upgrade" statement),
-        // and a bare 101 with no Upgrade at all is illegitimate a fortiori — a 101
-        // presupposes an Upgrade exchange HTTP/1.0 cannot have had.
-        // cite(RFC 9110 § 7.8): "A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field."
-        // Both digits, not the string: this is the one gate here that needs the
-        // minor version too, since HTTP/1.1 is the version that does support
-        // Upgrade. Reading the digits is the same move as the two gates below,
-        // which would otherwise be arguing with this line.
-        if matches!(
-            crate::http_version::parse(&tx.request.version),
-            Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
-        ) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message:
-                    "101 Switching Protocols must not be sent in response to an HTTP/1.0 request; \
-                     Upgrade is not supported in HTTP/1.0 (RFC 9110 §7.8)"
+            // ── Check: 101 on HTTP/1.0 ──
+            // A 101 is the server acting on the client's Upgrade request; in HTTP/1.0 it
+            // must ignore Upgrade, so it can never legitimately send a 101. This branch
+            // fires on any 101 over HTTP/1.0; the cited sentence literally covers the
+            // Upgrade-present case (the RFC's only "HTTP/1.0 doesn't do Upgrade" statement),
+            // and a bare 101 with no Upgrade at all is illegitimate a fortiori — a 101
+            // presupposes an Upgrade exchange HTTP/1.0 cannot have had.
+            // cite(RFC 9110 § 7.8): "A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field."
+            // Both digits, not the string: this is the one gate here that needs the
+            // minor version too, since HTTP/1.1 is the version that does support
+            // Upgrade. Reading the digits is the same move as the two gates below,
+            // which would otherwise be arguing with this line.
+            if matches!(
+                crate::http_version::parse(&tx.request.version),
+                Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
+            ) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message:
+                        "101 Switching Protocols must not be sent in response to an HTTP/1.0 request; \
+                         Upgrade is not supported in HTTP/1.0 (RFC 9110 §7.8)"
+                            .into(),
+                });
+            }
+
+            // ── Check: 101 on HTTP/2 ──
+            // cite(RFC 9113 § 8.6): "HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
+            // Two spellings were listed here because the value is one a writer chose
+            // — this version carries no version field — and neither listing them nor
+            // guessing which one arrives is the question. The major digit is.
+            if crate::http_version::is_major(&tx.request.version, 2) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "101 Switching Protocols must not be sent over HTTP/2 (RFC 9113 §8.6)"
                         .into(),
-            });
-        }
+                });
+            }
 
-        // ── Check: 101 on HTTP/2 ──
-        // cite(RFC 9113 § 8.6): "HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
-        // Two spellings were listed here because the value is one a writer chose
-        // — this version carries no version field — and neither listing them nor
-        // guessing which one arrives is the question. The major digit is.
-        if crate::http_version::is_major(&tx.request.version, 2) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "101 Switching Protocols must not be sent over HTTP/2 (RFC 9113 §8.6)"
-                    .into(),
-            });
-        }
+            // ── Check: 101 on HTTP/3 ──
+            // §4.5 is the only place RFC 9114 mentions 101 at all (the message said §4.1,
+            // whose subject is HTTP Message Framing). Also enforced by
+            // `http3_status_code_valid`; checked here for completeness.
+            // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
+            if crate::http_version::is_major(&tx.request.version, 3) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "101 Switching Protocols must not be sent over HTTP/3 (RFC 9114 §4.5)"
+                        .into(),
+                });
+            }
 
-        // ── Check: 101 on HTTP/3 ──
-        // §4.5 is the only place RFC 9114 mentions 101 at all (the message said §4.1,
-        // whose subject is HTTP Message Framing). Also enforced by
-        // `http3_status_code_valid`; checked here for completeness.
-        // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
-        if crate::http_version::is_major(&tx.request.version, 3) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "101 Switching Protocols must not be sent over HTTP/3 (RFC 9114 §4.5)"
-                    .into(),
-            });
-        }
+            // ── Check: unsolicited 101 (no Upgrade in request) ──
+            // get_all_header_values combines multiple Upgrade field lines into one
+            // comma-separated list; the field-combining grammar (RFC 9110 §5.3) is cited
+            // on the helper it calls (helpers/headers.rs), which owns that quote.
+            let req_upgrade_combined =
+                crate::helpers::headers::get_all_header_values(&tx.request.headers, "upgrade");
+            // No request Upgrade at all: the client indicated no protocol, so the switch
+            // the 101 announces is one it never invited. Same governing sentence as the
+            // empty-token and protocol-mismatch checks below — the three faces of "not
+            // indicated by the client" (nothing / malformed / a different protocol).
+            // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
+            if req_upgrade_combined.is_none() {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message:
+                        "Server sent 101 Switching Protocols but the request did not include an \
+                         Upgrade header (RFC 9110 §7.8)"
+                            .into(),
+                });
+            }
+            let req_upgrade_val = req_upgrade_combined.unwrap();
 
-        // ── Check: unsolicited 101 (no Upgrade in request) ──
-        // get_all_header_values combines multiple Upgrade field lines into one
-        // comma-separated list; the field-combining grammar (RFC 9110 §5.3) is cited
-        // on the helper it calls (helpers/headers.rs), which owns that quote.
-        let req_upgrade_combined =
-            crate::helpers::headers::get_all_header_values(&tx.request.headers, "upgrade");
-        // No request Upgrade at all: the client indicated no protocol, so the switch
-        // the 101 announces is one it never invited. Same governing sentence as the
-        // empty-token and protocol-mismatch checks below — the three faces of "not
-        // indicated by the client" (nothing / malformed / a different protocol).
-        // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
-        if req_upgrade_combined.is_none() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Server sent 101 Switching Protocols but the request did not include an \
-                     Upgrade header (RFC 9110 §7.8)"
-                    .into(),
-            });
-        }
-        let req_upgrade_val = req_upgrade_combined.unwrap();
+            // ── Check: 101 response missing Upgrade header ──
+            // cite(RFC 9110 § 15.2.2): "The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response."
+            let resp_upgrade_combined =
+                crate::helpers::headers::get_all_header_values(&resp.headers, "upgrade");
+            if resp_upgrade_combined.is_none() {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "101 Switching Protocols response missing required Upgrade header \
+                         (RFC 9110 §15.2.2)"
+                        .into(),
+                });
+            }
+            let resp_upgrade_val = resp_upgrade_combined.unwrap();
 
-        // ── Check: 101 response missing Upgrade header ──
-        // cite(RFC 9110 § 15.2.2): "The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response."
-        let resp_upgrade_combined =
-            crate::helpers::headers::get_all_header_values(&resp.headers, "upgrade");
-        if resp_upgrade_combined.is_none() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "101 Switching Protocols response missing required Upgrade header \
-                     (RFC 9110 §15.2.2)"
-                    .into(),
-            });
-        }
-        let resp_upgrade_val = resp_upgrade_combined.unwrap();
+            // ── Check: protocol mismatch ──
+            // Protocol names carry a preferred case but are matched case-insensitively,
+            // so both lists are folded to lowercase before comparison.
+            // cite(RFC 9110 § 7.8): "Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols."
+            let offered: Vec<String> = crate::helpers::headers::list_members(&req_upgrade_val)
+                .map(str::to_ascii_lowercase)
+                .collect();
 
-        // ── Check: protocol mismatch ──
-        // Protocol names carry a preferred case but are matched case-insensitively,
-        // so both lists are folded to lowercase before comparison.
-        // cite(RFC 9110 § 7.8): "Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols."
-        let offered: Vec<String> = crate::helpers::headers::list_members(&req_upgrade_val)
-            .map(str::to_ascii_lowercase)
-            .collect();
+            // The response must indicate at least one chosen protocol.
+            let chosen_list: Vec<String> = crate::helpers::headers::list_members(&resp_upgrade_val)
+                .map(str::to_ascii_lowercase)
+                .collect();
 
-        // The response must indicate at least one chosen protocol.
-        let chosen_list: Vec<String> = crate::helpers::headers::list_members(&resp_upgrade_val)
-            .map(str::to_ascii_lowercase)
-            .collect();
+            // Upgrade present but no valid tokens (e.g. " , , "): still nothing indicated.
+            // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
+            if offered.is_empty() {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Server sent 101 Switching Protocols but the request Upgrade header \
+                         contains no protocol tokens (RFC 9110 §7.8)"
+                        .into(),
+                });
+            }
 
-        // Upgrade present but no valid tokens (e.g. " , , "): still nothing indicated.
-        // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
-        if offered.is_empty() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Server sent 101 Switching Protocols but the request Upgrade header \
-                     contains no protocol tokens (RFC 9110 §7.8)"
-                    .into(),
-            });
-        }
+            // An empty chosen list is a response Upgrade that indicates no protocol —
+            // the same MUST-generate obligation as the missing-header check above.
+            // cite(RFC 9110 § 15.2.2): "The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response."
+            if chosen_list.is_empty() {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message:
+                        "101 Switching Protocols response Upgrade header contains no protocol \
+                         tokens (RFC 9110 §15.2.2)"
+                            .into(),
+                });
+            }
 
-        // An empty chosen list is a response Upgrade that indicates no protocol —
-        // the same MUST-generate obligation as the missing-header check above.
-        // cite(RFC 9110 § 15.2.2): "The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response."
-        if chosen_list.is_empty() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "101 Switching Protocols response Upgrade header contains no protocol \
-                     tokens (RFC 9110 §15.2.2)"
-                    .into(),
-            });
-        }
+            // The server may choose one or more of the offered protocols, but every
+            // chosen protocol must have been offered — `all` fails on the first that
+            // was not, which is exactly "switch to a protocol not indicated".
+            // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
+            let all_matched = chosen_list.iter().all(|c| offered.contains(c));
 
-        // The server may choose one or more of the offered protocols, but every
-        // chosen protocol must have been offered — `all` fails on the first that
-        // was not, which is exactly "switch to a protocol not indicated".
-        // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
-        let all_matched = chosen_list.iter().all(|c| offered.contains(c));
+            if !all_matched {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "101 response Upgrade '{}' was not offered by the client's Upgrade '{}' \
+                         (RFC 9110 §7.8)",
+                        resp_upgrade_val.trim(),
+                        req_upgrade_val.trim()
+                    ),
+                });
+            }
 
-        if !all_matched {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "101 response Upgrade '{}' was not offered by the client's Upgrade '{}' \
-                     (RFC 9110 §7.8)",
-                    resp_upgrade_val.trim(),
-                    req_upgrade_val.trim()
-                ),
-            });
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

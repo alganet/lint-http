@@ -36,32 +36,40 @@ impl Rule for TrailerFieldsValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Each trailer section is measured against the header section of its own
-        // message. A request's `Trailer` announces what that request will send and
-        // its `Connection` names options for that message, so neither says anything
-        // about what the response may put after its content.
-        if let Some(ref trailers) = tx.request.trailers {
-            if let Some(v) = check_trailers(self.id(), ctx.severity, trailers, &tx.request.headers)
-            {
-                return Some(v);
-            }
-        }
-
-        if let Some(ref resp) = tx.response {
-            if let Some(ref trailers) = resp.trailers {
-                if let Some(v) = check_trailers(self.id(), ctx.severity, trailers, &resp.headers) {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Each trailer section is measured against the header section of its own
+            // message. A request's `Trailer` announces what that request will send and
+            // its `Connection` names options for that message, so neither says anything
+            // about what the response may put after its content.
+            if let Some(ref trailers) = tx.request.trailers {
+                if let Some(v) =
+                    check_trailers(self.id(), ctx.severity, trailers, &tx.request.headers)
+                {
                     return Some(v);
                 }
             }
-        }
 
-        None
+            if let Some(ref resp) = tx.response {
+                if let Some(ref trailers) = resp.trailers {
+                    if let Some(v) =
+                        check_trailers(self.id(), ctx.severity, trailers, &resp.headers)
+                    {
+                        return Some(v);
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

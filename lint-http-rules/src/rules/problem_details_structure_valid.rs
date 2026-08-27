@@ -63,137 +63,142 @@ impl Rule for ProblemDetailsStructureValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // Two field lines: `get` below reads the first while the recipient is
-        // likely to act on the last, so the format this message declares is not
-        // the one in force, and there is nothing to measure the content against.
-        // `content_type_valid` reports the duplication itself.
-        // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
-        if resp.headers.get_all("content-type").iter().count() > 1 {
-            return None;
-        }
-
-        // With no `Content-Type` there is no declared format for the content to
-        // contradict — the recipient is left to guess, which is a different
-        // finding and `content_type_present`'s. A value that is not a
-        // media type is `content_type_valid`'s.
-        // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
-        let ct_str = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
-        let parsed = crate::helpers::headers::parse_media_type(ct_str).ok()?;
-
-        // Folded once, here, rather than at the comparison below.
-        // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-        let t = parsed.type_.to_ascii_lowercase();
-        let sub = parsed.subtype.to_ascii_lowercase();
-
-        // The JSON serialization only. RFC 9457 defines an equivalent XML one
-        // and names its media type in an appendix; measuring an XML document
-        // against that format needs an XML parser this crate does not have, so
-        // `application/problem+xml` is excluded deliberately and `description()`
-        // says so rather than leaving the omission to look like an oversight.
-        // cite(RFC 9457 § 3): "When serialized in a JSON document, that format is identified with the "application/problem+json" media type."
-        // cite(RFC 9457 § B): "The media type for this format is "application/problem+xml"."
-        if t != "application" || sub != "problem+json" {
-            return None;
-        }
-
-        // A content coding makes the octets on the wire the coded form, so they
-        // are not a JSON document and were never meant to be. What that
-        // disqualifies is reading them as one -- and nothing else: how many of
-        // them there are is still evidence, and an empty content is empty
-        // whatever was applied to it. A lone `identity` is not excepted: the
-        // same section says it SHOULD NOT be sent, so the only message this
-        // costs a finding is one already contradicting that sentence.
-        // cite(RFC 9110 § 8.4): "The "Content-Encoding" header field indicates what content codings have been applied to the representation, beyond those inherent in the media type, and thus what decoding mechanisms have to be applied in order to obtain data in the media type referenced by the Content-Type header field."
-        let coded = resp.headers.contains_key("content-encoding");
-
-        // Skip byte inspection when the captured body is a truncated prefix
-        // (streaming): a truncated JSON object would mis-parse. The bound is the
-        // capture's, not the protocol's — no sentence licenses it — and the
-        // length-based checks below use the real `body_length`, so coverage
-        // degrades gracefully. An untruncated capture with an empty prefix is an
-        // empty body: the tee marks a capture truncated whenever the total
-        // exceeds the prefix it kept, so the two cannot be confused.
-        if let Some(b) = tx
-            .response_body
-            .as_ref()
-            .filter(|_| !tx.response_body_over_limit)
-        {
-            // Zero octets is not a JSON document. The sentence is about what a
-            // JSON text is, and an empty octet sequence serializes no value.
-            // cite(RFC 8259 § 2): "A JSON text is a serialized value."
-            if b.is_empty() {
-                return Some(self.report(ctx.severity, "its content is empty"));
-            }
-            if coded {
+            // Two field lines: `get` below reads the first while the recipient is
+            // likely to act on the last, so the format this message declares is not
+            // the one in force, and there is nothing to measure the content against.
+            // `content_type_valid` reports the duplication itself.
+            // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
+            if resp.headers.get_all("content-type").iter().count() > 1 {
                 return None;
             }
-            return match serde_json::from_slice::<serde_json::Value>(b) {
-                // An object of no members is a conforming problem details
-                // object: every member is optional, and the one that carries the
-                // format's meaning has a defined value for its own absence. So
-                // `{}` says "no semantics beyond the status code", which is
-                // what the registered `about:blank` type means.
-                // cite(RFC 9457 § 3.1): "Problem detail objects can have the following members."
-                // cite(RFC 9457 § 3.1.1): "When this member is not present, its value is assumed to be "about:blank"."
-                // cite(RFC 9457 § 4.2.1): "Consequently, any problem details object not carrying an explicit "type" member implicitly uses this URI."
-                Ok(serde_json::Value::Object(_)) => None,
-                // Well-formed JSON, but not the structure the media type names.
-                // cite(RFC 9457 § 3): "The canonical model for problem details is a JSON [JSON] object."
-                Ok(other) => Some(self.report(
-                    ctx.severity,
-                    &format!(
-                        "its content is a JSON {}, not a JSON object",
-                        json_kind(&other)
-                    ),
-                )),
-                // Not JSON at all. `from_slice` also refuses octets that are not
-                // UTF-8, which is the second sentence: this is content the
-                // recipient cannot decode, let alone parse.
+
+            // With no `Content-Type` there is no declared format for the content to
+            // contradict — the recipient is left to guess, which is a different
+            // finding and `content_type_present`'s. A value that is not a
+            // media type is `content_type_valid`'s.
+            // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
+            let ct_str = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
+            let parsed = crate::helpers::headers::parse_media_type(ct_str).ok()?;
+
+            // Folded once, here, rather than at the comparison below.
+            // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
+            let t = parsed.type_.to_ascii_lowercase();
+            let sub = parsed.subtype.to_ascii_lowercase();
+
+            // The JSON serialization only. RFC 9457 defines an equivalent XML one
+            // and names its media type in an appendix; measuring an XML document
+            // against that format needs an XML parser this crate does not have, so
+            // `application/problem+xml` is excluded deliberately and `description()`
+            // says so rather than leaving the omission to look like an oversight.
+            // cite(RFC 9457 § 3): "When serialized in a JSON document, that format is identified with the "application/problem+json" media type."
+            // cite(RFC 9457 § B): "The media type for this format is "application/problem+xml"."
+            if t != "application" || sub != "problem+json" {
+                return None;
+            }
+
+            // A content coding makes the octets on the wire the coded form, so they
+            // are not a JSON document and were never meant to be. What that
+            // disqualifies is reading them as one -- and nothing else: how many of
+            // them there are is still evidence, and an empty content is empty
+            // whatever was applied to it. A lone `identity` is not excepted: the
+            // same section says it SHOULD NOT be sent, so the only message this
+            // costs a finding is one already contradicting that sentence.
+            // cite(RFC 9110 § 8.4): "The "Content-Encoding" header field indicates what content codings have been applied to the representation, beyond those inherent in the media type, and thus what decoding mechanisms have to be applied in order to obtain data in the media type referenced by the Content-Type header field."
+            let coded = resp.headers.contains_key("content-encoding");
+
+            // Skip byte inspection when the captured body is a truncated prefix
+            // (streaming): a truncated JSON object would mis-parse. The bound is the
+            // capture's, not the protocol's — no sentence licenses it — and the
+            // length-based checks below use the real `body_length`, so coverage
+            // degrades gracefully. An untruncated capture with an empty prefix is an
+            // empty body: the tee marks a capture truncated whenever the total
+            // exceeds the prefix it kept, so the two cannot be confused.
+            if let Some(b) = tx
+                .response_body
+                .as_ref()
+                .filter(|_| !tx.response_body_over_limit)
+            {
+                // Zero octets is not a JSON document. The sentence is about what a
+                // JSON text is, and an empty octet sequence serializes no value.
                 // cite(RFC 8259 § 2): "A JSON text is a serialized value."
-                // cite(RFC 8259 § 8.1): "JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8"
-                Err(_) => Some(self.report(ctx.severity, "its content is not a JSON document")),
-            };
-        }
+                if b.is_empty() {
+                    return Some(self.report(ctx.severity, "its content is empty"));
+                }
+                if coded {
+                    return None;
+                }
+                return match serde_json::from_slice::<serde_json::Value>(b) {
+                    // An object of no members is a conforming problem details
+                    // object: every member is optional, and the one that carries the
+                    // format's meaning has a defined value for its own absence. So
+                    // `{}` says "no semantics beyond the status code", which is
+                    // what the registered `about:blank` type means.
+                    // cite(RFC 9457 § 3.1): "Problem detail objects can have the following members."
+                    // cite(RFC 9457 § 3.1.1): "When this member is not present, its value is assumed to be "about:blank"."
+                    // cite(RFC 9457 § 4.2.1): "Consequently, any problem details object not carrying an explicit "type" member implicitly uses this URI."
+                    Ok(serde_json::Value::Object(_)) => None,
+                    // Well-formed JSON, but not the structure the media type names.
+                    // cite(RFC 9457 § 3): "The canonical model for problem details is a JSON [JSON] object."
+                    Ok(other) => Some(self.report(
+                        ctx.severity,
+                        &format!(
+                            "its content is a JSON {}, not a JSON object",
+                            json_kind(&other)
+                        ),
+                    )),
+                    // Not JSON at all. `from_slice` also refuses octets that are not
+                    // UTF-8, which is the second sentence: this is content the
+                    // recipient cannot decode, let alone parse.
+                    // cite(RFC 8259 § 2): "A JSON text is a serialized value."
+                    // cite(RFC 8259 § 8.1): "JSON text exchanged between systems that are not part of a closed ecosystem MUST be encoded using UTF-8"
+                    Err(_) => Some(self.report(ctx.severity, "its content is not a JSON document")),
+                };
+            }
 
-        // No usable bytes. The capture's own octet count is the next evidence,
-        // and it answers only the emptiness half of the question. The count is
-        // of content: chunk sizes and the trailer section are not in it, so a
-        // zero here is zero octets of representation.
-        // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
-        if let Some(len) = resp.body_length {
-            return (len == 0)
-                .then(|| self.report(ctx.severity, "the capture counted zero content octets"));
-        }
+            // No usable bytes. The capture's own octet count is the next evidence,
+            // and it answers only the emptiness half of the question. The count is
+            // of content: chunk sizes and the trailer section are not in it, so a
+            // zero here is zero octets of representation.
+            // cite(RFC 9110 § 6.4): "This abstract definition of content reflects the data after it has been extracted from the message framing."
+            if let Some(len) = resp.body_length {
+                return (len == 0)
+                    .then(|| self.report(ctx.severity, "the capture counted zero content octets"));
+            }
 
-        // Nothing counted either -- a transaction deserialized from a capture
-        // file carries no body bytes at all, because they are not serialized.
-        // What the sender declared is the last evidence, and it is the framing
-        // only when nothing overrides it. The overriding sentence is HTTP/1.1's,
-        // and so is the field it names; what holds wherever that field appears
-        // is that the length beside it is not the length.
-        // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
-        // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
-        // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
-        if !resp.headers.contains_key("transfer-encoding")
-            && matches!(
-                crate::helpers::headers::validate_content_length(&resp.headers),
-                Ok(Some(0))
-            )
-        {
-            return Some(self.report(ctx.severity, "it declares a Content-Length of zero"));
-        }
+            // Nothing counted either -- a transaction deserialized from a capture
+            // file carries no body bytes at all, because they are not serialized.
+            // What the sender declared is the last evidence, and it is the framing
+            // only when nothing overrides it. The overriding sentence is HTTP/1.1's,
+            // and so is the field it names; what holds wherever that field appears
+            // is that the length beside it is not the length.
+            // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
+            // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
+            // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
+            if !resp.headers.contains_key("transfer-encoding")
+                && matches!(
+                    crate::helpers::headers::validate_content_length(&resp.headers),
+                    Ok(Some(0))
+                )
+            {
+                return Some(self.report(ctx.severity, "it declares a Content-Length of zero"));
+            }
 
-        // A declared length above zero, an unreadable one, or none at all: the
-        // content may be anything and nothing here has seen it.
-        None
+            // A declared length above zero, an unreadable one, or none at all: the
+            // content may be anything and nothing here has seen it.
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

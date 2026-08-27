@@ -377,97 +377,102 @@ impl Rule for AltSvcHeaderSyntax {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // No status gate, and the sentence below is the whole reason there is
-        // none: every response is a response this field may ride on.
-        // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
-        let resp = tx.response.as_ref()?;
-        let severity = ctx.severity;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // No status gate, and the sentence below is the whole reason there is
+            // none: every response is a response this field may ride on.
+            // cite(RFC 7838 § 3): "Alt-Svc MAY occur in any HTTP response message, regardless of the status code."
+            let resp = tx.response.as_ref()?;
+            let severity = ctx.severity;
 
-        // One `char` per octet, because the findings below are about what a
-        // sender wrote: `to_str` would fold a field carrying `obs-text` into
-        // "no such field here", and `obs-text` is admissible inside a
-        // `quoted-string` and inadmissible in every other half of this grammar.
-        //
-        // The join is licensed by one of the field's two alternatives and not
-        // by the other -- `1#alt-value` is a comma-separated list and `clear`
-        // is a bare keyword -- so a `clear` arriving beside anything else is
-        // read below rather than joined into a member and forgotten. That state
-        // is one the document names.
-        // The separator the sentence names is a comma *and optional whitespace*,
-        // and the join here writes the comma alone -- which is why the member
-        // walk below trims `OWS` rather than assuming there is none.
-        // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
-        let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
-        let value = trim_ows(&value);
+            // One `char` per octet, because the findings below are about what a
+            // sender wrote: `to_str` would fold a field carrying `obs-text` into
+            // "no such field here", and `obs-text` is admissible inside a
+            // `quoted-string` and inadmissible in every other half of this grammar.
+            //
+            // The join is licensed by one of the field's two alternatives and not
+            // by the other -- `1#alt-value` is a comma-separated list and `clear`
+            // is a bare keyword -- so a `clear` arriving beside anything else is
+            // read below rather than joined into a member and forgotten. That state
+            // is one the document names.
+            // The separator the sentence names is a comma *and optional whitespace*,
+            // and the join here writes the comma alone -- which is why the member
+            // walk below trims `OWS` rather than assuming there is none.
+            // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
+            let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
+            let value = trim_ows(&value);
 
-        if value == CLEAR {
-            return None;
-        }
+            if value == CLEAR {
+                return None;
+            }
 
-        // A quote that never closes makes the member list untrustworthy: every
-        // separator after the stray DQUOTE stops being one, so the count of
-        // members and the identity of each is a guess.
-        if !quoting_is_balanced(value) {
-            return Some(self.violation(
-                severity,
-                format!(
-                    "Alt-Svc value '{}' has a DQUOTE that never closes. `alt-authority` is a `quoted-string` and a `parameter`'s value may be one, so an unterminated quote leaves every comma and semicolon after it inside a string that has no end",
-                    shown_in_finding(value)
-                ),
-            ));
-        }
-
-        let members = list_members_as_written(value);
-
-        // `1#alt-value` has a floor of one, and the field's other alternative
-        // was ruled out above -- so an empty value is neither.
-        // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
-        if members.iter().all(|m| m.is_empty()) {
-            return Some(self.violation(
-                severity,
-                "Alt-Svc carries an empty field value. The field is either the keyword `clear` or `1#alt-value`, whose floor is one alternative -- so this value is neither, and it advertises nothing".into(),
-            ));
-        }
-
-        // The parenthetical is the finding, and it is the document's own word
-        // for this state: `clear` is the whole field value or it is nothing.
-        // cite(RFC 7838 § 3): "A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services)."
-        if members.contains(&CLEAR) {
-            return Some(self.violation(
-                severity,
-                format!(
-                    "Alt-Svc response carries both the keyword `clear` and alternative services ('{}'). `Alt-Svc = clear / 1#alt-value` is an alternation, so a value holding both derives from neither half -- the document calls this an invalid reply and has a client invalidate the alternatives named beside the keyword",
-                    shown_in_finding(value)
-                ),
-            ));
-        }
-
-        for member in members {
-            if member.is_empty() {
-                // The `#rule` this document imports is the one RFC 9110 § 5.6.1
-                // now carries, and both put the requirement on the sender.
-                // cite(RFC 7838 § 1.1): "This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230]."
-                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+            // A quote that never closes makes the member list untrustworthy: every
+            // separator after the stray DQUOTE stops being one, so the count of
+            // members and the identity of each is a guess.
+            if !quoting_is_balanced(value) {
                 return Some(self.violation(
                     severity,
                     format!(
-                        "Alt-Svc value '{}' holds an empty list element. A recipient counts the alternatives it can read and drops this one, so what the list advertises and what it looks like differ",
+                        "Alt-Svc value '{}' has a DQUOTE that never closes. `alt-authority` is a `quoted-string` and a `parameter`'s value may be one, so an unterminated quote leaves every comma and semicolon after it inside a string that has no end",
                         shown_in_finding(value)
                     ),
                 ));
             }
-            if let Some(message) = check_alt_value(member) {
-                return Some(self.violation(severity, message));
-            }
-        }
 
-        None
+            let members = list_members_as_written(value);
+
+            // `1#alt-value` has a floor of one, and the field's other alternative
+            // was ruled out above -- so an empty value is neither.
+            // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+            if members.iter().all(|m| m.is_empty()) {
+                return Some(self.violation(
+                    severity,
+                    "Alt-Svc carries an empty field value. The field is either the keyword `clear` or `1#alt-value`, whose floor is one alternative -- so this value is neither, and it advertises nothing".into(),
+                ));
+            }
+
+            // The parenthetical is the finding, and it is the document's own word
+            // for this state: `clear` is the whole field value or it is nothing.
+            // cite(RFC 7838 § 3): "A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services)."
+            if members.contains(&CLEAR) {
+                return Some(self.violation(
+                    severity,
+                    format!(
+                        "Alt-Svc response carries both the keyword `clear` and alternative services ('{}'). `Alt-Svc = clear / 1#alt-value` is an alternation, so a value holding both derives from neither half -- the document calls this an invalid reply and has a client invalidate the alternatives named beside the keyword",
+                        shown_in_finding(value)
+                    ),
+                ));
+            }
+
+            for member in members {
+                if member.is_empty() {
+                    // The `#rule` this document imports is the one RFC 9110 § 5.6.1
+                    // now carries, and both put the requirement on the sender.
+                    // cite(RFC 7838 § 1.1): "This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230]."
+                    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                    return Some(self.violation(
+                        severity,
+                        format!(
+                            "Alt-Svc value '{}' holds an empty list element. A recipient counts the alternatives it can read and drops this one, so what the list advertises and what it looks like differ",
+                            shown_in_finding(value)
+                        ),
+                    ));
+                }
+                if let Some(message) = check_alt_value(member) {
+                    return Some(self.violation(severity, message));
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

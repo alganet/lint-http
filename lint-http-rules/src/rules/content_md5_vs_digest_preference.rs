@@ -16,60 +16,65 @@ impl Rule for ContentMd5VsDigestPreference {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Helper to check a header map for both Content-Digest and Content-MD5.
-        // The same check runs over the request and the response below, which is
-        // what this sentence licenses — Content-Digest is defined for both
-        // directions, so neither side is out of scope.
-        // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
-        let check_map = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
-            let has_new = headers.get_all("content-digest").iter().next().is_some();
-            let has_md5 = headers.get_all("content-md5").iter().next().is_some();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Helper to check a header map for both Content-Digest and Content-MD5.
+            // The same check runs over the request and the response below, which is
+            // what this sentence licenses — Content-Digest is defined for both
+            // directions, so neither side is out of scope.
+            // cite(RFC 9530 § 2): "The Content-Digest HTTP field can be used in requests and responses"
+            let check_map = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+                let has_new = headers.get_all("content-digest").iter().next().is_some();
+                let has_md5 = headers.get_all("content-md5").iter().next().is_some();
 
-            // No sentence anywhere says "prefer Content-Digest over Content-MD5":
-            // RFC 9530 never mentions Content-MD5, so it cannot rank them. What is
-            // citable is that Content-MD5 is not part of HTTP at all — removed by
-            // RFC 7231, years before RFC 9530 existed. The preference is this
-            // linter's judgement resting on that fact.
-            //
-            // The distinct hazard here, and the reason this rule earns its keep
-            // beside `digest_header_syntax` (which reports a lone
-            // Content-MD5 already), is *disagreement*: two integrity values over
-            // the same content, computed by different algorithms, with nothing
-            // saying which a recipient validates. The message names that rather
-            // than repeating the sibling's obsolescence report.
-            // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
-            if has_new && has_md5 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Both Content-Digest and Content-MD5 present in {}; they are independent integrity values that can disagree, and nothing specifies which a recipient validates. Content-MD5 was removed from HTTP by RFC 7231 — send only Content-Digest",
-                        which
-                    ),
-                });
-            }
-            None
-        };
+                // No sentence anywhere says "prefer Content-Digest over Content-MD5":
+                // RFC 9530 never mentions Content-MD5, so it cannot rank them. What is
+                // citable is that Content-MD5 is not part of HTTP at all — removed by
+                // RFC 7231, years before RFC 9530 existed. The preference is this
+                // linter's judgement resting on that fact.
+                //
+                // The distinct hazard here, and the reason this rule earns its keep
+                // beside `digest_header_syntax` (which reports a lone
+                // Content-MD5 already), is *disagreement*: two integrity values over
+                // the same content, computed by different algorithms, with nothing
+                // saying which a recipient validates. The message names that rather
+                // than repeating the sibling's obsolescence report.
+                // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
+                if has_new && has_md5 {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Both Content-Digest and Content-MD5 present in {}; they are independent integrity values that can disagree, and nothing specifies which a recipient validates. Content-MD5 was removed from HTTP by RFC 7231 — send only Content-Digest",
+                            which
+                        ),
+                    });
+                }
+                None
+            };
 
-        // Check request
-        if let Some(v) = check_map("request", &tx.request.headers) {
-            return Some(v);
-        }
-
-        // Check response
-        if let Some(resp) = &tx.response {
-            if let Some(v) = check_map("response", &resp.headers) {
+            // Check request
+            if let Some(v) = check_map("request", &tx.request.headers) {
                 return Some(v);
             }
-        }
 
-        None
+            // Check response
+            if let Some(resp) = &tx.response {
+                if let Some(v) = check_map("response", &resp.headers) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

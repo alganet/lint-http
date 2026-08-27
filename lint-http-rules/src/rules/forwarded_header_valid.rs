@@ -289,64 +289,69 @@ impl Rule for ForwardedHeaderValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Every field line of the request's header section. A list may be split
-        // over several of them and each holds whole elements — a comma is what
-        // separates members, and joining the lines would put one there — so each
-        // line is read on its own and the elements are the same elements.
-        //
-        // The request's *trailer* section is not read here. A `Forwarded` in one
-        // is a finding, and it belongs to the sentence that says a sender may
-        // not put a field in a trailer unless that field's definition permits it
-        // — which is the trailer rule's, over the shared table of field names
-        // this one now appears in.
-        //
-        // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
-        for hv in tx.request.headers.get_all("forwarded").iter() {
-            if let Some(v) = self.check_field_line(&field_line(hv.as_bytes()), ctx.severity) {
-                return Some(v);
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Every field line of the request's header section. A list may be split
+            // over several of them and each holds whole elements — a comma is what
+            // separates members, and joining the lines would put one there — so each
+            // line is read on its own and the elements are the same elements.
+            //
+            // The request's *trailer* section is not read here. A `Forwarded` in one
+            // is a finding, and it belongs to the sentence that says a sender may
+            // not put a field in a trailer unless that field's definition permits it
+            // — which is the trailer rule's, over the shared table of field names
+            // this one now appears in.
+            //
+            // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
+            for hv in tx.request.headers.get_all("forwarded").iter() {
+                if let Some(v) = self.check_field_line(&field_line(hv.as_bytes()), ctx.severity) {
+                    return Some(v);
+                }
             }
-        }
 
-        // The field is a request field, and this is not a scope note: §4 says so
-        // in a sentence, and §8.2 says why — the value names every proxy between
-        // the client and the origin, and a response carries it back to the party
-        // it was hidden from. This rule used to walk the response to validate
-        // the syntax of what it found there, under a comment saying the field
-        // "can appear in responses per RFC 7239", with a test pinning that a
-        // well-formed one was no finding at all.
-        //
-        // Both of the response's field sections, because §8.2's copy is a copy
-        // wherever it lands.
-        //
-        // cite(RFC 7239 § 4): ""Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses."
-        // cite(RFC 7239 § 8.2): "This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client."
-        if let Some(resp) = &tx.response {
-            let in_trailers = resp
-                .trailers
-                .as_ref()
-                .is_some_and(|t| t.contains_key("forwarded"));
-            if resp.headers.contains_key("forwarded") || in_trailers {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Response carries a Forwarded field in its {} section: the field is only for use in HTTP requests, and copying it into a response reveals the proxy chain to the client",
-                        match in_trailers && !resp.headers.contains_key("forwarded") {
-                            true => "trailer",
-                            false => "header",
-                        }
-                    ),
-                });
+            // The field is a request field, and this is not a scope note: §4 says so
+            // in a sentence, and §8.2 says why — the value names every proxy between
+            // the client and the origin, and a response carries it back to the party
+            // it was hidden from. This rule used to walk the response to validate
+            // the syntax of what it found there, under a comment saying the field
+            // "can appear in responses per RFC 7239", with a test pinning that a
+            // well-formed one was no finding at all.
+            //
+            // Both of the response's field sections, because §8.2's copy is a copy
+            // wherever it lands.
+            //
+            // cite(RFC 7239 § 4): ""Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses."
+            // cite(RFC 7239 § 8.2): "This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client."
+            if let Some(resp) = &tx.response {
+                let in_trailers = resp
+                    .trailers
+                    .as_ref()
+                    .is_some_and(|t| t.contains_key("forwarded"));
+                if resp.headers.contains_key("forwarded") || in_trailers {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Response carries a Forwarded field in its {} section: the field is only for use in HTTP requests, and copying it into a response reveals the proxy chain to the client",
+                            match in_trailers && !resp.headers.contains_key("forwarded") {
+                                true => "trailer",
+                                false => "header",
+                            }
+                        ),
+                    });
+                }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

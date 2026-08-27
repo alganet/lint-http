@@ -22,140 +22,146 @@ impl Rule for LanguageTagSyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The two fields this rule reads do not use the same production, and
-        // RFC 9110 says so in one sentence. `Content-Language` carries
-        // `language-tag` (RFC 5646 §2.1); `Accept-Language` carries the broader
-        // `language-range` (RFC 4647 §2.1, by way of §12.5.4). A range needs no
-        // well-formedness at all — RFC 4647 says an ill-formed one "will
-        // probably not match anything", which is a statement about matching, not
-        // a licence to reject it.
-        //
-        // One validator serves both, and that is a choice rather than an
-        // oversight: it checks the properties the two productions agree on and
-        // nothing beyond. Where they differ it is lenient — `en-US-Latn` is a
-        // conforming range and not a conforming tag, and `e` is a conforming
-        // range whose single letter no `language` alternative admits — so a
-        // Content-Language carrying either goes unreported here. Being stricter
-        // would need two validators and a decision about how much of RFC 5646
-        // to implement; being wrong in the other direction would report
-        // conforming Accept-Language values, which is worse.
-        // cite(RFC 9110 § 8.5.1): "HTTP uses language tags within the Accept-Language and Content-Language header fields.  Accept-Language uses the broader language-range production defined in Section 12.5.4, whereas Content-Language uses the language-tag production defined below."
-        // cite(RFC 4647 § 2.1): "A basic language range differs from the language tags defined in [RFC4646] only in that there is no requirement that it be "well-formed" or be validated against the IANA Language Subtag Registry."
-        let check_tag = |hdr: &str, tag: &str| -> Option<Violation> {
-            // cite(RFC 9110 § 8.5.1): "A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings."
-            if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!("Invalid language tag '{}' in {}: {}", tag, hdr, e),
-                });
-            }
-            None
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The two fields this rule reads do not use the same production, and
+            // RFC 9110 says so in one sentence. `Content-Language` carries
+            // `language-tag` (RFC 5646 §2.1); `Accept-Language` carries the broader
+            // `language-range` (RFC 4647 §2.1, by way of §12.5.4). A range needs no
+            // well-formedness at all — RFC 4647 says an ill-formed one "will
+            // probably not match anything", which is a statement about matching, not
+            // a licence to reject it.
+            //
+            // One validator serves both, and that is a choice rather than an
+            // oversight: it checks the properties the two productions agree on and
+            // nothing beyond. Where they differ it is lenient — `en-US-Latn` is a
+            // conforming range and not a conforming tag, and `e` is a conforming
+            // range whose single letter no `language` alternative admits — so a
+            // Content-Language carrying either goes unreported here. Being stricter
+            // would need two validators and a decision about how much of RFC 5646
+            // to implement; being wrong in the other direction would report
+            // conforming Accept-Language values, which is worse.
+            // cite(RFC 9110 § 8.5.1): "HTTP uses language tags within the Accept-Language and Content-Language header fields.  Accept-Language uses the broader language-range production defined in Section 12.5.4, whereas Content-Language uses the language-tag production defined below."
+            // cite(RFC 4647 § 2.1): "A basic language range differs from the language tags defined in [RFC4646] only in that there is no requirement that it be "well-formed" or be validated against the IANA Language Subtag Registry."
+            let check_tag = |hdr: &str, tag: &str| -> Option<Violation> {
+                // cite(RFC 9110 § 8.5.1): "A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings."
+                if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!("Invalid language tag '{}' in {}: {}", tag, hdr, e),
+                    });
+                }
+                None
+            };
 
-        // Both fields are lists, so a sender may spread their members over
-        // several field lines and a recipient recombines them. Reading only the
-        // first — `get_header_str` returns one value — left every later line
-        // unchecked, and `accept_language_weight_valid` defers the
-        // range's syntax to this rule, so for those lines the deferral pointed
-        // at nobody.
-        //
-        // Each line is walked on its own rather than joined first, which for a
-        // per-member syntax check is the same answer either way and keeps a
-        // malformed line from being described in terms of its neighbour.
-        // Decoded from the raw octets rather than through `to_str`, which
-        // refuses everything outside visible US-ASCII and used to make the whole
-        // field line vanish. Both productions here are ASCII throughout — no
-        // quoted-string, so no `obs-text` anywhere — which means such an octet
-        // is never a legal part of either, and skipping the line reported
-        // nothing while hiding whatever else was on it:
-        //
-        //     Content-Language: en_US, <0xE4>
-        //
-        // has an underscore where a hyphen belongs, and said nothing at all.
-        // The replacement character the decode leaves behind is not
-        // alphanumeric, so the character check below reports it like any other
-        // octet the grammar does not admit.
-        // One `char` per octet, and not `String::from_utf8_lossy`: that decoder
-        // reads the octets as UTF-8, so a sender's two `obs-text` octets arrive
-        // as the one `char` they spell and an octet beginning no valid sequence
-        // arrives as U+FFFD — a character no sender can write, and the one a
-        // finding naming the character would then name.
-        use crate::helpers::headers::field_line_as_written as decode;
+            // Both fields are lists, so a sender may spread their members over
+            // several field lines and a recipient recombines them. Reading only the
+            // first — `get_header_str` returns one value — left every later line
+            // unchecked, and `accept_language_weight_valid` defers the
+            // range's syntax to this rule, so for those lines the deferral pointed
+            // at nobody.
+            //
+            // Each line is walked on its own rather than joined first, which for a
+            // per-member syntax check is the same answer either way and keeps a
+            // malformed line from being described in terms of its neighbour.
+            // Decoded from the raw octets rather than through `to_str`, which
+            // refuses everything outside visible US-ASCII and used to make the whole
+            // field line vanish. Both productions here are ASCII throughout — no
+            // quoted-string, so no `obs-text` anywhere — which means such an octet
+            // is never a legal part of either, and skipping the line reported
+            // nothing while hiding whatever else was on it:
+            //
+            //     Content-Language: en_US, <0xE4>
+            //
+            // has an underscore where a hyphen belongs, and said nothing at all.
+            // The replacement character the decode leaves behind is not
+            // alphanumeric, so the character check below reports it like any other
+            // octet the grammar does not admit.
+            // One `char` per octet, and not `String::from_utf8_lossy`: that decoder
+            // reads the octets as UTF-8, so a sender's two `obs-text` octets arrive
+            // as the one `char` they spell and an octet beginning no valid sequence
+            // arrives as U+FFFD — a character no sender can write, and the one a
+            // finding naming the character would then name.
+            use crate::helpers::headers::field_line_as_written as decode;
 
-        // `#language-tag`: a list of tags and nothing else. There is no
-        // wildcard and no weight here, so a `*` or a `;q=` reaches the tag
-        // validator and is reported as the invalid characters they are in this
-        // field — which is the right verdict for the right reason.
-        // cite(RFC 9110 § 8.5): "Content-Language = #language-tag"
-        let content_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
-            for hv in headers.get_all("content-language").iter() {
-                let val = decode(hv);
-                for token in crate::helpers::headers::list_members(&val) {
-                    if let Some(v) = check_tag("Content-Language", token) {
-                        return Some(v);
+            // `#language-tag`: a list of tags and nothing else. There is no
+            // wildcard and no weight here, so a `*` or a `;q=` reaches the tag
+            // validator and is reported as the invalid characters they are in this
+            // field — which is the right verdict for the right reason.
+            // cite(RFC 9110 § 8.5): "Content-Language = #language-tag"
+            let content_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
+                for hv in headers.get_all("content-language").iter() {
+                    let val = decode(hv);
+                    for token in crate::helpers::headers::list_members(&val) {
+                        if let Some(v) = check_tag("Content-Language", token) {
+                            return Some(v);
+                        }
                     }
                 }
-            }
-            None
-        };
+                None
+            };
 
-        let accept_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
-            for hv in headers.get_all("accept-language").iter() {
-                let val = decode(hv);
-                for member in crate::helpers::headers::list_members(&val) {
-                    // The weight is stripped rather than checked; whether it is
-                    // a weight at all is `accept_language_weight_valid`'s
-                    // subject, and this rule reads only the range in front of it.
-                    // `OWS` and not `str::trim`, which is what the walk above
-                    // settled: the value is read one `char` per octet, so %xA0
-                    // arrives as U+00A0, which `char::is_whitespace` admits —
-                    // and this rule's own description says an octet outside
-                    // visible US-ASCII is reported rather than skipped.
-                    // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
-                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
-                    let lang = crate::helpers::headers::trim_ows(member.split(';').next().unwrap());
-                    // `*` is one of the two alternatives of `language-range`,
-                    // not a tag — so it is skipped here and reported in
-                    // Content-Language, where the production has no such
-                    // alternative. The asymmetry is the two grammars', not this
-                    // rule's.
-                    // cite(RFC 4647 § 2.1): "language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*""
-                    if lang == "*" {
-                        continue;
-                    }
-                    if let Some(v) = check_tag("Accept-Language", lang) {
-                        return Some(v);
+            let accept_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
+                for hv in headers.get_all("accept-language").iter() {
+                    let val = decode(hv);
+                    for member in crate::helpers::headers::list_members(&val) {
+                        // The weight is stripped rather than checked; whether it is
+                        // a weight at all is `accept_language_weight_valid`'s
+                        // subject, and this rule reads only the range in front of it.
+                        // `OWS` and not `str::trim`, which is what the walk above
+                        // settled: the value is read one `char` per octet, so %xA0
+                        // arrives as U+00A0, which `char::is_whitespace` admits —
+                        // and this rule's own description says an octet outside
+                        // visible US-ASCII is reported rather than skipped.
+                        // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
+                        // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                        let lang =
+                            crate::helpers::headers::trim_ows(member.split(';').next().unwrap());
+                        // `*` is one of the two alternatives of `language-range`,
+                        // not a tag — so it is skipped here and reported in
+                        // Content-Language, where the production has no such
+                        // alternative. The asymmetry is the two grammars', not this
+                        // rule's.
+                        // cite(RFC 4647 § 2.1): "language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*""
+                        if lang == "*" {
+                            continue;
+                        }
+                        if let Some(v) = check_tag("Accept-Language", lang) {
+                            return Some(v);
+                        }
                     }
                 }
+                None
+            };
+
+            if let Some(resp) = &tx.response {
+                if let Some(v) = content_language(&resp.headers) {
+                    return Some(v);
+                }
             }
+            if let Some(v) = content_language(&tx.request.headers) {
+                return Some(v);
+            }
+            if let Some(v) = accept_language(&tx.request.headers) {
+                return Some(v);
+            }
+            if let Some(resp) = &tx.response {
+                if let Some(v) = accept_language(&resp.headers) {
+                    return Some(v);
+                }
+            }
+
             None
         };
-
-        if let Some(resp) = &tx.response {
-            if let Some(v) = content_language(&resp.headers) {
-                return Some(v);
-            }
-        }
-        if let Some(v) = content_language(&tx.request.headers) {
-            return Some(v);
-        }
-        if let Some(v) = accept_language(&tx.request.headers) {
-            return Some(v);
-        }
-        if let Some(resp) = &tx.response {
-            if let Some(v) = accept_language(&resp.headers) {
-                return Some(v);
-            }
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

@@ -53,292 +53,306 @@ impl Rule for TransferCodingRegistered {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-        // check a list-style header value (Transfer-Encoding or TE) against allowed list
-        let check_value = |hdr_name: &str, val: &str, allowed: &[String]| -> Option<Violation> {
-            // An odd number of unescaped DQUOTEs means the quoting never
-            // closes, and then no comma after it is a separator: the splitter
-            // below swallows the rest of the field into one member, and
-            //
-            //     Transfer-Encoding: gzip;ext="x, x-bogus
-            //
-            // would pass on the strength of `gzip` alone. The value is
-            // malformed either way -- a `quoted-string` that never closes is
-            // not one -- so this is reported rather than declined. The sibling
-            // rules that decline an unbalanced value do so because another rule
-            // owns the field's syntax and will report it; for
-            // `Transfer-Encoding` no such rule exists, and silence here would
-            // be the whole of the answer.
-            // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
-            if !crate::helpers::headers::quoting_is_balanced(val) {
-                return Some(Violation {
-                    rule: "transfer_coding_registered".into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Unterminated quoted-string in {} header: '{}'",
-                        hdr_name, val
-                    ),
-                });
-            }
-            // cite(RFC 9112 § 7.3): "The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names."
-            //
-            // Quote-aware, because a comma inside a transfer-parameter's
-            // quoted-string value is not a list separator. A raw `split(',')`
-            // cut such a value apart and read the pieces as members of their
-            // own, so `chunked;ext="a,b"` -- one coding, one parameter --
-            // yielded a second "member" of `b"`, whose closing DQUOTE is not a
-            // `tchar`, and the rule reported a conforming field.
-            // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-            for part in crate::helpers::headers::split_commas_respecting_quotes(val) {
-                // `#element` admits empty members, and they are not elements.
-                // `list_members` drops these; the quote-aware splitter does not,
-                // so the filter moves here with its licence.
-                // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-                if part.is_empty() {
-                    continue;
-                }
-                // Splitting the name off at the first `;` needs no quote
-                // awareness: a `quoted-string` can only appear in a
-                // transfer-parameter value, which is behind a `;` already, so
-                // nothing quoted ever precedes the first one.
-                // `OWS` and not `str::trim`. The production prints `OWS` around
-                // the `;` and nothing wider, and the value reaching here is read
-                // one `char` per octet — so `str::trim` took %xA0 and %x85 off a
-                // coding name and handed the lookup below a name the sender did
-                // not write. It was invisible while the value came through
-                // `from_utf8_lossy`, which spelled those octets U+FFFD.
-                // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
-                // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
-                let token = crate::helpers::headers::trim_ows(part.split(';').next().unwrap());
-                // `trailers` occupies the first alternative of `t-codings`, so
-                // it is a member of TE that is not a coding name and has no
-                // registry question to answer. It is skipped rather than looked
-                // up. Its own constraints -- it takes neither parameters nor a
-                // weight, since the alternative that admits those is the other
-                // one -- are `te_header_valid`' subject, and that
-                // rule reports them.
-                // cite(RFC 9112 § 7.4): "The keyword "trailers" indicates that the sender will not discard trailer fields, as described in Section 6.5 of [HTTP]."
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+            // check a list-style header value (Transfer-Encoding or TE) against allowed list
+            let check_value = |hdr_name: &str,
+                               val: &str,
+                               allowed: &[String]|
+             -> Option<Violation> {
+                // An odd number of unescaped DQUOTEs means the quoting never
+                // closes, and then no comma after it is a separator: the splitter
+                // below swallows the rest of the field into one member, and
                 //
-                // The literal is matched case-insensitively because ABNF string
-                // literals are, and § 7's blanket sentence about coding names
-                // would not settle this one on its own -- `trailers` is not a
-                // coding name here.
-                if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("trailers") {
-                    continue;
-                }
-                // `token = 1*tchar` has no empty alternative, so a member that
-                // is nothing but parameters names no coding. `find_invalid_token_char`
-                // answers `None` for the empty string -- there is no offending
-                // character to point at -- and without this the member reached
-                // the registry check and was reported as an unrecognized coding
-                // named `''`, which describes the wrong defect.
-                // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
-                if token.is_empty() {
+                //     Transfer-Encoding: gzip;ext="x, x-bogus
+                //
+                // would pass on the strength of `gzip` alone. The value is
+                // malformed either way -- a `quoted-string` that never closes is
+                // not one -- so this is reported rather than declined. The sibling
+                // rules that decline an unbalanced value do so because another rule
+                // owns the field's syntax and will report it; for
+                // `Transfer-Encoding` no such rule exists, and silence here would
+                // be the whole of the answer.
+                // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+                if !crate::helpers::headers::quoting_is_balanced(val) {
                     return Some(Violation {
                         rule: "transfer_coding_registered".into(),
                         severity: ctx.severity,
                         message: format!(
-                            "Missing transfer-coding name in {} header member '{}'",
-                            hdr_name, part
+                            "Unterminated quoted-string in {} header: '{}'",
+                            hdr_name, val
                         ),
                     });
                 }
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                    return Some(Violation {
-                        rule: "transfer_coding_registered".into(),
-                        severity: ctx.severity,
-                        // The offending character alone does not locate itself
-                        // on a field with several members -- `Invalid token
-                        // '<'` says nothing about which coding carried it.
-                        // The name goes in the message.
-                        message: format!(
-                            "Invalid token '{}' in transfer-coding '{}' of {} header",
-                            c, token, hdr_name
-                        ),
-                    });
-                }
-                // `chunked` is a registered coding and sits in the default
-                // `allowed` list, so the registry check below waves it through
-                // wherever it appears. In TE it is forbidden outright, and for
-                // a reason the second half of the sentence gives: a client
-                // cannot decline it, so naming it says nothing. This is the one
-                // place where a name being *recognized* is not enough.
-                // cite(RFC 9112 § 7.4): "A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients."
+                // cite(RFC 9112 § 7.3): "The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names."
                 //
-                // Case-insensitively, like every other name comparison here.
-                // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
-                if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("chunked") {
-                    return Some(Violation {
-                        rule: "transfer_coding_registered".into(),
-                        severity: ctx.severity,
-                        message: "A client must not send the chunked transfer coding name in TE; \
-                             chunked is always acceptable for HTTP/1.1 recipients"
-                            .into(),
-                    });
-                }
-                // § 7.2 defines exactly these five names by reference to the
-                // content codings of the same name, and then says outright what
-                // follows for their parameters. The rule stripped everything
-                // from the first `;` onward and never looked, so
-                // `Transfer-Encoding: gzip;level=9` passed as an ordinary gzip.
-                // cite(RFC 9112 § 7.2): "The compression codings do not define any parameters."
-                // cite(RFC 9112 § 7.2): "The presence of parameters with any of these compression codings SHOULD be treated as an error."
-                //
-                // `chunked` says the same thing about itself, in its own
-                // section and in two sentences rather than one. An earlier pass
-                // here claimed no sentence made a parameter on `chunked` an
-                // error and recorded that as a divergence of the
-                // specification's; the claim was wrong, and § 7.1 had said so
-                // all along at the end of the section that defines the coding.
-                // cite(RFC 9112 § 7.1): "The chunked coding does not define any parameters."
-                // cite(RFC 9112 § 7.1): "Their presence SHOULD be treated as an error."
-                //
-                // The list still stops at these six. A coding an operator adds
-                // to `allowed` is not reached: what its parameters mean is its
-                // own registration's business.
-                if PARAMETERLESS_CODINGS
-                    .iter()
-                    .any(|c| token.eq_ignore_ascii_case(c))
-                {
-                    for param in crate::helpers::headers::split_semicolons_respecting_quotes(part)
-                        .into_iter()
-                        .skip(1)
+                // Quote-aware, because a comma inside a transfer-parameter's
+                // quoted-string value is not a list separator. A raw `split(',')`
+                // cut such a value apart and read the pieces as members of their
+                // own, so `chunked;ext="a,b"` -- one coding, one parameter --
+                // yielded a second "member" of `b"`, whose closing DQUOTE is not a
+                // `tchar`, and the rule reported a conforming field.
+                // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
+                for part in crate::helpers::headers::split_commas_respecting_quotes(val) {
+                    // `#element` admits empty members, and they are not elements.
+                    // `list_members` drops these; the quote-aware splitter does not,
+                    // so the filter moves here with its licence.
+                    // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+                    if part.is_empty() {
+                        continue;
+                    }
+                    // Splitting the name off at the first `;` needs no quote
+                    // awareness: a `quoted-string` can only appear in a
+                    // transfer-parameter value, which is behind a `;` already, so
+                    // nothing quoted ever precedes the first one.
+                    // `OWS` and not `str::trim`. The production prints `OWS` around
+                    // the `;` and nothing wider, and the value reaching here is read
+                    // one `char` per octet — so `str::trim` took %xA0 and %x85 off a
+                    // coding name and handed the lookup below a name the sender did
+                    // not write. It was invisible while the value came through
+                    // `from_utf8_lossy`, which spelled those octets U+FFFD.
+                    // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                    let token = crate::helpers::headers::trim_ows(part.split(';').next().unwrap());
+                    // `trailers` occupies the first alternative of `t-codings`, so
+                    // it is a member of TE that is not a coding name and has no
+                    // registry question to answer. It is skipped rather than looked
+                    // up. Its own constraints -- it takes neither parameters nor a
+                    // weight, since the alternative that admits those is the other
+                    // one -- are `te_header_valid`' subject, and that
+                    // rule reports them.
+                    // cite(RFC 9112 § 7.4): "The keyword "trailers" indicates that the sender will not discard trailer fields, as described in Section 6.5 of [HTTP]."
+                    //
+                    // The literal is matched case-insensitively because ABNF string
+                    // literals are, and § 7's blanket sentence about coding names
+                    // would not settle this one on its own -- `trailers` is not a
+                    // coding name here.
+                    if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("trailers")
                     {
-                        let param = param.trim();
-                        if param.is_empty() {
-                            continue;
-                        }
-                        // In TE the `q` is the rank, which the grammar puts
-                        // outside `transfer-coding` as a `weight` and § 7.3
-                        // calls a pseudo-parameter -- so it is not one of the
-                        // parameters § 7.2 forbids, and `TE: deflate;q=0.5` is
-                        // exactly the form § 7.4's own example uses. In
-                        // `Transfer-Encoding` there is no weight in the grammar
-                        // at all, so a `q` there is an ordinary parameter and is
-                        // reported like any other.
-                        // cite(RFC 9110 § 10.1.4): "TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-                        // cite(RFC 9112 § 7.4): "When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP])."
-                        let name = param.split('=').next().unwrap().trim();
-                        if hdr_name.eq_ignore_ascii_case("TE") && name.eq_ignore_ascii_case("q") {
-                            continue;
-                        }
+                        continue;
+                    }
+                    // `token = 1*tchar` has no empty alternative, so a member that
+                    // is nothing but parameters names no coding. `find_invalid_token_char`
+                    // answers `None` for the empty string -- there is no offending
+                    // character to point at -- and without this the member reached
+                    // the registry check and was reported as an unrecognized coding
+                    // named `''`, which describes the wrong defect.
+                    // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
+                    if token.is_empty() {
                         return Some(Violation {
                             rule: "transfer_coding_registered".into(),
                             severity: ctx.severity,
                             message: format!(
-                                "Transfer-coding '{}' defines no parameters, but '{}' is \
-                                 present in the {} header",
-                                token, param, hdr_name
+                                "Missing transfer-coding name in {} header member '{}'",
+                                hdr_name, part
+                            ),
+                        });
+                    }
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
+                        return Some(Violation {
+                            rule: "transfer_coding_registered".into(),
+                            severity: ctx.severity,
+                            // The offending character alone does not locate itself
+                            // on a field with several members -- `Invalid token
+                            // '<'` says nothing about which coding carried it.
+                            // The name goes in the message.
+                            message: format!(
+                                "Invalid token '{}' in transfer-coding '{}' of {} header",
+                                c, token, hdr_name
+                            ),
+                        });
+                    }
+                    // `chunked` is a registered coding and sits in the default
+                    // `allowed` list, so the registry check below waves it through
+                    // wherever it appears. In TE it is forbidden outright, and for
+                    // a reason the second half of the sentence gives: a client
+                    // cannot decline it, so naming it says nothing. This is the one
+                    // place where a name being *recognized* is not enough.
+                    // cite(RFC 9112 § 7.4): "A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients."
+                    //
+                    // Case-insensitively, like every other name comparison here.
+                    // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+                    if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("chunked")
+                    {
+                        return Some(Violation {
+                            rule: "transfer_coding_registered".into(),
+                            severity: ctx.severity,
+                            message:
+                                "A client must not send the chunked transfer coding name in TE; \
+                                 chunked is always acceptable for HTTP/1.1 recipients"
+                                    .into(),
+                        });
+                    }
+                    // § 7.2 defines exactly these five names by reference to the
+                    // content codings of the same name, and then says outright what
+                    // follows for their parameters. The rule stripped everything
+                    // from the first `;` onward and never looked, so
+                    // `Transfer-Encoding: gzip;level=9` passed as an ordinary gzip.
+                    // cite(RFC 9112 § 7.2): "The compression codings do not define any parameters."
+                    // cite(RFC 9112 § 7.2): "The presence of parameters with any of these compression codings SHOULD be treated as an error."
+                    //
+                    // `chunked` says the same thing about itself, in its own
+                    // section and in two sentences rather than one. An earlier pass
+                    // here claimed no sentence made a parameter on `chunked` an
+                    // error and recorded that as a divergence of the
+                    // specification's; the claim was wrong, and § 7.1 had said so
+                    // all along at the end of the section that defines the coding.
+                    // cite(RFC 9112 § 7.1): "The chunked coding does not define any parameters."
+                    // cite(RFC 9112 § 7.1): "Their presence SHOULD be treated as an error."
+                    //
+                    // The list still stops at these six. A coding an operator adds
+                    // to `allowed` is not reached: what its parameters mean is its
+                    // own registration's business.
+                    if PARAMETERLESS_CODINGS
+                        .iter()
+                        .any(|c| token.eq_ignore_ascii_case(c))
+                    {
+                        for param in
+                            crate::helpers::headers::split_semicolons_respecting_quotes(part)
+                                .into_iter()
+                                .skip(1)
+                        {
+                            let param = param.trim();
+                            if param.is_empty() {
+                                continue;
+                            }
+                            // In TE the `q` is the rank, which the grammar puts
+                            // outside `transfer-coding` as a `weight` and § 7.3
+                            // calls a pseudo-parameter -- so it is not one of the
+                            // parameters § 7.2 forbids, and `TE: deflate;q=0.5` is
+                            // exactly the form § 7.4's own example uses. In
+                            // `Transfer-Encoding` there is no weight in the grammar
+                            // at all, so a `q` there is an ordinary parameter and is
+                            // reported like any other.
+                            // cite(RFC 9110 § 10.1.4): "TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
+                            // cite(RFC 9112 § 7.4): "When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP])."
+                            let name = param.split('=').next().unwrap().trim();
+                            if hdr_name.eq_ignore_ascii_case("TE") && name.eq_ignore_ascii_case("q")
+                            {
+                                continue;
+                            }
+                            return Some(Violation {
+                                rule: "transfer_coding_registered".into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "Transfer-coding '{}' defines no parameters, but '{}' is \
+                                     present in the {} header",
+                                    token, param, hdr_name
+                                ),
+                            });
+                        }
+                    }
+                    // The registry check, and the weakest sentence in the rule.
+                    // § 7 says coding names "ought to be" registered -- not MUST,
+                    // not even SHOULD -- so an unregistered name is not by itself a
+                    // violation of anything. What gives the finding its point is
+                    // what happens next to a coding the recipient does not know:
+                    // cite(RFC 9112 § 6.1): "A server that receives a request message with a transfer coding it does not understand SHOULD respond with 501 (Not Implemented)."
+                    //
+                    // The comparison is against `allowed`, a configured list, and
+                    // not against the registry the rule's name invokes -- nothing
+                    // here fetches <https://www.iana.org/assignments/http-parameters>.
+                    // That is a real divergence and the description says so. It is
+                    // also why an operator's own coding is configuration rather
+                    // than a finding: § 7.3's registration procedure is IETF
+                    // Review, which no linter can stand in for.
+                    //
+                    // Lowercased on both sides. § 7 settles this outright, and it
+                    // is the same sentence the config parser folds by.
+                    // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+                    if !allowed.contains(&token.to_ascii_lowercase()) {
+                        return Some(Violation {
+                            rule: "transfer_coding_registered".into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Unrecognized transfer-coding '{}' in {} header",
+                                token, hdr_name
                             ),
                         });
                     }
                 }
-                // The registry check, and the weakest sentence in the rule.
-                // § 7 says coding names "ought to be" registered -- not MUST,
-                // not even SHOULD -- so an unregistered name is not by itself a
-                // violation of anything. What gives the finding its point is
-                // what happens next to a coding the recipient does not know:
-                // cite(RFC 9112 § 6.1): "A server that receives a request message with a transfer coding it does not understand SHOULD respond with 501 (Not Implemented)."
-                //
-                // The comparison is against `allowed`, a configured list, and
-                // not against the registry the rule's name invokes -- nothing
-                // here fetches <https://www.iana.org/assignments/http-parameters>.
-                // That is a real divergence and the description says so. It is
-                // also why an operator's own coding is configuration rather
-                // than a finding: § 7.3's registration procedure is IETF
-                // Review, which no linter can stand in for.
-                //
-                // Lowercased on both sides. § 7 settles this outright, and it
-                // is the same sentence the config parser folds by.
-                // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
-                if !allowed.contains(&token.to_ascii_lowercase()) {
-                    return Some(Violation {
-                        rule: "transfer_coding_registered".into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Unrecognized transfer-coding '{}' in {} header",
-                            token, hdr_name
-                        ),
-                    });
+                None
+            };
+            // Both fields are lists, so a sender may spread their members over
+            // several field lines and a recipient recombines them. `get_header_str`
+            // returns the first line only, and of all the fields in HTTP,
+            // `Transfer-Encoding` is the one where reading only the first is worst:
+            // a second `Transfer-Encoding` line is the shape request smuggling
+            // arrives in, and
+            //
+            //     Transfer-Encoding: chunked
+            //     Transfer-Encoding: x-bogus
+            //
+            // reported nothing at all. Each line is walked on its own rather than
+            // joined first, which for a per-member check is the same answer either
+            // way and keeps a member from being described in terms of its
+            // neighbour.
+            // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
+            //
+            // Decoded from the raw octets rather than through `to_str`, which
+            // refuses everything outside visible US-ASCII and made the whole field
+            // line vanish on one stray byte. Unlike the fields whose grammars are
+            // ASCII throughout, `obs-text` *is* legal in this one — but only inside
+            // a `quoted-string`, which the grammar admits only as a
+            // transfer-parameter value, and this rule reads no parameter values.
+            // The coding name in front of them is a `token`, every character of
+            // which is ASCII, so the replacement character the decode leaves behind
+            // can only ever reach the name check, where it is reported like any
+            // other octet the production excludes.
+            // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+            // cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
+            // One `char` per octet, and not `String::from_utf8_lossy`: that decoder
+            // reads the octets as UTF-8, so a sender's two `obs-text` octets arrive
+            // as the one `char` they spell and an octet beginning no valid sequence
+            // arrives as U+FFFD — a character no sender can write, and the one a
+            // finding naming the character would then name.
+            use crate::helpers::headers::field_line_as_written as decode;
+
+            // Transfer-Encoding is defined for both directions: it names the codings
+            // applied to *this message's* body, whichever way it is travelling.
+            // cite(RFC 9112 § 6.1): "Transfer-Encoding = #transfer-coding"
+            if let Some(resp) = &tx.response {
+                for hv in resp.headers.get_all("transfer-encoding").iter() {
+                    if let Some(v) = check_value("Transfer-Encoding", &decode(hv), &config.allowed)
+                    {
+                        return Some(v);
+                    }
                 }
             }
-            None
-        };
-        // Both fields are lists, so a sender may spread their members over
-        // several field lines and a recipient recombines them. `get_header_str`
-        // returns the first line only, and of all the fields in HTTP,
-        // `Transfer-Encoding` is the one where reading only the first is worst:
-        // a second `Transfer-Encoding` line is the shape request smuggling
-        // arrives in, and
-        //
-        //     Transfer-Encoding: chunked
-        //     Transfer-Encoding: x-bogus
-        //
-        // reported nothing at all. Each line is walked on its own rather than
-        // joined first, which for a per-member check is the same answer either
-        // way and keeps a member from being described in terms of its
-        // neighbour.
-        // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
-        //
-        // Decoded from the raw octets rather than through `to_str`, which
-        // refuses everything outside visible US-ASCII and made the whole field
-        // line vanish on one stray byte. Unlike the fields whose grammars are
-        // ASCII throughout, `obs-text` *is* legal in this one — but only inside
-        // a `quoted-string`, which the grammar admits only as a
-        // transfer-parameter value, and this rule reads no parameter values.
-        // The coding name in front of them is a `token`, every character of
-        // which is ASCII, so the replacement character the decode leaves behind
-        // can only ever reach the name check, where it is reported like any
-        // other octet the production excludes.
-        // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
-        // cite(RFC 9110 § 5.6.4): "qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text"
-        // One `char` per octet, and not `String::from_utf8_lossy`: that decoder
-        // reads the octets as UTF-8, so a sender's two `obs-text` octets arrive
-        // as the one `char` they spell and an octet beginning no valid sequence
-        // arrives as U+FFFD — a character no sender can write, and the one a
-        // finding naming the character would then name.
-        use crate::helpers::headers::field_line_as_written as decode;
 
-        // Transfer-Encoding is defined for both directions: it names the codings
-        // applied to *this message's* body, whichever way it is travelling.
-        // cite(RFC 9112 § 6.1): "Transfer-Encoding = #transfer-coding"
-        if let Some(resp) = &tx.response {
-            for hv in resp.headers.get_all("transfer-encoding").iter() {
+            for hv in tx.request.headers.get_all("transfer-encoding").iter() {
                 if let Some(v) = check_value("Transfer-Encoding", &decode(hv), &config.allowed) {
                     return Some(v);
                 }
             }
-        }
 
-        for hv in tx.request.headers.get_all("transfer-encoding").iter() {
-            if let Some(v) = check_value("Transfer-Encoding", &decode(hv), &config.allowed) {
-                return Some(v);
+            // TE describes the client, so only the request side is read here. A TE
+            // field on a response is `te_header_valid`' finding, not a
+            // coding-name question.
+            //
+            // An empty TE is conforming and reaches no check: the splitter yields
+            // one empty member and the § 5.6.1.2 filter drops it. That is a
+            // deliberate silence rather than an accident of the loop -- § 7.4 lists
+            // `TE:` among its three examples of TE use and says what it means.
+            // cite(RFC 9112 § 7.4): "If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked."
+            // cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
+            for hv in tx.request.headers.get_all("te").iter() {
+                if let Some(v) = check_value("TE", &decode(hv), &config.allowed) {
+                    return Some(v);
+                }
             }
-        }
 
-        // TE describes the client, so only the request side is read here. A TE
-        // field on a response is `te_header_valid`' finding, not a
-        // coding-name question.
-        //
-        // An empty TE is conforming and reaches no check: the splitter yields
-        // one empty member and the § 5.6.1.2 filter drops it. That is a
-        // deliberate silence rather than an accident of the loop -- § 7.4 lists
-        // `TE:` among its three examples of TE use and says what it means.
-        // cite(RFC 9112 § 7.4): "If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked."
-        // cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
-        for hv in tx.request.headers.get_all("te").iter() {
-            if let Some(v) = check_value("TE", &decode(hv), &config.allowed) {
-                return Some(v);
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

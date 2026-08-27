@@ -16,33 +16,35 @@ impl Rule for TimingAllowOriginValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The header is server-sent: it rides responses, so only the response side is
-        // inspected.
-        // cite(Resource Timing § 3.5.2): "Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions."
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The header is server-sent: it rides responses, so only the response side is
+            // inspected.
+            // cite(Resource Timing § 3.5.2): "Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions."
+            let resp = tx.response.as_ref()?;
 
-        let headers = &resp.headers;
+            let headers = &resp.headers;
 
-        let tao_count = headers.get_all("timing-allow-origin").iter().count();
-        if tao_count == 0 {
-            return None;
-        }
+            let tao_count = headers.get_all("timing-allow-origin").iter().count();
+            if tao_count == 0 {
+                return None;
+            }
 
-        // Combine members across multiple header fields; list_members handles commas & whitespace.
-        // Several header fields are explicitly allowed, so this rule checks the members,
-        // not the field count — unlike Access-Control-Allow-Origin, which carries one value.
-        // cite(Resource Timing § 3.5.2): "The sender MAY generate multiple Timing-Allow-Origin header fields."
-        // cite(Resource Timing § 3.5.2): "The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma."
-        for hv in headers.get_all("timing-allow-origin").iter() {
-            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-            let s =
-                match hv.to_str() {
+            // Combine members across multiple header fields; list_members handles commas & whitespace.
+            // Several header fields are explicitly allowed, so this rule checks the members,
+            // not the field count — unlike Access-Control-Allow-Origin, which carries one value.
+            // cite(Resource Timing § 3.5.2): "The sender MAY generate multiple Timing-Allow-Origin header fields."
+            // cite(Resource Timing § 3.5.2): "The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma."
+            for hv in headers.get_all("timing-allow-origin").iter() {
+                // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
+                let s = match hv.to_str() {
                     Ok(v) => v,
                     Err(_) => return Some(Violation {
                         rule: self.id().into(),
@@ -53,61 +55,66 @@ impl Rule for TimingAllowOriginValid {
                     }),
                 };
 
-            // Empty header value (only whitespace) is invalid: `1#` requires at least
-            // one member.
-            // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
-            if s.trim().is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Timing-Allow-Origin header value is empty".into(),
-                });
-            }
-
-            // Detect empty list members caused by consecutive commas or leading empty
-            // members. The header's ABNF uses RFC 9110's list construct, so its
-            // empty-element rules apply.
-            // cite(Resource Timing § 3.5.2): "The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):"
-            let parts: Vec<&str> = s.split(',').collect();
-            for (i, raw_member) in parts.iter().enumerate() {
-                if raw_member.trim().is_empty() {
-                    // An internal/leading empty member means the sender generated an
-                    // empty list element.
-                    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                    if parts.iter().skip(i + 1).any(|p| !p.trim().is_empty()) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "Timing-Allow-Origin header contains empty member".into(),
-                        });
-                    }
-                    // Otherwise it's trailing empty member(s) (e.g., "https://a, ");
-                    // tolerated as recipient-side leniency.
-                    // cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism"
-                }
-            }
-            for m in crate::helpers::headers::list_members(s) {
-                // `wildcard` and the case-sensitive lowercase `null` are the two
-                // non-origin members the grammar admits (both productions resolve
-                // into Fetch).
-                // cite(Fetch § 3.2): "origin-or-null = serialized-origin / %s"null" ; case-sensitive"
-                if m == "*" || m == "null" {
-                    continue;
-                }
-
-                // Anything else must be a serialized origin; the helper owns the
-                // grammar it is validated against.
-                if !crate::helpers::headers::is_valid_serialized_origin(m) {
+                // Empty header value (only whitespace) is invalid: `1#` requires at least
+                // one member.
+                // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
+                if s.trim().is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: format!("Timing-Allow-Origin contains invalid origin: '{}'", m),
+                        message: "Timing-Allow-Origin header value is empty".into(),
                     });
                 }
-            }
-        }
 
-        None
+                // Detect empty list members caused by consecutive commas or leading empty
+                // members. The header's ABNF uses RFC 9110's list construct, so its
+                // empty-element rules apply.
+                // cite(Resource Timing § 3.5.2): "The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):"
+                let parts: Vec<&str> = s.split(',').collect();
+                for (i, raw_member) in parts.iter().enumerate() {
+                    if raw_member.trim().is_empty() {
+                        // An internal/leading empty member means the sender generated an
+                        // empty list element.
+                        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                        if parts.iter().skip(i + 1).any(|p| !p.trim().is_empty()) {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: "Timing-Allow-Origin header contains empty member".into(),
+                            });
+                        }
+                        // Otherwise it's trailing empty member(s) (e.g., "https://a, ");
+                        // tolerated as recipient-side leniency.
+                        // cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism"
+                    }
+                }
+                for m in crate::helpers::headers::list_members(s) {
+                    // `wildcard` and the case-sensitive lowercase `null` are the two
+                    // non-origin members the grammar admits (both productions resolve
+                    // into Fetch).
+                    // cite(Fetch § 3.2): "origin-or-null = serialized-origin / %s"null" ; case-sensitive"
+                    if m == "*" || m == "null" {
+                        continue;
+                    }
+
+                    // Anything else must be a serialized origin; the helper owns the
+                    // grammar it is validated against.
+                    if !crate::helpers::headers::is_valid_serialized_origin(m) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Timing-Allow-Origin contains invalid origin: '{}'",
+                                m
+                            ),
+                        });
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

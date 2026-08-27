@@ -29,105 +29,110 @@ impl Rule for CookieDomainMatching {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // only care about outgoing requests that carry Cookie headers
-        let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
-        if cookie_headers.is_empty() {
-            return None;
-        }
-
-        let req_uri = &tx.request.uri;
-        let scheme = if req_uri.to_ascii_lowercase().starts_with("https://") {
-            "https"
-        } else {
-            "http"
-        };
-
-        // host and path information used for matching
-        let req_host =
-            crate::helpers::uri::extract_host_from_request_target(req_uri).unwrap_or_default();
-        let req_path = crate::helpers::uri::extract_path_from_request_target(req_uri)
-            .unwrap_or_else(|| "/".into());
-
-        // build live cookie store (expires removed) so we only inspect
-        // currently applicable cookies
-        let live_cookies = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
-
-        // parse Cookie headers into name/value pairs
-        let mut sent_pairs: Vec<(String, String)> = Vec::new();
-        for hv in cookie_headers.iter() {
-            if let Ok(s) = hv.to_str() {
-                sent_pairs.extend(crate::helpers::cookie::parse_cookie_header(s));
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // only care about outgoing requests that carry Cookie headers
+            let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
+            if cookie_headers.is_empty() {
+                return None;
             }
-        }
 
-        for (name, value) in sent_pairs {
-            let mut valid_match = false;
-            let mut domain_mismatch = false;
-            let mut path_mismatch = false;
+            let req_uri = &tx.request.uri;
+            let scheme = if req_uri.to_ascii_lowercase().starts_with("https://") {
+                "https"
+            } else {
+                "http"
+            };
 
-            for c in &live_cookies {
-                if c.name != name || c.value != value {
+            // host and path information used for matching
+            let req_host =
+                crate::helpers::uri::extract_host_from_request_target(req_uri).unwrap_or_default();
+            let req_path = crate::helpers::uri::extract_path_from_request_target(req_uri)
+                .unwrap_or_else(|| "/".into());
+
+            // build live cookie store (expires removed) so we only inspect
+            // currently applicable cookies
+            let live_cookies = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
+
+            // parse Cookie headers into name/value pairs
+            let mut sent_pairs: Vec<(String, String)> = Vec::new();
+            for hv in cookie_headers.iter() {
+                if let Ok(s) = hv.to_str() {
+                    sent_pairs.extend(crate::helpers::cookie::parse_cookie_header(s));
+                }
+            }
+
+            for (name, value) in sent_pairs {
+                let mut valid_match = false;
+                let mut domain_mismatch = false;
+                let mut path_mismatch = false;
+
+                for c in &live_cookies {
+                    if c.name != name || c.value != value {
+                        continue;
+                    }
+
+                    // cookie value matches; now classify according to domain/path
+                    if c.domain_matches(&req_host) {
+                        if !c.path_matches(&req_path) {
+                            path_mismatch = true;
+                        } else if !c.secure || scheme == "https" {
+                            valid_match = true;
+                        }
+                    } else {
+                        domain_mismatch = true;
+                    }
+                }
+
+                if valid_match {
                     continue;
                 }
 
-                // cookie value matches; now classify according to domain/path
-                if c.domain_matches(&req_host) {
-                    if !c.path_matches(&req_path) {
-                        path_mismatch = true;
-                    } else if !c.secure || scheme == "https" {
-                        valid_match = true;
-                    }
-                } else {
-                    domain_mismatch = true;
+                // The domain-match and path-match *definitions* (§5.1.3, §5.1.4)
+                // are owned by the helper's `domain_matches`/`path_matches`, which
+                // this rule only calls. What this rule enforces is §5.4's decision
+                // to *send*: a cookie the user agent puts in the Cookie header must
+                // have met every requirement of the cookie-list, so a stored cookie
+                // failing the domain requirement was never eligible to be sent.
+                // cite(RFC 6265 § 5.4): "Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:"
+                if domain_mismatch {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Cookie '{}' with value '{}' was set for a different domain and should not be sent to host '{}'",
+                            name, value, req_host
+                        ),
+                    });
                 }
+
+                // The path half of the same §5.4 cookie-list requirement; the
+                // path-match predicate itself is the helper's (§5.1.4).
+                // cite(RFC 6265 § 5.4): "The request-uri's path path-matches the cookie's path."
+                if path_mismatch {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Cookie '{}' with value '{}' is not valid for path '{}'",
+                            name, value, req_path
+                        ),
+                    });
+                }
+
+                // otherwise the cookie is unknown to our history; skip
             }
 
-            if valid_match {
-                continue;
-            }
-
-            // The domain-match and path-match *definitions* (§5.1.3, §5.1.4)
-            // are owned by the helper's `domain_matches`/`path_matches`, which
-            // this rule only calls. What this rule enforces is §5.4's decision
-            // to *send*: a cookie the user agent puts in the Cookie header must
-            // have met every requirement of the cookie-list, so a stored cookie
-            // failing the domain requirement was never eligible to be sent.
-            // cite(RFC 6265 § 5.4): "Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:"
-            if domain_mismatch {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Cookie '{}' with value '{}' was set for a different domain and should not be sent to host '{}'",
-                        name, value, req_host
-                    ),
-                });
-            }
-
-            // The path half of the same §5.4 cookie-list requirement; the
-            // path-match predicate itself is the helper's (§5.1.4).
-            // cite(RFC 6265 § 5.4): "The request-uri's path path-matches the cookie's path."
-            if path_mismatch {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Cookie '{}' with value '{}' is not valid for path '{}'",
-                        name, value, req_path
-                    ),
-                });
-            }
-
-            // otherwise the cookie is unknown to our history; skip
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

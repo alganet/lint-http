@@ -29,94 +29,99 @@ impl Rule for CacheCoherence {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // ignore 304 responses, they have no representation body of their own
-        // cite(RFC 9110 § 15.4.5): "there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation"
-        if resp.status == 304 {
-            return None;
-        }
+            // ignore 304 responses, they have no representation body of their own
+            // cite(RFC 9110 § 15.4.5): "there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation"
+            if resp.status == 304 {
+                return None;
+            }
 
-        // helper to extract a "representation time" from headers.  We prefer
-        // Last-Modified but fall back to Date.  Return None if neither can be
-        // parsed.
-        fn rep_time(headers: &hyper::HeaderMap) -> Option<chrono::DateTime<chrono::Utc>> {
-            // Prefer Last-Modified: it timestamps the *representation* itself, so
-            // a decrease directly signals the representation went backwards. The
-            // HTTP-date grammar is owned by the parse helper (§5.6.7).
-            // cite(RFC 9110 § 8.8.2): "The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified"
-            if let Some(hv) = headers.get("last-modified") {
-                if let Ok(s) = hv.to_str() {
-                    if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                        return Some(dt);
+            // helper to extract a "representation time" from headers.  We prefer
+            // Last-Modified but fall back to Date.  Return None if neither can be
+            // parsed.
+            fn rep_time(headers: &hyper::HeaderMap) -> Option<chrono::DateTime<chrono::Utc>> {
+                // Prefer Last-Modified: it timestamps the *representation* itself, so
+                // a decrease directly signals the representation went backwards. The
+                // HTTP-date grammar is owned by the parse helper (§5.6.7).
+                // cite(RFC 9110 § 8.8.2): "The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified"
+                if let Some(hv) = headers.get("last-modified") {
+                    if let Ok(s) = hv.to_str() {
+                        if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
+                            return Some(dt);
+                        }
+                    }
+                }
+                // Date is only the *message's* origination time, not the
+                // representation's — a coarser proxy, and the source of this rule's
+                // heuristic nature: a fresh response may legitimately carry a Date
+                // earlier than a prior message for the same URI, which this rule
+                // cannot distinguish from a genuine regression.
+                // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
+                if let Some(hv) = headers.get("date") {
+                    if let Ok(s) = hv.to_str() {
+                        if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
+                            return Some(dt);
+                        }
+                    }
+                }
+                None
+            }
+
+            let curr_time = rep_time(&resp.headers)?; // nothing we can compare
+
+            // scan previous history entries for the same URI and track the largest
+            // timestamp we've seen so far.
+            let mut max_prev: Option<chrono::DateTime<chrono::Utc>> = None;
+            for prev in history.iter() {
+                // URI identity stands in for the cache key. This is an
+                // approximation: a real key also folds in the request method and
+                // the Vary secondary key (RFC 9111 §4.1), neither of which is consulted
+                // here, so two responses varying legitimately on, e.g., Accept can
+                // be compared as if they were the same representation.
+                if prev.request.uri != tx.request.uri {
+                    continue;
+                }
+                if let Some(prev_resp) = &prev.response {
+                    if let Some(t) = rep_time(&prev_resp.headers) {
+                        max_prev = Some(match max_prev {
+                            Some(existing) => std::cmp::max(existing, t),
+                            None => t,
+                        });
                     }
                 }
             }
-            // Date is only the *message's* origination time, not the
-            // representation's — a coarser proxy, and the source of this rule's
-            // heuristic nature: a fresh response may legitimately carry a Date
-            // earlier than a prior message for the same URI, which this rule
-            // cannot distinguish from a genuine regression.
-            // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
-            if let Some(hv) = headers.get("date") {
-                if let Ok(s) = hv.to_str() {
-                    if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                        return Some(dt);
-                    }
-                }
-            }
-            None
-        }
 
-        let curr_time = rep_time(&resp.headers)?; // nothing we can compare
-
-        // scan previous history entries for the same URI and track the largest
-        // timestamp we've seen so far.
-        let mut max_prev: Option<chrono::DateTime<chrono::Utc>> = None;
-        for prev in history.iter() {
-            // URI identity stands in for the cache key. This is an
-            // approximation: a real key also folds in the request method and
-            // the Vary secondary key (RFC 9111 §4.1), neither of which is consulted
-            // here, so two responses varying legitimately on, e.g., Accept can
-            // be compared as if they were the same representation.
-            if prev.request.uri != tx.request.uri {
-                continue;
-            }
-            if let Some(prev_resp) = &prev.response {
-                if let Some(t) = rep_time(&prev_resp.headers) {
-                    max_prev = Some(match max_prev {
-                        Some(existing) => std::cmp::max(existing, t),
-                        None => t,
+            // A representation going backwards in time across two responses is the observable
+            // form of a cache serving something it should have revalidated. §4.2.4's MUST NOT
+            // is the requirement this heuristic stands in for: we cannot compute §4.2 freshness
+            // (no age or lifetime here), so a strictly-older timestamp is our proxy for "stale".
+            // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
+            if let Some(prev_max) = max_prev {
+                if curr_time < prev_max {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "response for '{}' appears stale ({} < previous {})",
+                            tx.request.uri, curr_time, prev_max
+                        ),
                     });
                 }
             }
-        }
 
-        // A representation going backwards in time across two responses is the observable
-        // form of a cache serving something it should have revalidated. §4.2.4's MUST NOT
-        // is the requirement this heuristic stands in for: we cannot compute §4.2 freshness
-        // (no age or lifetime here), so a strictly-older timestamp is our proxy for "stale".
-        // cite(RFC 9111 § 4.2.4): "A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server"
-        if let Some(prev_max) = max_prev {
-            if curr_time < prev_max {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "response for '{}' appears stale ({} < previous {})",
-                        tx.request.uri, curr_time, prev_max
-                    ),
-                });
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

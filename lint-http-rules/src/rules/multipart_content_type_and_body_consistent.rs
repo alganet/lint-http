@@ -22,87 +22,93 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Why a MIME grammar governs an HTTP body at all, and why the boundary
-        // named in the header is the one the body must use: RFC 9110 adopts
-        // §5.1.1 for every multipart type and makes the parameter part of the
-        // media type value. The same paragraph is careful that this is a claim
-        // about the *content*, not about framing — the boundary tells a
-        // recipient nothing about where the message ends, so nothing here is a
-        // length check.
-        // cite(RFC 9110 § 8.3.3): "All multipart types share a common syntax, as defined in Section 5.1.1 of [RFC2046], and include a boundary parameter as part of the media type value."
-        // cite(RFC 9110 § 8.3.3): "HTTP message framing does not use the multipart boundary as an indicator of message body length, though it might be used by implementations that generate or process the content."
-        // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
-        let check_message = |which: &str,
-                             headers: &hyper::HeaderMap,
-                             body: Option<&bytes::Bytes>|
-         -> Option<Violation> {
-            // A body captured only as a prefix is not scanned: the terminating
-            // delimiter sits at the body's end, so every truncated capture would
-            // be reported as missing one. Nothing licenses this — it is a fact
-            // about the capture, not about the message. A message with no body
-            // is skipped for the plainer reason that §5.1.1's grammar describes
-            // content, and there is none to describe.
-            let body = body?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Why a MIME grammar governs an HTTP body at all, and why the boundary
+            // named in the header is the one the body must use: RFC 9110 adopts
+            // §5.1.1 for every multipart type and makes the parameter part of the
+            // media type value. The same paragraph is careful that this is a claim
+            // about the *content*, not about framing — the boundary tells a
+            // recipient nothing about where the message ends, so nothing here is a
+            // length check.
+            // cite(RFC 9110 § 8.3.3): "All multipart types share a common syntax, as defined in Section 5.1.1 of [RFC2046], and include a boundary parameter as part of the media type value."
+            // cite(RFC 9110 § 8.3.3): "HTTP message framing does not use the multipart boundary as an indicator of message body length, though it might be used by implementations that generate or process the content."
+            // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
+            let check_message = |which: &str,
+                                 headers: &hyper::HeaderMap,
+                                 body: Option<&bytes::Bytes>|
+             -> Option<Violation> {
+                // A body captured only as a prefix is not scanned: the terminating
+                // delimiter sits at the body's end, so every truncated capture would
+                // be reported as missing one. Nothing licenses this — it is a fact
+                // about the capture, not about the message. A message with no body
+                // is skipped for the plainer reason that §5.1.1's grammar describes
+                // content, and there is none to describe.
+                let body = body?;
 
-            // Every Content-Type field line, not just the first. `HeaderMap::get`
-            // returns one value, and RFC 9110 §8.3 says recipients differ over
-            // which member of a duplicated Content-Type they act on, so a
-            // multipart declaration on a second line names a boundary the peer
-            // may well be the one to look for. That there is more than one line
-            // is `content_type_valid`'s finding, not this one's.
-            for hv in headers.get_all("content-type").iter() {
-                // Decoded from the raw octets rather than through `to_str`,
-                // which refuses `obs-text` — legal inside a `quoted-string`, so
-                // a boundary is not unreadable merely because a neighbouring
-                // parameter carries one.
-                //
-                // One `char` per octet, and not `String::from_utf8_lossy`, which
-                // is what this said until the boundary was followed as far as the
-                // body: that decoder reads the octets as UTF-8 and hands back the
-                // text they spell, so %xA0 arrives as U+FFFD — a character no
-                // sender can write — and the scan hunted the body for it.
-                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                let s = crate::helpers::headers::field_line_as_written(hv);
-                if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(&s) {
-                    if let Some(v) =
-                        check_body_delimiters(which, &boundary, body.as_ref(), ctx.severity)
+                // Every Content-Type field line, not just the first. `HeaderMap::get`
+                // returns one value, and RFC 9110 §8.3 says recipients differ over
+                // which member of a duplicated Content-Type they act on, so a
+                // multipart declaration on a second line names a boundary the peer
+                // may well be the one to look for. That there is more than one line
+                // is `content_type_valid`'s finding, not this one's.
+                for hv in headers.get_all("content-type").iter() {
+                    // Decoded from the raw octets rather than through `to_str`,
+                    // which refuses `obs-text` — legal inside a `quoted-string`, so
+                    // a boundary is not unreadable merely because a neighbouring
+                    // parameter carries one.
+                    //
+                    // One `char` per octet, and not `String::from_utf8_lossy`, which
+                    // is what this said until the boundary was followed as far as the
+                    // body: that decoder reads the octets as UTF-8 and hands back the
+                    // text they spell, so %xA0 arrives as U+FFFD — a character no
+                    // sender can write — and the scan hunted the body for it.
+                    // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                    let s = crate::helpers::headers::field_line_as_written(hv);
+                    if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(&s)
                     {
-                        return Some(v);
+                        if let Some(v) =
+                            check_body_delimiters(which, &boundary, body.as_ref(), ctx.severity)
+                        {
+                            return Some(v);
+                        }
                     }
                 }
-            }
-            None
-        };
+                None
+            };
 
-        if let Some(v) = check_message(
-            "request",
-            &tx.request.headers,
-            tx.request_body
-                .as_ref()
-                .filter(|_| !tx.request_body_over_limit),
-        ) {
-            return Some(v);
-        }
-
-        if let Some(resp) = &tx.response {
             if let Some(v) = check_message(
-                "response",
-                &resp.headers,
-                tx.response_body
+                "request",
+                &tx.request.headers,
+                tx.request_body
                     .as_ref()
-                    .filter(|_| !tx.response_body_over_limit),
+                    .filter(|_| !tx.request_body_over_limit),
             ) {
                 return Some(v);
             }
-        }
 
-        None
+            if let Some(resp) = &tx.response {
+                if let Some(v) = check_message(
+                    "response",
+                    &resp.headers,
+                    tx.response_body
+                        .as_ref()
+                        .filter(|_| !tx.response_body_over_limit),
+                ) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

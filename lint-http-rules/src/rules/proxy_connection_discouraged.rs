@@ -30,64 +30,69 @@ impl Rule for ProxyConnectionDiscouraged {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The versions that have a `Connection` field are the versions this
-        // advice is about: `Proxy-Connection` was invented for HTTP/1.0 proxies
-        // that mishandled `Connection`, and over HTTP/2 and HTTP/3 the field is
-        // not discouraged but forbidden, which
-        // `no_connection_specific_fields` reports with those versions'
-        // own sentences. Reporting it here as well would be two findings for one
-        // field, and the weaker of the two would be this advisory one.
-        //
-        // The test is *"not one of the two that forbid it"* rather than *"is
-        // HTTP/1.x"*, so a version deriving from no production falls through and
-        // is measured: the field is on the wire either way, and the advice does
-        // not turn on which digit the sender wrote. `http_version_syntax`
-        // is what reports the version itself. This is the same gate the sibling
-        // rules use, and the same answer for the same reason.
-        //
-        // cite(RFC 9110 § 7.6.1): "Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field."
-        if matches!(crate::http_version::major(&tx.request.version), Some(2 | 3)) {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The versions that have a `Connection` field are the versions this
+            // advice is about: `Proxy-Connection` was invented for HTTP/1.0 proxies
+            // that mishandled `Connection`, and over HTTP/2 and HTTP/3 the field is
+            // not discouraged but forbidden, which
+            // `no_connection_specific_fields` reports with those versions'
+            // own sentences. Reporting it here as well would be two findings for one
+            // field, and the weaker of the two would be this advisory one.
+            //
+            // The test is *"not one of the two that forbid it"* rather than *"is
+            // HTTP/1.x"*, so a version deriving from no production falls through and
+            // is measured: the field is on the wire either way, and the advice does
+            // not turn on which digit the sender wrote. `http_version_syntax`
+            // is what reports the version itself. This is the same gate the sibling
+            // rules use, and the same answer for the same reason.
+            //
+            // cite(RFC 9110 § 7.6.1): "Note that some versions of HTTP prohibit the use of fields for such information, and therefore do not allow the Connection field."
+            if matches!(crate::http_version::major(&tx.request.version), Some(2 | 3)) {
+                return None;
+            }
 
-        // Presence is what the sentence is about — *"not to send the
-        // Proxy-Connection header field in any requests"* names the field and
-        // not a value it might hold. The value is read anyway and printed,
-        // because it is what tells an operator which persistence the client was
-        // reaching for, and a hung connection is the symptom the section
-        // describes. It is read as the sender wrote it, one `char` per octet:
-        // `to_str` would turn a value carrying `obs-text` into a request with no
-        // such field, and the advice would go with it.
-        //
-        // cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
-        let value = combined_field_value_as_written(&tx.request.headers, "proxy-connection")?;
+            // Presence is what the sentence is about — *"not to send the
+            // Proxy-Connection header field in any requests"* names the field and
+            // not a value it might hold. The value is read anyway and printed,
+            // because it is what tells an operator which persistence the client was
+            // reaching for, and a hung connection is the symptom the section
+            // describes. It is read as the sender wrote it, one `char` per octet:
+            // `to_str` would turn a value carrying `obs-text` into a request with no
+            // such field, and the advice would go with it.
+            //
+            // cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
+            let value = combined_field_value_as_written(&tx.request.headers, "proxy-connection")?;
 
-        // The section states no requirement, and the finding says so in its own
-        // words. There is no BCP 14 keyword anywhere in it — the modals are
-        // *"might wish"*, *"are encouraged"*, *"ought to"* and *"ought not"* —
-        // so a message written in the imperative would invent one. What makes
-        // the advice worth reporting at all is the reason the section gives:
-        // the field was a fix for one layer of proxy and proxies come in
-        // several, so it reproduces the problem it was meant to solve.
-        //
-        // cite(RFC 9112 § C.2.2): "One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above."
-        Some(self.violation(
-            ctx.severity,
-            format!(
-                "Request carries a Proxy-Connection header field: '{}'. RFC 9112 Appendix C.2.2 \
-                 encourages clients not to send it in any request — it was an attempted fix for \
-                 HTTP/1.0 proxies that did not understand Connection, and is unworkable because \
-                 proxies are often deployed in multiple layers, which brings the same hung \
-                 connection back. The section states this as advice and not as a requirement",
-                value.escape_debug()
-            ),
-        ))
+            // The section states no requirement, and the finding says so in its own
+            // words. There is no BCP 14 keyword anywhere in it — the modals are
+            // *"might wish"*, *"are encouraged"*, *"ought to"* and *"ought not"* —
+            // so a message written in the imperative would invent one. What makes
+            // the advice worth reporting at all is the reason the section gives:
+            // the field was a fix for one layer of proxy and proxies come in
+            // several, so it reproduces the problem it was meant to solve.
+            //
+            // cite(RFC 9112 § C.2.2): "One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above."
+            Some(self.violation(
+                ctx.severity,
+                format!(
+                    "Request carries a Proxy-Connection header field: '{}'. RFC 9112 Appendix C.2.2 \
+                     encourages clients not to send it in any request — it was an attempted fix for \
+                     HTTP/1.0 proxies that did not understand Connection, and is unworkable because \
+                     proxies are often deployed in multiple layers, which brings the same hung \
+                     connection back. The section states this as advice and not as a requirement",
+                    value.escape_debug()
+                ),
+            ))
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

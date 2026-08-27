@@ -16,40 +16,18 @@ impl Rule for CacheControlTokenValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Apply to both request and response messages
-        // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
-        for header_val in tx.request.headers.get_all("cache-control").iter() {
-            if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
-                // An entirely empty Cache-Control value is a zero-element list, which is legal
-                // (`#element => [ 1#element ]`); that is distinct from an empty *element*
-                // within a list, which check_cache_control_value flags. Skip it.
-                if v.is_empty() {
-                    continue;
-                }
-                if let Some(msg) = check_cache_control_value(v) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Invalid Cache-Control header in request: {}", msg),
-                    });
-                }
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Cache-Control header contains non-UTF8 value".into(),
-                });
-            }
-        }
-
-        if let Some(resp) = &tx.response {
-            for header_val in resp.headers.get_all("cache-control").iter() {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Apply to both request and response messages
+            // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
+            for header_val in tx.request.headers.get_all("cache-control").iter() {
                 if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
                     // An entirely empty Cache-Control value is a zero-element list, which is legal
                     // (`#element => [ 1#element ]`); that is distinct from an empty *element*
@@ -61,7 +39,7 @@ impl Rule for CacheControlTokenValid {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: ctx.severity,
-                            message: format!("Invalid Cache-Control header in response: {}", msg),
+                            message: format!("Invalid Cache-Control header in request: {}", msg),
                         });
                     }
                 } else {
@@ -72,9 +50,39 @@ impl Rule for CacheControlTokenValid {
                     });
                 }
             }
-        }
 
-        None
+            if let Some(resp) = &tx.response {
+                for header_val in resp.headers.get_all("cache-control").iter() {
+                    if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
+                        // An entirely empty Cache-Control value is a zero-element list, which is legal
+                        // (`#element => [ 1#element ]`); that is distinct from an empty *element*
+                        // within a list, which check_cache_control_value flags. Skip it.
+                        if v.is_empty() {
+                            continue;
+                        }
+                        if let Some(msg) = check_cache_control_value(v) {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "Invalid Cache-Control header in response: {}",
+                                    msg
+                                ),
+                            });
+                        }
+                    } else {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Cache-Control header contains non-UTF8 value".into(),
+                        });
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

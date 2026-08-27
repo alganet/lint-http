@@ -110,112 +110,117 @@ impl Rule for PatchMethodContentTypeMatch {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Compared exactly: a request whose method is `patch` is a request with
-        // some other method, and its content has whatever semantics that method
-        // gives it. `request_method_token_valid` reports the spelling.
-        //
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        if tx.request.method != "PATCH" {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Compared exactly: a request whose method is `patch` is a request with
+            // some other method, and its content has whatever semantics that method
+            // gives it. `request_method_token_valid` reports the spelling.
+            //
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method != "PATCH" {
+                return None;
+            }
 
-        // What the client said it was sending, settled before the history is
-        // walked: every arm below is a decline, and none of them needs to know
-        // what was advertised.
-        //
-        // A singleton field, so its lines are not joined: more than one and the
-        // media type the peer acts on is not the one the message states, which
-        // makes the comparison meaningless. `content_type_valid`
-        // reports the duplication.
-        //
-        // cite(RFC 9110 § 8.3): "Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list."
-        // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
-        let mut lines = tx.request.headers.get_all("content-type").iter();
-        let ct = lines.next()?;
-        if lines.next().is_some() {
-            return None;
-        }
+            // What the client said it was sending, settled before the history is
+            // walked: every arm below is a decline, and none of them needs to know
+            // what was advertised.
+            //
+            // A singleton field, so its lines are not joined: more than one and the
+            // media type the peer acts on is not the one the message states, which
+            // makes the comparison meaningless. `content_type_valid`
+            // reports the duplication.
+            //
+            // cite(RFC 9110 § 8.3): "Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list."
+            // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
+            let mut lines = tx.request.headers.get_all("content-type").iter();
+            let ct = lines.next()?;
+            if lines.next().is_some() {
+                return None;
+            }
 
-        // Read as octets, one `char` per octet, because a parameter value may be
-        // a `quoted-string` and `qdtext` admits `obs-text` — so a media type this
-        // rule can compare may legitimately arrive with a byte `to_str` refuses,
-        // and refusing the whole value would lose the type and subtype with it.
-        // Whether those two are tokens is `normalized_media_type`'s question; a
-        // value that answers no is `content_type_valid`'s finding,
-        // and a `PATCH` carrying content with no field at all is
-        // `patch_partial_update`'s.
-        //
-        // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-        let ct: String = ct.as_bytes().iter().map(|&b| b as char).collect();
-        let sent = normalized_media_type(&ct)?;
+            // Read as octets, one `char` per octet, because a parameter value may be
+            // a `quoted-string` and `qdtext` admits `obs-text` — so a media type this
+            // rule can compare may legitimately arrive with a byte `to_str` refuses,
+            // and refusing the whole value would lose the type and subtype with it.
+            // Whether those two are tokens is `normalized_media_type`'s question; a
+            // value that answers no is `content_type_valid`'s finding,
+            // and a `PATCH` carrying content with no field at all is
+            // `patch_partial_update`'s.
+            //
+            // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+            let ct: String = ct.as_bytes().iter().map(|&b| b as char).collect();
+            let sent = normalized_media_type(&ct)?;
 
-        // The most recent response for this resource that carried the field, not
-        // merely the most recent response: the advertisement is discovery, and a
-        // client that asked once and then made other requests still has it.
-        // Which method drew that response does not matter, and the section says
-        // so — the history is scoped to one resource by the rule's `ByResource`
-        // query, which is the other half of the same sentence. The search stops
-        // at the first response carrying the field even when nothing in it
-        // parses: that is the server's current statement of what it accepts, and
-        // reaching past it would measure the request against one the resource has
-        // since replaced.
-        //
-        // cite(RFC 5789 § 3.1): "The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI."
-        let advertised = history
-            .iter()
-            .find_map(|prev| advertised_formats(&prev.response.as_ref()?.headers))?;
-        if advertised.is_empty() {
-            return None;
-        }
+            // The most recent response for this resource that carried the field, not
+            // merely the most recent response: the advertisement is discovery, and a
+            // client that asked once and then made other requests still has it.
+            // Which method drew that response does not matter, and the section says
+            // so — the history is scoped to one resource by the rule's `ByResource`
+            // query, which is the other half of the same sentence. The search stops
+            // at the first response carrying the field even when nothing in it
+            // parses: that is the server's current statement of what it accepts, and
+            // reaching past it would measure the request against one the resource has
+            // since replaced.
+            //
+            // cite(RFC 5789 § 3.1): "The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI."
+            let advertised = history
+                .iter()
+                .find_map(|prev| advertised_formats(&prev.response.as_ref()?.headers))?;
+            if advertised.is_empty() {
+                return None;
+            }
 
-        // cite(RFC 5789 § 3.1): "The presence of a specific patch document format in this header indicates that that specific format is allowed on the resource identified by the Request-URI."
-        if advertised.contains(&sent) {
-            return None;
-        }
+            // cite(RFC 5789 § 3.1): "The presence of a specific patch document format in this header indicates that that specific format is allowed on the resource identified by the Request-URI."
+            if advertised.contains(&sent) {
+                return None;
+            }
 
-        // `Accept-Patch` is `1#media-type`, so it has no wildcard form: the
-        // asterisk belongs to `Accept`'s `media-range`, a different production in
-        // a different field. A server writing `*/*` here has advertised a media
-        // type named `*/*`, and nothing licenses reading it as "any format" — but
-        // it is worth saying which mistake produced the finding.
-        //
-        // cite(RFC 9110 § 12.4.3): "Most of these header fields, where indicated, define a wildcard value ("*") to select unspecified values."
-        // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
-        let wildcard_note = if advertised
-            .iter()
-            .any(|a| a.starts_with("*/") || a.ends_with("/*"))
-        {
-            ". The advertisement uses an asterisk, which is Accept's media-range form: Accept-Patch is a list of media types and defines no wildcard, so that member names a media type spelled with an asterisk"
-        } else {
-            ""
+            // `Accept-Patch` is `1#media-type`, so it has no wildcard form: the
+            // asterisk belongs to `Accept`'s `media-range`, a different production in
+            // a different field. A server writing `*/*` here has advertised a media
+            // type named `*/*`, and nothing licenses reading it as "any format" — but
+            // it is worth saying which mistake produced the finding.
+            //
+            // cite(RFC 9110 § 12.4.3): "Most of these header fields, where indicated, define a wildcard value ("*") to select unspecified values."
+            // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
+            let wildcard_note = if advertised
+                .iter()
+                .any(|a| a.starts_with("*/") || a.ends_with("/*"))
+            {
+                ". The advertisement uses an asterisk, which is Accept's media-range form: Accept-Patch is a list of media types and defines no wildcard, so that member names a media type spelled with an asterisk"
+            } else {
+                ""
+            };
+
+            // What makes this a finding rather than an observation: the field exists
+            // to influence the content of subsequent requests, and a field with no
+            // wildcard says nothing is acceptable beyond what it mentions. RFC 5789
+            // does not oblige a client to pick from the list — it offers the server a
+            // 415 for the case instead — so the report says what the exchange states,
+            // not that a requirement was broken.
+            //
+            // cite(RFC 9110 § 12.3): "When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource."
+            // cite(RFC 9110 § 12.4.3): "If no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable."
+            // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "PATCH request sends Content-Type '{}', which no Accept-Patch for this resource has mentioned; the most recent advertisement listed {}. A format the advertisement does not mention is one the server has said it does not accept, and 415 (Unsupported Media Type) is the answer RFC 5789 offers for it{}",
+                    sent,
+                    advertised.join(", "),
+                    wildcard_note
+                ),
+            })
         };
-
-        // What makes this a finding rather than an observation: the field exists
-        // to influence the content of subsequent requests, and a field with no
-        // wildcard says nothing is acceptable beyond what it mentions. RFC 5789
-        // does not oblige a client to pick from the list — it offers the server a
-        // 415 for the case instead — so the report says what the exchange states,
-        // not that a requirement was broken.
-        //
-        // cite(RFC 9110 § 12.3): "When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource."
-        // cite(RFC 9110 § 12.4.3): "If no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable."
-        // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "PATCH request sends Content-Type '{}', which no Accept-Patch for this resource has mentioned; the most recent advertisement listed {}. A format the advertisement does not mention is one the server has said it does not accept, and 415 (Unsupported Media Type) is the answer RFC 5789 offers for it{}",
-                sent,
-                advertised.join(", "),
-                wildcard_note
-            ),
-        })
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

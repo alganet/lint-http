@@ -125,147 +125,154 @@ impl Rule for DigestAuthNonceHandling {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // only care about client-side requests with Digest Authorization
-        // cite(RFC 7616 § 3.3): "The nonce is opaque to the client."
-        for hv in tx.request.headers.get_all("authorization").iter() {
-            let s = match hv.to_str() {
-                Ok(v) => v,
-                Err(_) => continue, // non-UTF8 header; other rules may catch this
-            };
-            let mut parts = s.trim().splitn(2, char::is_whitespace);
-            let scheme = parts.next().unwrap_or("");
-            if !scheme.eq_ignore_ascii_case("digest") {
-                continue;
-            }
-            let rest = parts.next().unwrap_or("").trim();
-            if rest.is_empty() {
-                continue;
-            }
-
-            let params = match crate::helpers::auth::parse_auth_params(rest) {
-                Ok(m) => m,
-                Err(_) => {
-                    // syntax errors are caught by digest_auth_valid,
-                    // so just bail out here rather than reporting again.
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // only care about client-side requests with Digest Authorization
+            // cite(RFC 7616 § 3.3): "The nonce is opaque to the client."
+            for hv in tx.request.headers.get_all("authorization").iter() {
+                let s = match hv.to_str() {
+                    Ok(v) => v,
+                    Err(_) => continue, // non-UTF8 header; other rules may catch this
+                };
+                let mut parts = s.trim().splitn(2, char::is_whitespace);
+                let scheme = parts.next().unwrap_or("");
+                if !scheme.eq_ignore_ascii_case("digest") {
                     continue;
                 }
-            };
-
-            let nonce = params.get("nonce").map(|v| v.trim_matches('"').to_string());
-            let opaque = params
-                .get("opaque")
-                .map(|v| v.trim_matches('"').to_string());
-            let nc_str = params.get("nc").map(|v| v.as_str());
-
-            // find the most recent Digest challenge in history
-            let (last_challenge_nonce, last_challenge_opaque, last_challenge_stale) =
-                find_last_digest_challenge(history);
-
-            // 1. nonce must have been offered in a challenge
-            if nonce.is_some() && last_challenge_nonce.is_none() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Digest Authorization used without prior Digest challenge".into(),
-                });
-            }
-
-            // 2. opaque must be echoed unchanged from the challenge (omitting it when
-            //    the challenge supplied one is a mismatch too).
-            // cite(RFC 7616 § 3.3): "A string of data, specified by the server, that SHOULD be returned by the client unchanged in the Authorization header field of subsequent requests"
-            if let (Some(ref o), Some(ref expected)) =
-                (opaque.as_ref(), last_challenge_opaque.as_ref())
-            {
-                if o != expected {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Digest Authorization opaque does not match most recent challenge"
-                            .into(),
-                    });
+                let rest = parts.next().unwrap_or("").trim();
+                if rest.is_empty() {
+                    continue;
                 }
-            } else if opaque.is_none() && last_challenge_opaque.is_some() {
-                // Challenge included opaque, but client omitted it
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Digest Authorization missing opaque from most recent challenge"
-                        .into(),
-                });
-            }
 
-            // 3. nonce must correspond to the most recent challenge value.
-            // `stale=true` does **not** relax this requirement; it only affects
-            // the expected nonce-count reset behaviour which is checked later.
-            if let (Some(ref n), Some(ref expected)) =
-                (nonce.as_ref(), last_challenge_nonce.as_ref())
-            {
-                if n != expected {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Digest Authorization nonce differs from most recent challenge"
-                            .into(),
-                    });
-                }
-            }
-
-            // 4. nonce-count progression and reset behavior
-            if let Some(nc_val) = nc_str {
-                let current_nc = match crate::helpers::auth::parse_nc_hex(nc_val) {
-                    Ok(v) => v,
-                    Err(msg) => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Invalid nc (nonce-count) value: {}", msg),
-                        });
+                let params = match crate::helpers::auth::parse_auth_params(rest) {
+                    Ok(m) => m,
+                    Err(_) => {
+                        // syntax errors are caught by digest_auth_valid,
+                        // so just bail out here rather than reporting again.
+                        continue;
                     }
                 };
 
-                // find highest previous nc for same nonce
-                let highest = nonce
-                    .as_ref()
-                    .map(|n| highest_nc_for_nonce(history, n))
-                    .unwrap_or(0);
+                let nonce = params.get("nonce").map(|v| v.trim_matches('"').to_string());
+                let opaque = params
+                    .get("opaque")
+                    .map(|v| v.trim_matches('"').to_string());
+                let nc_str = params.get("nc").map(|v| v.as_str());
 
-                // nc must strictly increase for a given nonce: a repeated count is the
-                // signature of a replay, which nc exists to let the server detect.
-                // cite(RFC 7616 § 3.4): "if the same nc value is seen twice, then the request is a replay."
-                if current_nc <= highest {
+                // find the most recent Digest challenge in history
+                let (last_challenge_nonce, last_challenge_opaque, last_challenge_stale) =
+                    find_last_digest_challenge(history);
+
+                // 1. nonce must have been offered in a challenge
+                if nonce.is_some() && last_challenge_nonce.is_none() {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: "Digest Authorization nonce-count did not increase".into(),
+                        message: "Digest Authorization used without prior Digest challenge".into(),
                     });
                 }
 
-                // When the most recent challenge is stale, the client keeps the (new)
-                // nonce but restarts the count, so the first request must carry nc=1.
-                // stale is a case-insensitive flag, hence the eq_ignore_ascii_case.
-                // cite(RFC 7616 § 3.3): "A case-insensitive flag indicating that the previous request from the client was rejected because the nonce value was stale."
-                if last_challenge_stale
-                    .as_deref()
-                    .is_some_and(|s| s.eq_ignore_ascii_case("true"))
-                    && highest == 0
-                    && current_nc != 1
+                // 2. opaque must be echoed unchanged from the challenge (omitting it when
+                //    the challenge supplied one is a mismatch too).
+                // cite(RFC 7616 § 3.3): "A string of data, specified by the server, that SHOULD be returned by the client unchanged in the Authorization header field of subsequent requests"
+                if let (Some(ref o), Some(ref expected)) =
+                    (opaque.as_ref(), last_challenge_opaque.as_ref())
                 {
+                    if o != expected {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message:
+                                "Digest Authorization opaque does not match most recent challenge"
+                                    .into(),
+                        });
+                    }
+                } else if opaque.is_none() && last_challenge_opaque.is_some() {
+                    // Challenge included opaque, but client omitted it
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: "Digest Authorization with new nonce after stale challenge must reset nc to 00000001".into(),
+                        message: "Digest Authorization missing opaque from most recent challenge"
+                            .into(),
                     });
+                }
+
+                // 3. nonce must correspond to the most recent challenge value.
+                // `stale=true` does **not** relax this requirement; it only affects
+                // the expected nonce-count reset behaviour which is checked later.
+                if let (Some(ref n), Some(ref expected)) =
+                    (nonce.as_ref(), last_challenge_nonce.as_ref())
+                {
+                    if n != expected {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message:
+                                "Digest Authorization nonce differs from most recent challenge"
+                                    .into(),
+                        });
+                    }
+                }
+
+                // 4. nonce-count progression and reset behavior
+                if let Some(nc_val) = nc_str {
+                    let current_nc = match crate::helpers::auth::parse_nc_hex(nc_val) {
+                        Ok(v) => v,
+                        Err(msg) => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!("Invalid nc (nonce-count) value: {}", msg),
+                            });
+                        }
+                    };
+
+                    // find highest previous nc for same nonce
+                    let highest = nonce
+                        .as_ref()
+                        .map(|n| highest_nc_for_nonce(history, n))
+                        .unwrap_or(0);
+
+                    // nc must strictly increase for a given nonce: a repeated count is the
+                    // signature of a replay, which nc exists to let the server detect.
+                    // cite(RFC 7616 § 3.4): "if the same nc value is seen twice, then the request is a replay."
+                    if current_nc <= highest {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Digest Authorization nonce-count did not increase".into(),
+                        });
+                    }
+
+                    // When the most recent challenge is stale, the client keeps the (new)
+                    // nonce but restarts the count, so the first request must carry nc=1.
+                    // stale is a case-insensitive flag, hence the eq_ignore_ascii_case.
+                    // cite(RFC 7616 § 3.3): "A case-insensitive flag indicating that the previous request from the client was rejected because the nonce value was stale."
+                    if last_challenge_stale
+                        .as_deref()
+                        .is_some_and(|s| s.eq_ignore_ascii_case("true"))
+                        && highest == 0
+                        && current_nc != 1
+                    {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Digest Authorization with new nonce after stale challenge must reset nc to 00000001".into(),
+                        });
+                    }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

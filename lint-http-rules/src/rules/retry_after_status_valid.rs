@@ -50,54 +50,59 @@ impl Rule for RetryAfterStatusValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // `Retry-After` is defined among §10.2's response context fields and its
-        // own sentence names the server as the sender, which is why this rule
-        // reads the response and never the request. A request carrying the field
-        // is not reported: §10.2 places it among response fields but no sentence
-        // forbids a client from sending it, and this rule reports only what a
-        // sentence measures.
-        // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // `Retry-After` is defined among §10.2's response context fields and its
+            // own sentence names the server as the sender, which is why this rule
+            // reads the response and never the request. A request carrying the field
+            // is not reported: §10.2 places it among response fields but no sentence
+            // forbids a client from sending it, and this rule reports only what a
+            // sentence measures.
+            // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
+            let resp = tx.response.as_ref()?;
 
-        // Presence is the entire input: this rule asks which status the field
-        // arrived on and never what the value says. `retry_after_date_or_delay`
-        // owns `Retry-After = HTTP-date / delay-seconds` and the repeated-field-line
-        // check, so neither is transcribed here — and for the same reason nothing is
-        // joined across field lines: a value spread over two lines, or written twice,
-        // is still one presence on one status.
-        resp.headers.get_all("retry-after").iter().next()?;
+            // Presence is the entire input: this rule asks which status the field
+            // arrived on and never what the value says. `retry_after_date_or_delay`
+            // owns `Retry-After = HTTP-date / delay-seconds` and the repeated-field-line
+            // check, so neither is transcribed here — and for the same reason nothing is
+            // joined across field lines: a value spread over two lines, or written twice,
+            // is still one presence on one status.
+            resp.headers.get_all("retry-after").iter().next()?;
 
-        let status = resp.status;
-        if status_defines_retry_after(status) {
-            return None;
-        }
+            let status = resp.status;
+            if status_defines_retry_after(status) {
+                return None;
+            }
 
-        // No sentence makes this a violation, and the cited one is why. §10.2.3
-        // defines the field generally — a server saying how long to wait before a
-        // follow-up request — with no condition on the status code, and its two
-        // "When sent with" sentences elaborate two cases rather than closing the
-        // set. So the finding is advisory: it reports a field arriving where
-        // neither RFC 9110 nor RFC 6585 says what a user agent should do with
-        // it, which is an interoperability observation and not a requirement.
-        // `description()` says the same where an operator reads it.
-        // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Retry-After arrived on status {status}, which neither RFC 9110 nor RFC 6585 pairs with \
-                 this field; the two documents pair it with any 3xx redirection, 413 Content Too Large, \
-                 429 Too Many Requests, and 503 Service Unavailable. No requirement forbids sending it \
-                 here — the field's own definition puts no condition on the status code — so a client is \
-                 simply not told what to do with it"
-            ),
-        })
+            // No sentence makes this a violation, and the cited one is why. §10.2.3
+            // defines the field generally — a server saying how long to wait before a
+            // follow-up request — with no condition on the status code, and its two
+            // "When sent with" sentences elaborate two cases rather than closing the
+            // set. So the finding is advisory: it reports a field arriving where
+            // neither RFC 9110 nor RFC 6585 says what a user agent should do with
+            // it, which is an interoperability observation and not a requirement.
+            // `description()` says the same where an operator reads it.
+            // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "Retry-After arrived on status {status}, which neither RFC 9110 nor RFC 6585 pairs with \
+                     this field; the two documents pair it with any 3xx redirection, 413 Content Too Large, \
+                     429 Too Many Requests, and 503 Service Unavailable. No requirement forbids sending it \
+                     here — the field's own definition puts no condition on the status code — so a client is \
+                     simply not told what to do with it"
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

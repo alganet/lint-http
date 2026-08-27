@@ -56,60 +56,65 @@ impl Rule for Status3xxVsRequestMethod {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Both halves of the question are on the transaction: the status the server
-        // chose and the method the client sent. `RuleScope::Server` only means the
-        // engine skips a transaction that has no response yet.
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Both halves of the question are on the transaction: the status the server
+            // chose and the method the client sent. `RuleScope::Server` only means the
+            // engine skips a transaction that has no response yet.
+            let resp = tx.response.as_ref()?;
 
-        let (alternative, section) = unambiguous_alternative(resp.status)?;
+            let (alternative, section) = unambiguous_alternative(resp.status)?;
 
-        // A method is only rewritten by a user agent that *follows* the redirect, and
-        // what it follows is the `Location`. Presence is the whole question here:
-        // whether the value is a usable `URI-reference` is
-        // `location_header_uri_valid`'s, and a 301 or a 302 carrying no
-        // `Location` at all is `location_on_redirect_present`'s, against the
-        // SHOULD in the same two sections this rule reads.
-        // cite(RFC 9110 § 15.4): "If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood."
-        resp.headers.get_all("location").iter().next()?;
+            // A method is only rewritten by a user agent that *follows* the redirect, and
+            // what it follows is the `Location`. Presence is the whole question here:
+            // whether the value is a usable `URI-reference` is
+            // `location_header_uri_valid`'s, and a 301 or a 302 carrying no
+            // `Location` at all is `location_on_redirect_present`'s, against the
+            // SHOULD in the same two sections this rule reads.
+            // cite(RFC 9110 § 15.4): "If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood."
+            resp.headers.get_all("location").iter().next()?;
 
-        // POST is the method the two notes name, and the only one they name. §15.4's
-        // history says which methods the adjustment was made for — a POST redirected
-        // as GET — so a user agent following a 301 with any other method changes
-        // nothing and there is no ambiguity to report. This rule used to exempt the
-        // four safe methods and report everything else, which measured every PUT,
-        // PATCH, DELETE and CONNECT against a sentence about POST.
-        //
-        // The comparison is exact because the method token is case-sensitive: a
-        // request whose method is `post` is not a POST request, and what is wrong with
-        // *that* is `request_method_token_valid`'s to report.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        if tx.request.method != "POST" {
-            return None;
-        }
+            // POST is the method the two notes name, and the only one they name. §15.4's
+            // history says which methods the adjustment was made for — a POST redirected
+            // as GET — so a user agent following a 301 with any other method changes
+            // nothing and there is no ambiguity to report. This rule used to exempt the
+            // four safe methods and report everything else, which measured every PUT,
+            // PATCH, DELETE and CONNECT against a sentence about POST.
+            //
+            // The comparison is exact because the method token is case-sensitive: a
+            // request whose method is `post` is not a POST request, and what is wrong with
+            // *that* is `request_method_token_valid`'s to report.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method != "POST" {
+                return None;
+            }
 
-        // No cite of its own: what makes this worth saying is the note matched by
-        // `unambiguous_alternative`, cited at the arm that matched it and carried into
-        // the message from there. The 303 clause is §9.3.3's MAY, and it travels with
-        // the condition that sentence puts on it.
-        // cite(RFC 9110 § 9.3.3): "If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "{status} response to a POST request: for historical reasons a user agent MAY \
-                 change the method to GET before following this redirect (RFC 9110 {section}), so \
-                 the response does not say which method reaches the Location. Send {alternative} \
-                 to keep the method, or 303 (See Other) where the result of the POST is an \
-                 existing resource the user agent should retrieve",
-                status = resp.status,
-            ),
-        })
+            // No cite of its own: what makes this worth saying is the note matched by
+            // `unambiguous_alternative`, cited at the arm that matched it and carried into
+            // the message from there. The 303 clause is §9.3.3's MAY, and it travels with
+            // the condition that sentence puts on it.
+            // cite(RFC 9110 § 9.3.3): "If the result of processing a POST would be equivalent to a representation of an existing resource, an origin server MAY redirect the user agent to that resource by sending a 303 (See Other) response with the existing resource's identifier in the Location field."
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "{status} response to a POST request: for historical reasons a user agent MAY \
+                     change the method to GET before following this redirect (RFC 9110 {section}), so \
+                     the response does not say which method reaches the Location. Send {alternative} \
+                     to keep the method, or 303 (See Other) where the result of the POST is an \
+                     existing resource the user agent should retrieve",
+                    status = resp.status,
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

@@ -367,71 +367,76 @@ impl Rule for WebsocketHandshakeValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req = &tx.request;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req = &tx.request;
 
-        // Which captured exchanges are this document's opening handshake — the
-        // method, the `Upgrade` keyword and the messaging syntax — is asked of the
-        // shared gate, so that the rule measuring the request and this one measuring
-        // the answer cannot disagree about which exchanges those are.
-        opening_handshake_version(req)?;
-        let resp = tx.response.as_ref()?;
+            // Which captured exchanges are this document's opening handshake — the
+            // method, the `Upgrade` keyword and the messaging syntax — is asked of the
+            // shared gate, so that the rule measuring the request and this one measuring
+            // the answer cannot disagree about which exchanges those are.
+            opening_handshake_version(req)?;
+            let resp = tx.response.as_ref()?;
 
-        // The premise, and the sentence that used to sit on the method test above.
-        //
-        // A response other than 101 is not a handshake to measure: § 4.2.2's list of
-        // what a server sends opens with the server *choosing to accept*, and the
-        // same section names five other things a server does instead — client
-        // authentication with a 401, a redirect with a 3xx, a 403 for an origin it
-        // will not serve, a 404 for a resource it does not have, a 426 for a version
-        // it does not speak. § 4.1 sends every one of them back to plain HTTP, where
-        // the rest of this catalogue measures it.
-        //
-        // Demanding a 101 here reported all five as handshake defects, and the two
-        // most common of them — an authentication challenge and a redirect — are
-        // things the document explicitly says a server may do.
-        // cite(RFC 6455 § 4.1): "If the status code received from the server is not 101, the client handles the response per HTTP [RFC2616] procedures."
-        // cite(RFC 6455 § 4.1): "In particular, the client might perform authentication if it receives a 401 status code; the server might redirect the client using a 3xx status code (but clients are not required to follow them), etc.  Otherwise, proceed as follows."
-        // cite(RFC 6455 § 4.2.2): "If the server chooses to accept the incoming connection, it MUST reply with a valid HTTP response indicating the following."
-        // cite(RFC 6455 § 4.2.2): "The server can perform additional client authentication, for example, by returning a 401 status code with the corresponding |WWW-Authenticate| header field as described in [RFC2616]."
-        // cite(RFC 6455 § 4.2.2): "The server MAY redirect the client using a 3xx status code [RFC2616]."
-        // cite(RFC 6455 § 4.2.2): "If the server does not wish to accept this connection, it MUST return an appropriate HTTP error code (e.g., 403 Forbidden) and abort the WebSocket handshake described in this section."
-        // cite(RFC 6455 § 4.2.2): "If the requested service is not available, the server MUST send an appropriate HTTP error code (such as 404 Not Found) and abort the WebSocket handshake."
-        // cite(RFC 6455 § 4.2.2): "A Status-Line with a 101 response code as per RFC 2616 [RFC2616]."
-        if resp.status != 101 {
-            return None;
-        }
+            // The premise, and the sentence that used to sit on the method test above.
+            //
+            // A response other than 101 is not a handshake to measure: § 4.2.2's list of
+            // what a server sends opens with the server *choosing to accept*, and the
+            // same section names five other things a server does instead — client
+            // authentication with a 401, a redirect with a 3xx, a 403 for an origin it
+            // will not serve, a 404 for a resource it does not have, a 426 for a version
+            // it does not speak. § 4.1 sends every one of them back to plain HTTP, where
+            // the rest of this catalogue measures it.
+            //
+            // Demanding a 101 here reported all five as handshake defects, and the two
+            // most common of them — an authentication challenge and a redirect — are
+            // things the document explicitly says a server may do.
+            // cite(RFC 6455 § 4.1): "If the status code received from the server is not 101, the client handles the response per HTTP [RFC2616] procedures."
+            // cite(RFC 6455 § 4.1): "In particular, the client might perform authentication if it receives a 401 status code; the server might redirect the client using a 3xx status code (but clients are not required to follow them), etc.  Otherwise, proceed as follows."
+            // cite(RFC 6455 § 4.2.2): "If the server chooses to accept the incoming connection, it MUST reply with a valid HTTP response indicating the following."
+            // cite(RFC 6455 § 4.2.2): "The server can perform additional client authentication, for example, by returning a 401 status code with the corresponding |WWW-Authenticate| header field as described in [RFC2616]."
+            // cite(RFC 6455 § 4.2.2): "The server MAY redirect the client using a 3xx status code [RFC2616]."
+            // cite(RFC 6455 § 4.2.2): "If the server does not wish to accept this connection, it MUST return an appropriate HTTP error code (e.g., 403 Forbidden) and abort the WebSocket handshake described in this section."
+            // cite(RFC 6455 § 4.2.2): "If the requested service is not available, the server MUST send an appropriate HTTP error code (such as 404 Not Found) and abort the WebSocket handshake."
+            // cite(RFC 6455 § 4.2.2): "A Status-Line with a 101 response code as per RFC 2616 [RFC2616]."
+            if resp.status != 101 {
+                return None;
+            }
 
-        // Every gate above ends the rule, and reading the configuration is several
-        // map probes and a hash of the id — so only an exchange about to be measured
-        // pays for it.
+            // Every gate above ends the rule, and reading the configuration is several
+            // map probes and a hash of the id — so only an exchange about to be measured
+            // pays for it.
 
-        // § 4.1's numbered order, which is the order a client validating this
-        // response would reach them, with the question about the handshake's
-        // admissibility ahead of the questions about its fields. One message carries
-        // one finding, so the first defect is the one reported.
-        let defect = [
-            Self::refusable_handshake(&req.headers),
-            Self::upgrade_defect(&resp.headers),
-            Self::connection_defect(&resp.headers),
-            Self::accept_defect(&req.headers, &resp.headers),
-            Self::extensions_defect(&req.headers, &resp.headers),
-            Self::subprotocol_defect(&req.headers, &resp.headers),
-        ]
-        .into_iter()
-        .flatten()
-        .next()?;
+            // § 4.1's numbered order, which is the order a client validating this
+            // response would reach them, with the question about the handshake's
+            // admissibility ahead of the questions about its fields. One message carries
+            // one finding, so the first defect is the one reported.
+            let defect = [
+                Self::refusable_handshake(&req.headers),
+                Self::upgrade_defect(&resp.headers),
+                Self::connection_defect(&resp.headers),
+                Self::accept_defect(&req.headers, &resp.headers),
+                Self::extensions_defect(&req.headers, &resp.headers),
+                Self::subprotocol_defect(&req.headers, &resp.headers),
+            ]
+            .into_iter()
+            .flatten()
+            .next()?;
 
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!("This 101 completes a WebSocket opening handshake, but {defect}"),
-        })
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!("This 101 completes a WebSocket opening handshake, but {defect}"),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

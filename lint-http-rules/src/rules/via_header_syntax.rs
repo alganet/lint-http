@@ -23,33 +23,38 @@ impl Rule for ViaHeaderSyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
-        if let Some(err) = judge(&tx.request.headers, "Request") {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: err,
-            });
-        }
-
-        // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
-        if let Some(resp) = &tx.response {
-            if let Some(err) = judge(&resp.headers, "Response") {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
+            if let Some(err) = judge(&tx.request.headers, "Request") {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
                     message: err,
                 });
             }
-        }
 
-        None
+            // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
+            if let Some(resp) = &tx.response {
+                if let Some(err) = judge(&resp.headers, "Response") {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: err,
+                    });
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

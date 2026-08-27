@@ -20,65 +20,70 @@ impl Rule for PriorityAndCacheabilityConsistent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // Only consider responses that include a Priority header field (§5: the
-        // field "can appear in requests and responses"). This is a presence test
-        // only — the value feeds the message, never a Dictionary parse — so the
-        // first non-empty ASCII field line is taken; a Priority header that is
-        // empty or non-ASCII on every line is treated as absent and skipped.
-        let mut priority_val: Option<&str> = None;
-        for hv in resp.headers.get_all("priority").iter() {
-            if let Ok(s) = hv.to_str() {
-                let s = s.trim();
-                if !s.is_empty() {
-                    priority_val = Some(s);
-                    break;
+            // Only consider responses that include a Priority header field (§5: the
+            // field "can appear in requests and responses"). This is a presence test
+            // only — the value feeds the message, never a Dictionary parse — so the
+            // first non-empty ASCII field line is taken; a Priority header that is
+            // empty or non-ASCII on every line is treated as absent and skipped.
+            let mut priority_val: Option<&str> = None;
+            for hv in resp.headers.get_all("priority").iter() {
+                if let Ok(s) = hv.to_str() {
+                    let s = s.trim();
+                    if !s.is_empty() {
+                        priority_val = Some(s);
+                        break;
+                    }
                 }
             }
-        }
-        let priority = priority_val?;
+            let priority = priority_val?;
 
-        // Restrict to "cacheable-ish" 2xx/3xx responses. This is a heuristic range,
-        // not RFC 9110 §15.1's set of responses cacheable by default: it over-includes
-        // non-default-cacheable 3xx (302, 303, 307) and omits the heuristically
-        // cacheable 404, 410, and 451. The imprecision is tolerable because the check
-        // is a soft best-practice warning, not a MUST; tightening it to §15.1's exact
-        // list would be a behavior change. No sentence licenses this exact bound, so it
-        // carries no cite.
-        if !(200..400).contains(&resp.status) {
-            return None;
-        }
+            // Restrict to "cacheable-ish" 2xx/3xx responses. This is a heuristic range,
+            // not RFC 9110 §15.1's set of responses cacheable by default: it over-includes
+            // non-default-cacheable 3xx (302, 303, 307) and omits the heuristically
+            // cacheable 404, 410, and 451. The imprecision is tolerable because the check
+            // is a soft best-practice warning, not a MUST; tightening it to §15.1's exact
+            // list would be a behavior change. No sentence licenses this exact bound, so it
+            // carries no cite.
+            if !(200..400).contains(&resp.status) {
+                return None;
+            }
 
-        let has_cache_control = resp.headers.contains_key("cache-control");
-        let has_vary = resp.headers.contains_key("vary");
+            let has_cache_control = resp.headers.contains_key("cache-control");
+            let has_vary = resp.headers.contains_key("vary");
 
-        // §5's soft expectation is this rule's basis: a server that emits a Priority
-        // response header should also send a field that controls caching, so a cache
-        // does not reuse the wrong variant. "expected to" is descriptive, not a
-        // MUST/SHOULD, so this is a best-practice warning; Cache-Control and Vary are
-        // interchangeable here per §5's own "(e.g., Cache-Control, Vary)". (Replaces a
-        // mis-anchored RFC 9111 §4.2.2 heuristic-freshness MAY, which spoke to neither
-        // the Priority expectation nor the Vary half of the check.)
-        // cite(RFC 9218 § 5): "the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
-        if !has_cache_control && !has_vary {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Response includes Priority header ('{}') but lacks Cache-Control or Vary to control cacheability; origin servers emitting Priority should control cacheability per RFC 9218 §5",
-                    priority
-                ),
-            });
-        }
+            // §5's soft expectation is this rule's basis: a server that emits a Priority
+            // response header should also send a field that controls caching, so a cache
+            // does not reuse the wrong variant. "expected to" is descriptive, not a
+            // MUST/SHOULD, so this is a best-practice warning; Cache-Control and Vary are
+            // interchangeable here per §5's own "(e.g., Cache-Control, Vary)". (Replaces a
+            // mis-anchored RFC 9111 §4.2.2 heuristic-freshness MAY, which spoke to neither
+            // the Priority expectation nor the Vary half of the check.)
+            // cite(RFC 9218 § 5): "the server is expected to control the cacheability or the applicability of the cached response by using header fields that control the caching behavior (e.g., Cache-Control, Vary)"
+            if !has_cache_control && !has_vary {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Response includes Priority header ('{}') but lacks Cache-Control or Vary to control cacheability; origin servers emitting Priority should control cacheability per RFC 9218 §5",
+                        priority
+                    ),
+                });
+            }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

@@ -22,116 +22,124 @@ impl Rule for RangeHeaderSyntax {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        use hyper::header::RANGE;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            use hyper::header::RANGE;
 
-        // A request that names no range is every other request. The absence is
-        // not a finding and not an oversight either -- the whole feature is
-        // optional, and a recipient is meant to be able to ignore it.
-        //
-        // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
-        let hdrs = tx.request.headers.get_all(RANGE);
-        hdrs.iter().next()?;
+            // A request that names no range is every other request. The absence is
+            // not a finding and not an oversight either -- the whole feature is
+            // optional, and a recipient is meant to be able to ignore it.
+            //
+            // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
+            let hdrs = tx.request.headers.get_all(RANGE);
+            hdrs.iter().next()?;
 
-        // `to_str` refuses every octet outside visible US-ASCII, and the shared
-        // reader below folds that refusal into the same `None` it returns for an
-        // absent field. This rule owns the difference -- one of the two is a
-        // finding about the message on the wire -- so the question the helper does
-        // not report on is asked here, before it is asked to read anything.
-        //
-        // The message used to call such a value "non-UTF8", which was wrong twice:
-        // `to_str` rejects a perfectly good UTF-8 `é` as readily as a lone 0xFF,
-        // and neither is the reason it is a finding. The reason is that no part of
-        // a ranges-specifier -- a token, `=`, or a range-spec -- is built from
-        // anything but visible US-ASCII.
-        //
-        // cite(RFC 9110 § 5.6.2): "Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}")."
-        // cite(RFC 9110 § 14.1.1, label: other-range grammar): "other-range   = 1*( %x21-2B / %x2D-7E )"
-        for hv in hdrs.iter() {
-            if hv.to_str().is_err() {
+            // `to_str` refuses every octet outside visible US-ASCII, and the shared
+            // reader below folds that refusal into the same `None` it returns for an
+            // absent field. This rule owns the difference -- one of the two is a
+            // finding about the message on the wire -- so the question the helper does
+            // not report on is asked here, before it is asked to read anything.
+            //
+            // The message used to call such a value "non-UTF8", which was wrong twice:
+            // `to_str` rejects a perfectly good UTF-8 `é` as readily as a lone 0xFF,
+            // and neither is the reason it is a finding. The reason is that no part of
+            // a ranges-specifier -- a token, `=`, or a range-spec -- is built from
+            // anything but visible US-ASCII.
+            //
+            // cite(RFC 9110 § 5.6.2): "Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}")."
+            // cite(RFC 9110 § 14.1.1, label: other-range grammar): "other-range   = 1*( %x21-2B / %x2D-7E )"
+            for hv in hdrs.iter() {
+                if hv.to_str().is_err() {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Range header holds an octet no part of a ranges-specifier admits"
+                            .into(),
+                    });
+                }
+            }
+
+            // Two field lines with one name are one field value: a recipient appends
+            // them in order, separated by comma SP. Reading them as two values answers
+            // about a value nobody sees -- `bytes=0-1` beside `bytes=2-3` is a single
+            // range-set whose second element is `bytes=2-3`, which is a specifier the
+            // `bytes` unit has no form for, and it is that value the origin acts on.
+            //
+            // Whether the sender was permitted to send two lines at all is a separate
+            // and arguable question -- § 5.3's exception turns on whether the field's
+            // definition allows a comma-separated list, and `Range`'s does, one level
+            // down, in `range-set`. Joining decides nothing about it and needs to
+            // decide nothing: the joined value is measured against the same grammar
+            // either way. Every line was read cleanly just above, so the helper's
+            // remaining `None` is the absent case, which the first line here ruled out.
+            //
+            // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
+            let value = crate::helpers::headers::get_all_header_values(
+                &tx.request.headers,
+                RANGE.as_str(),
+            )?;
+
+            // The split is the shared one, not a second copy of it: the unit is a
+            // token, so the first `=` is the separator whatever follows it, and the
+            // same function answers this question for `Content-Range`.
+            //
+            // cite(RFC 9110 § 14.2, label: Range grammar): "Range = ranges-specifier"
+            // cite(RFC 9110 § 14.1.1, label: ranges-specifier grammar): "ranges-specifier = range-unit "=" range-set"
+            let Some((unit, range_set)) =
+                crate::helpers::content_range::split_ranges_specifier(&value)
+            else {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "Range header holds an octet no part of a ranges-specifier admits"
-                        .into(),
+                    message: format!(
+                        "Invalid Range header '{}': not a ranges-specifier (a range-unit token, '=', then a range-set)",
+                        value
+                    ),
+                });
+            };
+
+            // The one sentence that makes any of the checks below mean something. It
+            // is also what bounds them: invalidity is decided per range-unit, and this
+            // rule knows one range-unit.
+            //
+            // cite(RFC 9110 § 14.1.1): "A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit."
+            if let Err(e) = validate_range_set(&unit, range_set) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!("Invalid Range header '{}': {}", value, e),
                 });
             }
-        }
 
-        // Two field lines with one name are one field value: a recipient appends
-        // them in order, separated by comma SP. Reading them as two values answers
-        // about a value nobody sees -- `bytes=0-1` beside `bytes=2-3` is a single
-        // range-set whose second element is `bytes=2-3`, which is a specifier the
-        // `bytes` unit has no form for, and it is that value the origin acts on.
-        //
-        // Whether the sender was permitted to send two lines at all is a separate
-        // and arguable question -- § 5.3's exception turns on whether the field's
-        // definition allows a comma-separated list, and `Range`'s does, one level
-        // down, in `range-set`. Joining decides nothing about it and needs to
-        // decide nothing: the joined value is measured against the same grammar
-        // either way. Every line was read cleanly just above, so the helper's
-        // remaining `None` is the absent case, which the first line here ruled out.
-        //
-        // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
-        let value =
-            crate::helpers::headers::get_all_header_values(&tx.request.headers, RANGE.as_str())?;
-
-        // The split is the shared one, not a second copy of it: the unit is a
-        // token, so the first `=` is the separator whatever follows it, and the
-        // same function answers this question for `Content-Range`.
-        //
-        // cite(RFC 9110 § 14.2, label: Range grammar): "Range = ranges-specifier"
-        // cite(RFC 9110 § 14.1.1, label: ranges-specifier grammar): "ranges-specifier = range-unit "=" range-set"
-        let Some((unit, range_set)) = crate::helpers::content_range::split_ranges_specifier(&value)
-        else {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Invalid Range header '{}': not a ranges-specifier (a range-unit token, '=', then a range-set)",
-                    value
-                ),
-            });
+            // Three things a well-formed ranges-specifier can still be, none of them
+            // reported here, all of them named so the silence is not read as an
+            // oversight.
+            //
+            // *Unsatisfiable* is not *invalid*: the sentence below asks after a valid
+            // range-spec, and the answer turns on the length of the selected
+            // representation, which no request carries.
+            //
+            // *On a method other than GET* is a requirement on the server, which must
+            // ignore such a field. Nothing there is addressed to the client that sent
+            // it, so the rule has nothing to measure the request against.
+            //
+            // *Descending or overlapping* is a SHOULD with an escape clause about a
+            // client's own needs -- "unless there is a specific need to request a
+            // later part earlier" -- and a request records the ranges, not the need.
+            //
+            // cite(RFC 9110 § 14.1.2): "For a GET request, a valid bytes range-spec is satisfiable if it is either:"
+            // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined."
+            // cite(RFC 9110 § 14.2): "A client that is requesting multiple ranges SHOULD list those ranges in ascending order (the order in which they would typically be received in a complete representation) unless there is a specific need to request a later part earlier."
+            None
         };
-
-        // The one sentence that makes any of the checks below mean something. It
-        // is also what bounds them: invalidity is decided per range-unit, and this
-        // rule knows one range-unit.
-        //
-        // cite(RFC 9110 § 14.1.1): "A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit."
-        if let Err(e) = validate_range_set(&unit, range_set) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("Invalid Range header '{}': {}", value, e),
-            });
-        }
-
-        // Three things a well-formed ranges-specifier can still be, none of them
-        // reported here, all of them named so the silence is not read as an
-        // oversight.
-        //
-        // *Unsatisfiable* is not *invalid*: the sentence below asks after a valid
-        // range-spec, and the answer turns on the length of the selected
-        // representation, which no request carries.
-        //
-        // *On a method other than GET* is a requirement on the server, which must
-        // ignore such a field. Nothing there is addressed to the client that sent
-        // it, so the rule has nothing to measure the request against.
-        //
-        // *Descending or overlapping* is a SHOULD with an escape clause about a
-        // client's own needs -- "unless there is a specific need to request a
-        // later part earlier" -- and a request records the ranges, not the need.
-        //
-        // cite(RFC 9110 § 14.1.2): "For a GET request, a valid bytes range-spec is satisfiable if it is either:"
-        // cite(RFC 9110 § 14.2): "A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.  For this specification, GET is the only method for which range handling is defined."
-        // cite(RFC 9110 § 14.2): "A client that is requesting multiple ranges SHOULD list those ranges in ascending order (the order in which they would typically be received in a complete representation) unless there is a specific need to request a later part earlier."
-        None
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -185,29 +185,34 @@ impl Rule for UpgradeHeaderSyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // No version gate, and the sibling that reports presence is why. A
-        // grammar is what a value is measured against whatever carried it, and
-        // over HTTP/2 and HTTP/3 the field's *presence* is already the finding —
-        // `no_connection_specific_fields` makes it, and says in as many
-        // words that it reads no value because whether one derives from its
-        // field's own production is that field's rule's question. This is that
-        // rule, and declining the value there and here would leave the question
-        // asked by nobody. `connection_header_tokens_valid` reads its own
-        // connection-specific field the same way for the same reason.
-        let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
-            let resp = tx.response.as_ref()?;
-            Self::defect(&resp.headers, "Response")
-        })?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // No version gate, and the sibling that reports presence is why. A
+            // grammar is what a value is measured against whatever carried it, and
+            // over HTTP/2 and HTTP/3 the field's *presence* is already the finding —
+            // `no_connection_specific_fields` makes it, and says in as many
+            // words that it reads no value because whether one derives from its
+            // field's own production is that field's rule's question. This is that
+            // rule, and declining the value there and here would leave the question
+            // asked by nobody. `connection_header_tokens_valid` reads its own
+            // connection-specific field the same way for the same reason.
+            let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
+                let resp = tx.response.as_ref()?;
+                Self::defect(&resp.headers, "Response")
+            })?;
 
-        // Read last: a message about to be reported is the only one that pays
-        // for the map probes and the two lookups of the rule id.
-        Some(self.violation(ctx.severity, message))
+            // Read last: a message about to be reported is the only one that pays
+            // for the map probes and the two lookups of the rule id.
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -24,214 +24,220 @@ impl Rule for AcceptAndContentTypeNegotiation {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // What this rule is, stated before anything it does: an advisory, not a
-        // conformance check. RFC 9110 gives the origin server the choice
-        // outright — a representation the Accept header does not cover may be
-        // sent, and the header simply disregarded — so a message this rule
-        // reports may be entirely conforming. §12.1 says the same from the
-        // client's side. What is left is worth saying anyway, because a
-        // response the client cannot use is usually not what the server meant
-        // to send; it is a suggestion, and the finding is worded as one.
-        // cite(RFC 9110 § 12.4.1): "If a content negotiation header field is present in a request and none of the available representations for the response can be considered acceptable according to it, the origin server can either honor the header field by sending a 406 (Not Acceptable) response or disregard the header field by treating the response as if it is not subject to content negotiation for that request header field."
-        // cite(RFC 9110 § 12.1): "A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response."
-        //
-        // The whole Accept field, not its first line. `Accept` is a list field,
-        // so a sender may spread its members over several field lines and a
-        // recipient recombines them into one comma-separated list — reading
-        // only the first announced that a response was unacceptable to a client
-        // that had listed it on the second. The helper performs exactly the
-        // §5.3 recombination, joining the lines with comma-SP; it returns None
-        // for a value carrying obs-text, which only ever suppresses an advisory
-        // finding and never produces one.
-        // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
-        let accept = crate::helpers::headers::get_all_header_values(&tx.request.headers, "accept");
-        let accept = accept.as_deref();
-        let resp = tx.response.as_ref()?;
-
-        // One Content-Type, or no opinion. With two field lines there is no
-        // single media type the response sent: RFC 9110 §8.3 says recipients
-        // differ over which member of a duplicated Content-Type they act on, so
-        // whether the client got something it asked for depends on which one it
-        // reads. Judging the first would be a guess dressed as a finding. The
-        // duplication itself is `content_type_valid`'s to report.
-        // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
-        let mut cts = resp.headers.get_all("content-type").iter();
-        let content_type = cts.next()?.to_str().ok()?;
-        if cts.next().is_some() {
-            return None;
-        }
-
-        // A 406 is the server taking the *other* branch of §12.4.1's choice: it
-        // honoured the header rather than disregarding it, and this status is
-        // how it says so. Suggesting a 406 to a response that is one would be
-        // the rule arguing with itself.
-        // cite(RFC 9110 § 15.5.7): "The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent"
-        if resp.status == 406 {
-            return None;
-        }
-
-        // No Accept, no preference, nothing to be inconsistent with. §12.4.1
-        // says what an absent negotiation field means, so this is a licensed
-        // silence rather than a shortcut.
-        // cite(RFC 9110 § 12.4.1): "For each of the content negotiation fields, a request that does not contain the field implies that the sender has no preference on that dimension of negotiation."
-        let accept = accept?;
-
-        // Parse response Content-Type media-type
-        let parsed_ct = match crate::helpers::headers::parse_media_type(content_type) {
-            Ok(p) => p,
-            Err(_) => return None, // content-type parsing is handled by other rules
-        };
-
-        // Iterate Accept members and see if any non-zero-q member matches the response Content-Type
-        let mut matched = false;
-        // Whether the header expressed a preference this rule could read at
-        // all. A finding here says the response is not among the media types
-        // the client asked for, and that is a claim about what the client
-        // asked for — so it needs at least one member that is a `media-range`.
-        let mut readable_preference = false;
-
-        // An odd number of DQUOTEs means the quoting never closes, and then no
-        // separator after it is a separator — both splitters below swallow the
-        // rest of the field into one member. A finding drawn from that would be
-        // a false statement about the request:
-        //
-        //     Accept: text/html;foo="x, application/json
-        //
-        // plainly lists `application/json`, and the response was reported for
-        // not being it. The value is malformed either way — `"` is not a
-        // `tchar` in an unquoted parameter value — so nothing conforming is
-        // lost, and `accept_header_media_type_syntax` is the rule that
-        // reports the malformed header.
-        if !crate::helpers::headers::quoting_is_balanced(accept) {
-            return None;
-        }
-        // Quote-aware, because a comma inside a quoted parameter value is not a
-        // list separator. A raw `split(',')` cut such a value apart and read the
-        // pieces as members of their own, so `text/plain;foo="a,image/png,b"` —
-        // which accepts `text/plain` and nothing else — was read as accepting
-        // `image/png` too, and a response nobody asked for went unreported.
-        for member in crate::helpers::headers::split_commas_respecting_quotes(accept) {
-            if member.is_empty() {
-                continue;
-            }
-            // Quote-aware for the same reason the comma split is: a `;` inside
-            // a quoted parameter value does not start a parameter. A raw
-            // `split(';')` read the pieces as parameters, so a `q=0` sitting
-            // inside some other value — `foo="a;q=0;b=1"` — was taken for a
-            // weight and the member declared unacceptable, when the member has
-            // no weight at all and accepts everything it names.
-            let mut parts =
-                crate::helpers::headers::split_semicolons_respecting_quotes(member).into_iter();
-            let media = match parts.next() {
-                Some(m) => m,
-                None => continue,
-            };
-            // `media-range` is one of three shapes, and a bare `*` is none of
-            // them: the asterisk groups media *types* into ranges, so it stands
-            // for a whole type or a whole subtype, never for the pair. A
-            // wildcard type with a concrete subtype — `*/json` — is not a range
-            // either, though it parses as a media-type.
-            // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
-            // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
-            let range = match crate::helpers::headers::parse_media_type(media) {
-                Ok(mr) if mr.type_ != "*" || mr.subtype == "*" => mr,
-                _ => continue,
-            };
-            readable_preference = true;
-
-            // Every parameter is examined for the name `q`, not just the last
-            // one, and the name is matched without regard to case. Both are
-            // §12.5.1's instruction to recipients: senders *should* put the
-            // weight last, and a recipient should find it wherever it is.
-            // cite(RFC 9110 § 12.5.1): "Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering."
-            // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // What this rule is, stated before anything it does: an advisory, not a
+            // conformance check. RFC 9110 gives the origin server the choice
+            // outright — a representation the Accept header does not cover may be
+            // sent, and the header simply disregarded — so a message this rule
+            // reports may be entirely conforming. §12.1 says the same from the
+            // client's side. What is left is worth saying anyway, because a
+            // response the client cannot use is usually not what the server meant
+            // to send; it is a suggestion, and the finding is worded as one.
+            // cite(RFC 9110 § 12.4.1): "If a content negotiation header field is present in a request and none of the available representations for the response can be considered acceptable according to it, the origin server can either honor the header field by sending a 406 (Not Acceptable) response or disregard the header field by treating the response as if it is not subject to content negotiation for that request header field."
+            // cite(RFC 9110 § 12.1): "A user agent cannot rely on proactive negotiation preferences being consistently honored, since the origin server might not implement proactive negotiation for the requested resource or might decide that sending a response that doesn't conform to the user agent's preferences is better than sending a 406 (Not Acceptable) response."
             //
-            // A segment with no `=` names no weight and is skipped rather than
-            // judged: that it derives from no `parameter` is
-            // `accept_header_media_type_syntax`'s finding, and this rule
-            // is only asking whether the member refuses what the response sent.
-            let mut qval: Option<&str> = None;
-            for parameter in parts.filter_map(crate::helpers::headers::parameter_of) {
-                let Ok(parameter) = parameter else { continue };
-                if parameter.name.eq_ignore_ascii_case("q") {
-                    qval = Some(parameter.value);
-                }
+            // The whole Accept field, not its first line. `Accept` is a list field,
+            // so a sender may spread its members over several field lines and a
+            // recipient recombines them into one comma-separated list — reading
+            // only the first announced that a response was unacceptable to a client
+            // that had listed it on the second. The helper performs exactly the
+            // §5.3 recombination, joining the lines with comma-SP; it returns None
+            // for a value carrying obs-text, which only ever suppresses an advisory
+            // finding and never produces one.
+            // cite(RFC 9110 § 12.5.1): "Accept = #( media-range [ weight ] )"
+            let accept =
+                crate::helpers::headers::get_all_header_values(&tx.request.headers, "accept");
+            let accept = accept.as_deref();
+            let resp = tx.response.as_ref()?;
+
+            // One Content-Type, or no opinion. With two field lines there is no
+            // single media type the response sent: RFC 9110 §8.3 says recipients
+            // differ over which member of a duplicated Content-Type they act on, so
+            // whether the client got something it asked for depends on which one it
+            // reads. Judging the first would be a guess dressed as a finding. The
+            // duplication itself is `content_type_valid`'s to report.
+            // cite(RFC 9110 § 8.3): "Recipients often attempt to handle this error by using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors."
+            let mut cts = resp.headers.get_all("content-type").iter();
+            let content_type = cts.next()?.to_str().ok()?;
+            if cts.next().is_some() {
+                return None;
             }
 
-            // A weight of zero is a refusal, and that is the one thing a weight
-            // tells this rule. But it says so only when it *is* a weight: the
-            // meaning belongs to `qvalue`, and `q=-1` is not one. A raw
-            // `parse::<f32>()` read that as less than zero and refused the
-            // member on the strength of a value the grammar does not admit,
-            // which turned a malformed Accept into a finding about the
-            // response. Anything that is not a qvalue leaves the member at its
-            // default weight of 1, which is also what a member with no `q` gets.
-            // cite(RFC 9110 § 12.4.2): "The weight is normalized to a real number in the range 0 through 1, where 0.001 is the least preferred and 1 is the most preferred; a value of 0 means "not acceptable"."
-            // cite(RFC 9110 § 12.4.2): "If no "q" parameter is present, the default weight is 1."
-            if let Some(q) = qval {
-                if crate::helpers::headers::valid_qvalue(q)
-                    && q.parse::<f32>().is_ok_and(|n| n == 0.0)
-                {
+            // A 406 is the server taking the *other* branch of §12.4.1's choice: it
+            // honoured the header rather than disregarding it, and this status is
+            // how it says so. Suggesting a 406 to a response that is one would be
+            // the rule arguing with itself.
+            // cite(RFC 9110 § 15.5.7): "The 406 (Not Acceptable) status code indicates that the target resource does not have a current representation that would be acceptable to the user agent"
+            if resp.status == 406 {
+                return None;
+            }
+
+            // No Accept, no preference, nothing to be inconsistent with. §12.4.1
+            // says what an absent negotiation field means, so this is a licensed
+            // silence rather than a shortcut.
+            // cite(RFC 9110 § 12.4.1): "For each of the content negotiation fields, a request that does not contain the field implies that the sender has no preference on that dimension of negotiation."
+            let accept = accept?;
+
+            // Parse response Content-Type media-type
+            let parsed_ct = match crate::helpers::headers::parse_media_type(content_type) {
+                Ok(p) => p,
+                Err(_) => return None, // content-type parsing is handled by other rules
+            };
+
+            // Iterate Accept members and see if any non-zero-q member matches the response Content-Type
+            let mut matched = false;
+            // Whether the header expressed a preference this rule could read at
+            // all. A finding here says the response is not among the media types
+            // the client asked for, and that is a claim about what the client
+            // asked for — so it needs at least one member that is a `media-range`.
+            let mut readable_preference = false;
+
+            // An odd number of DQUOTEs means the quoting never closes, and then no
+            // separator after it is a separator — both splitters below swallow the
+            // rest of the field into one member. A finding drawn from that would be
+            // a false statement about the request:
+            //
+            //     Accept: text/html;foo="x, application/json
+            //
+            // plainly lists `application/json`, and the response was reported for
+            // not being it. The value is malformed either way — `"` is not a
+            // `tchar` in an unquoted parameter value — so nothing conforming is
+            // lost, and `accept_header_media_type_syntax` is the rule that
+            // reports the malformed header.
+            if !crate::helpers::headers::quoting_is_balanced(accept) {
+                return None;
+            }
+            // Quote-aware, because a comma inside a quoted parameter value is not a
+            // list separator. A raw `split(',')` cut such a value apart and read the
+            // pieces as members of their own, so `text/plain;foo="a,image/png,b"` —
+            // which accepts `text/plain` and nothing else — was read as accepting
+            // `image/png` too, and a response nobody asked for went unreported.
+            for member in crate::helpers::headers::split_commas_respecting_quotes(accept) {
+                if member.is_empty() {
                     continue;
                 }
+                // Quote-aware for the same reason the comma split is: a `;` inside
+                // a quoted parameter value does not start a parameter. A raw
+                // `split(';')` read the pieces as parameters, so a `q=0` sitting
+                // inside some other value — `foo="a;q=0;b=1"` — was taken for a
+                // weight and the member declared unacceptable, when the member has
+                // no weight at all and accepts everything it names.
+                let mut parts =
+                    crate::helpers::headers::split_semicolons_respecting_quotes(member).into_iter();
+                let media = match parts.next() {
+                    Some(m) => m,
+                    None => continue,
+                };
+                // `media-range` is one of three shapes, and a bare `*` is none of
+                // them: the asterisk groups media *types* into ranges, so it stands
+                // for a whole type or a whole subtype, never for the pair. A
+                // wildcard type with a concrete subtype — `*/json` — is not a range
+                // either, though it parses as a media-type.
+                // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
+                // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
+                let range = match crate::helpers::headers::parse_media_type(media) {
+                    Ok(mr) if mr.type_ != "*" || mr.subtype == "*" => mr,
+                    _ => continue,
+                };
+                readable_preference = true;
+
+                // Every parameter is examined for the name `q`, not just the last
+                // one, and the name is matched without regard to case. Both are
+                // §12.5.1's instruction to recipients: senders *should* put the
+                // weight last, and a recipient should find it wherever it is.
+                // cite(RFC 9110 § 12.5.1): "Recipients SHOULD process any parameter named "q" as weight, regardless of parameter ordering."
+                // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
+                //
+                // A segment with no `=` names no weight and is skipped rather than
+                // judged: that it derives from no `parameter` is
+                // `accept_header_media_type_syntax`'s finding, and this rule
+                // is only asking whether the member refuses what the response sent.
+                let mut qval: Option<&str> = None;
+                for parameter in parts.filter_map(crate::helpers::headers::parameter_of) {
+                    let Ok(parameter) = parameter else { continue };
+                    if parameter.name.eq_ignore_ascii_case("q") {
+                        qval = Some(parameter.value);
+                    }
+                }
+
+                // A weight of zero is a refusal, and that is the one thing a weight
+                // tells this rule. But it says so only when it *is* a weight: the
+                // meaning belongs to `qvalue`, and `q=-1` is not one. A raw
+                // `parse::<f32>()` read that as less than zero and refused the
+                // member on the strength of a value the grammar does not admit,
+                // which turned a malformed Accept into a finding about the
+                // response. Anything that is not a qvalue leaves the member at its
+                // default weight of 1, which is also what a member with no `q` gets.
+                // cite(RFC 9110 § 12.4.2): "The weight is normalized to a real number in the range 0 through 1, where 0.001 is the least preferred and 1 is the most preferred; a value of 0 means "not acceptable"."
+                // cite(RFC 9110 § 12.4.2): "If no "q" parameter is present, the default weight is 1."
+                if let Some(q) = qval {
+                    if crate::helpers::headers::valid_qvalue(q)
+                        && q.parse::<f32>().is_ok_and(|n| n == 0.0)
+                    {
+                        continue;
+                    }
+                }
+
+                // The three shapes, matched by what each one ranges over: `*/*`
+                // covers every media type, `type/*` every subtype of its type, and
+                // `type/subtype` only itself. The asterisks are compared literally
+                // because they are literals; the type and subtype tokens are
+                // compared without regard to case because they are case-insensitive.
+                //
+                // The range's own parameters are not compared, and that is a
+                // leniency rather than a reading of the grammar: §12.5.1 says a
+                // range may carry media type parameters and that a more specific
+                // range takes precedence, so `text/plain;format=flowed` and
+                // `text/plain;format=fixed` are different preferences. Treating
+                // them as one can only make this rule quieter, never noisier, which
+                // suits an advisory — but it does mean a response whose parameters
+                // nobody asked for goes unmentioned.
+                // cite(RFC 9110 § 12.5.1): "The media-range can include media type parameters that are applicable to that range."
+                // cite(RFC 9110 § 12.5.1): "If more than one media range applies to a given type, the most specific reference has precedence."
+                // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
+                let type_matches =
+                    range.type_ == "*" || range.type_.eq_ignore_ascii_case(parsed_ct.type_);
+                let subtype_matches =
+                    range.subtype == "*" || range.subtype.eq_ignore_ascii_case(parsed_ct.subtype);
+                if type_matches && subtype_matches {
+                    matched = true;
+                    break;
+                }
             }
 
-            // The three shapes, matched by what each one ranges over: `*/*`
-            // covers every media type, `type/*` every subtype of its type, and
-            // `type/subtype` only itself. The asterisks are compared literally
-            // because they are literals; the type and subtype tokens are
-            // compared without regard to case because they are case-insensitive.
-            //
-            // The range's own parameters are not compared, and that is a
-            // leniency rather than a reading of the grammar: §12.5.1 says a
-            // range may carry media type parameters and that a more specific
-            // range takes precedence, so `text/plain;format=flowed` and
-            // `text/plain;format=fixed` are different preferences. Treating
-            // them as one can only make this rule quieter, never noisier, which
-            // suits an advisory — but it does mean a response whose parameters
-            // nobody asked for goes unmentioned.
-            // cite(RFC 9110 § 12.5.1): "The media-range can include media type parameters that are applicable to that range."
-            // cite(RFC 9110 § 12.5.1): "If more than one media range applies to a given type, the most specific reference has precedence."
-            // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-            let type_matches =
-                range.type_ == "*" || range.type_.eq_ignore_ascii_case(parsed_ct.type_);
-            let subtype_matches =
-                range.subtype == "*" || range.subtype.eq_ignore_ascii_case(parsed_ct.subtype);
-            if type_matches && subtype_matches {
-                matched = true;
-                break;
+            // No member was a media-range, so the header states no preference this
+            // rule can read — `Accept: *`, `Accept: not-a-media-range`, or an empty
+            // value. Saying the response "does not match" such a header would be a
+            // claim about a preference nobody expressed, and it would name the
+            // response for a defect that is in the request.
+            // `accept_header_media_type_syntax` reports the malformed
+            // header; this rule declines.
+            if !readable_preference {
+                return None;
             }
-        }
 
-        // No member was a media-range, so the header states no preference this
-        // rule can read — `Accept: *`, `Accept: not-a-media-range`, or an empty
-        // value. Saying the response "does not match" such a header would be a
-        // claim about a preference nobody expressed, and it would name the
-        // response for a defect that is in the request.
-        // `accept_header_media_type_syntax` reports the malformed
-        // header; this rule declines.
-        if !readable_preference {
-            return None;
-        }
+            if !matched {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Response Content-Type '{}' does not match request Accept header '{}', consider returning 406 Not Acceptable",
+                        content_type, accept
+                    ),
+                });
+            }
 
-        if !matched {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Response Content-Type '{}' does not match request Accept header '{}', consider returning 406 Not Acceptable",
-                    content_type, accept
-                ),
-            });
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

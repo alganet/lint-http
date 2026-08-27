@@ -144,196 +144,203 @@ impl Rule for HostAndAuthorityConsistent {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Two fields can only disagree where both exist, and only HTTP/2 and
-        // HTTP/3 carry an `:authority`. This is not a narrowing of either
-        // sentence: over HTTP/1.1 an absolute-form request-target also holds an
-        // authority beside a `Host`, and the sentence about that pair says the
-        // recipient ignores the field rather than that the sender was wrong.
-        //
-        // The major digit is what "in HTTP/2 and HTTP/3" means; `http_version`
-        // owns the production that reads it, and a version deriving from no
-        // production names no syntax — `http_version_syntax`'s
-        // finding rather than a third answer here.
-        //
-        // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
-        // cite(RFC 9112 § 3.2.2): "When an origin server receives a request with an absolute-form of request-target, the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target."
-        let version = crate::http_version::major(&tx.request.version)?;
-        if !matches!(version, 2 | 3) {
-            return None;
-        }
-
-        // The capture keeps the authority of the request's target URI, which is
-        // where the cited sentence says `:authority` came from. **What the two
-        // transports put there is not the same thing, and `description()` says
-        // so**: over HTTP/2 the recorded authority is the pseudo-header's value
-        // and nothing else, while the HTTP/3 library builds the target from the
-        // `Host` field when both are present and refuses the request outright
-        // when the two differ — so on that version a mismatch this proxy
-        // recorded itself cannot exist, and the finding is for captures written
-        // elsewhere and read back.
-        //
-        // A target with no authority is nothing to compare against; whether a
-        // request should have carried one is the two pseudo-header rules'
-        // question rather than this one's.
-        //
-        // cite(RFC 9113 § 8.3.1): "The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP])."
-        let authority =
-            crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri)?;
-
-        // An asterisk-form OPTIONS is unreadable here, and the tell is that `*`
-        // is a legal `sub-delim` — so `example.com*` is a `reg-name` and the
-        // shared extractor is right not to stop at it. The target is recorded as
-        // the string form of a URI rebuilt from the pseudo-headers, and a
-        // `:path` of `*` leaves no delimiter between the authority and the path:
-        // `https://example.com*` is what both an `OPTIONS *` for that authority
-        // and an origin whose name ends in `*` come back as. Measuring it
-        // reported the conforming request.
-        //
-        // The method is matched exactly, because the method token is
-        // case-sensitive: a lowercase `options` is a method nothing defines and
-        // its request-target is not the asterisk form.
-        //
-        // cite(RFC 9113 § 8.3.1): "A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field."
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        // cite(RFC 3986 § 3.2.2, label: reg-name): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
-        // cite(RFC 3986 § 2.2, label: sub-delims): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
-        if tx.request.method == "OPTIONS" && authority.ends_with('*') {
-            return None;
-        }
-
-        // `Host` is not a list field, so two field lines of it are not one value
-        // and there is no way to pick the one the sender meant: the message is
-        // `host_header`'s finding, and an authority that is unknown is a
-        // different thing from one that disagrees. No line at all is the other
-        // half of § 4.3.1's either-or, and equally nothing to compare.
-        //
-        // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        let mut host_lines = tx.request.headers.get_all("host").iter();
-        let (Some(_), None) = (host_lines.next(), host_lines.next()) else {
-            return None;
-        };
-
-        // Every octet of that one field line as the `char` of the same value.
-        // `to_str` refuses every octet outside visible US-ASCII, and the branch
-        // under it announced a value "not valid UTF-8" — a claim about an
-        // encoding, where an octet at or above %x80 is `obs-text`, which no
-        // `uri-host` alternative admits and which is therefore a `Host` that
-        // cannot be the `:authority` this request also carried. Folding it into
-        // "no Host here" dropped the comparison entirely.
-        //
-        // The shared reader is the one that owns the octet-per-`char` walk, and
-        // calling it here is exact rather than approximate *because* of the gate
-        // above: with one field line in the section there is nothing for its
-        // join to join, and `Host` is not a field whose lines may be combined.
-        let value =
-            crate::helpers::headers::combined_field_value_as_written(&tx.request.headers, "host")?;
-
-        // `OWS` is SP and HTAB and nothing else, and `str::trim` is Unicode
-        // whitespace: on a value read one `char` per octet, U+00A0 is the octet
-        // %xA0, which is `obs-text` rather than whitespace of any kind. Trimming
-        // it would turn a `Host` no production generates into one that matches.
-        //
-        // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
-        let host = trim_ows(&value);
-
-        // Every gate above ends the rule, and a request carrying both fields is
-        // the only one this can report.
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().to_string(),
-                severity: ctx.severity,
-                message,
-            })
-        };
-
-        // Both fields are present, and one of them names no authority — which
-        // is a difference like any other, and is why this branch is about the
-        // message rather than about the verdict.
-        //
-        // Over HTTP/3 there is also a sentence for exactly this, and it is
-        // quoted with the sentence that supplies its antecedent, because the
-        // antecedent does not always hold: the requirement is stated of a
-        // request whose `:scheme` identifies a scheme with a mandatory authority
-        // component, and a CONNECT sends no `:scheme` at all. On such a request
-        // the finding is the difference, not the emptiness.
-        //
-        // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
-        // cite(RFC 9114 § 4.3.1): "If these fields are present, they MUST NOT be empty."
-        if host.is_empty() {
-            return violation(format!(
-                "The request's Host field value is empty while its ':authority' is '{}': both fields are present and one of them names no authority",
-                shown_in_finding(&authority)
-            ));
-        }
-
-        // The scheme decides which port is the one normalization elides, and it
-        // is read from the same recorded target the authority came from. A
-        // CONNECT's target is an authority and carries no scheme, which is why
-        // this is an `Option` rather than a default.
-        let scheme = crate::helpers::uri::scheme_authority_marker(&tx.request.uri)
-            .map(|marker| &tx.request.uri[..marker]);
-
-        match Self::compare(&authority, host, scheme) {
-            Comparison::Same => None,
-
-            // **The two documents do not define this comparison the same way,
-            // and this is the case where they disagree.** RFC 9113 states the
-            // requirement and then says the values are compared *normalized*,
-            // naming scheme-based normalization as the floor for everyone except
-            // an origin server. RFC 9114 asks for the same value and names no
-            // normalization at all — the word appears nowhere in that document —
-            // and the h3 library on this proxy's own capture path reads it that
-            // way too, comparing the two as strings and refusing the request
-            // when they differ. So one pair of values is conforming over one
-            // version and malformed over the other, and harmonising them would
-            // mean choosing which document to stop reading.
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Two fields can only disagree where both exist, and only HTTP/2 and
+            // HTTP/3 carry an `:authority`. This is not a narrowing of either
+            // sentence: over HTTP/1.1 an absolute-form request-target also holds an
+            // authority beside a `Host`, and the sentence about that pair says the
+            // recipient ignores the field rather than that the sender was wrong.
             //
-            // The normal form is printed because it is the thing the two values
-            // have in common, and because it names which of normalization's
-            // steps the difference was: a case, a port, a percent-encoding.
+            // The major digit is what "in HTTP/2 and HTTP/3" means; `http_version`
+            // owns the production that reads it, and a version deriving from no
+            // production names no syntax — `http_version_syntax`'s
+            // finding rather than a third answer here.
             //
-            // cite(RFC 9113 § 8.3.1): "The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986])."
-            // cite(RFC 9113 § 8.3.1): "An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields."
-            // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
-            Comparison::NormalizationApart => match version {
-                3 => violation(format!(
-                    "':authority' '{}' and Host '{}' are one authority only after scheme-based normalization, which puts both in the normal form '{}'. HTTP/3 asks the two fields to contain the same value and names no normalization; the same pair over HTTP/2 is not reported, because that version's requirement is defined over normalized values",
+            // cite(RFC 9110 § 7.2): "In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data."
+            // cite(RFC 9112 § 3.2.2): "When an origin server receives a request with an absolute-form of request-target, the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target."
+            let version = crate::http_version::major(&tx.request.version)?;
+            if !matches!(version, 2 | 3) {
+                return None;
+            }
+
+            // The capture keeps the authority of the request's target URI, which is
+            // where the cited sentence says `:authority` came from. **What the two
+            // transports put there is not the same thing, and `description()` says
+            // so**: over HTTP/2 the recorded authority is the pseudo-header's value
+            // and nothing else, while the HTTP/3 library builds the target from the
+            // `Host` field when both are present and refuses the request outright
+            // when the two differ — so on that version a mismatch this proxy
+            // recorded itself cannot exist, and the finding is for captures written
+            // elsewhere and read back.
+            //
+            // A target with no authority is nothing to compare against; whether a
+            // request should have carried one is the two pseudo-header rules'
+            // question rather than this one's.
+            //
+            // cite(RFC 9113 § 8.3.1): "The ":authority" pseudo-header field conveys the authority portion (Section 3.2 of [RFC3986]) of the target URI (Section 7.1 of [HTTP])."
+            let authority =
+                crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri)?;
+
+            // An asterisk-form OPTIONS is unreadable here, and the tell is that `*`
+            // is a legal `sub-delim` — so `example.com*` is a `reg-name` and the
+            // shared extractor is right not to stop at it. The target is recorded as
+            // the string form of a URI rebuilt from the pseudo-headers, and a
+            // `:path` of `*` leaves no delimiter between the authority and the path:
+            // `https://example.com*` is what both an `OPTIONS *` for that authority
+            // and an origin whose name ends in `*` come back as. Measuring it
+            // reported the conforming request.
+            //
+            // The method is matched exactly, because the method token is
+            // case-sensitive: a lowercase `options` is a method nothing defines and
+            // its request-target is not the asterisk form.
+            //
+            // cite(RFC 9113 § 8.3.1): "A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field."
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            // cite(RFC 3986 § 3.2.2, label: reg-name): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
+            // cite(RFC 3986 § 2.2, label: sub-delims): "sub-delims  = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "=""
+            if tx.request.method == "OPTIONS" && authority.ends_with('*') {
+                return None;
+            }
+
+            // `Host` is not a list field, so two field lines of it are not one value
+            // and there is no way to pick the one the sender meant: the message is
+            // `host_header`'s finding, and an authority that is unknown is a
+            // different thing from one that disagrees. No line at all is the other
+            // half of § 4.3.1's either-or, and equally nothing to compare.
+            //
+            // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            let mut host_lines = tx.request.headers.get_all("host").iter();
+            let (Some(_), None) = (host_lines.next(), host_lines.next()) else {
+                return None;
+            };
+
+            // Every octet of that one field line as the `char` of the same value.
+            // `to_str` refuses every octet outside visible US-ASCII, and the branch
+            // under it announced a value "not valid UTF-8" — a claim about an
+            // encoding, where an octet at or above %x80 is `obs-text`, which no
+            // `uri-host` alternative admits and which is therefore a `Host` that
+            // cannot be the `:authority` this request also carried. Folding it into
+            // "no Host here" dropped the comparison entirely.
+            //
+            // The shared reader is the one that owns the octet-per-`char` walk, and
+            // calling it here is exact rather than approximate *because* of the gate
+            // above: with one field line in the section there is nothing for its
+            // join to join, and `Host` is not a field whose lines may be combined.
+            let value = crate::helpers::headers::combined_field_value_as_written(
+                &tx.request.headers,
+                "host",
+            )?;
+
+            // `OWS` is SP and HTAB and nothing else, and `str::trim` is Unicode
+            // whitespace: on a value read one `char` per octet, U+00A0 is the octet
+            // %xA0, which is `obs-text` rather than whitespace of any kind. Trimming
+            // it would turn a `Host` no production generates into one that matches.
+            //
+            // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
+            let host = trim_ows(&value);
+
+            // Every gate above ends the rule, and a request carrying both fields is
+            // the only one this can report.
+            let violation = |message: String| {
+                Some(Violation {
+                    rule: self.id().to_string(),
+                    severity: ctx.severity,
+                    message,
+                })
+            };
+
+            // Both fields are present, and one of them names no authority — which
+            // is a difference like any other, and is why this branch is about the
+            // message rather than about the verdict.
+            //
+            // Over HTTP/3 there is also a sentence for exactly this, and it is
+            // quoted with the sentence that supplies its antecedent, because the
+            // antecedent does not always hold: the requirement is stated of a
+            // request whose `:scheme` identifies a scheme with a mandatory authority
+            // component, and a CONNECT sends no `:scheme` at all. On such a request
+            // the finding is the difference, not the emptiness.
+            //
+            // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
+            // cite(RFC 9114 § 4.3.1): "If these fields are present, they MUST NOT be empty."
+            if host.is_empty() {
+                return violation(format!(
+                    "The request's Host field value is empty while its ':authority' is '{}': both fields are present and one of them names no authority",
+                    shown_in_finding(&authority)
+                ));
+            }
+
+            // The scheme decides which port is the one normalization elides, and it
+            // is read from the same recorded target the authority came from. A
+            // CONNECT's target is an authority and carries no scheme, which is why
+            // this is an `Option` rather than a default.
+            let scheme = crate::helpers::uri::scheme_authority_marker(&tx.request.uri)
+                .map(|marker| &tx.request.uri[..marker]);
+
+            match Self::compare(&authority, host, scheme) {
+                Comparison::Same => None,
+
+                // **The two documents do not define this comparison the same way,
+                // and this is the case where they disagree.** RFC 9113 states the
+                // requirement and then says the values are compared *normalized*,
+                // naming scheme-based normalization as the floor for everyone except
+                // an origin server. RFC 9114 asks for the same value and names no
+                // normalization at all — the word appears nowhere in that document —
+                // and the h3 library on this proxy's own capture path reads it that
+                // way too, comparing the two as strings and refusing the request
+                // when they differ. So one pair of values is conforming over one
+                // version and malformed over the other, and harmonising them would
+                // mean choosing which document to stop reading.
+                //
+                // The normal form is printed because it is the thing the two values
+                // have in common, and because it names which of normalization's
+                // steps the difference was: a case, a port, a percent-encoding.
+                //
+                // cite(RFC 9113 § 8.3.1): "The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986])."
+                // cite(RFC 9113 § 8.3.1): "An origin server can apply any normalization method, whereas other servers MUST perform scheme-based normalization (see Section 6.2.3 of [RFC3986]) of the two fields."
+                // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
+                Comparison::NormalizationApart => match version {
+                    3 => violation(format!(
+                        "':authority' '{}' and Host '{}' are one authority only after scheme-based normalization, which puts both in the normal form '{}'. HTTP/3 asks the two fields to contain the same value and names no normalization; the same pair over HTTP/2 is not reported, because that version's requirement is defined over normalized values",
+                        shown_in_finding(&authority),
+                        shown_in_finding(host),
+                        shown_in_finding(&Self::normalized(&authority, scheme))
+                    )),
+                    _ => None,
+                },
+
+                // The requirement itself. The two documents give it different
+                // voices, and the finding uses the one whose document this message
+                // was written under: over HTTP/2 a client MUST NOT generate it and a
+                // server SHOULD treat it as malformed; over HTTP/3 the two fields
+                // MUST contain the same value and a request that omits or invalidly
+                // fills a mandatory pseudo-header field is malformed. Saying either
+                // in the other's message would put one document's sentences into the
+                // other's mouth.
+                //
+                // cite(RFC 9113 § 8.3.1): "Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field."
+                // cite(RFC 9113 § 8.3.1): "A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the ":authority" pseudo-header field."
+                // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
+                Comparison::Different => violation(format!(
+                    "':authority' '{}' and Host '{}' name different authorities: {}",
                     shown_in_finding(&authority),
                     shown_in_finding(host),
-                    shown_in_finding(&Self::normalized(&authority, scheme))
+                    match version {
+                        3 => "HTTP/3 asks the two fields to contain the same value, and a recipient that trusts the other one routes this request elsewhere",
+                        _ => "a client must not generate a request whose Host field differs from its ':authority', and a server may treat this request as malformed",
+                    }
                 )),
-                _ => None,
-            },
-
-            // The requirement itself. The two documents give it different
-            // voices, and the finding uses the one whose document this message
-            // was written under: over HTTP/2 a client MUST NOT generate it and a
-            // server SHOULD treat it as malformed; over HTTP/3 the two fields
-            // MUST contain the same value and a request that omits or invalidly
-            // fills a mandatory pseudo-header field is malformed. Saying either
-            // in the other's message would put one document's sentences into the
-            // other's mouth.
-            //
-            // cite(RFC 9113 § 8.3.1): "Clients MUST NOT generate a request with a Host header field that differs from the ":authority" pseudo-header field."
-            // cite(RFC 9113 § 8.3.1): "A server SHOULD treat a request as malformed if it contains a Host header field that identifies an entity that differs from the entity in the ":authority" pseudo-header field."
-            // cite(RFC 9114 § 4.3.1): "If both fields are present, they MUST contain the same value."
-            Comparison::Different => violation(format!(
-                "':authority' '{}' and Host '{}' name different authorities: {}",
-                shown_in_finding(&authority),
-                shown_in_finding(host),
-                match version {
-                    3 => "HTTP/3 asks the two fields to contain the same value, and a recipient that trusts the other one routes this request elsewhere",
-                    _ => "a client must not generate a request whose Host field differs from its ':authority', and a server may treat this request as malformed",
-                }
-            )),
-        }
+            }
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

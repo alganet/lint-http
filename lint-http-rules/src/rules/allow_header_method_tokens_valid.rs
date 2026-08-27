@@ -174,56 +174,61 @@ impl Rule for AllowHeaderMethodTokensValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // One field section is one list however many lines carry it, so the lines are
-        // joined before the members are counted: an `Allow:` written as a second line
-        // is an empty *member* of the joined value, while the same line written alone
-        // is the empty list § 10.2.1 gives a meaning to. Reading the lines one at a
-        // time answered both of those backwards. The join, and the sentence licensing
-        // it, live on the helper.
-        //
-        // Where the field belongs is § 10.2's answer, quoted where the section name
-        // is put into a finding, and it is not a requirement: an `Allow` in a request
-        // is unusual, nothing forbids it, and this rule does not report it for being
-        // there — it measures whatever value it finds.
-        //
-        // The two reads are the two *header* sections. A response's trailer section is
-        // not read: whether a field may arrive as a trailer at all is § 6.5.1's
-        // question, which is asked of every field name by
-        // `trailer_fields_valid` rather than field by field here, and
-        // `description()` says so rather than leaving the silence to be read as a
-        // verdict.
-        //
-        // Each read is one `HeaderMap` probe, and a message carrying no `Allow`
-        // at all is the overwhelming majority of traffic.
-        let request = combined_field_value_as_written(&tx.request.headers, "allow");
-        let response = tx
-            .response
-            .as_ref()
-            .and_then(|resp| combined_field_value_as_written(&resp.headers, "allow"));
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // One field section is one list however many lines carry it, so the lines are
+            // joined before the members are counted: an `Allow:` written as a second line
+            // is an empty *member* of the joined value, while the same line written alone
+            // is the empty list § 10.2.1 gives a meaning to. Reading the lines one at a
+            // time answered both of those backwards. The join, and the sentence licensing
+            // it, live on the helper.
+            //
+            // Where the field belongs is § 10.2's answer, quoted where the section name
+            // is put into a finding, and it is not a requirement: an `Allow` in a request
+            // is unusual, nothing forbids it, and this rule does not report it for being
+            // there — it measures whatever value it finds.
+            //
+            // The two reads are the two *header* sections. A response's trailer section is
+            // not read: whether a field may arrive as a trailer at all is § 6.5.1's
+            // question, which is asked of every field name by
+            // `trailer_fields_valid` rather than field by field here, and
+            // `description()` says so rather than leaving the silence to be read as a
+            // verdict.
+            //
+            // Each read is one `HeaderMap` probe, and a message carrying no `Allow`
+            // at all is the overwhelming majority of traffic.
+            let request = combined_field_value_as_written(&tx.request.headers, "allow");
+            let response = tx
+                .response
+                .as_ref()
+                .and_then(|resp| combined_field_value_as_written(&resp.headers, "allow"));
 
-        if request.is_none() && response.is_none() {
-            return None;
-        }
-
-        if let Some(value) = &request {
-            if let Some(v) = self.check_field_section(value, "request", ctx.severity) {
-                return Some(v);
+            if request.is_none() && response.is_none() {
+                return None;
             }
-        }
 
-        if let Some(value) = &response {
-            if let Some(v) = self.check_field_section(value, "response", ctx.severity) {
-                return Some(v);
+            if let Some(value) = &request {
+                if let Some(v) = self.check_field_section(value, "request", ctx.severity) {
+                    return Some(v);
+                }
             }
-        }
 
-        None
+            if let Some(value) = &response {
+                if let Some(v) = self.check_field_section(value, "response", ctx.severity) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

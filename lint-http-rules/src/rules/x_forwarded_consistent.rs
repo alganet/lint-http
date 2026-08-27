@@ -135,34 +135,39 @@ impl Rule for XForwardedConsistent {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        for (name, field, kind) in FIELDS {
-            // Every line of the field, and every octet of every line. A proxy
-            // chain appends by adding a field line as often as by extending the
-            // one already there, so reading `headers.get()` left a second hop
-            // entirely unexamined; and a value outside US-ASCII used to make the
-            // whole field disappear, which is the finding wearing a helper's
-            // failure mode.
-            let Some(value) = combined_field_value_as_written(&tx.request.headers, name) else {
-                continue;
-            };
-            for member in members(&value) {
-                if let Some(message) = check_member(field, *kind, member) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message,
-                    });
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            for (name, field, kind) in FIELDS {
+                // Every line of the field, and every octet of every line. A proxy
+                // chain appends by adding a field line as often as by extending the
+                // one already there, so reading `headers.get()` left a second hop
+                // entirely unexamined; and a value outside US-ASCII used to make the
+                // whole field disappear, which is the finding wearing a helper's
+                // failure mode.
+                let Some(value) = combined_field_value_as_written(&tx.request.headers, name) else {
+                    continue;
+                };
+                for member in members(&value) {
+                    if let Some(message) = check_member(field, *kind, member) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message,
+                        });
+                    }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

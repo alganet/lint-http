@@ -37,7 +37,7 @@ impl PreparedEngine {
             });
 
             let ctx = crate::rules::RuleContext::new(&prepared.resolved);
-            out.extend(prepared.rule.check_event(event, history, &ctx));
+            out.extend(prepared.rule.findings(event, history, &ctx));
         }
 
         out

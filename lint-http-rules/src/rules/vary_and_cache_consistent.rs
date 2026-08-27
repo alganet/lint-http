@@ -22,71 +22,76 @@ impl Rule for VaryAndCacheConsistent {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // A `Vary: *` can never be matched by a cache, so any explicit
-        // cacheability directive on the same response is ineffective.
-        //
-        // The walk this replaced read the field lines one at a time and returned
-        // no finding at all when `to_str` refused one — so a single `obs-text`
-        // octet anywhere in the value stood the rule down — and it did not join
-        // them, so a `*` written on a second field line was not a `*` here while
-        // it was one to `prefer_header_and_preference_applied`. Both are
-        // `helpers::headers::vary_nomination`'s answer now, for all three rules
-        // that ask.
-        //
-        // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
-        if !crate::helpers::headers::vary_nomination(&resp.headers).is_wildcard() {
-            return None;
-        }
+            // A `Vary: *` can never be matched by a cache, so any explicit
+            // cacheability directive on the same response is ineffective.
+            //
+            // The walk this replaced read the field lines one at a time and returned
+            // no finding at all when `to_str` refused one — so a single `obs-text`
+            // octet anywhere in the value stood the rule down — and it did not join
+            // them, so a `*` written on a second field line was not a `*` here while
+            // it was one to `prefer_header_and_preference_applied`. Both are
+            // `helpers::headers::vary_nomination`'s answer now, for all three rules
+            // that ask.
+            //
+            // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
+            if !crate::helpers::headers::vary_nomination(&resp.headers).is_wildcard() {
+                return None;
+            }
 
-        // If Vary: * is present, an explicit cacheability directive is likely ineffective (the
-        // response can never be selected). No sentence says this pairing is illegal, so this is
-        // a misconfiguration heuristic, recorded in the tracker.
-        for hv in resp.headers.get_all("cache-control").iter() {
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => continue,
-            };
+            // If Vary: * is present, an explicit cacheability directive is likely ineffective (the
+            // response can never be selected). No sentence says this pairing is illegal, so this is
+            // a misconfiguration heuristic, recorded in the tracker.
+            for hv in resp.headers.get_all("cache-control").iter() {
+                let s = match hv.to_str() {
+                    Ok(s) => s,
+                    Err(_) => continue,
+                };
 
-            for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-                let m = member;
-                if m.is_empty() {
-                    continue;
-                }
-                // directive = token [ '=' ... ]
-                let name = m
-                    .split('=')
-                    .next()
-                    .expect("split always yields at least one item")
-                    .trim()
-                    .to_ascii_lowercase();
-                match name.as_str() {
-                    // Only directives that *advertise reuse* are flagged. `no-cache` is
-                    // deliberately excluded: it promises no reuse benefit (it requires
-                    // revalidation), so pairing it with Vary: * is not a misconfiguration signal.
-                    "max-age" | "s-maxage" | "public" => {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
-                                name, name
-                            ),
-                        });
+                for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
+                    let m = member;
+                    if m.is_empty() {
+                        continue;
                     }
-                    _ => {}
+                    // directive = token [ '=' ... ]
+                    let name = m
+                        .split('=')
+                        .next()
+                        .expect("split always yields at least one item")
+                        .trim()
+                        .to_ascii_lowercase();
+                    match name.as_str() {
+                        // Only directives that *advertise reuse* are flagged. `no-cache` is
+                        // deliberately excluded: it promises no reuse benefit (it requires
+                        // revalidation), so pairing it with Vary: * is not a misconfiguration signal.
+                        "max-age" | "s-maxage" | "public" => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
+                                    name, name
+                                ),
+                            });
+                        }
+                        _ => {}
+                    }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

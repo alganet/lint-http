@@ -42,187 +42,194 @@ impl Rule for CharsetRegistered {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-        use crate::helpers::headers::parse_media_type;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+            use crate::helpers::headers::parse_media_type;
 
-        let check_header = |which: &str, val: &str| -> Option<Violation> {
-            // A value that is not a media-type at all has no parameters to read,
-            // and saying so is `content_type_valid`'s finding, not
-            // this one's. The `media-type` grammar is the helper's.
-            let parsed = match parse_media_type(val) {
-                Ok(p) => p,
-                Err(_) => return None,
-            };
+            let check_header = |which: &str, val: &str| -> Option<Violation> {
+                // A value that is not a media-type at all has no parameters to read,
+                // and saying so is `content_type_valid`'s finding, not
+                // this one's. The `media-type` grammar is the helper's.
+                let parsed = match parse_media_type(val) {
+                    Ok(p) => p,
+                    Err(_) => return None,
+                };
 
-            if let Some(params) = parsed.params {
-                // Quote-aware, because a `;` inside a quoted parameter value does
-                // not separate parameters. A raw `split(';')` cut such a value in
-                // half and then read the halves as parameters of their own, so a
-                // boundary like `boundary="x; charset=bogus"` produced a charset
-                // finding for a message that has no charset parameter at all.
-                // Every other rule that walks media-type parameters already uses
-                // this helper; this one was the exception.
-                //
-                // The walk is `helpers::headers::parameters`, which owns the
-                // split, the bracketed-empty skip and the cut at the first `=`.
-                // A segment with no `=` is not this rule's finding —
-                // `content_type_valid` reads the same field
-                // through `media_type_parts_defect` and reports it there — so it
-                // is skipped rather than judged, and the whitespace beside the
-                // `=` is the leniency this rule publishes.
-                for parameter in crate::helpers::headers::parameters(params) {
-                    let Ok(parameter) = parameter else { continue };
-                    let value = parameter.value;
-                    // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
-                    if parameter.name.eq_ignore_ascii_case("charset") {
-                        // An unquoted value must satisfy `token`, and `token`
-                        // is `1*tchar`, so nothing after the "=" is not a
-                        // charset name that happens to be unregistered — it
-                        // is not a parameter value at all.
-                        // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-                        if value.is_empty() {
-                            return Some(Violation {
-                                rule: CharsetRegistered.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Invalid Content-Type in {}: empty 'charset' parameter",
-                                    which
-                                ),
-                            });
-                        }
-
-                        // The two alternatives of `parameter-value`, each
-                        // handed to the helper that owns its grammar:
-                        // `quoted-string` is unescaped and validated in one
-                        // step, `token` is checked character by character.
-                        // A charset name is compared after unescaping, since
-                        // "the quoted and unquoted values are equivalent".
-                        let mut value_owned: Option<String> = None;
-                        if value.starts_with('"') {
-                            match crate::helpers::headers::unescape_quoted_string(value) {
-                                Ok(u) => value_owned = Some(u),
-                                Err(e) => {
-                                    return Some(Violation {
-                                        rule: CharsetRegistered.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
-                                            "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
-                                            which, e
-                                        ),
-                                    })
-                                }
-                            }
-                        } else {
-                            // `token` is not the charset production, and the
-                            // two sets are *incomparable* rather than one
-                            // being a subset. `mime-charset` (RFC 2978 §2.3)
-                            // admits "{" and "}", which `token` does not;
-                            // `token` admits "*", "." and "|", which
-                            // `mime-charset` does not. So this check is
-                            // stricter in one direction and looser in the
-                            // other — `charset=utf.8` reaches the allowlist
-                            // instead of being called malformed.
-                            //
-                            // Neither direction changes a verdict. A name
-                            // with braces is not registered (RFC 9110 §8.3.2
-                            // says so outright), and a name with "." or "*"
-                            // that is not in the allowlist is reported by the
-                            // membership check below. Only the wording of the
-                            // finding differs. (§8.3.2 makes this point in a
-                            // gutter-marked note apycite cannot quote.)
-                            if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
+                if let Some(params) = parsed.params {
+                    // Quote-aware, because a `;` inside a quoted parameter value does
+                    // not separate parameters. A raw `split(';')` cut such a value in
+                    // half and then read the halves as parameters of their own, so a
+                    // boundary like `boundary="x; charset=bogus"` produced a charset
+                    // finding for a message that has no charset parameter at all.
+                    // Every other rule that walks media-type parameters already uses
+                    // this helper; this one was the exception.
+                    //
+                    // The walk is `helpers::headers::parameters`, which owns the
+                    // split, the bracketed-empty skip and the cut at the first `=`.
+                    // A segment with no `=` is not this rule's finding —
+                    // `content_type_valid` reads the same field
+                    // through `media_type_parts_defect` and reports it there — so it
+                    // is skipped rather than judged, and the whitespace beside the
+                    // `=` is the leniency this rule publishes.
+                    for parameter in crate::helpers::headers::parameters(params) {
+                        let Ok(parameter) = parameter else { continue };
+                        let value = parameter.value;
+                        // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
+                        if parameter.name.eq_ignore_ascii_case("charset") {
+                            // An unquoted value must satisfy `token`, and `token`
+                            // is `1*tchar`, so nothing after the "=" is not a
+                            // charset name that happens to be unregistered — it
+                            // is not a parameter value at all.
+                            // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
+                            if value.is_empty() {
                                 return Some(Violation {
                                     rule: CharsetRegistered.id().into(),
                                     severity: ctx.severity,
                                     message: format!(
-                                        "Invalid Content-Type in {}: charset contains invalid character '{}'",
-                                        which, c
+                                        "Invalid Content-Type in {}: empty 'charset' parameter",
+                                        which
+                                    ),
+                                });
+                            }
+
+                            // The two alternatives of `parameter-value`, each
+                            // handed to the helper that owns its grammar:
+                            // `quoted-string` is unescaped and validated in one
+                            // step, `token` is checked character by character.
+                            // A charset name is compared after unescaping, since
+                            // "the quoted and unquoted values are equivalent".
+                            let mut value_owned: Option<String> = None;
+                            if value.starts_with('"') {
+                                match crate::helpers::headers::unescape_quoted_string(value) {
+                                    Ok(u) => value_owned = Some(u),
+                                    Err(e) => {
+                                        return Some(Violation {
+                                            rule: CharsetRegistered.id().into(),
+                                            severity: ctx.severity,
+                                            message: format!(
+                                                "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
+                                                which, e
+                                            ),
+                                        })
+                                    }
+                                }
+                            } else {
+                                // `token` is not the charset production, and the
+                                // two sets are *incomparable* rather than one
+                                // being a subset. `mime-charset` (RFC 2978 §2.3)
+                                // admits "{" and "}", which `token` does not;
+                                // `token` admits "*", "." and "|", which
+                                // `mime-charset` does not. So this check is
+                                // stricter in one direction and looser in the
+                                // other — `charset=utf.8` reaches the allowlist
+                                // instead of being called malformed.
+                                //
+                                // Neither direction changes a verdict. A name
+                                // with braces is not registered (RFC 9110 §8.3.2
+                                // says so outright), and a name with "." or "*"
+                                // that is not in the allowlist is reported by the
+                                // membership check below. Only the wording of the
+                                // finding differs. (§8.3.2 makes this point in a
+                                // gutter-marked note apycite cannot quote.)
+                                if let Some(c) =
+                                    crate::helpers::token::find_invalid_token_char(value)
+                                {
+                                    return Some(Violation {
+                                        rule: CharsetRegistered.id().into(),
+                                        severity: ctx.severity,
+                                        message: format!(
+                                            "Invalid Content-Type in {}: charset contains invalid character '{}'",
+                                            which, c
+                                        ),
+                                    });
+                                }
+                            }
+                            let value = value_owned.as_deref().unwrap_or(value);
+
+                            if value.is_empty() {
+                                return Some(Violation {
+                                    rule: CharsetRegistered.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!(
+                                        "Invalid Content-Type in {}: empty 'charset' parameter",
+                                        which
+                                    ),
+                                });
+                            }
+
+                            // The rule's name says IANA; the code says the
+                            // operator's `allowed` array. The registry is never
+                            // consulted — there is no lookup — so this cite is
+                            // the *motivation*, and "ought to" is why the whole
+                            // rule is a policy rather than a conformance check.
+                            // The fold is the matching rule, not a convenience.
+                            // cite(RFC 9110 § 8.3.2): "Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978]."
+                            // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
+                            if !config.allowed.contains(&value.to_ascii_lowercase()) {
+                                return Some(Violation {
+                                    rule: CharsetRegistered.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!(
+                                        "Unrecognized charset '{}' in {} header",
+                                        value, which
                                     ),
                                 });
                             }
                         }
-                        let value = value_owned.as_deref().unwrap_or(value);
-
-                        if value.is_empty() {
-                            return Some(Violation {
-                                rule: CharsetRegistered.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Invalid Content-Type in {}: empty 'charset' parameter",
-                                    which
-                                ),
-                            });
-                        }
-
-                        // The rule's name says IANA; the code says the
-                        // operator's `allowed` array. The registry is never
-                        // consulted — there is no lookup — so this cite is
-                        // the *motivation*, and "ought to" is why the whole
-                        // rule is a policy rather than a conformance check.
-                        // The fold is the matching rule, not a convenience.
-                        // cite(RFC 9110 § 8.3.2): "Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978]."
-                        // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
-                        if !config.allowed.contains(&value.to_ascii_lowercase()) {
-                            return Some(Violation {
-                                rule: CharsetRegistered.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Unrecognized charset '{}' in {} header",
-                                    value, which
-                                ),
-                            });
-                        }
                     }
                 }
-            }
-            None
-        };
+                None
+            };
 
-        // Every Content-Type field line, not just the first. `get_header_str`
-        // returns one value, and §8.3 is explicit that implementations differ
-        // over which member of a duplicated Content-Type they act on — so no
-        // line can be dismissed as the one nobody reads. The loop reports the
-        // first unregistered charset it finds, which is a choice among equals
-        // rather than a claim about precedence.
-        //
-        // That there is more than one line is `content_type_valid`'s
-        // finding to report; this rule adds nothing by repeating it, and says
-        // only what it owns: whether a charset it can see is recognized.
-        let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
-            for hv in headers.get_all("content-type").iter() {
-                // Decoded from the raw octets, not through `to_str`, which
-                // refuses `obs-text` — legal in a `quoted-string`, so
-                // `charset="<0xE4>bogus"` and any value with obs-text in a
-                // *neighbouring* parameter are well-formed media-types whose
-                // charset still has to be judged. Skipping them meant an
-                // unregistered charset alongside an obs-text parameter was
-                // reported by nothing at all. Where obs-text is not legal, in an
-                // unquoted `token`, the check below already rejects it.
-                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                let s = crate::helpers::headers::field_line_as_written(hv);
-                if let Some(v) = check_header(which, &s) {
+            // Every Content-Type field line, not just the first. `get_header_str`
+            // returns one value, and §8.3 is explicit that implementations differ
+            // over which member of a duplicated Content-Type they act on — so no
+            // line can be dismissed as the one nobody reads. The loop reports the
+            // first unregistered charset it finds, which is a choice among equals
+            // rather than a claim about precedence.
+            //
+            // That there is more than one line is `content_type_valid`'s
+            // finding to report; this rule adds nothing by repeating it, and says
+            // only what it owns: whether a charset it can see is recognized.
+            let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+                for hv in headers.get_all("content-type").iter() {
+                    // Decoded from the raw octets, not through `to_str`, which
+                    // refuses `obs-text` — legal in a `quoted-string`, so
+                    // `charset="<0xE4>bogus"` and any value with obs-text in a
+                    // *neighbouring* parameter are well-formed media-types whose
+                    // charset still has to be judged. Skipping them meant an
+                    // unregistered charset alongside an obs-text parameter was
+                    // reported by nothing at all. Where obs-text is not legal, in an
+                    // unquoted `token`, the check below already rejects it.
+                    // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                    let s = crate::helpers::headers::field_line_as_written(hv);
+                    if let Some(v) = check_header(which, &s) {
+                        return Some(v);
+                    }
+                }
+                None
+            };
+
+            if let Some(v) = check_all("request", &tx.request.headers) {
+                return Some(v);
+            }
+            if let Some(resp) = &tx.response {
+                if let Some(v) = check_all("response", &resp.headers) {
                     return Some(v);
                 }
             }
+
             None
         };
-
-        if let Some(v) = check_all("request", &tx.request.headers) {
-            return Some(v);
-        }
-        if let Some(resp) = &tx.response {
-            if let Some(v) = check_all("response", &resp.headers) {
-                return Some(v);
-            }
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

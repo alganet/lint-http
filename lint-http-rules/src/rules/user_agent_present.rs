@@ -24,41 +24,46 @@ impl Rule for UserAgentPresent {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // A sentence does ask for the field, and it is a SHOULD -- but it ends
-        // in a condition about the sender's configuration, and a request that
-        // omits the field because it was told to is byte-for-byte a request that
-        // omits it. The exception is therefore not decidable here, and it is not
-        // approximated either: the finding is reported for both, and the
-        // description tells the operator which two cases it cannot separate.
-        // cite(RFC 9110 § 10.1.5): "A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so."
-        //
-        // Only the header section answers that sentence. A `User-Agent` arriving
-        // in `tx.request.trailers` would be a violation of the sentence below --
-        // §10.1.5 nowhere permits the field in trailers -- rather than a way to
-        // satisfy this one, so the trailer section is deliberately not consulted.
-        // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-        //
-        // Presence is the whole question. A field line that is present and empty
-        // is not a missing field; it is a field that fails the production below,
-        // and `user_agent_token_valid` -- which owns that grammar and
-        // ships enabled -- reports it as one. Answering "missing" here would name
-        // the wrong defect and report one field twice.
-        // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
-        if !tx.request.headers.contains_key("user-agent") {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Request missing User-Agent header".into(),
-            })
-        } else {
-            None
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // A sentence does ask for the field, and it is a SHOULD -- but it ends
+            // in a condition about the sender's configuration, and a request that
+            // omits the field because it was told to is byte-for-byte a request that
+            // omits it. The exception is therefore not decidable here, and it is not
+            // approximated either: the finding is reported for both, and the
+            // description tells the operator which two cases it cannot separate.
+            // cite(RFC 9110 § 10.1.5): "A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so."
+            //
+            // Only the header section answers that sentence. A `User-Agent` arriving
+            // in `tx.request.trailers` would be a violation of the sentence below --
+            // §10.1.5 nowhere permits the field in trailers -- rather than a way to
+            // satisfy this one, so the trailer section is deliberately not consulted.
+            // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+            //
+            // Presence is the whole question. A field line that is present and empty
+            // is not a missing field; it is a field that fails the production below,
+            // and `user_agent_token_valid` -- which owns that grammar and
+            // ships enabled -- reports it as one. Answering "missing" here would name
+            // the wrong defect and report one field twice.
+            // cite(RFC 9110 § 10.1.5): "The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts."
+            if !tx.request.headers.contains_key("user-agent") {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Request missing User-Agent header".into(),
+                })
+            } else {
+                None
+            }
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

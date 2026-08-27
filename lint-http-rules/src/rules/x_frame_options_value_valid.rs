@@ -16,80 +16,85 @@ impl Rule for XFrameOptionsValueValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // It is a response header, so only the response side is inspected. RFC 7034
-        // originally defined it; the HTML Standard's §7.7 definition governs now.
-        // cite(HTML Speculative Loading § 7.7): "It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document."
-        // cite(HTML Speculative Loading § 7.7): "HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable"
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // It is a response header, so only the response side is inspected. RFC 7034
+            // originally defined it; the HTML Standard's §7.7 definition governs now.
+            // cite(HTML Speculative Loading § 7.7): "It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document."
+            // cite(HTML Speculative Loading § 7.7): "HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable"
+            let resp = tx.response.as_ref()?;
 
-        let headers = &resp.headers;
+            let headers = &resp.headers;
 
-        let count = headers.get_all("x-frame-options").iter().count();
-        if count == 0 {
-            return None;
-        }
+            let count = headers.get_all("x-frame-options").iter().count();
+            if count == 0 {
+                return None;
+            }
 
-        // The value ABNF is a single token, not a list, so a sender may not repeat
-        // the field.
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        if count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple X-Frame-Options header fields present".into(),
-            });
-        }
-
-        // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-        let val = match crate::helpers::headers::get_header_str(headers, "x-frame-options") {
-            Some(v) => v.trim(),
-            None => {
+            // The value ABNF is a single token, not a list, so a sender may not repeat
+            // the field.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            if count > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "X-Frame-Options header contains non-ASCII or control characters"
-                        .into(),
-                })
+                    message: "Multiple X-Frame-Options header fields present".into(),
+                });
             }
-        };
 
-        // The two conforming values; the match is case-insensitive because the
-        // processing model lowercases each value before comparing.
-        // cite(HTML Speculative Loading § 7.7): "X-Frame-Options = "DENY" / "SAMEORIGIN""
-        // cite(HTML Speculative Loading § 7.7): "For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions."
-        if val.eq_ignore_ascii_case("DENY") || val.eq_ignore_ascii_case("SAMEORIGIN") {
-            return None;
-        }
+            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
+            let val = match crate::helpers::headers::get_header_str(headers, "x-frame-options") {
+                Some(v) => v.trim(),
+                None => {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "X-Frame-Options header contains non-ASCII or control characters"
+                            .into(),
+                    })
+                }
+            };
 
-        // ALLOW-FROM was RFC 7034's third variant, but the HTML Standard's
-        // processing model superseded that document and dropped it: browsers treat
-        // it as an unrecognized value, leaving the resource unprotected while the
-        // sender believes otherwise. Flag it with a targeted message rather than
-        // the generic unsupported-value one.
-        // cite(HTML Speculative Loading § 7.7): "In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented."
-        if val.len() >= 10 && val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
-            return Some(Violation {
+            // The two conforming values; the match is case-insensitive because the
+            // processing model lowercases each value before comparing.
+            // cite(HTML Speculative Loading § 7.7): "X-Frame-Options = "DENY" / "SAMEORIGIN""
+            // cite(HTML Speculative Loading § 7.7): "For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions."
+            if val.eq_ignore_ascii_case("DENY") || val.eq_ignore_ascii_case("SAMEORIGIN") {
+                return None;
+            }
+
+            // ALLOW-FROM was RFC 7034's third variant, but the HTML Standard's
+            // processing model superseded that document and dropped it: browsers treat
+            // it as an unrecognized value, leaving the resource unprotected while the
+            // sender believes otherwise. Flag it with a targeted message rather than
+            // the generic unsupported-value one.
+            // cite(HTML Speculative Loading § 7.7): "In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented."
+            if val.len() >= 10 && val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "X-Frame-Options: ALLOW-FROM is obsolete and not implemented by browsers \
+                         (use the Content-Security-Policy frame-ancestors directive instead): '{}'",
+                        val
+                    ),
+                });
+            }
+
+            Some(Violation {
                 rule: self.id().into(),
                 severity: ctx.severity,
-                message: format!(
-                    "X-Frame-Options: ALLOW-FROM is obsolete and not implemented by browsers \
-                     (use the Content-Security-Policy frame-ancestors directive instead): '{}'",
-                    val
-                ),
-            });
-        }
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!("X-Frame-Options contains unsupported value: '{}'", val),
-        })
+                message: format!("X-Frame-Options contains unsupported value: '{}'", val),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

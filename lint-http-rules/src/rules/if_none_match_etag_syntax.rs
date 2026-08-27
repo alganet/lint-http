@@ -19,88 +19,93 @@ impl Rule for IfNoneMatchEtagSyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only applies to requests. **One value, however many field lines carry
-        // it**: `#entity-tag` is a list, so § 5.2 combines the lines with a
-        // comma before the members are counted -- and the alternation above the
-        // list is decided on the value those lines make, not on one of them.
-        // Octet-level, because an `obs-text` octet is a member this rule can
-        // measure and `to_str` would fold it into "no such field here".
-        //
-        // cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
-        let value = crate::helpers::headers::combined_field_value_as_written(
-            &tx.request.headers,
-            "if-none-match",
-        )?;
-        let value = crate::helpers::headers::trim_ows(&value);
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only applies to requests. **One value, however many field lines carry
+            // it**: `#entity-tag` is a list, so § 5.2 combines the lines with a
+            // comma before the members are counted -- and the alternation above the
+            // list is decided on the value those lines make, not on one of them.
+            // Octet-level, because an `obs-text` octet is a member this rule can
+            // measure and `to_str` would fold it into "no such field here".
+            //
+            // cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
+            let value = crate::helpers::headers::combined_field_value_as_written(
+                &tx.request.headers,
+                "if-none-match",
+            )?;
+            let value = crate::helpers::headers::trim_ows(&value);
 
-        // The field is `*` **or** a comma-separated list of entity-tags, and the
-        // two are alternatives: `*` is the whole field value and is not a member
-        // the list may hold. It was asked of each member instead -- through
-        // `validate_entity_tag`, which used to admit it -- so `If-None-Match:
-        // "abc", *` derived from neither alternative and passed as a conforming
-        // list. `entity-tag` has no `*` in it; § 13.1.2's production is where
-        // the `*` lives, and this is the construct that production governs.
-        // Syntax-only: a *weak* tag is valid here (§8.8.3), and If-None-Match is
-        // compared weakly anyway, so weak tags are accepted, not flagged. The
-        // weak-comparison MUST is owned by `inm_matches_known`, which performs it.
-        //
-        // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
-        // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
-        if value == "*" {
-            return None;
-        }
+            // The field is `*` **or** a comma-separated list of entity-tags, and the
+            // two are alternatives: `*` is the whole field value and is not a member
+            // the list may hold. It was asked of each member instead -- through
+            // `validate_entity_tag`, which used to admit it -- so `If-None-Match:
+            // "abc", *` derived from neither alternative and passed as a conforming
+            // list. `entity-tag` has no `*` in it; § 13.1.2's production is where
+            // the `*` lives, and this is the construct that production governs.
+            // Syntax-only: a *weak* tag is valid here (§8.8.3), and If-None-Match is
+            // compared weakly anyway, so weak tags are accepted, not flagged. The
+            // weak-comparison MUST is owned by `inm_matches_known`, which performs it.
+            //
+            // cite(RFC 9110 § 13.1.2): "If-None-Match = "*" / #entity-tag"
+            // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
+            if value == "*" {
+                return None;
+            }
 
-        // Before the members, because there are none: `#entity-tag` with no
-        // minimum admits the empty list, but a conditional naming no validator
-        // states no condition, and this rule has reported it since it was
-        // written. Asked of the whole value, where the old `seen_any` flag asked
-        // it of a walk that silently dropped every empty member.
-        if value.is_empty() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "If-None-Match header is empty or contains only whitespace".into(),
-            });
-        }
-
-        // The walk is quote-aware, and that is a fix rather than a preference:
-        // `etagc` admits the comma, so `"a,b"` is **one** entity-tag, and the
-        // naive `split(',')` this used to call cut it into `"a` and `b"` and
-        // reported a conforming tag as two malformed ones.
-        //
-        // cite(RFC 9110 § 8.8.3): "etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text"
-        for member in crate::helpers::headers::list_members_as_written(value) {
-            // That walk keeps the empty members the old one dropped, and they
-            // are a defect rather than noise -- named here so the finding is
-            // about the list and not about a quoted-string that is not there.
-            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-            if member.is_empty() {
+            // Before the members, because there are none: `#entity-tag` with no
+            // minimum admits the empty list, but a conditional naming no validator
+            // states no condition, and this rule has reported it since it was
+            // written. Asked of the whole value, where the old `seen_any` flag asked
+            // it of a walk that silently dropped every empty member.
+            if value.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "If-None-Match header contains an empty list element".into(),
+                    message: "If-None-Match header is empty or contains only whitespace".into(),
                 });
             }
-            if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "If-None-Match header has invalid member '{}': {}",
-                        crate::helpers::headers::shown_in_finding(member),
-                        msg
-                    ),
-                });
-            }
-        }
 
-        None
+            // The walk is quote-aware, and that is a fix rather than a preference:
+            // `etagc` admits the comma, so `"a,b"` is **one** entity-tag, and the
+            // naive `split(',')` this used to call cut it into `"a` and `b"` and
+            // reported a conforming tag as two malformed ones.
+            //
+            // cite(RFC 9110 § 8.8.3): "etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text"
+            for member in crate::helpers::headers::list_members_as_written(value) {
+                // That walk keeps the empty members the old one dropped, and they
+                // are a defect rather than noise -- named here so the finding is
+                // about the list and not about a quoted-string that is not there.
+                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                if member.is_empty() {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "If-None-Match header contains an empty list element".into(),
+                    });
+                }
+                if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "If-None-Match header has invalid member '{}': {}",
+                            crate::helpers::headers::shown_in_finding(member),
+                            msg
+                        ),
+                    });
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

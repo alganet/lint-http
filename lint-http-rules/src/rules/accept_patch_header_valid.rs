@@ -207,106 +207,111 @@ impl Rule for AcceptPatchHeaderValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // The field is read first and on every response, whatever method drew
-        // it: § 3.1 defines it as a response header and describes its presence
-        // "in response to any method", so wherever it appears its value is a
-        // list of media types. Only the header section is read — whether a field
-        // name may arrive as a trailer at all is § 6.5.1's question, asked of
-        // every name at once by `trailer_fields_valid`.
-        //
-        // Each of the reads below is one `HeaderMap` probe; a response carrying
-        // no `Accept-Patch` and answering neither of the two methods below is
-        // the overwhelming majority of traffic.
-        //
-        // cite(RFC 5789 § 3.1): "The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI."
-        if let Some(value) = combined_field_value_as_written(&resp.headers, "accept-patch") {
-            return self.check_value(&value, ctx.severity);
-        }
-
-        // Compared exactly, both of them: a request whose method is `patch` or
-        // `options` is a request with some other method, and a method this
-        // specification does not define has neither of these responses' meanings
-        // for the field's absence to be measured against.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        if tx.request.method == "PATCH" {
-            // § 2.2 names the status and then asks for the field in the response
-            // carrying it. What a 415 means is most of that section's antecedent
-            // — a format the server does not support — but not all of it: the
-            // status is defined over the content's *coding* as well as its media
-            // type, and a server refusing a coding has no patch format to name.
-            // The status definition supplies its own tell for that case, so the
-            // field a server sends when the coding was the problem stands this
-            // finding down; a 415 about a coding that names none is the residue,
-            // and `description()` says so.
-            // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
-            // cite(RFC 5789 § 2.2): "Such a response SHOULD include an Accept-Patch response header as described in Section 3.1 to notify the client what patch document media types are supported."
-            // cite(RFC 9110 § 15.5.16): "The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly."
-            // cite(RFC 9110 § 15.5.16): "If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used"
-            if resp.status == 415 && !resp.headers.contains_key("accept-encoding") {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into(),
-                });
+            // The field is read first and on every response, whatever method drew
+            // it: § 3.1 defines it as a response header and describes its presence
+            // "in response to any method", so wherever it appears its value is a
+            // list of media types. Only the header section is read — whether a field
+            // name may arrive as a trailer at all is § 6.5.1's question, asked of
+            // every name at once by `trailer_fields_valid`.
+            //
+            // Each of the reads below is one `HeaderMap` probe; a response carrying
+            // no `Accept-Patch` and answering neither of the two methods below is
+            // the overwhelming majority of traffic.
+            //
+            // cite(RFC 5789 § 3.1): "The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI."
+            if let Some(value) = combined_field_value_as_written(&resp.headers, "accept-patch") {
+                return self.check_value(&value, ctx.severity);
             }
 
-            return None;
-        }
+            // Compared exactly, both of them: a request whose method is `patch` or
+            // `options` is a request with some other method, and a method this
+            // specification does not define has neither of these responses' meanings
+            // for the field's absence to be measured against.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method == "PATCH" {
+                // § 2.2 names the status and then asks for the field in the response
+                // carrying it. What a 415 means is most of that section's antecedent
+                // — a format the server does not support — but not all of it: the
+                // status is defined over the content's *coding* as well as its media
+                // type, and a server refusing a coding has no patch format to name.
+                // The status definition supplies its own tell for that case, so the
+                // field a server sends when the coding was the problem stands this
+                // finding down; a 415 about a coding that names none is the residue,
+                // and `description()` says so.
+                // cite(RFC 5789 § 2.2): "Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI."
+                // cite(RFC 5789 § 2.2): "Such a response SHOULD include an Accept-Patch response header as described in Section 3.1 to notify the client what patch document media types are supported."
+                // cite(RFC 9110 § 15.5.16): "The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly."
+                // cite(RFC 9110 § 15.5.16): "If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used"
+                if resp.status == 415 && !resp.headers.contains_key("accept-encoding") {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "415 (Unsupported Media Type) response to a PATCH carries no Accept-Patch; RFC 5789 § 2.2 says such a response SHOULD include an Accept-Patch response header to notify the client what patch document media types are supported".into(),
+                    });
+                }
 
-        if tx.request.method == "OPTIONS" {
-            // The SHOULD's antecedent is "any resource that supports the use of
-            // the PATCH method", and § 3 says in the sentence above it how a
-            // server states that: by listing the method in the `Allow` of this
-            // very response. So the two sentences together make the condition
-            // observable in one exchange, and a resource that says nothing about
-            // `PATCH` is asked for nothing.
-            //
-            // No status gate. The sibling rule reading an OPTIONS response gates
-            // on 2xx because § 9.3.7's SHOULD carries the word "successful";
-            // § 3.1's says "the OPTIONS response" and stops there, and a 405
-            // answering an OPTIONS carries the `Allow` § 10.2.1 requires of it —
-            // so a resource can advertise `PATCH` in a response that is not 2xx.
-            //
-            // The second sentence is quoted in the finding and is the reason the
-            // first one is reported at all rather than written off: it leaves
-            // the `Allow` listing conforming and then names the consequence of
-            // the omission rather than excusing it, which is what a SHOULD
-            // already means. Read the other way it would empty § 3.1's SHOULD of
-            // every case it could ever be measured against.
-            //
-            // The asterisk target is out for the reason the SHOULD is in: its
-            // subject is a *resource*, and such a request has none — the `Allow`
-            // of that response lists what the server in general does, so it
-            // states nothing about a resource supporting `PATCH`. The comparison
-            // reaches the asterisk over HTTP/1.1 only, for the reason the sibling
-            // OPTIONS rule records at the same gate: the HTTP/3 capture path
-            // rebuilds a URI from the pseudo-headers and a `:path` of `*` is
-            // recorded as an authority with the asterisk swallowed into it.
-            //
-            // cite(RFC 5789 § 3.1): "Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method."
-            // cite(RFC 5789 § 3): "The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised."
-            // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
-            if tx.request.uri != "*" && allow_names_patch(&resp.headers) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "OPTIONS response ({}) advertises PATCH in Allow and carries no Accept-Patch; RFC 5789 § 3.1 says Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method. § 3 leaves the Allow listing conforming without it and names what is lost: the list of allowed patch documents is not advertised",
-                        resp.status
-                    ),
-                });
+                return None;
             }
-        }
 
-        None
+            if tx.request.method == "OPTIONS" {
+                // The SHOULD's antecedent is "any resource that supports the use of
+                // the PATCH method", and § 3 says in the sentence above it how a
+                // server states that: by listing the method in the `Allow` of this
+                // very response. So the two sentences together make the condition
+                // observable in one exchange, and a resource that says nothing about
+                // `PATCH` is asked for nothing.
+                //
+                // No status gate. The sibling rule reading an OPTIONS response gates
+                // on 2xx because § 9.3.7's SHOULD carries the word "successful";
+                // § 3.1's says "the OPTIONS response" and stops there, and a 405
+                // answering an OPTIONS carries the `Allow` § 10.2.1 requires of it —
+                // so a resource can advertise `PATCH` in a response that is not 2xx.
+                //
+                // The second sentence is quoted in the finding and is the reason the
+                // first one is reported at all rather than written off: it leaves
+                // the `Allow` listing conforming and then names the consequence of
+                // the omission rather than excusing it, which is what a SHOULD
+                // already means. Read the other way it would empty § 3.1's SHOULD of
+                // every case it could ever be measured against.
+                //
+                // The asterisk target is out for the reason the SHOULD is in: its
+                // subject is a *resource*, and such a request has none — the `Allow`
+                // of that response lists what the server in general does, so it
+                // states nothing about a resource supporting `PATCH`. The comparison
+                // reaches the asterisk over HTTP/1.1 only, for the reason the sibling
+                // OPTIONS rule records at the same gate: the HTTP/3 capture path
+                // rebuilds a URI from the pseudo-headers and a `:path` of `*` is
+                // recorded as an authority with the asterisk swallowed into it.
+                //
+                // cite(RFC 5789 § 3.1): "Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method."
+                // cite(RFC 5789 § 3): "The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised."
+                // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
+                if tx.request.uri != "*" && allow_names_patch(&resp.headers) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "OPTIONS response ({}) advertises PATCH in Allow and carries no Accept-Patch; RFC 5789 § 3.1 says Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method. § 3 leaves the Allow listing conforming without it and names what is lost: the list of allowed patch documents is not advertised",
+                            resp.status
+                        ),
+                    });
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

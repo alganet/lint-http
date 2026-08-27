@@ -16,64 +16,79 @@ impl Rule for DigestAuthValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        for hv in tx.request.headers.get_all("authorization").iter() {
-            match hv.to_str() {
-                Ok(s) => {
-                    let s = s.trim();
-                    if s.is_empty() {
-                        continue;
-                    }
-                    // Only care about the Digest scheme; auth-scheme names are
-                    // matched case-insensitively.
-                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                    let mut parts = s.splitn(2, char::is_whitespace);
-                    let scheme = parts.next().unwrap();
-                    if !scheme.eq_ignore_ascii_case("digest") {
-                        continue;
-                    }
-                    let rest = match parts.next() {
-                        Some(r) => r.trim(),
-                        None => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: "Authorization Digest scheme missing parameters".into(),
-                            })
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            for hv in tx.request.headers.get_all("authorization").iter() {
+                match hv.to_str() {
+                    Ok(s) => {
+                        let s = s.trim();
+                        if s.is_empty() {
+                            continue;
                         }
-                    };
+                        // Only care about the Digest scheme; auth-scheme names are
+                        // matched case-insensitively.
+                        // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                        let mut parts = s.splitn(2, char::is_whitespace);
+                        let scheme = parts.next().unwrap();
+                        if !scheme.eq_ignore_ascii_case("digest") {
+                            continue;
+                        }
+                        let rest = match parts.next() {
+                            Some(r) => r.trim(),
+                            None => {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: "Authorization Digest scheme missing parameters"
+                                        .into(),
+                                })
+                            }
+                        };
 
-                    // parse auth-param list into map
-                    match crate::helpers::auth::parse_auth_params(rest) {
-                        Ok(map) => {
-                            // Required fields: username, realm, nonce, uri, response. §3.4 lists the
-                            // parameters and names the consequence for missing required ones, but
-                            // labels no "required" set; these five are the ones the response
-                            // computation (§3.4.1) cannot be verified without whatever the
-                            // credential's vintage. cnonce and nc are demanded below, behind the
-                            // observable line that keeps RFC 2617-style credentials checkable.
-                            // cite(RFC 7616 § 3.4): "If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code."
-                            let required = ["username", "realm", "nonce", "uri", "response"];
-                            for &k in &required {
-                                match map.get(k) {
-                                    Some(v) => {
-                                        // treat empty unquoted values or quoted-strings with empty inner content
-                                        let is_empty = if v.is_empty() {
-                                            true
-                                        } else if v.starts_with('"') {
-                                            // if quoted-string is syntactically invalid, default to 'false' so
-                                            // it will be reported by the later quoted-string validation
-                                            crate::helpers::headers::quoted_string_inner_trimmed_is_empty(v).unwrap_or_default()
-                                        } else {
-                                            false
-                                        };
+                        // parse auth-param list into map
+                        match crate::helpers::auth::parse_auth_params(rest) {
+                            Ok(map) => {
+                                // Required fields: username, realm, nonce, uri, response. §3.4 lists the
+                                // parameters and names the consequence for missing required ones, but
+                                // labels no "required" set; these five are the ones the response
+                                // computation (§3.4.1) cannot be verified without whatever the
+                                // credential's vintage. cnonce and nc are demanded below, behind the
+                                // observable line that keeps RFC 2617-style credentials checkable.
+                                // cite(RFC 7616 § 3.4): "If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code."
+                                let required = ["username", "realm", "nonce", "uri", "response"];
+                                for &k in &required {
+                                    match map.get(k) {
+                                        Some(v) => {
+                                            // treat empty unquoted values or quoted-strings with empty inner content
+                                            let is_empty = if v.is_empty() {
+                                                true
+                                            } else if v.starts_with('"') {
+                                                // if quoted-string is syntactically invalid, default to 'false' so
+                                                // it will be reported by the later quoted-string validation
+                                                crate::helpers::headers::quoted_string_inner_trimmed_is_empty(v).unwrap_or_default()
+                                            } else {
+                                                false
+                                            };
 
-                                        if is_empty {
+                                            if is_empty {
+                                                return Some(Violation {
+                                                    rule: self.id().into(),
+                                                    severity: ctx.severity,
+                                                    message: format!(
+                                                        "Digest Authorization missing or empty required parameter '{}'",
+                                                        k
+                                                    ),
+                                                })
+                                            }
+                                        }
+                                        None => {
                                             return Some(Violation {
                                                 rule: self.id().into(),
                                                 severity: ctx.severity,
@@ -84,149 +99,141 @@ impl Rule for DigestAuthValid {
                                             })
                                         }
                                     }
-                                    None => {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
-                                                "Digest Authorization missing or empty required parameter '{}'",
-                                                k
-                                            ),
-                                        })
+                                }
+                                // The two parameters RFC 7616 §3.4 marks "MUST be used by all
+                                // implementations", demanded where the credential's own qop makes
+                                // the demand observable. RFC 2617 computes a qop-less response
+                                // without either, so requiring them of every Digest credential
+                                // would reject that document's otherwise-checkable shape — but a
+                                // credential that *carries* qop is inside both documents' MUSTs at
+                                // once: RFC 2617's conditional is met by the message itself, and
+                                // both compute the response value over cnonce and nc, so their
+                                // absence leaves the response unverifiable by the recipient it was
+                                // written for. The qop-less decline is published in
+                                // `description()`.
+                                // cite(RFC 7616 § 3.4, label: cnonce): "This parameter MUST be used by all implementations."
+                                // cite(RFC 2617 § 3.2.2): "This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field."
+                                if map.contains_key("qop") {
+                                    for &k in &["cnonce", "nc"] {
+                                        if !map.contains_key(k) {
+                                            return Some(Violation {
+                                                rule: self.id().into(),
+                                                severity: ctx.severity,
+                                                message: format!(
+                                                    "Digest Authorization sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
+                                                ),
+                                            });
+                                        }
                                     }
                                 }
-                            }
-                            // The two parameters RFC 7616 §3.4 marks "MUST be used by all
-                            // implementations", demanded where the credential's own qop makes
-                            // the demand observable. RFC 2617 computes a qop-less response
-                            // without either, so requiring them of every Digest credential
-                            // would reject that document's otherwise-checkable shape — but a
-                            // credential that *carries* qop is inside both documents' MUSTs at
-                            // once: RFC 2617's conditional is met by the message itself, and
-                            // both compute the response value over cnonce and nc, so their
-                            // absence leaves the response unverifiable by the recipient it was
-                            // written for. The qop-less decline is published in
-                            // `description()`.
-                            // cite(RFC 7616 § 3.4, label: cnonce): "This parameter MUST be used by all implementations."
-                            // cite(RFC 2617 § 3.2.2): "This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field."
-                            if map.contains_key("qop") {
-                                for &k in &["cnonce", "nc"] {
-                                    if !map.contains_key(k) {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
-                                                "Digest Authorization sends 'qop' and no '{k}': RFC 7616 \u{a7}3.4 marks the parameter \"MUST be used by all implementations\", RFC 2617 \u{a7}3.2.2 requires it whenever a qop directive is sent, and both documents compute the response value over it, so without it the credential cannot be verified"
-                                            ),
-                                        });
-                                    }
-                                }
-                            }
 
-                            // validate tokensexp and quoted values basic syntax
-                            for (k, v) in map.iter() {
-                                // param names must be tokens
-                                if let Some(inv) = crate::helpers::token::find_invalid_token_char(k)
-                                {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
-                                            "Invalid character '{}' in Digest auth-param name",
-                                            inv
-                                        ),
-                                    });
-                                }
-                                // §3.4's two per-parameter quoting MUSTs, enforced in both
-                                // directions. The historical reason is the point: recipients
-                                // of these parameters were deployed against one spelling each,
-                                // so the wrong spelling is a credential some verifiers will
-                                // not read. The seven-name list is why the old `uri` branch —
-                                // which deliberately accepted an unquoted value — is gone: an
-                                // unquoted uri is exactly what the first sentence forbids.
-                                // `username*`, `userhash` and unknown extensions are in
-                                // neither list, and only their present spelling is judged.
-                                // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque."
-                                // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc."
-                                const MUST_QUOTE: &[&str] = &[
-                                    "username", "realm", "nonce", "uri", "response", "cnonce",
-                                    "opaque",
-                                ];
-                                const MUST_NOT_QUOTE: &[&str] = &["algorithm", "qop", "nc"];
-
-                                let quoted = v.starts_with('"');
-                                if MUST_QUOTE.contains(&k.as_str()) && !quoted {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
-                                            "Digest Authorization sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
-                                        ),
-                                    });
-                                }
-                                if MUST_NOT_QUOTE.contains(&k.as_str()) && quoted {
-                                    return Some(Violation {
-                                        rule: self.id().into(),
-                                        severity: ctx.severity,
-                                        message: format!(
-                                            "Digest Authorization sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
-                                        ),
-                                    });
-                                }
-
-                                // A value that opens with a quote is validated as a quoted-string
-                                // (grammar helper-owned, RFC 9110 §5.6.4).
-                                if quoted {
-                                    if let Err(msg) =
-                                        crate::helpers::headers::validate_quoted_string(v)
-                                    {
-                                        return Some(Violation {
-                                            rule: self.id().into(),
-                                            severity: ctx.severity,
-                                            message: format!(
-                                                "Invalid quoted-string in Digest auth-param '{}': {}",
-                                                k, msg
-                                            ),
-                                        });
-                                    }
-                                } else {
-                                    // Unquoted values are tokens. The `uri` carve-out that
-                                    // stood here (allow anything without control characters)
-                                    // is unreachable now: an unquoted `uri` returns above.
+                                // validate tokensexp and quoted values basic syntax
+                                for (k, v) in map.iter() {
+                                    // param names must be tokens
                                     if let Some(inv) =
-                                        crate::helpers::token::find_invalid_token_char(v)
+                                        crate::helpers::token::find_invalid_token_char(k)
                                     {
                                         return Some(Violation {
                                             rule: self.id().into(),
                                             severity: ctx.severity,
                                             message: format!(
-                                                "Invalid character '{}' in Digest auth-param value for '{}'",
-                                                inv, k
+                                                "Invalid character '{}' in Digest auth-param name",
+                                                inv
                                             ),
                                         });
                                     }
+                                    // §3.4's two per-parameter quoting MUSTs, enforced in both
+                                    // directions. The historical reason is the point: recipients
+                                    // of these parameters were deployed against one spelling each,
+                                    // so the wrong spelling is a credential some verifiers will
+                                    // not read. The seven-name list is why the old `uri` branch —
+                                    // which deliberately accepted an unquoted value — is gone: an
+                                    // unquoted uri is exactly what the first sentence forbids.
+                                    // `username*`, `userhash` and unknown extensions are in
+                                    // neither list, and only their present spelling is judged.
+                                    // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque."
+                                    // cite(RFC 7616 § 3.4): "For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc."
+                                    const MUST_QUOTE: &[&str] = &[
+                                        "username", "realm", "nonce", "uri", "response", "cnonce",
+                                        "opaque",
+                                    ];
+                                    const MUST_NOT_QUOTE: &[&str] = &["algorithm", "qop", "nc"];
+
+                                    let quoted = v.starts_with('"');
+                                    if MUST_QUOTE.contains(&k.as_str()) && !quoted {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: ctx.severity,
+                                            message: format!(
+                                                "Digest Authorization sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
+                                            ),
+                                        });
+                                    }
+                                    if MUST_NOT_QUOTE.contains(&k.as_str()) && quoted {
+                                        return Some(Violation {
+                                            rule: self.id().into(),
+                                            severity: ctx.severity,
+                                            message: format!(
+                                                "Digest Authorization sends '{k}' as a quoted string, and RFC 7616 \u{a7}3.4 forbids that spelling for it (\"a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc\")"
+                                            ),
+                                        });
+                                    }
+
+                                    // A value that opens with a quote is validated as a quoted-string
+                                    // (grammar helper-owned, RFC 9110 §5.6.4).
+                                    if quoted {
+                                        if let Err(msg) =
+                                            crate::helpers::headers::validate_quoted_string(v)
+                                        {
+                                            return Some(Violation {
+                                                rule: self.id().into(),
+                                                severity: ctx.severity,
+                                                message: format!(
+                                                    "Invalid quoted-string in Digest auth-param '{}': {}",
+                                                    k, msg
+                                                ),
+                                            });
+                                        }
+                                    } else {
+                                        // Unquoted values are tokens. The `uri` carve-out that
+                                        // stood here (allow anything without control characters)
+                                        // is unreachable now: an unquoted `uri` returns above.
+                                        if let Some(inv) =
+                                            crate::helpers::token::find_invalid_token_char(v)
+                                        {
+                                            return Some(Violation {
+                                                rule: self.id().into(),
+                                                severity: ctx.severity,
+                                                message: format!(
+                                                    "Invalid character '{}' in Digest auth-param value for '{}'",
+                                                    inv, k
+                                                ),
+                                            });
+                                        }
+                                    }
                                 }
                             }
-                        }
-                        Err(msg) => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Invalid Digest auth parameters: {}", msg),
-                            })
+                            Err(msg) => {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!("Invalid Digest auth parameters: {}", msg),
+                                })
+                            }
                         }
                     }
-                }
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Authorization header contains non-UTF8 value".into(),
-                    })
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Authorization header contains non-UTF8 value".into(),
+                        })
+                    }
                 }
             }
-        }
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -16,39 +16,44 @@ impl Rule for AuthorizationCredentialsPresent {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        for hv in tx.request.headers.get_all("authorization").iter() {
-            match hv.to_str() {
-                Ok(s) => {
-                    // The Authorization value is credentials — an auth-scheme with its
-                    // authentication information — which is the structure validated here.
-                    // The "credentials must actually be present" half is scheme-derived
-                    // (the framework grammar permits a bare scheme); the helper owns that
-                    // reasoning and the §11.4 structure cite.
-                    // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
-                    if let Err(msg) = crate::helpers::auth::validate_authorization_syntax(s) {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            for hv in tx.request.headers.get_all("authorization").iter() {
+                match hv.to_str() {
+                    Ok(s) => {
+                        // The Authorization value is credentials — an auth-scheme with its
+                        // authentication information — which is the structure validated here.
+                        // The "credentials must actually be present" half is scheme-derived
+                        // (the framework grammar permits a bare scheme); the helper owns that
+                        // reasoning and the §11.4 structure cite.
+                        // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
+                        if let Err(msg) = crate::helpers::auth::validate_authorization_syntax(s) {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!("Invalid Authorization header: {}", msg),
+                            });
+                        }
+                    }
+                    Err(_) => {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: ctx.severity,
-                            message: format!("Invalid Authorization header: {}", msg),
-                        });
+                            message: "Authorization header contains non-UTF8 value".into(),
+                        })
                     }
                 }
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Authorization header contains non-UTF8 value".into(),
-                    })
-                }
             }
-        }
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

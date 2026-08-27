@@ -88,48 +88,53 @@ impl Rule for KeepAliveHeaderValid {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The field probe is one lookup per section; `parse_keep_alive_config`
-        // is several map probes and a hash of the rule id. Nearly every message
-        // carries no `Keep-Alive`, so the config is read only once the field is
-        // known to be here.
-        if !tx.request.headers.contains_key("keep-alive")
-            && !tx
-                .response
-                .as_ref()
-                .is_some_and(|resp| resp.headers.contains_key("keep-alive"))
-        {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The field probe is one lookup per section; `parse_keep_alive_config`
+            // is several map probes and a hash of the rule id. Nearly every message
+            // carries no `Keep-Alive`, so the config is read only once the field is
+            // known to be here.
+            if !tx.request.headers.contains_key("keep-alive")
+                && !tx
+                    .response
+                    .as_ref()
+                    .is_some_and(|resp| resp.headers.contains_key("keep-alive"))
+            {
+                return None;
+            }
 
-        let config: &MessageKeepAliveConfig = ctx.state();
-        let message = judge(
-            &tx.request.headers,
-            &tx.request.version,
-            "Request",
-            config.max_timeout_seconds,
-        )
-        .or_else(|| {
-            tx.response.as_ref().and_then(|resp| {
-                judge(
-                    &resp.headers,
-                    &resp.version,
-                    "Response",
-                    config.max_timeout_seconds,
-                )
+            let config: &MessageKeepAliveConfig = ctx.state();
+            let message = judge(
+                &tx.request.headers,
+                &tx.request.version,
+                "Request",
+                config.max_timeout_seconds,
+            )
+            .or_else(|| {
+                tx.response.as_ref().and_then(|resp| {
+                    judge(
+                        &resp.headers,
+                        &resp.version,
+                        "Response",
+                        config.max_timeout_seconds,
+                    )
+                })
+            })?;
+
+            Some(Violation {
+                rule: self.id().into(),
+                severity: config.severity,
+                message,
             })
-        })?;
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: config.severity,
-            message,
-        })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

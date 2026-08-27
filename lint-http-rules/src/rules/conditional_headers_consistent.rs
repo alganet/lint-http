@@ -24,116 +24,122 @@ impl Rule for ConditionalHeadersConsistent {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only applies to requests
-        let req = &tx.request;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only applies to requests
+            let req = &tx.request;
 
-        let has_if_none_match = req.headers.get("if-none-match").is_some();
-        let has_if_modified_since = req.headers.get("if-modified-since").is_some();
-        // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field"
-        if has_if_none_match && has_if_modified_since {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "If-Modified-Since MUST be ignored when If-None-Match is present; prefer entity-tag conditionals".into(),
-            });
-        }
-
-        let has_if_match = req.headers.get("if-match").is_some();
-        let has_if_unmodified_since = req.headers.get("if-unmodified-since").is_some();
-        // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field"
-        if has_if_match && has_if_unmodified_since {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "If-Unmodified-Since MUST be ignored when If-Match is present; prefer entity-tag conditionals".into(),
-            });
-        }
-
-        // If-Range should only be sent in requests that contain Range
-        if let Some(hv) = req.headers.get_all("if-range").iter().next() {
-            // If-Range exists
-            // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field."
-            if req.headers.get("range").is_none() {
+            let has_if_none_match = req.headers.get("if-none-match").is_some();
+            let has_if_modified_since = req.headers.get("if-modified-since").is_some();
+            // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field"
+            if has_if_none_match && has_if_modified_since {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into(),
+                    message: "If-Modified-Since MUST be ignored when If-None-Match is present; prefer entity-tag conditionals".into(),
                 });
             }
 
-            // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak.
-            // (A weak marker is the `W/` prefix; a bare quoted-string is a strong tag and
-            // fine, and a date is left to date-validity rules.)
-            if let Ok(s) = hv.to_str() {
-                let trimmed = s.trim();
-                // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
-                if trimmed.starts_with("W/") {
+            let has_if_match = req.headers.get("if-match").is_some();
+            let has_if_unmodified_since = req.headers.get("if-unmodified-since").is_some();
+            // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field"
+            if has_if_match && has_if_unmodified_since {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "If-Unmodified-Since MUST be ignored when If-Match is present; prefer entity-tag conditionals".into(),
+                });
+            }
+
+            // If-Range should only be sent in requests that contain Range
+            if let Some(hv) = req.headers.get_all("if-range").iter().next() {
+                // If-Range exists
+                // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field."
+                if req.headers.get("range").is_none() {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: "If-Range MUST not contain a weak entity-tag (W/...)".into(),
+                        message: "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into(),
                     });
                 }
-                // If it starts with a quoted-string, it's a strong ETag and fine; if it's a date, we'll not flag here
-                // (date validity is checked by other rules)
-            } else {
+
+                // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak.
+                // (A weak marker is the `W/` prefix; a bare quoted-string is a strong tag and
+                // fine, and a date is left to date-validity rules.)
+                if let Ok(s) = hv.to_str() {
+                    let trimmed = s.trim();
+                    // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
+                    if trimmed.starts_with("W/") {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "If-Range MUST not contain a weak entity-tag (W/...)".into(),
+                        });
+                    }
+                    // If it starts with a quoted-string, it's a strong ETag and fine; if it's a date, we'll not flag here
+                    // (date validity is checked by other rules)
+                } else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "If-Range header contains non-UTF8 value".into(),
+                    });
+                }
+            }
+
+            // Neither date conditional is a list, so a second field line is a sender
+            // violation — and the combined value the recipient sees is then "more than one
+            // member" / "a list of dates", which it MUST ignore. The conditional silently
+            // degrades to an unconditional request, which is the harm worth reporting.
+            // Each line on its own may be a perfectly valid HTTP-date, so the date-format
+            // rules (which validate line by line) cannot see this; only the count can.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            // Each field's own recipient consequence — the two are worded differently
+            // ("more than one member" vs "appears to be a list of dates") but bite alike.
+            // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
+            // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates)."
+            for (name, label) in [
+                ("if-modified-since", "If-Modified-Since"),
+                ("if-unmodified-since", "If-Unmodified-Since"),
+            ] {
+                if req.headers.get_all(name).iter().count() > 1 {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Multiple {} header fields present; the combined value is a list of dates, which the recipient MUST ignore",
+                            label
+                        ),
+                    });
+                }
+            }
+
+            // If-Modified-Since only meaningful for GET/HEAD. If present on other methods, flag it.
+            // (The cited sentence bundles three ignore-conditions; this rule enforces the
+            // method one and, above, the multiplicity one. The not-a-valid-HTTP-date clause
+            // is owned by the date-format rule.)
+            // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
+            if has_if_modified_since
+                && !(req.method.eq_ignore_ascii_case("GET")
+                    || req.method.eq_ignore_ascii_case("HEAD"))
+            {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "If-Range header contains non-UTF8 value".into(),
+                    message: "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into(),
                 });
             }
-        }
 
-        // Neither date conditional is a list, so a second field line is a sender
-        // violation — and the combined value the recipient sees is then "more than one
-        // member" / "a list of dates", which it MUST ignore. The conditional silently
-        // degrades to an unconditional request, which is the harm worth reporting.
-        // Each line on its own may be a perfectly valid HTTP-date, so the date-format
-        // rules (which validate line by line) cannot see this; only the count can.
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        // Each field's own recipient consequence — the two are worded differently
-        // ("more than one member" vs "appears to be a list of dates") but bite alike.
-        // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
-        // cite(RFC 9110 § 13.1.4): "A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates)."
-        for (name, label) in [
-            ("if-modified-since", "If-Modified-Since"),
-            ("if-unmodified-since", "If-Unmodified-Since"),
-        ] {
-            if req.headers.get_all(name).iter().count() > 1 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Multiple {} header fields present; the combined value is a list of dates, which the recipient MUST ignore",
-                        label
-                    ),
-                });
-            }
-        }
-
-        // If-Modified-Since only meaningful for GET/HEAD. If present on other methods, flag it.
-        // (The cited sentence bundles three ignore-conditions; this rule enforces the
-        // method one and, above, the multiplicity one. The not-a-valid-HTTP-date clause
-        // is owned by the date-format rule.)
-        // cite(RFC 9110 § 13.1.3): "A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD."
-        if has_if_modified_since
-            && !(req.method.eq_ignore_ascii_case("GET") || req.method.eq_ignore_ascii_case("HEAD"))
-        {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "If-Modified-Since is only defined for GET/HEAD and MUST be ignored for other methods".into(),
-            });
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

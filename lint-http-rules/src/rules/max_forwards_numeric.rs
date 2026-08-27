@@ -21,114 +21,119 @@ impl Rule for MaxForwardsNumeric {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let violation = |message: String| {
-            Some(Violation {
-                rule: self.id().to_string(),
-                severity: ctx.severity,
-                message,
-            })
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let violation = |message: String| {
+                Some(Violation {
+                    rule: self.id().to_string(),
+                    severity: ctx.severity,
+                    message,
+                })
+            };
+
+            // No method gate, and the field is read before anything about the request
+            // line is. The mechanism is defined for TRACE and OPTIONS, and what the
+            // section says about the field on other methods is addressed to the
+            // *recipient*, as a MAY: nothing forbids a client from sending it, so its
+            // presence on a GET is not reported. Its shape still is — a field value is
+            // measured against the field's grammar whatever start-line preceded it.
+            //
+            // cite(RFC 9110 § 7.6.2): "A recipient MAY ignore a Max-Forwards header field received with any other request methods."
+            let headers = &tx.request.headers;
+
+            // The header section only. Whether *any* field may be sent in a trailer
+            // section is § 6.5.1's deny-by-default question and
+            // `trailer_fields_valid`'s finding; a `Max-Forwards` arriving
+            // after the content could not have been read before the message was
+            // forwarded anyway, which is the whole of what the field is for.
+            //
+            // The value is read as the sender wrote it, on two counts. All of the
+            // section's lines are one value, so two lines are not two values to be
+            // measured apart — the recipient recombines them and gets a comma, which
+            // `1*DIGIT` does not generate. And every octet is decoded to the `char` of
+            // the same value: `to_str` accepts only visible US-ASCII, so a value
+            // carrying %xFF would otherwise become "this message has no `Max-Forwards`
+            // field", a claim about the message rather than about the octet that is
+            // wrong.
+            //
+            // cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
+            let value = combined_field_value_as_written(headers, "max-forwards")?;
+            let lines = headers.get_all("max-forwards").iter().count();
+
+            if lines > 1 {
+                // `Max-Forwards = 1*DIGIT` has no `#(...)` alternative anywhere in it, so
+                // § 5.3's exception does not apply and one message carries at most one
+                // field line. The sentence saying so is the shared one, and this is the
+                // only one of the five callers with nothing to append to it: a comma is
+                // not a `DIGIT`, so the joined value is simply malformed, which the
+                // production named in the preamble already tells the reader.
+                return violation(crate::helpers::headers::singleton_field_preamble(
+                    "Max-Forwards",
+                    lines,
+                    &value.escape_debug().to_string(),
+                    "`Max-Forwards = 1*DIGIT` has no comma-separated-list alternative",
+                ));
+            }
+
+            // Trimming `OWS` and only `OWS`: the value carries one `char` per octet, so
+            // U+00A0 in it is the octet %xA0, which is `obs-text` and not whitespace of
+            // any kind. `str::trim` would remove it and report a value of no digits for
+            // a defect the octet has.
+            //
+            // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
+            let value = trim_ows(&value);
+
+            // The whole production, and the two things it says. `1*DIGIT` requires at
+            // least one digit, so a `Max-Forwards:` carrying nothing is a value this
+            // production does not generate — the opposite answer from the `#`-list
+            // fields next door, where `#element => [ 1#element ]` makes a value of no
+            // members a value. One character of the production apart, and the answers
+            // are inverted.
+            //
+            // cite(RFC 9110 § 7.6.2, label: Max-Forwards grammar): "Max-Forwards = 1*DIGIT"
+            if value.is_empty() {
+                return violation(
+                    "Max-Forwards is present with no digits; the field is `Max-Forwards = 1*DIGIT`, which requires at least one".to_string(),
+                );
+            }
+
+            if let Some(ch) = value.chars().find(|c| !c.is_ascii_digit()) {
+                // Every `char` here came from one octet and goes back to it unchanged;
+                // the finding names the octet that stopped the parse rather than writing
+                // it through, since by definition the production did not admit it.
+                return violation(format!(
+                    "Max-Forwards value '{}' holds {}, which is not a DIGIT; the field is `Max-Forwards = 1*DIGIT`",
+                    value.escape_debug(),
+                    describe_octet(ch as u8)
+                ));
+            }
+
+            // Where the rule stops, and it is not an oversight. The value is a decimal
+            // integer with no bound on its length, so it is never parsed into one: a
+            // number too large for any integer type is still `1*DIGIT`, and a parse
+            // failure is not a grammar failure. What the section requires *of* that
+            // number is addressed to the intermediary forwarding the message — check and
+            // update it, stop at zero, and do not invent the field for a request that
+            // arrived without one. Each is a requirement on a message this transaction
+            // does not hold: the capture records the request as received on one leg, so
+            // the value the next hop was sent, and whether the same party wrote it, are
+            // both outside it. No rule can measure them; `description()` says so, because
+            // silence here reads as a verdict that any value forwards fine.
+            //
+            // cite(RFC 9110 § 7.6.2): "The Max-Forwards value is a decimal integer indicating the remaining number of times this request message can be forwarded."
+            // cite(RFC 9110 § 7.6.2): "Each intermediary that receives a TRACE or OPTIONS request containing a Max-Forwards header field MUST check and update its value prior to forwarding the request."
+            // cite(RFC 9110 § 7.6.2): "If the received value is zero (0), the intermediary MUST NOT forward the request; instead, the intermediary MUST respond as the final recipient."
+            // cite(RFC 9110 § 9.3.7): "A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field."
+            None
         };
-
-        // No method gate, and the field is read before anything about the request
-        // line is. The mechanism is defined for TRACE and OPTIONS, and what the
-        // section says about the field on other methods is addressed to the
-        // *recipient*, as a MAY: nothing forbids a client from sending it, so its
-        // presence on a GET is not reported. Its shape still is — a field value is
-        // measured against the field's grammar whatever start-line preceded it.
-        //
-        // cite(RFC 9110 § 7.6.2): "A recipient MAY ignore a Max-Forwards header field received with any other request methods."
-        let headers = &tx.request.headers;
-
-        // The header section only. Whether *any* field may be sent in a trailer
-        // section is § 6.5.1's deny-by-default question and
-        // `trailer_fields_valid`'s finding; a `Max-Forwards` arriving
-        // after the content could not have been read before the message was
-        // forwarded anyway, which is the whole of what the field is for.
-        //
-        // The value is read as the sender wrote it, on two counts. All of the
-        // section's lines are one value, so two lines are not two values to be
-        // measured apart — the recipient recombines them and gets a comma, which
-        // `1*DIGIT` does not generate. And every octet is decoded to the `char` of
-        // the same value: `to_str` accepts only visible US-ASCII, so a value
-        // carrying %xFF would otherwise become "this message has no `Max-Forwards`
-        // field", a claim about the message rather than about the octet that is
-        // wrong.
-        //
-        // cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
-        let value = combined_field_value_as_written(headers, "max-forwards")?;
-        let lines = headers.get_all("max-forwards").iter().count();
-
-        if lines > 1 {
-            // `Max-Forwards = 1*DIGIT` has no `#(...)` alternative anywhere in it, so
-            // § 5.3's exception does not apply and one message carries at most one
-            // field line. The sentence saying so is the shared one, and this is the
-            // only one of the five callers with nothing to append to it: a comma is
-            // not a `DIGIT`, so the joined value is simply malformed, which the
-            // production named in the preamble already tells the reader.
-            return violation(crate::helpers::headers::singleton_field_preamble(
-                "Max-Forwards",
-                lines,
-                &value.escape_debug().to_string(),
-                "`Max-Forwards = 1*DIGIT` has no comma-separated-list alternative",
-            ));
-        }
-
-        // Trimming `OWS` and only `OWS`: the value carries one `char` per octet, so
-        // U+00A0 in it is the octet %xA0, which is `obs-text` and not whitespace of
-        // any kind. `str::trim` would remove it and report a value of no digits for
-        // a defect the octet has.
-        //
-        // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
-        let value = trim_ows(&value);
-
-        // The whole production, and the two things it says. `1*DIGIT` requires at
-        // least one digit, so a `Max-Forwards:` carrying nothing is a value this
-        // production does not generate — the opposite answer from the `#`-list
-        // fields next door, where `#element => [ 1#element ]` makes a value of no
-        // members a value. One character of the production apart, and the answers
-        // are inverted.
-        //
-        // cite(RFC 9110 § 7.6.2, label: Max-Forwards grammar): "Max-Forwards = 1*DIGIT"
-        if value.is_empty() {
-            return violation(
-                "Max-Forwards is present with no digits; the field is `Max-Forwards = 1*DIGIT`, which requires at least one".to_string(),
-            );
-        }
-
-        if let Some(ch) = value.chars().find(|c| !c.is_ascii_digit()) {
-            // Every `char` here came from one octet and goes back to it unchanged;
-            // the finding names the octet that stopped the parse rather than writing
-            // it through, since by definition the production did not admit it.
-            return violation(format!(
-                "Max-Forwards value '{}' holds {}, which is not a DIGIT; the field is `Max-Forwards = 1*DIGIT`",
-                value.escape_debug(),
-                describe_octet(ch as u8)
-            ));
-        }
-
-        // Where the rule stops, and it is not an oversight. The value is a decimal
-        // integer with no bound on its length, so it is never parsed into one: a
-        // number too large for any integer type is still `1*DIGIT`, and a parse
-        // failure is not a grammar failure. What the section requires *of* that
-        // number is addressed to the intermediary forwarding the message — check and
-        // update it, stop at zero, and do not invent the field for a request that
-        // arrived without one. Each is a requirement on a message this transaction
-        // does not hold: the capture records the request as received on one leg, so
-        // the value the next hop was sent, and whether the same party wrote it, are
-        // both outside it. No rule can measure them; `description()` says so, because
-        // silence here reads as a verdict that any value forwards fine.
-        //
-        // cite(RFC 9110 § 7.6.2): "The Max-Forwards value is a decimal integer indicating the remaining number of times this request message can be forwarded."
-        // cite(RFC 9110 § 7.6.2): "Each intermediary that receives a TRACE or OPTIONS request containing a Max-Forwards header field MUST check and update its value prior to forwarding the request."
-        // cite(RFC 9110 § 7.6.2): "If the received value is zero (0), the intermediary MUST NOT forward the request; instead, the intermediary MUST respond as the final recipient."
-        // cite(RFC 9110 § 9.3.7): "A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field."
-        None
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

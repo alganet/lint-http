@@ -75,7 +75,7 @@ impl<'a> RuleContext<'a> {
 }
 
 /// The `Rule` trait defines a single hook that runs on the canonical
-/// `HttpTransaction`. All rules must implement `check_transaction`.
+/// `HttpTransaction`. All rules must implement `findings`.
 /// Scope of a rule: whether it applies to client-only traffic (requests),
 /// server-only traffic (responses), or both (full transactions).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -223,15 +223,23 @@ pub trait Rule: Send + Sync {
         }
     }
 
-    /// Evaluate an `HttpTransaction` against this rule. Everything the rule
-    /// derived from its configuration arrives resolved in `ctx` — its own
-    /// `prepare` ran when the engine was built, so nothing here reads TOML.
-    fn check_transaction(
+    /// Every finding this rule has about the transaction; empty means clean.
+    /// Everything the rule derived from its configuration arrives resolved in
+    /// `ctx` — its own `prepare` ran when the engine was built, so nothing
+    /// here reads TOML.
+    ///
+    /// `Vec`, deliberately: a field with three defects is three findings, and
+    /// the previous `Option` return capped every rule at one per message —
+    /// ten rules were string-joining defects into a single message to get
+    /// around it. `Vec::new()` does not allocate, so the clean path — nearly
+    /// every message — still costs nothing. A single-finding rule keeps its
+    /// `?`-shaped body behind a private `Option` adapter and collects it.
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &RuleContext<'_>,
-    ) -> Option<Violation>;
+    ) -> Vec<Violation>;
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).
     /// Defaults to `None`, which makes the generator derive the title from the
@@ -443,15 +451,16 @@ pub trait ProtocolRule: Send + Sync {
         })
     }
 
-    /// Evaluate a single protocol event against this rule. Everything the
-    /// rule derived from its configuration arrives resolved in `ctx` — its
-    /// own `prepare` ran when the engine was built.
-    fn check_event(
+    /// Every finding this rule has about the event; empty means clean. See
+    /// [`Rule::findings`] for the contract — everything config-derived
+    /// arrives resolved in `ctx`, and the `Vec` return is what lets one
+    /// event carry more than one defect.
+    fn findings(
         &self,
         event: &crate::protocol_event::ProtocolEvent,
         history: &crate::protocol_event::ProtocolEventHistory,
         ctx: &RuleContext<'_>,
-    ) -> Option<Violation>;
+    ) -> Vec<Violation>;
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).
     /// See [`Rule::title`] for the contract.
@@ -1230,13 +1239,13 @@ severity = "warn"
                 "dummy_rule"
             }
 
-            fn check_transaction(
+            fn findings(
                 &self,
                 _tx: &crate::http_transaction::HttpTransaction,
                 _history: &crate::transaction_history::TransactionHistory,
                 _ctx: &crate::rules::RuleContext<'_>,
-            ) -> Option<Violation> {
-                None
+            ) -> Vec<Violation> {
+                Vec::new()
             }
         }
 

@@ -52,104 +52,109 @@ impl Rule for AltSvcH3AdvertisementValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // The field probe before the config, and the value read as the sender
-        // wrote it — one `char` per octet. The `to_str()` + `continue` this
-        // replaced dropped every field line carrying an octet at or above
-        // %x80, which is the octet class no `token` admits: the one spelling of
-        // a protocol-id that certainly derives from nothing was the one
-        // spelling this rule could not see.
-        //
-        // The lines are joined rather than read one at a time, because the
-        // sentence cited below makes them one value and `1#alt-value` is the
-        // list that licenses the join — an `alt-value` is not a `clear`, which
-        // is the field's other alternative and is ruled out under it. The
-        // header section only: what may ride in a trailer section is
-        // § 6.5.1's question and `trailer_fields_valid`'s finding.
-        //
-        // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
-        // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
-        let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
-        let value = trim_ows(&value);
+            // The field probe before the config, and the value read as the sender
+            // wrote it — one `char` per octet. The `to_str()` + `continue` this
+            // replaced dropped every field line carrying an octet at or above
+            // %x80, which is the octet class no `token` admits: the one spelling of
+            // a protocol-id that certainly derives from nothing was the one
+            // spelling this rule could not see.
+            //
+            // The lines are joined rather than read one at a time, because the
+            // sentence cited below makes them one value and `1#alt-value` is the
+            // list that licenses the join — an `alt-value` is not a `clear`, which
+            // is the field's other alternative and is ruled out under it. The
+            // header section only: what may ride in a trailer section is
+            // § 6.5.1's question and `trailer_fields_valid`'s finding.
+            //
+            // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
+            // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3)."
+            let value = combined_field_value_as_written(&resp.headers, "alt-svc")?;
+            let value = trim_ows(&value);
 
-        // The other alternative of the top production, which advertises no
-        // endpoint of any protocol. A `clear` sharing the value with alternative
-        // services is `alt_svc_header_syntax`'s finding, and this rule
-        // reads the alternatives beside it the same way a client does.
-        if value == CLEAR {
-            return None;
-        }
-
-        // An unterminated DQUOTE makes every separator after it ambiguous, so
-        // the member list is a guess and so is each member's parameter list.
-        // The syntax rule reports it; nothing below can be said about a value
-        // whose shape is unknown.
-        if !quoting_is_balanced(value) {
-            return None;
-        }
-
-        for member in list_members_as_written(value) {
-            // An empty list element and a member with no '=' are both
-            // `alt_svc_header_syntax`'s findings; this rule has no
-            // alternative to read in either.
-            if member.is_empty() {
-                continue;
-            }
-            let parts = split_semicolons_respecting_quotes(member);
-            let (alternative, parameters) = parts
-                .split_first()
-                .expect("the splitter yields at least one segment");
-            let Some((protocol_id, _)) = alternative.split_once('=') else {
-                continue;
-            };
-            if protocol_id.is_empty() {
-                continue;
+            // The other alternative of the top production, which advertises no
+            // endpoint of any protocol. A `clear` sharing the value with alternative
+            // services is `alt_svc_header_syntax`'s finding, and this rule
+            // reads the alternatives beside it the same way a client does.
+            if value == CLEAR {
+                return None;
             }
 
-            // RFC 7838 §3 says protocol-ids are matched by "simple string
-            // comparison" (case-sensitive); this rule folds to lowercase — a
-            // deliberate, more-permissive choice so case-variant draft tokens
-            // (e.g. "H3-29") are still flagged. Not cited: the spec sentence
-            // mandates case-sensitive comparison, which is not what this does
-            // (the #10 shape — permissive code, no honest quote; §4.1). The
-            // fold **widens** what is reported on both of its uses, which is
-            // what makes it recordable as a leniency rather than an invented
-            // licence: `H3-29` is still named as a draft token, and `H3=…; ma=0`
-            // is still measured.
-            let proto_lower = protocol_id.to_ascii_lowercase();
-
-            // Draft h3 protocol IDs (h3-29, h3-Q050, etc.): the final ALPN token
-            // advertised for HTTP/3 is "h3", so any "h3-*" draft token is not a
-            // valid advertisement of the shipped protocol.
-            // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
-            if proto_lower.starts_with("h3-") {
-                return Some(self.violation(
-                    ctx.severity,
-                    format!(
-                        "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead (RFC 9114 §3.1.1)",
-                        shown_in_finding(protocol_id)
-                    ),
-                ));
+            // An unterminated DQUOTE makes every separator after it ambiguous, so
+            // the member list is a guess and so is each member's parameter list.
+            // The syntax rule reports it; nothing below can be said about a value
+            // whose shape is unknown.
+            if !quoting_is_balanced(value) {
+                return None;
             }
 
-            // Only validate parameters for actual h3 entries
-            if proto_lower != "h3" {
-                continue;
+            for member in list_members_as_written(value) {
+                // An empty list element and a member with no '=' are both
+                // `alt_svc_header_syntax`'s findings; this rule has no
+                // alternative to read in either.
+                if member.is_empty() {
+                    continue;
+                }
+                let parts = split_semicolons_respecting_quotes(member);
+                let (alternative, parameters) = parts
+                    .split_first()
+                    .expect("the splitter yields at least one segment");
+                let Some((protocol_id, _)) = alternative.split_once('=') else {
+                    continue;
+                };
+                if protocol_id.is_empty() {
+                    continue;
+                }
+
+                // RFC 7838 §3 says protocol-ids are matched by "simple string
+                // comparison" (case-sensitive); this rule folds to lowercase — a
+                // deliberate, more-permissive choice so case-variant draft tokens
+                // (e.g. "H3-29") are still flagged. Not cited: the spec sentence
+                // mandates case-sensitive comparison, which is not what this does
+                // (the #10 shape — permissive code, no honest quote; §4.1). The
+                // fold **widens** what is reported on both of its uses, which is
+                // what makes it recordable as a leniency rather than an invented
+                // licence: `H3-29` is still named as a draft token, and `H3=…; ma=0`
+                // is still measured.
+                let proto_lower = protocol_id.to_ascii_lowercase();
+
+                // Draft h3 protocol IDs (h3-29, h3-Q050, etc.): the final ALPN token
+                // advertised for HTTP/3 is "h3", so any "h3-*" draft token is not a
+                // valid advertisement of the shipped protocol.
+                // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
+                if proto_lower.starts_with("h3-") {
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!(
+                            "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead (RFC 9114 §3.1.1)",
+                            shown_in_finding(protocol_id)
+                        ),
+                    ));
+                }
+
+                // Only validate parameters for actual h3 entries
+                if proto_lower != "h3" {
+                    continue;
+                }
+
+                if let Some(message) = h3_ma_defect(parameters) {
+                    return Some(self.violation(ctx.severity, message));
+                }
             }
 
-            if let Some(message) = h3_ma_defect(parameters) {
-                return Some(self.violation(ctx.severity, message));
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

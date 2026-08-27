@@ -16,66 +16,71 @@ impl Rule for Http3StatusCodeValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only applies to HTTP/3 connections. Scoping, not a normative check — no cite.
-        // Both gates read the major digit rather than a string: neither direction
-        // of this version carries a version field, so both values are ones a
-        // writer chose. `http_version` owns the production.
-        if !crate::http_version::is_major(&tx.request.version, 3) {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only applies to HTTP/3 connections. Scoping, not a normative check — no cite.
+            // Both gates read the major digit rather than a string: neither direction
+            // of this version carries a version field, so both values are ones a
+            // writer chose. `http_version` owns the production.
+            if !crate::http_version::is_major(&tx.request.version, 3) {
+                return None;
+            }
 
-        let resp = tx.response.as_ref()?;
+            let resp = tx.response.as_ref()?;
 
-        // Only check responses that are themselves HTTP/3. In a reverse-proxy
-        // setup the upstream response may be HTTP/1.1 (where 101 is valid).
-        if !crate::http_version::is_major(&resp.version, 3) {
-            return None;
-        }
+            // Only check responses that are themselves HTTP/3. In a reverse-proxy
+            // setup the upstream response may be HTTP/1.1 (where 101 is valid).
+            if !crate::http_version::is_major(&resp.version, 3) {
+                return None;
+            }
 
-        // § 4.5 is the only place RFC 9114 mentions 101 at all.
-        // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
-        if resp.status == 101 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message:
-                    "HTTP/3 does not support 101 (Switching Protocols); use extended CONNECT instead"
-                        .into(),
-            });
-        }
+            // § 4.5 is the only place RFC 9114 mentions 101 at all.
+            // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
+            if resp.status == 101 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message:
+                        "HTTP/3 does not support 101 (Switching Protocols); use extended CONNECT instead"
+                            .into(),
+                });
+            }
 
-        // Three checks used to follow -- a `Content-Length` on a 1xx, captured
-        // content octets on a 1xx, a trailer section on a 1xx -- and all three
-        // were governed by one sentence, quoted here because this is where the
-        // rule stops rather than where it acts:
-        // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
-        //
-        // That sentence is RFC 9110's, not RFC 9114's. It is not about HTTP/3, and this
-        // rule's own SpecRef for it said no more than "Informational 1xx". So a
-        // version-independent requirement was being enforced behind a gate that
-        // gives up unless *both* the request and the response are HTTP/3: the
-        // same 100 (Continue) carrying the same `Content-Length` over HTTP/1.1
-        // was never reported, and the HTTP/3 one was reported twice once a rule
-        // named for the requirement started reading the same three inputs.
-        //
-        // `no_body_for_1xx_204_304` is that rule and now owns all three,
-        // for 1xx, 204 and 304 alike and on every version -- so this is a strict
-        // widening, not a handover of coverage. What stays here is the check that
-        // is genuinely HTTP/3's: § 4.5 above, which is a sentence about this
-        // protocol and nothing else.
-        //
-        // The empty-trailer-section case is worth naming, because deleting a test
-        // is the easiest way to lose a decision: a `#[test]` here asserted that a
-        // trailer section carrying no fields is still a violation. It survives, in
-        // the rule that took the check, for the reason recorded there -- § 6.3
-        // forbids the *section*.
-        None
+            // Three checks used to follow -- a `Content-Length` on a 1xx, captured
+            // content octets on a 1xx, a trailer section on a 1xx -- and all three
+            // were governed by one sentence, quoted here because this is where the
+            // rule stops rather than where it acts:
+            // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
+            //
+            // That sentence is RFC 9110's, not RFC 9114's. It is not about HTTP/3, and this
+            // rule's own SpecRef for it said no more than "Informational 1xx". So a
+            // version-independent requirement was being enforced behind a gate that
+            // gives up unless *both* the request and the response are HTTP/3: the
+            // same 100 (Continue) carrying the same `Content-Length` over HTTP/1.1
+            // was never reported, and the HTTP/3 one was reported twice once a rule
+            // named for the requirement started reading the same three inputs.
+            //
+            // `no_body_for_1xx_204_304` is that rule and now owns all three,
+            // for 1xx, 204 and 304 alike and on every version -- so this is a strict
+            // widening, not a handover of coverage. What stays here is the check that
+            // is genuinely HTTP/3's: § 4.5 above, which is a sentence about this
+            // protocol and nothing else.
+            //
+            // The empty-trailer-section case is worth naming, because deleting a test
+            // is the easiest way to lose a decision: a `#[test]` here asserted that a
+            // trailer section carrying no fields is still a violation. It survives, in
+            // the rule that took the check, for the reason recorded there -- § 6.3
+            // forbids the *section*.
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

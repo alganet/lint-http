@@ -34,108 +34,113 @@ impl Rule for ContentEncodingRegistered {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-        // Helper to check a single header value against allowed list
-        // `is_accept` distinguishes the two grammars. They are not the same vocabulary:
-        // Content-Encoding is a list of plain content-codings, while Accept-Encoding
-        // adds two alternatives of its own, and letting those leak into
-        // Content-Encoding is what this parameter exists to prevent.
-        // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
-        // cite(RFC 9110 § 12.5.3): "codings = content-coding / "identity" / "*""
-        let check_value = |hdr_name: &str,
-                           val: &str,
-                           allowed: &Vec<String>,
-                           is_accept: bool|
-         -> Option<Violation> {
-            for part in crate::helpers::headers::list_members(val) {
-                // Split off any parameters (e.g., gzip;q=0.8)
-                let token = part.split(';').next().unwrap().trim();
-                if token == "*" {
-                    // A wildcard is a preference, so it means something only where
-                    // preferences are expressed. In Content-Encoding there is
-                    // nothing for it to match: that field states what was actually
-                    // applied.
-                    // cite(RFC 9110 § 12.5.3): "The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field."
-                    if is_accept {
-                        continue;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+            // Helper to check a single header value against allowed list
+            // `is_accept` distinguishes the two grammars. They are not the same vocabulary:
+            // Content-Encoding is a list of plain content-codings, while Accept-Encoding
+            // adds two alternatives of its own, and letting those leak into
+            // Content-Encoding is what this parameter exists to prevent.
+            // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
+            // cite(RFC 9110 § 12.5.3): "codings = content-coding / "identity" / "*""
+            let check_value = |hdr_name: &str,
+                               val: &str,
+                               allowed: &Vec<String>,
+                               is_accept: bool|
+             -> Option<Violation> {
+                for part in crate::helpers::headers::list_members(val) {
+                    // Split off any parameters (e.g., gzip;q=0.8)
+                    let token = part.split(';').next().unwrap().trim();
+                    if token == "*" {
+                        // A wildcard is a preference, so it means something only where
+                        // preferences are expressed. In Content-Encoding there is
+                        // nothing for it to match: that field states what was actually
+                        // applied.
+                        // cite(RFC 9110 § 12.5.3): "The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field."
+                        if is_accept {
+                            continue;
+                        }
+                        return Some(Violation {
+                                rule: "content_encoding_registered".into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "'*' is not a content-coding and is only meaningful in Accept-Encoding, not in {}",
+                                    hdr_name
+                                ),
+                            });
                     }
-                    return Some(Violation {
+                    // `identity` is likewise Accept-Encoding vocabulary — the way to say
+                    // "no encoding". Naming it in Content-Encoding claims a transformation
+                    // that by definition does nothing, so the spec reserves it away.
+                    // cite(RFC 9110 § 8.4): "Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included."
+                    if !is_accept && token.eq_ignore_ascii_case("identity") {
+                        return Some(Violation {
+                                rule: "content_encoding_registered".into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "'identity' is reserved for Accept-Encoding and SHOULD NOT be sent in {}",
+                                    hdr_name
+                                ),
+                            });
+                    }
+                    // cite(RFC 9110 § 8.4.1): "content-coding = token"
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
+                        return Some(Violation {
+                            rule: "content_encoding_registered".into(),
+                            severity: ctx.severity,
+                            message: format!("Invalid token '{}' in {} header", c, hdr_name),
+                        });
+                    }
+                    // Folded to lowercase because the codings are case-insensitive. As
+                    // in the media-type sibling, "registered" here means "in the
+                    // operator's list": nothing consults the registry the rule is named
+                    // after, and the sentence below is an "ought to" in any case.
+                    // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
+                    if !allowed.contains(&token.to_ascii_lowercase()) {
+                        return Some(Violation {
                             rule: "content_encoding_registered".into(),
                             severity: ctx.severity,
                             message: format!(
-                                "'*' is not a content-coding and is only meaningful in Accept-Encoding, not in {}",
-                                hdr_name
+                                "Unrecognized content-coding '{}' in {} header",
+                                token, hdr_name
                             ),
                         });
+                    }
                 }
-                // `identity` is likewise Accept-Encoding vocabulary — the way to say
-                // "no encoding". Naming it in Content-Encoding claims a transformation
-                // that by definition does nothing, so the spec reserves it away.
-                // cite(RFC 9110 § 8.4): "Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included."
-                if !is_accept && token.eq_ignore_ascii_case("identity") {
-                    return Some(Violation {
-                            rule: "content_encoding_registered".into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "'identity' is reserved for Accept-Encoding and SHOULD NOT be sent in {}",
-                                hdr_name
-                            ),
-                        });
-                }
-                // cite(RFC 9110 § 8.4.1): "content-coding = token"
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                    return Some(Violation {
-                        rule: "content_encoding_registered".into(),
-                        severity: ctx.severity,
-                        message: format!("Invalid token '{}' in {} header", c, hdr_name),
-                    });
-                }
-                // Folded to lowercase because the codings are case-insensitive. As
-                // in the media-type sibling, "registered" here means "in the
-                // operator's list": nothing consults the registry the rule is named
-                // after, and the sentence below is an "ought to" in any case.
-                // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
-                if !allowed.contains(&token.to_ascii_lowercase()) {
-                    return Some(Violation {
-                        rule: "content_encoding_registered".into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Unrecognized content-coding '{}' in {} header",
-                            token, hdr_name
-                        ),
-                    });
+                None
+            };
+
+            // Check response Content-Encoding
+            if let Some(resp) = &tx.response {
+                if let Some(val) =
+                    crate::helpers::headers::get_header_str(&resp.headers, "content-encoding")
+                {
+                    if let Some(v) = check_value("Content-Encoding", val, &config.allowed, false) {
+                        return Some(v);
+                    }
                 }
             }
-            None
-        };
 
-        // Check response Content-Encoding
-        if let Some(resp) = &tx.response {
+            // Check request Accept-Encoding
             if let Some(val) =
-                crate::helpers::headers::get_header_str(&resp.headers, "content-encoding")
+                crate::helpers::headers::get_header_str(&tx.request.headers, "accept-encoding")
             {
-                if let Some(v) = check_value("Content-Encoding", val, &config.allowed, false) {
+                if let Some(v) = check_value("Accept-Encoding", val, &config.allowed, true) {
                     return Some(v);
                 }
             }
-        }
 
-        // Check request Accept-Encoding
-        if let Some(val) =
-            crate::helpers::headers::get_header_str(&tx.request.headers, "accept-encoding")
-        {
-            if let Some(v) = check_value("Accept-Encoding", val, &config.allowed, true) {
-                return Some(v);
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

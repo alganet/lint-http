@@ -127,186 +127,191 @@ impl Rule for RequestTargetFormValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The four forms are a request-line's, and a request-line is what a
-        // major version 1 message has. HTTP/2 and HTTP/3 send the same target
-        // components as pseudo-header fields, where the asterisk is a `:path`
-        // value and a CONNECT's destination is an `:authority` with no `:path`
-        // beside it -- so `tx.request.uri` over those versions is not a
-        // request-target at all but the target URI the transport reassembled:
-        // an asterisk arrives glued to the authority (`https://example.com*`)
-        // and a host and port arrives as an authority nothing distinguishes
-        // from any other request's. Measuring either against these productions
-        // reports the reassembly rather than the sender.
-        //
-        // The gate is the major digit, which is the digit the first sentence
-        // below gives the meaning to, so both HTTP/1.0 and HTTP/1.1 are measured
-        // and `HTTP/1x` is nobody's version. Quoting RFC 9112 § 1's "HTTP/1.1
-        // message syntax" here would argue for a narrower gate than the one
-        // written: § 2.3 is the sentence that says HTTP/1.**x**. The test was a
-        // `starts_with("HTTP/1.")` hand copy of the production until
-        // 2026-08-03; `http_version` owns it now, and reads the digit rather
-        // than the prefix a writer happened to choose.
-        // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
-        // cite(RFC 9110 § 7.1): "For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field"
-        // cite(RFC 9110 § 7.1): "This reconstruction is specific to each major protocol version."
-        // cite(RFC 9112 § 2.3): "The version of an HTTP/1.x message is indicated by an HTTP-version field in the start-line."
-        // cite(RFC 9112 § 2.3, label: HTTP-version): "HTTP-version  = HTTP-name "/" DIGIT "." DIGIT"
-        // cite(RFC 9113 § 8.3.1): "A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field."
-        // cite(RFC 9113 § 8.3.1): "Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information"
-        // cite(RFC 9114 § 4.3.1): "An OPTIONS request that does not include a path component includes the value * (ASCII 0x2a) for the :path pseudo-header field"
-        if !crate::http_version::is_major(&tx.request.version, 1) {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The four forms are a request-line's, and a request-line is what a
+            // major version 1 message has. HTTP/2 and HTTP/3 send the same target
+            // components as pseudo-header fields, where the asterisk is a `:path`
+            // value and a CONNECT's destination is an `:authority` with no `:path`
+            // beside it -- so `tx.request.uri` over those versions is not a
+            // request-target at all but the target URI the transport reassembled:
+            // an asterisk arrives glued to the authority (`https://example.com*`)
+            // and a host and port arrives as an authority nothing distinguishes
+            // from any other request's. Measuring either against these productions
+            // reports the reassembly rather than the sender.
+            //
+            // The gate is the major digit, which is the digit the first sentence
+            // below gives the meaning to, so both HTTP/1.0 and HTTP/1.1 are measured
+            // and `HTTP/1x` is nobody's version. Quoting RFC 9112 § 1's "HTTP/1.1
+            // message syntax" here would argue for a narrower gate than the one
+            // written: § 2.3 is the sentence that says HTTP/1.**x**. The test was a
+            // `starts_with("HTTP/1.")` hand copy of the production until
+            // 2026-08-03; `http_version` owns it now, and reads the digit rather
+            // than the prefix a writer happened to choose.
+            // cite(RFC 9110 § 2.5): "The first digit (major version) indicates the messaging syntax"
+            // cite(RFC 9110 § 7.1): "For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field"
+            // cite(RFC 9110 § 7.1): "This reconstruction is specific to each major protocol version."
+            // cite(RFC 9112 § 2.3): "The version of an HTTP/1.x message is indicated by an HTTP-version field in the start-line."
+            // cite(RFC 9112 § 2.3, label: HTTP-version): "HTTP-version  = HTTP-name "/" DIGIT "." DIGIT"
+            // cite(RFC 9113 § 8.3.1): "A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field."
+            // cite(RFC 9113 § 8.3.1): "Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information"
+            // cite(RFC 9114 § 4.3.1): "An OPTIONS request that does not include a path component includes the value * (ASCII 0x2a) for the :path pseudo-header field"
+            if !crate::http_version::is_major(&tx.request.version, 1) {
+                return None;
+            }
 
-        // The method decides which forms are open to this request, and it is
-        // matched as written: a `connect` is not a CONNECT with a typo, it is a
-        // method nobody has defined, and the two method-specific forms belong to
-        // the two methods that are.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        let method = tx.request.method.as_str();
-        let target = tx.request.uri.as_str();
+            // The method decides which forms are open to this request, and it is
+            // matched as written: a `connect` is not a CONNECT with a typo, it is a
+            // method nobody has defined, and the two method-specific forms belong to
+            // the two methods that are.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            let method = tx.request.method.as_str();
+            let target = tx.request.uri.as_str();
 
-        // A request-target read back from a capture can hold characters that
-        // print as nothing or, worse, print as something else -- an escape
-        // sequence in a finding is a finding nobody can read. Rendered once, for
-        // every message below.
-        let shown = crate::helpers::headers::shown_in_finding(target);
+            // A request-target read back from a capture can hold characters that
+            // print as nothing or, worse, print as something else -- an escape
+            // sequence in a finding is a finding nobody can read. Rendered once, for
+            // every message below.
+            let shown = crate::helpers::headers::shown_in_finding(target);
 
-        // Asked before the forms, so that the answer names the character rather
-        // than the production it fell out of. The class measured is the wider
-        // one: § 5.6.3's whitespace is SP and HTAB, and `is_ascii_whitespace`
-        // adds CR, LF and FF -- which belong here because no component of any of
-        // the four admits them either. `request_uri_percent_encoding_valid`
-        // now reads the characters inside the target and reports every one no
-        // URI is composed from, whitespace among them, so a space over HTTP/1.x
-        // draws a finding from each of us -- and they say different things. That
-        // one is about the alphabet a URI is written in, on every version; this
-        // one is about the request-line, which is why it names the malformed
-        // start-line and the recipient asked not to autocorrect it.
-        // cite(RFC 9112 § 3.2): "No whitespace is allowed in the request-target."
-        // cite(RFC 9112 § 3.2): "Unfortunately, some user agents fail to properly encode or exclude whitespace found in hypertext references, resulting in those disallowed characters being sent as the request-target in a malformed request-line."
-        // cite(RFC 9112 § 3.2): "A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain."
-        // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-        if let Some(ws) = target.chars().find(|c| c.is_ascii_whitespace()) {
-            let severity = ctx.severity;
-            return Some(self.violation(
-                severity,
-                format!(
-                    "Request-target '{shown}' contains '{}', and no whitespace is allowed in a request-target -- nor a CR, LF or FF, which no component of any of the four forms admits. The request-line carrying it is malformed, and a recipient is asked not to autocorrect it, since a request-line like this one might be deliberately crafted to bypass a security filter along the request chain",
-                    crate::helpers::headers::shown_in_finding(&ws.to_string())
-                ),
-            ));
-        }
+            // Asked before the forms, so that the answer names the character rather
+            // than the production it fell out of. The class measured is the wider
+            // one: § 5.6.3's whitespace is SP and HTAB, and `is_ascii_whitespace`
+            // adds CR, LF and FF -- which belong here because no component of any of
+            // the four admits them either. `request_uri_percent_encoding_valid`
+            // now reads the characters inside the target and reports every one no
+            // URI is composed from, whitespace among them, so a space over HTTP/1.x
+            // draws a finding from each of us -- and they say different things. That
+            // one is about the alphabet a URI is written in, on every version; this
+            // one is about the request-line, which is why it names the malformed
+            // start-line and the recipient asked not to autocorrect it.
+            // cite(RFC 9112 § 3.2): "No whitespace is allowed in the request-target."
+            // cite(RFC 9112 § 3.2): "Unfortunately, some user agents fail to properly encode or exclude whitespace found in hypertext references, resulting in those disallowed characters being sent as the request-target in a malformed request-line."
+            // cite(RFC 9112 § 3.2): "A recipient SHOULD NOT attempt to autocorrect and then process the request without a redirect, since the invalid request-line might be deliberately crafted to bypass security filters along the request chain."
+            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+            if let Some(ws) = target.chars().find(|c| c.is_ascii_whitespace()) {
+                let severity = ctx.severity;
+                return Some(self.violation(
+                    severity,
+                    format!(
+                        "Request-target '{shown}' contains '{}', and no whitespace is allowed in a request-target -- nor a CR, LF or FF, which no component of any of the four forms admits. The request-line carrying it is malformed, and a recipient is asked not to autocorrect it, since a request-line like this one might be deliberately crafted to bypass a security filter along the request chain",
+                        crate::helpers::headers::shown_in_finding(&ws.to_string())
+                    ),
+                ));
+            }
 
-        // A property of the target and of no method, so it is asked before the
-        // method-specific readings: every one of the four derives at least one
-        // character.
-        // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-        // cite(RFC 9112 § 3.2): "Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded."
-        if target.is_empty() {
-            let severity = ctx.severity;
-            return Some(self.violation(
-                severity,
-                "Request carries an empty request-target. Every one of the four forms derives at least one character -- an absolute path opens with '/', an absolute-URI has a scheme and its colon, a host and port has the colon between them, and the asterisk is itself -- so the empty string is none of them and the request-line naming it is invalid".into(),
-            ));
-        }
-
-        let form = classify(target);
-
-        // Both method-specific forms are covered by one MUST NOT, written in the
-        // version-independent document where the request target's components are
-        // defined rather than in either version's syntax.
-        // cite(RFC 9110 § 7.1): "There are two unusual cases for which the request target components are in a method-specific form"
-        // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
-        let message = match (&form, method) {
-            // A CONNECT is judged against the one form it may be in, whichever of
-            // the others it is in instead -- and against the *contents* of that
-            // form, because both halves of `uri-host ":" port` are `*`-quantified
-            // and derive nothing at all: the name and the number are asked for in
-            // prose, in these three sentences.
-            // cite(RFC 9110 § 7.1): "For CONNECT (Section 9.3.6), the request target is the host name and port number of the tunnel destination, separated by a colon."
-            // cite(RFC 9112 § 3.2.3): "It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":")."
-            // cite(RFC 9112 § 3.2.3): "When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target."
-            (Some(TargetForm::Authority { host: "", .. }), "CONNECT") => format!(
-                "CONNECT request-target '{shown}' names no host. `uri-host` derives the empty string -- `reg-name` is `*( unreserved / pct-encoded / sub-delims )` -- so the grammar admits this, and the tunnel destination is a host name and a port number, of which a recipient here has at most one"
-            ),
-            // The port is `*DIGIT`, so the colon alone satisfies the grammar and
-            // the number is again the prose's, in the sentence that says what a
-            // client does when the target URI has no port to copy.
-            // cite(RFC 9112 § 3.2.3): "The client obtains the host and port from the target URI's authority component, except that it sends the scheme's default port if the target URI elides the port."
-            (Some(TargetForm::Authority { port: "", .. }), "CONNECT") => format!(
-                "CONNECT request-target '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and a client with no port to copy sends the scheme's default one -- a recipient reading this has a host and no number to open the tunnel on"
-            ),
-            (Some(TargetForm::Authority { .. }), "CONNECT") => return None,
-            (Some(other), "CONNECT") => format!(
-                "CONNECT request-target '{shown}' is {}, and a CONNECT sends only the host and port of the tunnel destination, separated by a colon. A recipient has nowhere to open the tunnel to",
-                other.named()
-            ),
-            (None, "CONNECT") => format!(
-                "CONNECT request-target '{shown}' derives from none of the four forms, and a CONNECT sends only the host and port of the tunnel destination, separated by a colon. A recipient has nowhere to open the tunnel to"
-            ),
-
-            // cite(RFC 9110 § 7.1): "For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*")."
-            // cite(RFC 9112 § 3.2.4): "The "asterisk-form" of request-target is only used for a server-wide OPTIONS request"
-            // cite(RFC 9112 § 3.2.4): "When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target."
-            (Some(TargetForm::Asterisk), m) if m != "OPTIONS" => format!(
-                "Asterisk-form request-target '*' was sent with method '{m}'. The asterisk is the request target of a server-wide OPTIONS request and of nothing else, and the two method-specific forms must not be used with other methods, so '{m} *' names nothing for the request to be applied to"
-            ),
-
-            // The value derives from `absolute-URI` as well, so the finding is the
-            // disagreement rather than a verdict on which reading was meant: the
-            // request-line says nothing that chooses, and the two readings send
-            // the request to two different places.
-            // cite(RFC 9112 § 3.2.3): "The "authority-form" of request-target is only used for CONNECT requests"
-            (
-                Some(TargetForm::Authority {
-                    host,
-                    port,
-                    also_absolute: true,
-                }),
-                m,
-            ) => format!(
-                "Request-target '{shown}' was sent with method '{m}' and derives from two of the four forms: as a host and port it is the host '{host}' on port '{port}', which is a CONNECT's request target and no other method's, and as an absolute-URI it asks a proxy for a resource in a scheme named '{host}'. Nothing else in the request-line chooses between them, so two recipients on the same chain may route it two ways"
-            ),
-            // No `scheme` generates this left half, so the value is a host and
-            // port and nothing else -- and it is CONNECT's.
-            // cite(RFC 9112 § 3.2.3): "The "authority-form" of request-target is only used for CONNECT requests"
-            (Some(TargetForm::Authority { .. }), m) => format!(
-                "Authority-form request-target '{shown}' was sent with method '{m}'. The host-and-port form is a CONNECT's request target and no other method's, and the two method-specific forms must not be used with other methods"
-            ),
-
-            // Neither remaining form is method-specific, and which of them a
-            // client owes is decided by something no message states: origin-form
-            // is what a request made directly to an origin server carries and
-            // absolute-form is what a request made to a proxy carries, and a
-            // capture does not say which the client believed it was addressing.
-            // So both are accepted from every other method -- and a server is
-            // required to accept the absolute-form whether or not it is a proxy,
-            // which is the sentence that makes silence the right answer here
-            // rather than a tolerance.
-            // cite(RFC 9112 § 3.2.1): "When making a request directly to an origin server, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send only the absolute path and query components of the target URI as the request-target."
-            // cite(RFC 9112 § 3.2.2): "When making a request to a proxy, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send the target URI in "absolute-form" as the request-target."
-            // cite(RFC 9112 § 3.2.2): "A server MUST accept the absolute-form in requests even though most HTTP/1.1 clients will only send the absolute-form to a proxy."
-            (Some(_), _) => return None,
-
-            // The four are alternatives of one production, so a value deriving
-            // from none of them is not an odd request-target: it is a
-            // request-line a recipient is asked to answer 400 to.
+            // A property of the target and of no method, so it is asked before the
+            // method-specific readings: every one of the four derives at least one
+            // character.
             // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
             // cite(RFC 9112 § 3.2): "Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded."
-            (None, _) => format!(
-                "Request-target '{shown}' derives from none of the four forms: it is not an absolute path, not a full target URI with a scheme, not a host and port, and not the asterisk. The request-line carrying it is invalid, and a recipient is asked to answer 400 (Bad Request) rather than guess which was meant"
-            ),
-        };
+            if target.is_empty() {
+                let severity = ctx.severity;
+                return Some(self.violation(
+                    severity,
+                    "Request carries an empty request-target. Every one of the four forms derives at least one character -- an absolute path opens with '/', an absolute-URI has a scheme and its colon, a host and port has the colon between them, and the asterisk is itself -- so the empty string is none of them and the request-line naming it is invalid".into(),
+                ));
+            }
 
-        let severity = ctx.severity;
-        Some(self.violation(severity, message))
+            let form = classify(target);
+
+            // Both method-specific forms are covered by one MUST NOT, written in the
+            // version-independent document where the request target's components are
+            // defined rather than in either version's syntax.
+            // cite(RFC 9110 § 7.1): "There are two unusual cases for which the request target components are in a method-specific form"
+            // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
+            let message = match (&form, method) {
+                // A CONNECT is judged against the one form it may be in, whichever of
+                // the others it is in instead -- and against the *contents* of that
+                // form, because both halves of `uri-host ":" port` are `*`-quantified
+                // and derive nothing at all: the name and the number are asked for in
+                // prose, in these three sentences.
+                // cite(RFC 9110 § 7.1): "For CONNECT (Section 9.3.6), the request target is the host name and port number of the tunnel destination, separated by a colon."
+                // cite(RFC 9112 § 3.2.3): "It consists of only the uri-host and port number of the tunnel destination, separated by a colon (":")."
+                // cite(RFC 9112 § 3.2.3): "When making a CONNECT request to establish a tunnel through one or more proxies, a client MUST send only the host and port of the tunnel destination as the request-target."
+                (Some(TargetForm::Authority { host: "", .. }), "CONNECT") => format!(
+                    "CONNECT request-target '{shown}' names no host. `uri-host` derives the empty string -- `reg-name` is `*( unreserved / pct-encoded / sub-delims )` -- so the grammar admits this, and the tunnel destination is a host name and a port number, of which a recipient here has at most one"
+                ),
+                // The port is `*DIGIT`, so the colon alone satisfies the grammar and
+                // the number is again the prose's, in the sentence that says what a
+                // client does when the target URI has no port to copy.
+                // cite(RFC 9112 § 3.2.3): "The client obtains the host and port from the target URI's authority component, except that it sends the scheme's default port if the target URI elides the port."
+                (Some(TargetForm::Authority { port: "", .. }), "CONNECT") => format!(
+                    "CONNECT request-target '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and a client with no port to copy sends the scheme's default one -- a recipient reading this has a host and no number to open the tunnel on"
+                ),
+                (Some(TargetForm::Authority { .. }), "CONNECT") => return None,
+                (Some(other), "CONNECT") => format!(
+                    "CONNECT request-target '{shown}' is {}, and a CONNECT sends only the host and port of the tunnel destination, separated by a colon. A recipient has nowhere to open the tunnel to",
+                    other.named()
+                ),
+                (None, "CONNECT") => format!(
+                    "CONNECT request-target '{shown}' derives from none of the four forms, and a CONNECT sends only the host and port of the tunnel destination, separated by a colon. A recipient has nowhere to open the tunnel to"
+                ),
+
+                // cite(RFC 9110 § 7.1): "For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*")."
+                // cite(RFC 9112 § 3.2.4): "The "asterisk-form" of request-target is only used for a server-wide OPTIONS request"
+                // cite(RFC 9112 § 3.2.4): "When a client wishes to request OPTIONS for the server as a whole, as opposed to a specific named resource of that server, the client MUST send only "*" (%x2A) as the request-target."
+                (Some(TargetForm::Asterisk), m) if m != "OPTIONS" => format!(
+                    "Asterisk-form request-target '*' was sent with method '{m}'. The asterisk is the request target of a server-wide OPTIONS request and of nothing else, and the two method-specific forms must not be used with other methods, so '{m} *' names nothing for the request to be applied to"
+                ),
+
+                // The value derives from `absolute-URI` as well, so the finding is the
+                // disagreement rather than a verdict on which reading was meant: the
+                // request-line says nothing that chooses, and the two readings send
+                // the request to two different places.
+                // cite(RFC 9112 § 3.2.3): "The "authority-form" of request-target is only used for CONNECT requests"
+                (
+                    Some(TargetForm::Authority {
+                        host,
+                        port,
+                        also_absolute: true,
+                    }),
+                    m,
+                ) => format!(
+                    "Request-target '{shown}' was sent with method '{m}' and derives from two of the four forms: as a host and port it is the host '{host}' on port '{port}', which is a CONNECT's request target and no other method's, and as an absolute-URI it asks a proxy for a resource in a scheme named '{host}'. Nothing else in the request-line chooses between them, so two recipients on the same chain may route it two ways"
+                ),
+                // No `scheme` generates this left half, so the value is a host and
+                // port and nothing else -- and it is CONNECT's.
+                // cite(RFC 9112 § 3.2.3): "The "authority-form" of request-target is only used for CONNECT requests"
+                (Some(TargetForm::Authority { .. }), m) => format!(
+                    "Authority-form request-target '{shown}' was sent with method '{m}'. The host-and-port form is a CONNECT's request target and no other method's, and the two method-specific forms must not be used with other methods"
+                ),
+
+                // Neither remaining form is method-specific, and which of them a
+                // client owes is decided by something no message states: origin-form
+                // is what a request made directly to an origin server carries and
+                // absolute-form is what a request made to a proxy carries, and a
+                // capture does not say which the client believed it was addressing.
+                // So both are accepted from every other method -- and a server is
+                // required to accept the absolute-form whether or not it is a proxy,
+                // which is the sentence that makes silence the right answer here
+                // rather than a tolerance.
+                // cite(RFC 9112 § 3.2.1): "When making a request directly to an origin server, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send only the absolute path and query components of the target URI as the request-target."
+                // cite(RFC 9112 § 3.2.2): "When making a request to a proxy, other than a CONNECT or server-wide OPTIONS request (as detailed below), a client MUST send the target URI in "absolute-form" as the request-target."
+                // cite(RFC 9112 § 3.2.2): "A server MUST accept the absolute-form in requests even though most HTTP/1.1 clients will only send the absolute-form to a proxy."
+                (Some(_), _) => return None,
+
+                // The four are alternatives of one production, so a value deriving
+                // from none of them is not an odd request-target: it is a
+                // request-line a recipient is asked to answer 400 to.
+                // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+                // cite(RFC 9112 § 3.2): "Recipients of an invalid request-line SHOULD respond with either a 400 (Bad Request) error or a 301 (Moved Permanently) redirect with the request-target properly encoded."
+                (None, _) => format!(
+                    "Request-target '{shown}' derives from none of the four forms: it is not an absolute path, not a full target URI with a scheme, not a host and port, and not the asterisk. The request-line carrying it is invalid, and a recipient is asked to answer 400 (Bad Request) rather than guess which was meant"
+                ),
+            };
+
+            let severity = ctx.severity;
+            Some(self.violation(severity, message))
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

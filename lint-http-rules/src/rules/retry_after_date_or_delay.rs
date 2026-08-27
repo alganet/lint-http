@@ -16,70 +16,75 @@ impl Rule for RetryAfterDateOrDelay {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Retry-After is a server-sent response field, which is why this rule is Server-scoped.
-        // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Retry-After is a server-sent response field, which is why this rule is Server-scoped.
+            // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
+            let resp = tx.response.as_ref()?;
 
-        // The grammar is a bare disjunction, not a `#list`, so Retry-After is a singleton
-        // and a second field line is a sender violation. It cannot even be repaired by
-        // line-combining the way a list field can: the HTTP-date alternative contains a
-        // comma of its own, so a comma-joined value is ambiguous rather than merely long.
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        if resp.headers.get_all("retry-after").iter().count() > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into(),
-            });
-        }
+            // The grammar is a bare disjunction, not a `#list`, so Retry-After is a singleton
+            // and a second field line is a sender violation. It cannot even be repaired by
+            // line-combining the way a list field can: the HTTP-date alternative contains a
+            // comma of its own, so a comma-joined value is ambiguous rather than merely long.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            if resp.headers.get_all("retry-after").iter().count() > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into(),
+                });
+            }
 
-        // Each value is either a delay-seconds count or an HTTP-date.
-        // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
-        for val in resp.headers.get_all("retry-after").iter() {
-            let s = match val.to_str() {
-                Ok(s) => s.trim(),
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Retry-After header contains non-UTF8 value".into(),
-                    })
+            // Each value is either a delay-seconds count or an HTTP-date.
+            // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
+            for val in resp.headers.get_all("retry-after").iter() {
+                let s = match val.to_str() {
+                    Ok(s) => s.trim(),
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Retry-After header contains non-UTF8 value".into(),
+                        })
+                    }
+                };
+
+                // The delay-seconds alternative is `1*DIGIT` — a non-negative decimal integer.
+                // Check digits-only directly rather than via `u64::parse`, which diverges from the
+                // grammar in both directions: it accepts a leading `+` (not in `1*DIGIT`) and
+                // rejects an in-grammar value above u64::MAX. `s` is already trimmed.
+                // cite(RFC 9110 § 10.2.3): "A delay-seconds value is a non-negative decimal integer, representing time in seconds."
+                if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) {
+                    continue;
                 }
-            };
 
-            // The delay-seconds alternative is `1*DIGIT` — a non-negative decimal integer.
-            // Check digits-only directly rather than via `u64::parse`, which diverges from the
-            // grammar in both directions: it accepts a leading `+` (not in `1*DIGIT`) and
-            // rejects an in-grammar value above u64::MAX. `s` is already trimmed.
-            // cite(RFC 9110 § 10.2.3): "A delay-seconds value is a non-negative decimal integer, representing time in seconds."
-            if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) {
-                continue;
+                // The HTTP-date alternative. `is_valid_http_date` owns the HTTP-date grammar
+                // (§5.6.7) and accepts all three formats; this rule does not enforce the §5.6.7
+                // sender-MUST IMF-fixdate strictness against the server (recorded in the tracker).
+                if crate::http_date::is_valid_http_date(s) {
+                    continue;
+                }
+
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
+                        s
+                    ),
+                });
             }
 
-            // The HTTP-date alternative. `is_valid_http_date` owns the HTTP-date grammar
-            // (§5.6.7) and accepts all three formats; this rule does not enforce the §5.6.7
-            // sender-MUST IMF-fixdate strictness against the server (recorded in the tracker).
-            if crate::http_date::is_valid_http_date(s) {
-                continue;
-            }
-
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
-                    s
-                ),
-            });
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

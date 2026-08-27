@@ -16,50 +16,57 @@ impl Rule for LastModifiedRfc1123Syntax {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let Some(resp) = &tx.response else {
-            return None;
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let Some(resp) = &tx.response else {
+                return None;
+            };
 
-        if let Some(s) = crate::helpers::headers::get_header_str(&resp.headers, "last-modified") {
-            // A response is a sender, so HTTP-date is not the bar here: the field is
-            // *defined* as HTTP-date, and a sender is still confined to IMF-fixdate.
-            // Checking `is_valid_http_date` accepted the two obsolete formats and so
-            // could never fail on the thing this rule exists to report.
-            // The `OWS` is excluded here, because only this side knows the value
-            // came off a field line. `IMF-fixdate` prints no whitespace but the
-            // `SP`s at its fixed offsets and § 5.6.7 forbids a sender any more,
-            // so `is_valid_imf_fixdate` measures whatever it is handed; what
-            // makes a leading or trailing `OWS` not part of *this* value is the
-            // `field-line` production and § 5.5's sentence about it, and the
-            // trim is `OWS` rather than `str::trim` for the reason recorded at
-            // `trim_ows`.
-            //
-            // cite(RFC 9110 § 8.8.2): "Last-Modified = HTTP-date"
-            // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace"
-            // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
-            // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
-            if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
+            if let Some(s) = crate::helpers::headers::get_header_str(&resp.headers, "last-modified")
+            {
+                // A response is a sender, so HTTP-date is not the bar here: the field is
+                // *defined* as HTTP-date, and a sender is still confined to IMF-fixdate.
+                // Checking `is_valid_http_date` accepted the two obsolete formats and so
+                // could never fail on the thing this rule exists to report.
+                // The `OWS` is excluded here, because only this side knows the value
+                // came off a field line. `IMF-fixdate` prints no whitespace but the
+                // `SP`s at its fixed offsets and § 5.6.7 forbids a sender any more,
+                // so `is_valid_imf_fixdate` measures whatever it is handed; what
+                // makes a leading or trailing `OWS` not part of *this* value is the
+                // `field-line` production and § 5.5's sentence about it, and the
+                // trim is `OWS` rather than `str::trim` for the reason recorded at
+                // `trim_ows`.
+                //
+                // cite(RFC 9110 § 8.8.2): "Last-Modified = HTTP-date"
+                // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace"
+                // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
+                // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
+                if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Last-Modified header is not a valid IMF-fixdate (RFC 9110)"
+                            .into(),
+                    });
+                }
+            } else if resp.headers.contains_key("last-modified") {
+                // Non-UTF8 header values are considered invalid for date parsing
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "Last-Modified header is not a valid IMF-fixdate (RFC 9110)".into(),
+                    message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
                 });
             }
-        } else if resp.headers.contains_key("last-modified") {
-            // Non-UTF8 header values are considered invalid for date parsing
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
-            });
-        }
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

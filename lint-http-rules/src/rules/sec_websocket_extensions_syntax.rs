@@ -248,18 +248,23 @@ impl Rule for SecWebsocketExtensionsSyntax {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
-            let resp = tx.response.as_ref()?;
-            Self::defect(&resp.headers, "Response")
-        })?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
+                let resp = tx.response.as_ref()?;
+                Self::defect(&resp.headers, "Response")
+            })?;
 
-        Some(self.violation(ctx.severity, message))
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

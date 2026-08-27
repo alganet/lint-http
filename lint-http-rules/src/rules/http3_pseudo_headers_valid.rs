@@ -16,201 +16,210 @@ impl Rule for Http3PseudoHeadersValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only applies to HTTP/3 transactions. The version gate is scoping, not a
-        // normative check, so it carries no cite; each requirement below cites the
-        // sentence it enforces. What it reads is the major digit and not a string:
-        // this version has no version field on the wire, so the value is one a
-        // writer chose, and `http_version` is where the production lives.
-        if !crate::http_version::is_major(&tx.request.version, 3) {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only applies to HTTP/3 transactions. The version gate is scoping, not a
+            // normative check, so it carries no cite; each requirement below cites the
+            // sentence it enforces. What it reads is the major digit and not a string:
+            // this version has no version field on the wire, so the value is one a
+            // writer chose, and `http_version` is where the production lives.
+            if !crate::http_version::is_major(&tx.request.version, 3) {
+                return None;
+            }
 
-        // :method is required. (The :scheme half of the same sentence is not
-        // checked — the canonical model does not retain scheme for origin-form
-        // requests, as the description says.)
-        // cite(RFC 9114 § 4.3.1): "All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4."
-        let method = tx.request.method.trim();
-        if method.is_empty() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "HTTP/3 request missing required ':method' pseudo-header".into(),
-            });
-        }
-
-        let is_connect = method.eq_ignore_ascii_case("CONNECT");
-
-        if is_connect {
-            // CONNECT requires an authority; in the canonical model it comes from the
-            // request-target (authority-form) or, for extended CONNECT using
-            // origin-form, from the Host header.
-            // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
-            let uri_trimmed = tx.request.uri.trim();
-            if uri_trimmed.is_empty() {
+            // :method is required. (The :scheme half of the same sentence is not
+            // checked — the canonical model does not retain scheme for origin-form
+            // requests, as the description says.)
+            // cite(RFC 9114 § 4.3.1): "All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4."
+            let method = tx.request.method.trim();
+            if method.is_empty() {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message:
-                        "HTTP/3 CONNECT request missing required ':authority' pseudo-header or Host header"
-                            .into(),
-                });
-            }
-            let authority = crate::helpers::uri::extract_authority_from_request_target(uri_trimmed);
-            let has_authority = authority.is_some();
-            let has_host = tx.request.headers.contains_key("host");
-            let is_origin_form = uri_trimmed.starts_with('/');
-            if is_origin_form {
-                // Extended CONNECT: origin-form target, authority MUST come from Host.
-                if !has_host {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "HTTP/3 extended CONNECT request with origin-form target must include Host header as authority"
-                            .into(),
-                    });
-                }
-            } else if !has_authority && !has_host {
-                // Authority-form (or absolute-form) CONNECT without any authority.
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "HTTP/3 CONNECT request must include ':authority' pseudo-header or Host header"
-                            .into(),
+                    message: "HTTP/3 request missing required ':method' pseudo-header".into(),
                 });
             }
 
-            // § 4.4 gives a CONNECT's `:authority` two components and no
-            // third: the host and port to connect to. This is not the scheme
-            // question the non-CONNECT branch asks — the field here is a
-            // tunnel destination, not an http(s) URI's authority — so the
-            // sentence is § 4.4's own and the '@' is reported whatever came
-            // before it. The password half is withheld from the finding
-            // (RFC 3986 § 3.2.1, at the shared helper).
-            //
-            // Only an authority-form target is judged. An absolute-form
-            // CONNECT target is a conforming extended CONNECT and a malformed
-            // basic one with nothing in a capture to choose between them —
-            // the same decline the HTTP/2 twin publishes — and § 4.4's
-            // sentence describes the basic form only.
-            // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
-            if let Some(authority) = authority
-                .filter(|a| a.contains('@'))
-                .filter(|_| crate::helpers::uri::scheme_authority_marker(uri_trimmed).is_none())
-            {
-                let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
-                    .unwrap_or(authority);
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "HTTP/3 CONNECT ':authority' '{}' carries a userinfo subcomponent and its '@' delimiter: the field is only the host and port to connect to",
-                        crate::helpers::headers::shown_in_finding(&shown)
-                    ),
-                });
-            }
-        } else {
-            // Non-CONNECT: the request-target is either the asterisk-form (OPTIONS
-            // only) or a path. RFC 9110 § 7.1 permits "*" for OPTIONS and forbids it
-            // for every other method.
-            // cite(RFC 9110 § 7.1): "For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*")."
-            // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
-            let uri_trimmed = tx.request.uri.trim();
-            if uri_trimmed == "*" {
-                if !method.eq_ignore_ascii_case("OPTIONS") {
+            let is_connect = method.eq_ignore_ascii_case("CONNECT");
+
+            if is_connect {
+                // CONNECT requires an authority; in the canonical model it comes from the
+                // request-target (authority-form) or, for extended CONNECT using
+                // origin-form, from the Host header.
+                // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
+                let uri_trimmed = tx.request.uri.trim();
+                if uri_trimmed.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
                         message:
-                            "Asterisk ('*') request-target is only permitted with OPTIONS method"
+                            "HTTP/3 CONNECT request missing required ':authority' pseudo-header or Host header"
                                 .into(),
                     });
                 }
-            } else {
-                // cite(RFC 9114 § 4.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f)."
-                let has_path =
-                    crate::helpers::uri::extract_path_from_request_target(uri_trimmed).is_some();
-                if !has_path {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "HTTP/3 request missing required ':path' pseudo-header".into(),
-                    });
-                }
-            }
-
-            // HTTP/3 always runs over QUIC/TLS, so the scheme is always http or
-            // https, both of which have a mandatory authority component — the
-            // requirement applies to every non-CONNECT request.
-            // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
-            let authority =
-                crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri);
-            let has_host = tx.request.headers.contains_key("host");
-            if authority.is_none() && !has_host {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "HTTP/3 request must include ':authority' pseudo-header or Host header"
-                            .into(),
-                });
-            }
-
-            // § 4.3.1's userinfo MUST NOT, readable exactly where the
-            // userinfo is. The deprecated subcomponent travels in
-            // `:authority`, the capture shows that field only where the
-            // transport reassembled it into an absolute-form target — and an
-            // absolute-form target is also the one place the scheme the
-            // sentence gates on is on the wire, so the gate and the evidence
-            // arrive together or not at all. The twin sentence for HTTP/2 is
-            // enforced by `http2_pseudo_headers_valid` in the same
-            // shape. The password half is withheld from the finding
-            // (RFC 3986 § 3.2.1, at the shared helper).
-            // cite(RFC 9114 § 4.3.1): "The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https"."
-            if let Some(marker) = crate::helpers::uri::scheme_authority_marker(uri_trimmed) {
-                let scheme = &uri_trimmed[..marker];
-                if let Some(authority) = authority.filter(|a| a.contains('@')) {
-                    if scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https") {
-                        let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
-                            .unwrap_or(authority);
+                let authority =
+                    crate::helpers::uri::extract_authority_from_request_target(uri_trimmed);
+                let has_authority = authority.is_some();
+                let has_host = tx.request.headers.contains_key("host");
+                let is_origin_form = uri_trimmed.starts_with('/');
+                if is_origin_form {
+                    // Extended CONNECT: origin-form target, authority MUST come from Host.
+                    if !has_host {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: ctx.severity,
-                            message: format!(
-                                "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter",
-                                crate::helpers::headers::shown_in_finding(&shown)
-                            ),
+                            message: "HTTP/3 extended CONNECT request with origin-form target must include Host header as authority"
+                                .into(),
+                        });
+                    }
+                } else if !has_authority && !has_host {
+                    // Authority-form (or absolute-form) CONNECT without any authority.
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message:
+                            "HTTP/3 CONNECT request must include ':authority' pseudo-header or Host header"
+                                .into(),
+                    });
+                }
+
+                // § 4.4 gives a CONNECT's `:authority` two components and no
+                // third: the host and port to connect to. This is not the scheme
+                // question the non-CONNECT branch asks — the field here is a
+                // tunnel destination, not an http(s) URI's authority — so the
+                // sentence is § 4.4's own and the '@' is reported whatever came
+                // before it. The password half is withheld from the finding
+                // (RFC 3986 § 3.2.1, at the shared helper).
+                //
+                // Only an authority-form target is judged. An absolute-form
+                // CONNECT target is a conforming extended CONNECT and a malformed
+                // basic one with nothing in a capture to choose between them —
+                // the same decline the HTTP/2 twin publishes — and § 4.4's
+                // sentence describes the basic form only.
+                // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
+                if let Some(authority) = authority
+                    .filter(|a| a.contains('@'))
+                    .filter(|_| crate::helpers::uri::scheme_authority_marker(uri_trimmed).is_none())
+                {
+                    let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
+                        .unwrap_or(authority);
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "HTTP/3 CONNECT ':authority' '{}' carries a userinfo subcomponent and its '@' delimiter: the field is only the host and port to connect to",
+                            crate::helpers::headers::shown_in_finding(&shown)
+                        ),
+                    });
+                }
+            } else {
+                // Non-CONNECT: the request-target is either the asterisk-form (OPTIONS
+                // only) or a path. RFC 9110 § 7.1 permits "*" for OPTIONS and forbids it
+                // for every other method.
+                // cite(RFC 9110 § 7.1): "For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*")."
+                // cite(RFC 9110 § 7.1): "These forms MUST NOT be used with other methods."
+                let uri_trimmed = tx.request.uri.trim();
+                if uri_trimmed == "*" {
+                    if !method.eq_ignore_ascii_case("OPTIONS") {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message:
+                                "Asterisk ('*') request-target is only permitted with OPTIONS method"
+                                    .into(),
+                        });
+                    }
+                } else {
+                    // cite(RFC 9114 § 4.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f)."
+                    let has_path =
+                        crate::helpers::uri::extract_path_from_request_target(uri_trimmed)
+                            .is_some();
+                    if !has_path {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "HTTP/3 request missing required ':path' pseudo-header".into(),
                         });
                     }
                 }
+
+                // HTTP/3 always runs over QUIC/TLS, so the scheme is always http or
+                // https, both of which have a mandatory authority component — the
+                // requirement applies to every non-CONNECT request.
+                // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
+                let authority =
+                    crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri);
+                let has_host = tx.request.headers.contains_key("host");
+                if authority.is_none() && !has_host {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message:
+                            "HTTP/3 request must include ':authority' pseudo-header or Host header"
+                                .into(),
+                    });
+                }
+
+                // § 4.3.1's userinfo MUST NOT, readable exactly where the
+                // userinfo is. The deprecated subcomponent travels in
+                // `:authority`, the capture shows that field only where the
+                // transport reassembled it into an absolute-form target — and an
+                // absolute-form target is also the one place the scheme the
+                // sentence gates on is on the wire, so the gate and the evidence
+                // arrive together or not at all. The twin sentence for HTTP/2 is
+                // enforced by `http2_pseudo_headers_valid` in the same
+                // shape. The password half is withheld from the finding
+                // (RFC 3986 § 3.2.1, at the shared helper).
+                // cite(RFC 9114 § 4.3.1): "The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https"."
+                if let Some(marker) = crate::helpers::uri::scheme_authority_marker(uri_trimmed) {
+                    let scheme = &uri_trimmed[..marker];
+                    if let Some(authority) = authority.filter(|a| a.contains('@')) {
+                        if scheme.eq_ignore_ascii_case("http")
+                            || scheme.eq_ignore_ascii_case("https")
+                        {
+                            let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
+                                .unwrap_or(authority);
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter",
+                                    crate::helpers::headers::shown_in_finding(&shown)
+                                ),
+                            });
+                        }
+                    }
+                }
             }
-        }
 
-        // **The response half is not this rule's.** This branch used to report a
-        // `:status` outside 100–599, and the constraint it enforced was RFC 9110
-        // § 15's, not HTTP/3's: RFC 9114 § 4.3.2 defines the field as carrying "the
-        // HTTP status code; see Section 15 of [HTTP]" and states no range of its
-        // own. Behind the major-version gate above, the same out-of-range
-        // status over HTTP/1.1 or HTTP/2 went unreported here and the HTTP/3 one was
-        // reported twice — `status_code_valid_range` asks it of every
-        // version. Same shape as the three checks `http3_status_code_valid`
-        // surrendered for RFC 9110 § 15.2.
-        //
-        // What RFC 9114 § 4.3.2 does require of a response — that the field be
-        // present at all — cannot fail in this model: `ResponseInfo.status` is a
-        // `u16` that always holds a value, so a response with no `:status` has no
-        // representation to check.
-        //
-        // cite(RFC 9114 § 4.3.2): "For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP]."
-        // cite(RFC 9114 § 4.3.2): "This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2)."
+            // **The response half is not this rule's.** This branch used to report a
+            // `:status` outside 100–599, and the constraint it enforced was RFC 9110
+            // § 15's, not HTTP/3's: RFC 9114 § 4.3.2 defines the field as carrying "the
+            // HTTP status code; see Section 15 of [HTTP]" and states no range of its
+            // own. Behind the major-version gate above, the same out-of-range
+            // status over HTTP/1.1 or HTTP/2 went unreported here and the HTTP/3 one was
+            // reported twice — `status_code_valid_range` asks it of every
+            // version. Same shape as the three checks `http3_status_code_valid`
+            // surrendered for RFC 9110 § 15.2.
+            //
+            // What RFC 9114 § 4.3.2 does require of a response — that the field be
+            // present at all — cannot fail in this model: `ResponseInfo.status` is a
+            // `u16` that always holds a value, so a response with no `:status` has no
+            // representation to check.
+            //
+            // cite(RFC 9114 § 4.3.2): "For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP]."
+            // cite(RFC 9114 § 4.3.2): "This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2)."
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

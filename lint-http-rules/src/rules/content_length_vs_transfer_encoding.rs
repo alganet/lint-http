@@ -16,39 +16,30 @@ impl Rule for ContentLengthVsTransferEncoding {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // "in any message" is what puts both directions in scope; the same check runs
-        // over the response below.
-        // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
-        //
-        // The recipient side is why this is worth more than a style note. The two
-        // fields give conflicting framing, recipients are told to resolve the
-        // conflict one way, and disagreement between two recipients about where a
-        // message ends is exactly the primitive that request smuggling and response
-        // splitting are built on — so the pairing is treated as an attack signal,
-        // not merely as redundancy.
-        // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
-        // cite(RFC 9112 § 6.3): "An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding"
-        // Check request headers
-        if tx.request.headers.contains_key("content-length")
-            && tx.request.headers.contains_key("transfer-encoding")
-        {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Both Content-Length and Transfer-Encoding present".into(),
-            });
-        }
-
-        // Check response headers if present
-        if let Some(resp) = &tx.response {
-            if resp.headers.contains_key("content-length")
-                && resp.headers.contains_key("transfer-encoding")
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // "in any message" is what puts both directions in scope; the same check runs
+            // over the response below.
+            // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
+            //
+            // The recipient side is why this is worth more than a style note. The two
+            // fields give conflicting framing, recipients are told to resolve the
+            // conflict one way, and disagreement between two recipients about where a
+            // message ends is exactly the primitive that request smuggling and response
+            // splitting are built on — so the pairing is treated as an attack signal,
+            // not merely as redundancy.
+            // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
+            // cite(RFC 9112 § 6.3): "An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding"
+            // Check request headers
+            if tx.request.headers.contains_key("content-length")
+                && tx.request.headers.contains_key("transfer-encoding")
             {
                 return Some(Violation {
                     rule: self.id().into(),
@@ -56,9 +47,23 @@ impl Rule for ContentLengthVsTransferEncoding {
                     message: "Both Content-Length and Transfer-Encoding present".into(),
                 });
             }
-        }
 
-        None
+            // Check response headers if present
+            if let Some(resp) = &tx.response {
+                if resp.headers.contains_key("content-length")
+                    && resp.headers.contains_key("transfer-encoding")
+                {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Both Content-Length and Transfer-Encoding present".into(),
+                    });
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

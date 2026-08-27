@@ -17,98 +17,104 @@ impl Rule for PermissionsPolicyDirectivesValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only inspect responses (server header)
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only inspect responses (server header)
+            let resp = tx.response.as_ref()?;
 
-        // Every field line, joined first. The rule used to validate each line on
-        // its own, and a Dictionary is not a per-line structure: § 4.2 makes
-        // combining a MUST and says why, and § 3.2 notes that members may be
-        // spread across lines deliberately. Judging a line alone described a
-        // message nobody sends.
-        // cite(RFC 9651 § 4.2): "When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly."
-        let mut lines: Vec<&str> = Vec::new();
-        for hv in resp.headers.get_all("permissions-policy").iter() {
-            // Not "valid UTF-8", which is what this used to say and is a
-            // different claim: a well-formed multi-byte character fails here
-            // too. Structured Fields are ASCII, and a byte outside it is a
-            // parse failure at step 1, before any of this field's own grammar
-            // is consulted -- so the whole field goes.
-            // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
-            let Ok(v) = hv.to_str() else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Permissions-Policy contains a byte outside ASCII, so the field \
-                              fails Structured Fields parsing and every directive in it is \
-                              discarded"
-                        .into(),
-                });
-            };
-            lines.push(v);
-        }
-        if lines.is_empty() {
-            return None;
-        }
-        let joined = lines.join(", ");
-        let s = joined.trim();
+            // Every field line, joined first. The rule used to validate each line on
+            // its own, and a Dictionary is not a per-line structure: § 4.2 makes
+            // combining a MUST and says why, and § 3.2 notes that members may be
+            // spread across lines deliberately. Judging a line alone described a
+            // message nobody sends.
+            // cite(RFC 9651 § 4.2): "When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly."
+            let mut lines: Vec<&str> = Vec::new();
+            for hv in resp.headers.get_all("permissions-policy").iter() {
+                // Not "valid UTF-8", which is what this used to say and is a
+                // different claim: a well-formed multi-byte character fails here
+                // too. Structured Fields are ASCII, and a byte outside it is a
+                // parse failure at step 1, before any of this field's own grammar
+                // is consulted -- so the whole field goes.
+                // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
+                let Ok(v) = hv.to_str() else {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Permissions-Policy contains a byte outside ASCII, so the field \
+                                  fails Structured Fields parsing and every directive in it is \
+                                  discarded"
+                            .into(),
+                    });
+                };
+                lines.push(v);
+            }
+            if lines.is_empty() {
+                return None;
+            }
+            let joined = lines.join(", ");
+            let s = joined.trim();
 
-        {
-            // An empty value is *not* a parse failure -- § 4.2.2 ends by
-            // returning an empty Dictionary -- so nothing is discarded and the
-            // message no longer implies otherwise. It is still worth saying:
-            // § 3.2 is explicit that an empty Dictionary is spelled by leaving
-            // the field out, so a server sending this one wrote a header that
-            // does nothing.
-            // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
-            // cite(RFC 9651 § 3.2): "As with Lists, an empty Dictionary is represented by omitting the entire field."
-            if s.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Permissions-Policy is empty, which grants and denies nothing; an \
-                              empty policy is written by omitting the field"
-                        .into(),
-                });
+            {
+                // An empty value is *not* a parse failure -- § 4.2.2 ends by
+                // returning an empty Dictionary -- so nothing is discarded and the
+                // message no longer implies otherwise. It is still worth saying:
+                // § 3.2 is explicit that an empty Dictionary is spelled by leaving
+                // the field out, so a server sending this one wrote a header that
+                // does nothing.
+                // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
+                // cite(RFC 9651 § 3.2): "As with Lists, an empty Dictionary is represented by omitting the entire field."
+                if s.is_empty() {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message:
+                            "Permissions-Policy is empty, which grants and denies nothing; an \
+                                  empty policy is written by omitting the field"
+                                .into(),
+                    });
+                }
+
+                // Neither specification says "invalid" about any of this, and the
+                // wrapper used to. Both define *ignore* semantics, at two different
+                // scopes, and which one applies is the thing a reader needs:
+                //
+                //  - A Structured Fields parse failure -- a member name with an
+                //    uppercase letter, an unterminated inner list, a control
+                //    character -- takes the whole field with it. RFC 9651 is
+                //    deliberately absolute about this, and forbids field
+                //    specifications from softening it, so the cost of one stray
+                //    capital is every directive in the header.
+                //    cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
+                //
+                //  - A value that parses but is not an allowlist costs one
+                //    directive; the rest of the policy is still enforced.
+                //    cite(Permissions Policy § 5.2): "Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps."
+                //
+                // Either way the finding is that something the server wrote will
+                // not be enforced, which is what the message says now.
+                // cite(Permissions Policy § 6.1): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
+                if let Some(msg) = validate_permissions_policy(s) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Permissions-Policy will not be enforced as written: {}",
+                            msg
+                        ),
+                    });
+                }
             }
 
-            // Neither specification says "invalid" about any of this, and the
-            // wrapper used to. Both define *ignore* semantics, at two different
-            // scopes, and which one applies is the thing a reader needs:
-            //
-            //  - A Structured Fields parse failure -- a member name with an
-            //    uppercase letter, an unterminated inner list, a control
-            //    character -- takes the whole field with it. RFC 9651 is
-            //    deliberately absolute about this, and forbids field
-            //    specifications from softening it, so the cost of one stray
-            //    capital is every directive in the header.
-            //    cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
-            //
-            //  - A value that parses but is not an allowlist costs one
-            //    directive; the rest of the policy is still enforced.
-            //    cite(Permissions Policy § 5.2): "Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps."
-            //
-            // Either way the finding is that something the server wrote will
-            // not be enforced, which is what the message says now.
-            // cite(Permissions Policy § 6.1): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
-            if let Some(msg) = validate_permissions_policy(s) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Permissions-Policy will not be enforced as written: {}",
-                        msg
-                    ),
-                });
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

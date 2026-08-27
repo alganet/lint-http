@@ -40,133 +40,138 @@ impl Rule for HostHeader {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let host_lines = tx.request.headers.get_all("host");
-        let host_count = host_lines.iter().count();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let host_lines = tx.request.headers.get_all("host");
+            let host_count = host_lines.iter().count();
 
-        // The MUST has an `unless`, and the second sentence is what the `unless`
-        // is about. A request that sent its authority as `:authority` has done
-        // what the requirement asks; reporting it measures every HTTP/2 and
-        // HTTP/3 request against the half of the sentence that excludes it.
-        // §3.2 of [HTTP/1.1] says the same thing for one version, and says which.
-        // cite(RFC 9110 § 7.2): "A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field."
-        // cite(RFC 9112 § 3.2): "A client MUST send a Host header field (Section 7.2 of [HTTP]) in all HTTP/1.1 request messages."
-        if host_count == 0 {
-            if sends_authority_as_control_data(tx) {
+            // The MUST has an `unless`, and the second sentence is what the `unless`
+            // is about. A request that sent its authority as `:authority` has done
+            // what the requirement asks; reporting it measures every HTTP/2 and
+            // HTTP/3 request against the half of the sentence that excludes it.
+            // §3.2 of [HTTP/1.1] says the same thing for one version, and says which.
+            // cite(RFC 9110 § 7.2): "A user agent MUST generate a Host header field in a request unless it sends that information as an ":authority" pseudo-header field."
+            // cite(RFC 9112 § 3.2): "A client MUST send a Host header field (Section 7.2 of [HTTP]) in all HTTP/1.1 request messages."
+            if host_count == 0 {
+                if sends_authority_as_control_data(tx) {
+                    return None;
+                }
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Request carries no Host header field and no :authority pseudo-header"
+                        .into(),
+                });
+            }
+
+            // Two lines of a field can only be read as one value when the field is a
+            // list, and `Host = uri-host [ ":" port ]` has no `#` in it — so there is
+            // no combined value to measure, which is why the recipient's answer is a
+            // status code rather than a parse.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            // cite(RFC 9112 § 3.2): "A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value."
+            if host_count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "{} Host header field lines: the field is not defined as a list, so they are not one value",
+                        host_count
+                    ),
+                });
+            }
+
+            // Every octet of the one field line as the `char` of the same value.
+            // `to_str` refuses every octet outside visible US-ASCII, and the branch
+            // under it used to announce a value "not valid UTF-8" — a claim about an
+            // encoding, where the honest finding is that %x80-FF appears in none of
+            // `uri-host`'s alternatives. The mapping is a bijection: every character
+            // the productions are built from is ASCII and crosses unchanged, and
+            // every octet none of them admits arrives as a `char` none of them admits
+            // either, at the check that owns it.
+            let value: String = host_lines
+                .iter()
+                .next()?
+                .as_bytes()
+                .iter()
+                .map(|&b| b as char)
+                .collect();
+
+            // `OWS` is SP and HTAB and nothing else. `str::trim` is Unicode
+            // whitespace, and on a value read octet-per-`char` U+00A0 is the octet
+            // %xA0 — `obs-text`, which no host production admits — so trimming it
+            // would drop the finding rather than the whitespace.
+            // cite(RFC 9110 § 5.6.3): "OWS            = *( SP / HTAB )"
+            // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
+            let s = value.trim_matches(|c| c == ' ' || c == '\t');
+
+            // An empty field value is a `uri-host` of no characters — `reg-name` is
+            // `*( ... )` — and in one case it is what the MUST demands. Reporting it
+            // reports the client that read its specification.
+            // cite(RFC 9112 § 3.2): "If the authority component is missing or undefined for the target URI, then a client MUST send a Host header field with an empty field value."
+            if s.is_empty() {
                 return None;
             }
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Request carries no Host header field and no :authority pseudo-header"
-                    .into(),
-            });
-        }
 
-        // Two lines of a field can only be read as one value when the field is a
-        // list, and `Host = uri-host [ ":" port ]` has no `#` in it — so there is
-        // no combined value to measure, which is why the recipient's answer is a
-        // status code rather than a parse.
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        // cite(RFC 9112 § 3.2): "A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value."
-        if host_count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "{} Host header field lines: the field is not defined as a list, so they are not one value",
-                    host_count
-                ),
-            });
-        }
+            // The `@` is the userinfo's delimiter, and this is the sentence that
+            // names it — RFC 9110 §4.2.4's MUST NOT is about an "http" or "https"
+            // URI reference generated as a target URI or field value, and a `Host`
+            // field value is neither: it is a `uri-host` and a port.
+            // cite(RFC 9112 § 3.2): "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP])."
+            if s.contains('@') {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Host field value '{}' carries a userinfo subcomponent and its '@' delimiter",
+                        s
+                    ),
+                });
+            }
 
-        // Every octet of the one field line as the `char` of the same value.
-        // `to_str` refuses every octet outside visible US-ASCII, and the branch
-        // under it used to announce a value "not valid UTF-8" — a claim about an
-        // encoding, where the honest finding is that %x80-FF appears in none of
-        // `uri-host`'s alternatives. The mapping is a bijection: every character
-        // the productions are built from is ASCII and crosses unchanged, and
-        // every octet none of them admits arrives as a `char` none of them admits
-        // either, at the check that owns it.
-        let value: String = host_lines
-            .iter()
-            .next()?
-            .as_bytes()
-            .iter()
-            .map(|&b| b as char)
-            .collect();
+            // Asked before the grammar so the answer names what is wrong. Without
+            // the brackets nothing marks where the address stopped, so the generic
+            // reader splits at the first colon and reports a port full of colons;
+            // `fe80::1` has no colon it could call a delimiter at all and used to
+            // pass, published as a Compliant example.
+            // cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
+            if s.parse::<std::net::Ipv6Addr>().is_ok()
+                || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(s)
+            {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "IPv6 literal '{}' in a Host field value must be enclosed in square brackets",
+                        s
+                    ),
+                });
+            }
 
-        // `OWS` is SP and HTAB and nothing else. `str::trim` is Unicode
-        // whitespace, and on a value read octet-per-`char` U+00A0 is the octet
-        // %xA0 — `obs-text`, which no host production admits — so trimming it
-        // would drop the finding rather than the whitespace.
-        // cite(RFC 9110 § 5.6.3): "OWS            = *( SP / HTAB )"
-        // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
-        let s = value.trim_matches(|c| c == ' ' || c == '\t');
+            // The field's own grammar, which this rule had never applied: a value
+            // with no colon in it returned early, so `Host: exa mple.com` was as
+            // acceptable as `Host: example.com`. `validate_host_and_optional_port`
+            // is the `Host` production; the port it admits is `*DIGIT`, which is
+            // the whole of what RFC 3986 §3.2.3 says a port looks like.
+            // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
+            if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(s) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!("Host field value '{}' is not a host and port: {}", s, msg),
+                });
+            }
 
-        // An empty field value is a `uri-host` of no characters — `reg-name` is
-        // `*( ... )` — and in one case it is what the MUST demands. Reporting it
-        // reports the client that read its specification.
-        // cite(RFC 9112 § 3.2): "If the authority component is missing or undefined for the target URI, then a client MUST send a Host header field with an empty field value."
-        if s.is_empty() {
-            return None;
-        }
-
-        // The `@` is the userinfo's delimiter, and this is the sentence that
-        // names it — RFC 9110 §4.2.4's MUST NOT is about an "http" or "https"
-        // URI reference generated as a target URI or field value, and a `Host`
-        // field value is neither: it is a `uri-host` and a port.
-        // cite(RFC 9112 § 3.2): "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP])."
-        if s.contains('@') {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Host field value '{}' carries a userinfo subcomponent and its '@' delimiter",
-                    s
-                ),
-            });
-        }
-
-        // Asked before the grammar so the answer names what is wrong. Without
-        // the brackets nothing marks where the address stopped, so the generic
-        // reader splits at the first colon and reports a port full of colons;
-        // `fe80::1` has no colon it could call a delimiter at all and used to
-        // pass, published as a Compliant example.
-        // cite(RFC 3986 § 3.2.2): "A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]")."
-        if s.parse::<std::net::Ipv6Addr>().is_ok()
-            || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(s)
-        {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "IPv6 literal '{}' in a Host field value must be enclosed in square brackets",
-                    s
-                ),
-            });
-        }
-
-        // The field's own grammar, which this rule had never applied: a value
-        // with no colon in it returned early, so `Host: exa mple.com` was as
-        // acceptable as `Host: example.com`. `validate_host_and_optional_port`
-        // is the `Host` production; the port it admits is `*DIGIT`, which is
-        // the whole of what RFC 3986 §3.2.3 says a port looks like.
-        // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
-        if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(s) {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!("Host field value '{}' is not a host and port: {}", s, msg),
-            });
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -19,71 +19,76 @@ impl Rule for SecFetchUserValueValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // A request header; absence is the normal case (it rides only user-activated
-        // navigations).
-        // cite(Fetch Metadata § 2.4): "HTTP request header exposes whether or not a navigation request was triggered by user activation."
-        let headers = &tx.request.headers;
-        let count = headers.get_all("sec-fetch-user").iter().count();
-        if count == 0 {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // A request header; absence is the normal case (it rides only user-activated
+            // navigations).
+            // cite(Fetch Metadata § 2.4): "HTTP request header exposes whether or not a navigation request was triggered by user activation."
+            let headers = &tx.request.headers;
+            let count = headers.get_all("sec-fetch-user").iter().count();
+            if count == 0 {
+                return None;
+            }
 
-        // A single structured-field item, never a list, so a sender may not repeat
-        // the field.
-        // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
-        if count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple Sec-Fetch-User header fields present".into(),
-            });
-        }
-
-        // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-        let val = match crate::helpers::headers::get_header_str(headers, "sec-fetch-user") {
-            Some(v) => v.trim(),
-            None => {
+            // A single structured-field item, never a list, so a sender may not repeat
+            // the field.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
+            if count > 1 {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "Sec-Fetch-User header contains non-ASCII or control characters"
-                        .into(),
-                })
+                    message: "Multiple Sec-Fetch-User header fields present".into(),
+                });
             }
+
+            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
+            let val = match crate::helpers::headers::get_header_str(headers, "sec-fetch-user") {
+                Some(v) => v.trim(),
+                None => {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Sec-Fetch-User header contains non-ASCII or control characters"
+                            .into(),
+                    })
+                }
+            };
+
+            // An empty value cannot be an sf-boolean.
+            // cite(Fetch Metadata § 2.4): "It is a Structured Field whose value is a boolean."
+            if val.is_empty() {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Sec-Fetch-User header is empty".into(),
+                });
+            }
+
+            // The canonical serialization for a structured-boolean true is `?1`. `?0` is a
+            // well-formed sf-boolean but never a well-formed *Sec-Fetch-User*: the header is
+            // only ever sent when it is true, so its presence carrying anything else is wrong.
+            // cite(Fetch Metadata): "Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true."
+            if val != "?1" {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: format!(
+                        "Unrecognized Sec-Fetch-User value: '{}'; expected '?1'",
+                        val
+                    ),
+                });
+            }
+
+            None
         };
-
-        // An empty value cannot be an sf-boolean.
-        // cite(Fetch Metadata § 2.4): "It is a Structured Field whose value is a boolean."
-        if val.is_empty() {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Sec-Fetch-User header is empty".into(),
-            });
-        }
-
-        // The canonical serialization for a structured-boolean true is `?1`. `?0` is a
-        // well-formed sf-boolean but never a well-formed *Sec-Fetch-User*: the header is
-        // only ever sent when it is true, so its presence carrying anything else is wrong.
-        // cite(Fetch Metadata): "Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true."
-        if val != "?1" {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: format!(
-                    "Unrecognized Sec-Fetch-User value: '{}'; expected '?1'",
-                    val
-                ),
-            });
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

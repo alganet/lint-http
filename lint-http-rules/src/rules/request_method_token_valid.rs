@@ -119,95 +119,100 @@ impl Rule for RequestMethodTokenValid {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let m = tx.request.method.as_str();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let m = tx.request.method.as_str();
 
-        // The method is read for every HTTP version, and no gate narrows it, because
-        // the production is written in the version-independent document and the two
-        // multiplexed versions carry its result in a pseudo-header rather than in a
-        // request-line. RFC 9112 § 3.1 is where an HTTP/1.1 message puts it.
-        //
-        // The production is quoted from the collected grammar, and it brings its
-        // neighbour along: where § 9.1 prints it, it stands alone between two
-        // paragraphs and is fourteen characters, below what a fragment can be.
-        // cite(RFC 9110 § A): "method = token minute = 2DIGIT"
-        // cite(RFC 9113 § 8.3.1): "The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP])."
-        // cite(RFC 9114 § 4.3.1): "":method":  Contains the HTTP method (Section 9 of [HTTP])"
-        //
-        // Each of the three questions below ends the rule on its own, at a scan or
-        // two of a token a handful of octets long.
-        let invalid_char = crate::helpers::token::find_invalid_token_char(m);
-        // A string that is not a token has no case to be in yet: the character scan is
-        // what decides whether this is a `method` at all, and the convention below is
-        // about how a `method` naming a standardized one is spelled.
-        let lowercase_in_token =
-            invalid_char.is_none() && crate::helpers::token::find_first_lowercase(m).is_some();
+            // The method is read for every HTTP version, and no gate narrows it, because
+            // the production is written in the version-independent document and the two
+            // multiplexed versions carry its result in a pseudo-header rather than in a
+            // request-line. RFC 9112 § 3.1 is where an HTTP/1.1 message puts it.
+            //
+            // The production is quoted from the collected grammar, and it brings its
+            // neighbour along: where § 9.1 prints it, it stands alone between two
+            // paragraphs and is fourteen characters, below what a fragment can be.
+            // cite(RFC 9110 § A): "method = token minute = 2DIGIT"
+            // cite(RFC 9113 § 8.3.1): "The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP])."
+            // cite(RFC 9114 § 4.3.1): "":method":  Contains the HTTP method (Section 9 of [HTTP])"
+            //
+            // Each of the three questions below ends the rule on its own, at a scan or
+            // two of a token a handful of octets long.
+            let invalid_char = crate::helpers::token::find_invalid_token_char(m);
+            // A string that is not a token has no case to be in yet: the character scan is
+            // what decides whether this is a `method` at all, and the convention below is
+            // about how a `method` naming a standardized one is spelled.
+            let lowercase_in_token =
+                invalid_char.is_none() && crate::helpers::token::find_first_lowercase(m).is_some();
 
-        if !m.is_empty() && invalid_char.is_none() && !lowercase_in_token {
-            return None;
-        }
+            if !m.is_empty() && invalid_char.is_none() && !lowercase_in_token {
+                return None;
+            }
 
-        let config: &MethodTokenConfig = ctx.state();
+            let config: &MethodTokenConfig = ctx.state();
 
-        // `token` is `1*tchar` -- one character at minimum, transcribed in full at
-        // `helpers::token::is_tchar`. A character scan answers `None` for the empty
-        // string because it finds no character to object to, so the cardinality is a
-        // separate question and is asked here; three other readers of that helper say
-        // the same thing in their own comments.
-        if m.is_empty() {
-            return Some(self.violation(
-                config.severity,
-                "Request carries an empty method token, and `method = token` has a one-character floor (`token = 1*tchar`), so the empty string derives from no production and names no method to apply to the target resource".into(),
-            ));
-        }
+            // `token` is `1*tchar` -- one character at minimum, transcribed in full at
+            // `helpers::token::is_tchar`. A character scan answers `None` for the empty
+            // string because it finds no character to object to, so the cardinality is a
+            // separate question and is asked here; three other readers of that helper say
+            // the same thing in their own comments.
+            if m.is_empty() {
+                return Some(self.violation(
+                    config.severity,
+                    "Request carries an empty method token, and `method = token` has a one-character floor (`token = 1*tchar`), so the empty string derives from no production and names no method to apply to the target resource".into(),
+                ));
+            }
 
-        // The grammar is what makes this a violation rather than an oddity: the
-        // charset is a definition, and § 2.2 is the sentence that forbids generating
-        // something outside it.
-        // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-        if let Some(c) = invalid_char {
-            // Escaped, because the octet that fails a `tchar` test is very often one
-            // that prints as nothing: a raw DEL interpolated here produced a finding
-            // whose offending character was an empty pair of quotes.
-            return Some(self.violation(
-                config.severity,
-                format!(
-                    "Method token contains {}, which is not a `tchar`, so the request's method derives from no `token` and therefore from no `method`",
-                    crate::helpers::headers::shown_in_finding(&c.to_string())
-                ),
-            ));
-        }
-
-        // Everything below is a `token` already, so it needs no escaping to be shown.
-        //
-        // The fold is the finding, not a comparison made with one: the question asked
-        // is whether this token is a standardized method's name written in another
-        // case, and folding is how that is asked. It is emphatically not a fold that
-        // then applies that method's semantics -- the sentence beside it is why.
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        // cite(RFC 9110 § 9.1): "By convention, standardized methods are defined in all-uppercase US-ASCII letters."
-        if lowercase_in_token {
-            let folded = m.to_ascii_uppercase();
-            if config.registered_methods.iter().any(|r| r == &folded) {
-                // What a recipient does with a token it cannot place is the reason this
-                // is worth saying at all: the request does not fail to parse, it simply
-                // asks for a method nobody defined.
-                // cite(RFC 9110 § 9.1): "An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code."
+            // The grammar is what makes this a violation rather than an oddity: the
+            // charset is a definition, and § 2.2 is the sentence that forbids generating
+            // something outside it.
+            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+            if let Some(c) = invalid_char {
+                // Escaped, because the octet that fails a `tchar` test is very often one
+                // that prints as nothing: a raw DEL interpolated here produced a finding
+                // whose offending character was an empty pair of quotes.
                 return Some(self.violation(
                     config.severity,
                     format!(
-                        "Method token '{m}' is '{folded}' written in another case. The method token is case-sensitive, so a server matching method names sees an unrecognized method here rather than '{folded}', and ought to answer 501 (Not Implemented); by convention a standardized method is defined in all-uppercase US-ASCII letters"
+                        "Method token contains {}, which is not a `tchar`, so the request's method derives from no `token` and therefore from no `method`",
+                        crate::helpers::headers::shown_in_finding(&c.to_string())
                     ),
                 ));
             }
-        }
 
-        None
+            // Everything below is a `token` already, so it needs no escaping to be shown.
+            //
+            // The fold is the finding, not a comparison made with one: the question asked
+            // is whether this token is a standardized method's name written in another
+            // case, and folding is how that is asked. It is emphatically not a fold that
+            // then applies that method's semantics -- the sentence beside it is why.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            // cite(RFC 9110 § 9.1): "By convention, standardized methods are defined in all-uppercase US-ASCII letters."
+            if lowercase_in_token {
+                let folded = m.to_ascii_uppercase();
+                if config.registered_methods.iter().any(|r| r == &folded) {
+                    // What a recipient does with a token it cannot place is the reason this
+                    // is worth saying at all: the request does not fail to parse, it simply
+                    // asks for a method nobody defined.
+                    // cite(RFC 9110 § 9.1): "An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code."
+                    return Some(self.violation(
+                        config.severity,
+                        format!(
+                            "Method token '{m}' is '{folded}' written in another case. The method token is case-sensitive, so a server matching method names sees an unrecognized method here rather than '{folded}', and ought to answer 501 (Not Implemented); by convention a standardized method is defined in all-uppercase US-ASCII letters"
+                        ),
+                    ));
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

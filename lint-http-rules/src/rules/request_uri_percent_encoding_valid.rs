@@ -23,111 +23,116 @@ impl Rule for RequestUriPercentEncodingValid {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // What this field holds is version-specific -- an HTTP/1.x
-        // request-target, or the target URI the transport reassembled from
-        // pseudo-header fields -- and the one name that covers both is § 7.1's,
-        // where the components a message carries are collectively the request
-        // target whatever the major version puts them in. Neither reading
-        // changes the question asked below: `:path` is the path and query parts
-        // of the target URI, so the characters are the same productions'
-        // characters on all three versions and the rule is not version-gated.
-        // cite(RFC 9110 § 7.1): "For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field"
-        // cite(RFC 9113 § 8.3.1): "The ":path" pseudo-header field includes the path and query parts of the target URI"
-        // cite(RFC 9114 § 4.3.1): "Contains the path and query parts of the target URI"
-        let target = tx.request.uri.as_str();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // What this field holds is version-specific -- an HTTP/1.x
+            // request-target, or the target URI the transport reassembled from
+            // pseudo-header fields -- and the one name that covers both is § 7.1's,
+            // where the components a message carries are collectively the request
+            // target whatever the major version puts them in. Neither reading
+            // changes the question asked below: `:path` is the path and query parts
+            // of the target URI, so the characters are the same productions'
+            // characters on all three versions and the rule is not version-gated.
+            // cite(RFC 9110 § 7.1): "For historical reasons, the parsed target URI components, collectively referred to as the "request target", are sent within the message control data and the Host header field"
+            // cite(RFC 9113 § 8.3.1): "The ":path" pseudo-header field includes the path and query parts of the target URI"
+            // cite(RFC 9114 § 4.3.1): "Contains the path and query parts of the target URI"
+            let target = tx.request.uri.as_str();
 
-        // Both findings below are "this derives from no production", and the
-        // productions are not HTTP's own: § 4.1 adopts the generic syntax's
-        // rules by name for the elements that carry a URI, which is what carries
-        // § 2.2's sender MUST NOT onto a percent-encoding.
-        // cite(RFC 9110 § 4.1): "The definitions of "URI-reference", "absolute-URI", "relative-part", "authority", "port", "host", "path-abempty", "segment", and "query" are adopted from the URI generic syntax."
-        // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+            // Both findings below are "this derives from no production", and the
+            // productions are not HTTP's own: § 4.1 adopts the generic syntax's
+            // rules by name for the elements that carry a URI, which is what carries
+            // § 2.2's sender MUST NOT onto a percent-encoding.
+            // cite(RFC 9110 § 4.1): "The definitions of "URI-reference", "absolute-URI", "relative-part", "authority", "port", "host", "path-abempty", "segment", and "query" are adopted from the URI generic syntax."
+            // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
 
-        // The triplet is three characters and the '%' is the first of them, so
-        // the question is asked of the whole target rather than of a component:
-        // a '%' means the same thing in a path, a query, a host and a scheme's
-        // rootless path, and the helper carries the production. Hexadecimal case
-        // is not part of it -- `description()` records which sentence is
-        // declined there and why.
-        // cite(RFC 3986 § 2.4): "Because the percent ("%") character serves as the indicator for percent-encoded octets, it must be percent-encoded as "%25" for that octet to be used as data within a URI."
-        // cite(RFC 3986 § 2.4): "Once produced, a URI is always in its percent-encoded form."
-        // cite(RFC 3986 § 2.4): "When a URI is dereferenced, the components and subcomponents significant to the scheme-specific dereferencing process (if any) must be parsed and separated before the percent-encoded octets within those components can be safely decoded, as otherwise the data may be mistaken for component delimiters."
-        if let Some(msg) = crate::helpers::uri::check_percent_encoding(target) {
-            // Read after the finding is certain: parsing the config is several
-            // map probes and a hash of the rule id, where the scan above walks a
-            // string the transaction already holds.
-            let severity = ctx.severity;
+            // The triplet is three characters and the '%' is the first of them, so
+            // the question is asked of the whole target rather than of a component:
+            // a '%' means the same thing in a path, a query, a host and a scheme's
+            // rootless path, and the helper carries the production. Hexadecimal case
+            // is not part of it -- `description()` records which sentence is
+            // declined there and why.
+            // cite(RFC 3986 § 2.4): "Because the percent ("%") character serves as the indicator for percent-encoded octets, it must be percent-encoded as "%25" for that octet to be used as data within a URI."
+            // cite(RFC 3986 § 2.4): "Once produced, a URI is always in its percent-encoded form."
+            // cite(RFC 3986 § 2.4): "When a URI is dereferenced, the components and subcomponents significant to the scheme-specific dereferencing process (if any) must be parsed and separated before the percent-encoded octets within those components can be safely decoded, as otherwise the data may be mistaken for component delimiters."
+            if let Some(msg) = crate::helpers::uri::check_percent_encoding(target) {
+                // Read after the finding is certain: parsing the config is several
+                // map probes and a hash of the rule id, where the scan above walks a
+                // string the transaction already holds.
+                let severity = ctx.severity;
 
-            // A target read back from a capture can hold characters that print
-            // as nothing or, worse, print as something else: an escape sequence
-            // in a finding is a finding nobody can read.
-            let shown = crate::helpers::headers::shown_in_finding(target);
+                // A target read back from a capture can hold characters that print
+                // as nothing or, worse, print as something else: an escape sequence
+                // in a finding is a finding nobody can read.
+                let shown = crate::helpers::headers::shown_in_finding(target);
 
-            return Some(Violation {
-                rule: self.id().into(),
-                severity,
-                message: format!(
-                    "Request target '{shown}': {msg}. The percent character is the indicator for a \
-                     percent-encoded octet and opens a triplet -- itself and two hexadecimal \
-                     digits -- so one meant as data is written '%25'. Once produced a URI is \
-                     always in its percent-encoded form, which is why what follows a '%' is read \
-                     as an encoding whatever the sender meant by it, and why a recipient that \
-                     decodes before it has separated the components can take the result for a \
-                     delimiter"
-                ),
-            });
-        }
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity,
+                    message: format!(
+                        "Request target '{shown}': {msg}. The percent character is the indicator for a \
+                         percent-encoded octet and opens a triplet -- itself and two hexadecimal \
+                         digits -- so one meant as data is written '%25'. Once produced a URI is \
+                         always in its percent-encoded form, which is why what follows a '%' is read \
+                         as an encoding whatever the sender meant by it, and why a recipient that \
+                         decodes before it has separated the components can take the result for a \
+                         delimiter"
+                    ),
+                });
+            }
 
-        // The other half of the same mechanism: percent-encoding is what carries
-        // an octet whose character the URI alphabet does not have, so a
-        // character outside that alphabet is a percent-encoding that was never
-        // written. The helper answers the alphabet question only -- '%' is one
-        // of its characters, and the check above is what obliges that '%' to
-        // open a triplet -- so the two branches never report one character
-        // twice.
-        //
-        // The alphabet measured is the *union* of every component's, and that is
-        // the rule's floor rather than its ceiling: the generic syntax writes
-        // several alphabets, and a character can be inside the union and outside
-        // the component it was written in -- '[' derives from none of the three
-        // productions below, and this rule reports it in none of them, because it
-        // does not split the target into components. What it reports is a
-        // character no component admits, which is a finding whichever component
-        // it sits in. `description()` publishes the half that is left.
-        // cite(RFC 3986 § 3.3, label: pchar): "pchar         = unreserved / pct-encoded / sub-delims / ":" / "@""
-        // cite(RFC 3986 § 3.4, label: query): "query       = *( pchar / "/" / "?" )"
-        // cite(RFC 3986 § 3.2.2, label: reg-name): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
-        // cite(RFC 3986 § 2.1): "A percent-encoding mechanism is used to represent a data octet in a component when that octet's corresponding character is outside the allowed set or is being used as a delimiter of, or within, the component."
-        // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
-        // cite(RFC 3986 § 2): "The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII]."
-        // cite(RFC 3986 § 2): "the integer values used by the ABNF must be mapped back to their corresponding characters via US-ASCII in order to complete the syntax rules."
-        if let Some(ch) = crate::helpers::uri::find_non_uri_char(target) {
-            let severity = ctx.severity;
+            // The other half of the same mechanism: percent-encoding is what carries
+            // an octet whose character the URI alphabet does not have, so a
+            // character outside that alphabet is a percent-encoding that was never
+            // written. The helper answers the alphabet question only -- '%' is one
+            // of its characters, and the check above is what obliges that '%' to
+            // open a triplet -- so the two branches never report one character
+            // twice.
+            //
+            // The alphabet measured is the *union* of every component's, and that is
+            // the rule's floor rather than its ceiling: the generic syntax writes
+            // several alphabets, and a character can be inside the union and outside
+            // the component it was written in -- '[' derives from none of the three
+            // productions below, and this rule reports it in none of them, because it
+            // does not split the target into components. What it reports is a
+            // character no component admits, which is a finding whichever component
+            // it sits in. `description()` publishes the half that is left.
+            // cite(RFC 3986 § 3.3, label: pchar): "pchar         = unreserved / pct-encoded / sub-delims / ":" / "@""
+            // cite(RFC 3986 § 3.4, label: query): "query       = *( pchar / "/" / "?" )"
+            // cite(RFC 3986 § 3.2.2, label: reg-name): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
+            // cite(RFC 3986 § 2.1): "A percent-encoding mechanism is used to represent a data octet in a component when that octet's corresponding character is outside the allowed set or is being used as a delimiter of, or within, the component."
+            // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
+            // cite(RFC 3986 § 2): "The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII]."
+            // cite(RFC 3986 § 2): "the integer values used by the ABNF must be mapped back to their corresponding characters via US-ASCII in order to complete the syntax rules."
+            if let Some(ch) = crate::helpers::uri::find_non_uri_char(target) {
+                let severity = ctx.severity;
 
-            let shown = crate::helpers::headers::shown_in_finding(target);
-            let shown_char = crate::helpers::headers::shown_in_finding(&ch.to_string());
+                let shown = crate::helpers::headers::shown_in_finding(target);
+                let shown_char = crate::helpers::headers::shown_in_finding(&ch.to_string());
 
-            return Some(Violation {
-                rule: self.id().into(),
-                severity,
-                message: format!(
-                    "Request target '{shown}' contains '{shown_char}' (U+{:04X}), which is not one \
-                     of the characters a URI is composed from -- digits, letters and a few graphic \
-                     symbols, the notation's terminals being US-ASCII codepoints. An octet whose \
-                     character is outside that set is carried by percent-encoding it, and this one \
-                     was written raw, so no component's production derives this target",
-                    ch as u32
-                ),
-            });
-        }
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity,
+                    message: format!(
+                        "Request target '{shown}' contains '{shown_char}' (U+{:04X}), which is not one \
+                         of the characters a URI is composed from -- digits, letters and a few graphic \
+                         symbols, the notation's terminals being US-ASCII codepoints. An octet whose \
+                         character is outside that set is carried by percent-encoding it, and this one \
+                         was written raw, so no component's production derives this target",
+                        ch as u32
+                    ),
+                });
+            }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

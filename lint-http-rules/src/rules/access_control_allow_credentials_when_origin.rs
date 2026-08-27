@@ -16,84 +16,89 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        let headers = &resp.headers;
+            let headers = &resp.headers;
 
-        // If there is no Access-Control-Allow-Origin header, nothing to check
-        let acao_count = headers
-            .get_all("access-control-allow-origin")
-            .iter()
-            .count();
-        if acao_count == 0 {
-            return None;
-        }
+            // If there is no Access-Control-Allow-Origin header, nothing to check
+            let acao_count = headers
+                .get_all("access-control-allow-origin")
+                .iter()
+                .count();
+            if acao_count == 0 {
+                return None;
+            }
 
-        // Validate Access-Control-Allow-Origin header values (ensure UTF-8, and detect any '*')
-        let mut acao_has_star = false;
-        for hv in headers.get_all("access-control-allow-origin").iter() {
-            let s = match hv.to_str() {
-                Ok(v) => v.trim(),
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Access-Control-Allow-Origin header contains non-ASCII or control characters".into(),
-                    })
+            // Validate Access-Control-Allow-Origin header values (ensure UTF-8, and detect any '*')
+            let mut acao_has_star = false;
+            for hv in headers.get_all("access-control-allow-origin").iter() {
+                let s = match hv.to_str() {
+                    Ok(v) => v.trim(),
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Access-Control-Allow-Origin header contains non-ASCII or control characters".into(),
+                        })
+                    }
+                };
+                for token in crate::helpers::headers::list_members(s) {
+                    if token == "*" {
+                        acao_has_star = true;
+                        break;
+                    }
                 }
-            };
-            for token in crate::helpers::headers::list_members(s) {
-                if token == "*" {
-                    acao_has_star = true;
+                if acao_has_star {
                     break;
                 }
             }
-            if acao_has_star {
-                break;
+
+            let acc_count = headers
+                .get_all("access-control-allow-credentials")
+                .iter()
+                .count();
+            if acc_count == 0 {
+                return None; // nothing to check
             }
-        }
 
-        let acc_count = headers
-            .get_all("access-control-allow-credentials")
-            .iter()
-            .count();
-        if acc_count == 0 {
-            return None; // nothing to check
-        }
+            let acc_val = match crate::helpers::headers::get_header_str(headers, "access-control-allow-credentials") {
+                Some(v) => v.trim(),
+                None => {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Access-Control-Allow-Credentials header contains non-ASCII or control characters".into(),
+                    })
+                }
+            };
 
-        let acc_val = match crate::helpers::headers::get_header_str(headers, "access-control-allow-credentials") {
-            Some(v) => v.trim(),
-            None => {
+            // If credentials is 'true' (case-insensitive) and any AC-Allow-Origin header contains '*', violation.
+            // `*` and credentials are mutually exclusive by construction: the CORS check only
+            // returns success on `*` for a request whose credentials mode is *not* "include",
+            // and a credentialed request must instead match the byte-serialized origin — which
+            // `*` is not. A server sending both is advertising a sharing it will never get.
+            // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
+            // cite(Fetch § 4.10): "If credentials is `true`, then return success."
+            if acc_val.eq_ignore_ascii_case("true") && acao_has_star {
                 return Some(Violation {
                     rule: self.id().into(),
                     severity: ctx.severity,
-                    message: "Access-Control-Allow-Credentials header contains non-ASCII or control characters".into(),
-                })
+                    message: "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'".into(),
+                });
             }
+
+            None
         };
-
-        // If credentials is 'true' (case-insensitive) and any AC-Allow-Origin header contains '*', violation.
-        // `*` and credentials are mutually exclusive by construction: the CORS check only
-        // returns success on `*` for a request whose credentials mode is *not* "include",
-        // and a credentialed request must instead match the byte-serialized origin — which
-        // `*` is not. A server sending both is advertising a sharing it will never get.
-        // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
-        // cite(Fetch § 4.10): "If credentials is `true`, then return success."
-        if acc_val.eq_ignore_ascii_case("true") && acao_has_star {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'".into(),
-            });
-        }
-
-        None
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

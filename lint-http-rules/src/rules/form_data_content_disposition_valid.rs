@@ -16,139 +16,162 @@ impl Rule for FormDataContentDispositionValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Scope worth being honest about: RFC 7578 §4.2 places its requirement on
-        // each *part* of a multipart/form-data body, and this proxy does not parse
-        // bodies — the transaction carries header maps, not parts. So what is
-        // actually inspected is a message-level `Content-Disposition`, which is a
-        // different position from the one the spec is talking about. A message-level
-        // `form-data` disposition is itself out of place (RFC 6266 defines `inline`
-        // and `attachment` for HTTP messages), so when this rule does fire the
-        // missing `name` is usually the lesser of the two oddities. Part-level
-        // checking would need a body parser; until then this is a best-effort
-        // approximation and not the §4.2 check itself.
-        // Helper that checks a single header value
-        let check_value = |_hdr: &str, val: &str| -> Option<Violation> {
-            let s = val.trim();
-            if s.is_empty() {
-                return None; // other rules handle empty disposition
-            }
-
-            let mut parts = s.splitn(2, ';');
-            let dispo = parts.next().unwrap().trim();
-            let params_part = parts.next().map(|p| p.trim()).unwrap_or("");
-
-            // Everything below is scoped to the `form-data` disposition type; an
-            // `inline` or `attachment` disposition (RFC 6266) carries no `name`
-            // requirement and is left alone. The previous quote here stopped at
-            // "...Content-Disposition header field", dropping the very clause that
-            // licenses this gate. The full sentence cannot be quoted as one span
-            // because an `[RFC2183]` hyperlink sits in the middle of it, so the
-            // operative clause is quoted on its own.
-            // cite(RFC 7578 § 4.2): "where the disposition type is "form-data"."
-            if !dispo.eq_ignore_ascii_case("form-data") {
-                return None; // only applies to form-data dispositions
-            }
-
-            // The `name` parameter is a MUST, and its value is meant to be the form
-            // field name — which is the basis for treating an empty one as a defect
-            // below, though the spec does not spell out "non-empty" and an empty
-            // value is a linter judgement rather than a quoted requirement.
-            // cite(RFC 7578 § 4.2): "The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form"
-            if params_part.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Content-Disposition: 'form-data' missing 'name' parameter".into(),
-                });
-            }
-
-            let mut name_found = false;
-            for raw_param in
-                crate::helpers::headers::split_semicolons_respecting_quotes(params_part)
-            {
-                let p = raw_param.trim();
-                if p.is_empty() {
-                    continue;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Scope worth being honest about: RFC 7578 §4.2 places its requirement on
+            // each *part* of a multipart/form-data body, and this proxy does not parse
+            // bodies — the transaction carries header maps, not parts. So what is
+            // actually inspected is a message-level `Content-Disposition`, which is a
+            // different position from the one the spec is talking about. A message-level
+            // `form-data` disposition is itself out of place (RFC 6266 defines `inline`
+            // and `attachment` for HTTP messages), so when this rule does fire the
+            // missing `name` is usually the lesser of the two oddities. Part-level
+            // checking would need a body parser; until then this is a best-effort
+            // approximation and not the §4.2 check itself.
+            // Helper that checks a single header value
+            let check_value = |_hdr: &str, val: &str| -> Option<Violation> {
+                let s = val.trim();
+                if s.is_empty() {
+                    return None; // other rules handle empty disposition
                 }
-                let eq = p.find('=');
-                if eq.is_none() {
-                    // malformed param - leave to parameter validation rule; be conservative
-                    continue;
-                }
-                let (name, val) = p.split_at(eq.unwrap());
-                if name.trim().eq_ignore_ascii_case("name") {
-                    let raw = val[1..].trim(); // skip '=' and trim
 
-                    if raw.starts_with('"') {
-                        // quoted-string: check if inner trimmed content is empty or invalid
-                        match crate::helpers::headers::quoted_string_inner_trimmed_is_empty(raw) {
-                            Ok(true) => {
+                let mut parts = s.splitn(2, ';');
+                let dispo = parts.next().unwrap().trim();
+                let params_part = parts.next().map(|p| p.trim()).unwrap_or("");
+
+                // Everything below is scoped to the `form-data` disposition type; an
+                // `inline` or `attachment` disposition (RFC 6266) carries no `name`
+                // requirement and is left alone. The previous quote here stopped at
+                // "...Content-Disposition header field", dropping the very clause that
+                // licenses this gate. The full sentence cannot be quoted as one span
+                // because an `[RFC2183]` hyperlink sits in the middle of it, so the
+                // operative clause is quoted on its own.
+                // cite(RFC 7578 § 4.2): "where the disposition type is "form-data"."
+                if !dispo.eq_ignore_ascii_case("form-data") {
+                    return None; // only applies to form-data dispositions
+                }
+
+                // The `name` parameter is a MUST, and its value is meant to be the form
+                // field name — which is the basis for treating an empty one as a defect
+                // below, though the spec does not spell out "non-empty" and an empty
+                // value is a linter judgement rather than a quoted requirement.
+                // cite(RFC 7578 § 4.2): "The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form"
+                if params_part.is_empty() {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Content-Disposition: 'form-data' missing 'name' parameter".into(),
+                    });
+                }
+
+                let mut name_found = false;
+                for raw_param in
+                    crate::helpers::headers::split_semicolons_respecting_quotes(params_part)
+                {
+                    let p = raw_param.trim();
+                    if p.is_empty() {
+                        continue;
+                    }
+                    let eq = p.find('=');
+                    if eq.is_none() {
+                        // malformed param - leave to parameter validation rule; be conservative
+                        continue;
+                    }
+                    let (name, val) = p.split_at(eq.unwrap());
+                    if name.trim().eq_ignore_ascii_case("name") {
+                        let raw = val[1..].trim(); // skip '=' and trim
+
+                        if raw.starts_with('"') {
+                            // quoted-string: check if inner trimmed content is empty or invalid
+                            match crate::helpers::headers::quoted_string_inner_trimmed_is_empty(raw) {
+                                Ok(true) => {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: "Content-Disposition 'form-data' has empty 'name' parameter"
+                                            .into(),
+                                    });
+                                }
+                                Ok(false) => {
+                                    name_found = true;
+                                    break;
+                                }
+                                Err(e) => {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: format!(
+                                            "Content-Disposition 'form-data' has invalid quoted 'name' parameter: {}",
+                                            e
+                                        ),
+                                    })
+                                }
+                            }
+                        } else {
+                            // token/unquoted value
+                            if raw.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
                                     severity: ctx.severity,
-                                    message: "Content-Disposition 'form-data' has empty 'name' parameter"
-                                        .into(),
+                                    message:
+                                        "Content-Disposition 'form-data' has empty 'name' parameter"
+                                            .into(),
                                 });
                             }
-                            Ok(false) => {
-                                name_found = true;
-                                break;
-                            }
-                            Err(e) => {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!(
-                                        "Content-Disposition 'form-data' has invalid quoted 'name' parameter: {}",
-                                        e
-                                    ),
-                                })
+                            name_found = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Not reported when the quoting never closes. After a stray DQUOTE
+                // everything collapses into one segment and no separator past it is
+                // a separator, so `p="x; name="a"` — which plainly carries a name —
+                // was announced as missing one. Whether that text is a parameter is
+                // exactly what the broken quoting makes unknowable, and this is a
+                // claim about absence. A name the scan did find is judged above and
+                // needs no such gate.
+                if !name_found && crate::helpers::headers::quoting_is_balanced(params_part) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: "Content-Disposition: 'form-data' missing 'name' parameter".into(),
+                    });
+                }
+
+                None
+            };
+
+            // Check response headers
+            if let Some(resp) = &tx.response {
+                for hv in resp.headers.get_all("content-disposition").iter() {
+                    match hv.to_str() {
+                        Ok(s) => {
+                            if let Some(v) = check_value("Content-Disposition", s) {
+                                return Some(v);
                             }
                         }
-                    } else {
-                        // token/unquoted value
-                        if raw.is_empty() {
+                        Err(_) => {
                             return Some(Violation {
                                 rule: self.id().into(),
                                 severity: ctx.severity,
-                                message:
-                                    "Content-Disposition 'form-data' has empty 'name' parameter"
-                                        .into(),
-                            });
+                                message: "Content-Disposition header value is not valid UTF-8"
+                                    .into(),
+                            })
                         }
-                        name_found = true;
-                        break;
                     }
                 }
             }
 
-            // Not reported when the quoting never closes. After a stray DQUOTE
-            // everything collapses into one segment and no separator past it is
-            // a separator, so `p="x; name="a"` — which plainly carries a name —
-            // was announced as missing one. Whether that text is a parameter is
-            // exactly what the broken quoting makes unknowable, and this is a
-            // claim about absence. A name the scan did find is judged above and
-            // needs no such gate.
-            if !name_found && crate::helpers::headers::quoting_is_balanced(params_part) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Content-Disposition: 'form-data' missing 'name' parameter".into(),
-                });
-            }
-
-            None
-        };
-
-        // Check response headers
-        if let Some(resp) = &tx.response {
-            for hv in resp.headers.get_all("content-disposition").iter() {
+            // Check request headers (multipart/form-data parts may present Content-Disposition in requests)
+            for hv in tx.request.headers.get_all("content-disposition").iter() {
                 match hv.to_str() {
                     Ok(s) => {
                         if let Some(v) = check_value("Content-Disposition", s) {
@@ -164,27 +187,10 @@ impl Rule for FormDataContentDispositionValid {
                     }
                 }
             }
-        }
 
-        // Check request headers (multipart/form-data parts may present Content-Disposition in requests)
-        for hv in tx.request.headers.get_all("content-disposition").iter() {
-            match hv.to_str() {
-                Ok(s) => {
-                    if let Some(v) = check_value("Content-Disposition", s) {
-                        return Some(v);
-                    }
-                }
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Content-Disposition header value is not valid UTF-8".into(),
-                    })
-                }
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

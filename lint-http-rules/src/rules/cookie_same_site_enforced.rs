@@ -25,36 +25,41 @@ impl Rule for CookieSameSiteEnforced {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // only care about outgoing requests that carry Cookie headers
-        let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
-        if cookie_headers.is_empty() {
-            return None;
-        }
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // only care about outgoing requests that carry Cookie headers
+            let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
+            if cookie_headers.is_empty() {
+                return None;
+            }
 
-        // compute simple request metadata needed for matching
-        let req_uri = &tx.request.uri;
-        let scheme = if req_uri.to_ascii_lowercase().starts_with("https://") {
-            "https"
-        } else {
-            "http"
-        };
+            // compute simple request metadata needed for matching
+            let req_uri = &tx.request.uri;
+            let scheme = if req_uri.to_ascii_lowercase().starts_with("https://") {
+                "https"
+            } else {
+                "http"
+            };
 
-        // extract host portion (without port) using shared helper
-        let req_host =
-            crate::helpers::uri::extract_host_from_request_target(req_uri).unwrap_or_default();
+            // extract host portion (without port) using shared helper
+            let req_host =
+                crate::helpers::uri::extract_host_from_request_target(req_uri).unwrap_or_default();
 
-        let req_path = crate::helpers::uri::extract_path_from_request_target(req_uri)
-            .unwrap_or_else(|| "/".into());
+            let req_path = crate::helpers::uri::extract_path_from_request_target(req_uri)
+                .unwrap_or_else(|| "/".into());
 
-        // determine site relationship; None means unknown and we skip enforcement
-        let is_cross =
-            match crate::helpers::headers::get_header_str(&tx.request.headers, "sec-fetch-site") {
+            // determine site relationship; None means unknown and we skip enforcement
+            let is_cross = match crate::helpers::headers::get_header_str(
+                &tx.request.headers,
+                "sec-fetch-site",
+            ) {
                 Some("same-origin") | Some("same-site") => false,
                 Some("cross-site") => true,
                 // `none` means there is no initiator site (e.g., user‑initiated
@@ -64,103 +69,107 @@ impl Rule for CookieSameSiteEnforced {
                 _ => return None,
             };
 
-        // allow sending of Lax cookies in top-level safe navigations
-        let allow_lax = {
-            let method = tx.request.method.as_str();
-            let fetch_mode =
-                crate::helpers::headers::get_header_str(&tx.request.headers, "sec-fetch-mode");
-            // RFC draft allows GET/HEAD navigation requests
-            let safe_method = matches!(method, "GET" | "HEAD");
-            safe_method && fetch_mode == Some("navigate")
-        };
+            // allow sending of Lax cookies in top-level safe navigations
+            let allow_lax = {
+                let method = tx.request.method.as_str();
+                let fetch_mode =
+                    crate::helpers::headers::get_header_str(&tx.request.headers, "sec-fetch-mode");
+                // RFC draft allows GET/HEAD navigation requests
+                let safe_method = matches!(method, "GET" | "HEAD");
+                safe_method && fetch_mode == Some("navigate")
+            };
 
-        // build live cookie store for origin at transaction time
-        let live_cookies = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
+            // build live cookie store for origin at transaction time
+            let live_cookies = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
 
-        // parse sent cookies into pairs
-        let mut sent_pairs: Vec<(String, String)> = Vec::new();
-        for hv in cookie_headers.iter() {
-            if let Ok(s) = hv.to_str() {
-                sent_pairs.extend(crate::helpers::cookie::parse_cookie_header(s));
+            // parse sent cookies into pairs
+            let mut sent_pairs: Vec<(String, String)> = Vec::new();
+            for hv in cookie_headers.iter() {
+                if let Ok(s) = hv.to_str() {
+                    sent_pairs.extend(crate::helpers::cookie::parse_cookie_header(s));
+                }
             }
-        }
 
-        // examine each sent cookie against its stored metadata
-        for (name, value) in sent_pairs {
-            // look for the most specific applicable live cookie with exact name/value
-            let candidate = live_cookies
-                .iter()
-                .filter(|c| {
-                    c.name == name
-                        && c.value == value
-                        && c.domain_matches(&req_host)
-                        && c.path_matches(&req_path)
-                        && (!c.secure || scheme == "https")
-                })
-                .max_by(|a, b| {
-                    // Prefer longer path; on tie, prefer more specific (longer) domain.
-                    let a_path_len = a.path.len();
-                    let b_path_len = b.path.len();
-                    a_path_len.cmp(&b_path_len).then_with(|| {
-                        let a_domain_len = a.domain.as_str().len();
-                        let b_domain_len = b.domain.as_str().len();
-                        a_domain_len.cmp(&b_domain_len)
+            // examine each sent cookie against its stored metadata
+            for (name, value) in sent_pairs {
+                // look for the most specific applicable live cookie with exact name/value
+                let candidate = live_cookies
+                    .iter()
+                    .filter(|c| {
+                        c.name == name
+                            && c.value == value
+                            && c.domain_matches(&req_host)
+                            && c.path_matches(&req_path)
+                            && (!c.secure || scheme == "https")
                     })
-                });
-            if let Some(c) = candidate {
-                // determine effective SameSite value (default Lax)
-                let effective = match c.same_site {
-                    crate::helpers::cookie::SameSite::Strict => {
-                        crate::helpers::cookie::SameSite::Strict
-                    }
-                    crate::helpers::cookie::SameSite::Lax => crate::helpers::cookie::SameSite::Lax,
-                    crate::helpers::cookie::SameSite::None => {
-                        crate::helpers::cookie::SameSite::None
-                    }
-                    // A missing or unrecognised attribute is not "no policy": the
-                    // same paragraph as the Strict/Lax cites gives it a default
-                    // enforcement equivalent to Lax, which is why this rule holds
-                    // such cookies to the Lax cross-site rule below.
-                    // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax"."
-                    crate::helpers::cookie::SameSite::Unspecified => {
-                        crate::helpers::cookie::SameSite::Lax
-                    }
-                };
-
-                if is_cross {
-                    match effective {
-                        // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
+                    .max_by(|a, b| {
+                        // Prefer longer path; on tie, prefer more specific (longer) domain.
+                        let a_path_len = a.path.len();
+                        let b_path_len = b.path.len();
+                        a_path_len.cmp(&b_path_len).then_with(|| {
+                            let a_domain_len = a.domain.as_str().len();
+                            let b_domain_len = b.domain.as_str().len();
+                            a_domain_len.cmp(&b_domain_len)
+                        })
+                    });
+                if let Some(c) = candidate {
+                    // determine effective SameSite value (default Lax)
+                    let effective = match c.same_site {
                         crate::helpers::cookie::SameSite::Strict => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Cookie '{}' has SameSite=Strict but is sent in a cross-site context",
-                                    name
-                                ),
-                            });
+                            crate::helpers::cookie::SameSite::Strict
                         }
-                        // `allow_lax` is the carve-out named in the second half of this
-                        // sentence: a top-level navigation is where a Lax cookie legitimately
-                        // crosses sites, which is why this arm only fires when it is not one.
-                        // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1."
-                        crate::helpers::cookie::SameSite::Lax if !allow_lax => {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Cookie '{}' has SameSite=Lax but is sent in a restricted cross-site context",
-                                    name
-                                ),
-                            });
+                        crate::helpers::cookie::SameSite::Lax => {
+                            crate::helpers::cookie::SameSite::Lax
                         }
-                        _ => { /* None is allowed */ }
+                        crate::helpers::cookie::SameSite::None => {
+                            crate::helpers::cookie::SameSite::None
+                        }
+                        // A missing or unrecognised attribute is not "no policy": the
+                        // same paragraph as the Strict/Lax cites gives it a default
+                        // enforcement equivalent to Lax, which is why this rule holds
+                        // such cookies to the Lax cross-site rule below.
+                        // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is something other than these three known keywords, the attribute's value will be subject to a default enforcement mode that is equivalent to "Lax"."
+                        crate::helpers::cookie::SameSite::Unspecified => {
+                            crate::helpers::cookie::SameSite::Lax
+                        }
+                    };
+
+                    if is_cross {
+                        match effective {
+                            // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests."
+                            crate::helpers::cookie::SameSite::Strict => {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!(
+                                        "Cookie '{}' has SameSite=Strict but is sent in a cross-site context",
+                                        name
+                                    ),
+                                });
+                            }
+                            // `allow_lax` is the carve-out named in the second half of this
+                            // sentence: a top-level navigation is where a Lax cookie legitimately
+                            // crosses sites, which is why this arm only fires when it is not one.
+                            // cite(draft-ietf-httpbis-rfc6265bis § 4.1.2.7): "If the value is "Lax", the cookie will be sent with same-site requests, and with "cross-site" top-level navigations, as described in Section 5.6.7.1."
+                            crate::helpers::cookie::SameSite::Lax if !allow_lax => {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!(
+                                        "Cookie '{}' has SameSite=Lax but is sent in a restricted cross-site context",
+                                        name
+                                    ),
+                                });
+                            }
+                            _ => { /* None is allowed */ }
+                        }
                     }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

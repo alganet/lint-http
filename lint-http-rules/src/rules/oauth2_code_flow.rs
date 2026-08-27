@@ -37,104 +37,111 @@ impl Rule for Oauth2CodeFlow {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req_uri = &tx.request.uri;
-        // simple query extraction: portion after '?' if present, ignoring any
-        // URI fragment (`#...`) which is not part of the query string.
-        let query = req_uri.split_once('?').map(|x| x.1).unwrap_or("");
-        let query = query.split('#').next().unwrap_or(query);
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req_uri = &tx.request.uri;
+            // simple query extraction: portion after '?' if present, ignoring any
+            // URI fragment (`#...`) which is not part of the query string.
+            let query = req_uri.split_once('?').map(|x| x.1).unwrap_or("");
+            let query = query.split('#').next().unwrap_or(query);
 
-        let params = crate::helpers::uri::parse_query_string(query);
+            let params = crate::helpers::uri::parse_query_string(query);
 
-        // helper to lookup a parameter by name (first occurrence)
-        fn get_param<'a>(pairs: &'a [(String, String)], key: &str) -> Option<&'a String> {
-            for (k, v) in pairs {
-                if k == key {
-                    return Some(v);
+            // helper to lookup a parameter by name (first occurrence)
+            fn get_param<'a>(pairs: &'a [(String, String)], key: &str) -> Option<&'a String> {
+                for (k, v) in pairs {
+                    if k == key {
+                        return Some(v);
+                    }
+                }
+                None
+            }
+
+            // An authorization request for the code flow is identified by response_type=code.
+            // cite(RFC 6749 § 4.1.1): "REQUIRED.  Value MUST be set to "code"."
+            if let Some(rt) = get_param(&params, "response_type") {
+                if rt == "code" {
+                    // State must be present; empty/whitespace counts as missing. §4.1.1 only
+                    // RECOMMENDS the state parameter, but §10.12 makes CSRF protection on the
+                    // redirection URI a MUST and names state as the SHOULD mechanism for it — so
+                    // requiring state is enforcing that MUST through its recommended vehicle, not
+                    // merely being stricter than the parameter's own RECOMMENDED status.
+                    // cite(RFC 6749 § 4.1.1): "RECOMMENDED.  An opaque value used by the client to maintain state between the request and callback."
+                    // cite(RFC 6749 § 10.12): "The client MUST implement CSRF protection for its redirection URI."
+                    // cite(RFC 6749 § 10.12): "The client SHOULD utilize the "state" request parameter to deliver this value"
+                    match get_param(&params, "state") {
+                        Some(s) if !s.trim().is_empty() => {
+                            // OK
+                        }
+                        _ => {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: "OAuth2 authorization request with response_type=code missing or empty state parameter".into(),
+                            });
+                        }
+                    }
+                    // nothing else to check for the request itself
                 }
             }
-            None
-        }
 
-        // An authorization request for the code flow is identified by response_type=code.
-        // cite(RFC 6749 § 4.1.1): "REQUIRED.  Value MUST be set to "code"."
-        if let Some(rt) = get_param(&params, "response_type") {
-            if rt == "code" {
-                // State must be present; empty/whitespace counts as missing. §4.1.1 only
-                // RECOMMENDS the state parameter, but §10.12 makes CSRF protection on the
-                // redirection URI a MUST and names state as the SHOULD mechanism for it — so
-                // requiring state is enforcing that MUST through its recommended vehicle, not
-                // merely being stricter than the parameter's own RECOMMENDED status.
-                // cite(RFC 6749 § 4.1.1): "RECOMMENDED.  An opaque value used by the client to maintain state between the request and callback."
-                // cite(RFC 6749 § 10.12): "The client MUST implement CSRF protection for its redirection URI."
-                // cite(RFC 6749 § 10.12): "The client SHOULD utilize the "state" request parameter to deliver this value"
+            // A callback is identified by the authorization code it carries.
+            // cite(RFC 6749 § 4.1.2): "REQUIRED.  The authorization code generated by the authorization server."
+            if get_param(&params, "code").is_some() {
+                // The callback MUST echo the exact state from the request that started the
+                // flow; the correlation below re-derives that request from history and checks
+                // the values match, which is the CSRF binding §10.12 requires.
+                // cite(RFC 6749 § 4.1.2): "REQUIRED if the "state" parameter was present in the client authorization request.  The exact value received from the client."
                 match get_param(&params, "state") {
-                    Some(s) if !s.trim().is_empty() => {
-                        // OK
+                    Some(state_val) if !state_val.trim().is_empty() => {
+                        // look for prior authorization request with same state
+                        let mut seen = false;
+                        for prev in history.iter() {
+                            let prev_q =
+                                prev.request.uri.split_once('?').map(|x| x.1).unwrap_or("");
+                            let prev_q = prev_q.split('#').next().unwrap_or(prev_q);
+                            let prev_params = crate::helpers::uri::parse_query_string(prev_q);
+                            if let Some(rt2) = get_param(&prev_params, "response_type") {
+                                if rt2 == "code" {
+                                    if let Some(ps) = get_param(&prev_params, "state") {
+                                        if ps == state_val {
+                                            seen = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if !seen {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: "OAuth2 authorization callback used a state value that was not seen in a prior request".into(),
+                            });
+                        }
                     }
                     _ => {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: ctx.severity,
-                            message: "OAuth2 authorization request with response_type=code missing or empty state parameter".into(),
+                            message:
+                                "OAuth2 authorization callback missing or empty state parameter"
+                                    .into(),
                         });
                     }
                 }
-                // nothing else to check for the request itself
             }
-        }
 
-        // A callback is identified by the authorization code it carries.
-        // cite(RFC 6749 § 4.1.2): "REQUIRED.  The authorization code generated by the authorization server."
-        if get_param(&params, "code").is_some() {
-            // The callback MUST echo the exact state from the request that started the
-            // flow; the correlation below re-derives that request from history and checks
-            // the values match, which is the CSRF binding §10.12 requires.
-            // cite(RFC 6749 § 4.1.2): "REQUIRED if the "state" parameter was present in the client authorization request.  The exact value received from the client."
-            match get_param(&params, "state") {
-                Some(state_val) if !state_val.trim().is_empty() => {
-                    // look for prior authorization request with same state
-                    let mut seen = false;
-                    for prev in history.iter() {
-                        let prev_q = prev.request.uri.split_once('?').map(|x| x.1).unwrap_or("");
-                        let prev_q = prev_q.split('#').next().unwrap_or(prev_q);
-                        let prev_params = crate::helpers::uri::parse_query_string(prev_q);
-                        if let Some(rt2) = get_param(&prev_params, "response_type") {
-                            if rt2 == "code" {
-                                if let Some(ps) = get_param(&prev_params, "state") {
-                                    if ps == state_val {
-                                        seen = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if !seen {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: "OAuth2 authorization callback used a state value that was not seen in a prior request".into(),
-                        });
-                    }
-                }
-                _ => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "OAuth2 authorization callback missing or empty state parameter"
-                            .into(),
-                    });
-                }
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

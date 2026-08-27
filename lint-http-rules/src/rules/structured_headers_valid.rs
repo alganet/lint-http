@@ -112,30 +112,39 @@ impl Rule for StructuredHeadersValid {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
-        // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
-        for hdr in &config.headers {
-            // The two sections are joined separately, never across the pair: the
-            // sentence cited on `check_section` gathers the lines "in the same
-            // section", so a request's field and a response's field of the same
-            // name are two field values, not one.
-            if let Some(v) = self.check_section(&tx.request.headers, hdr, "request", ctx.severity) {
-                return Some(v);
-            }
-            if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_section(&resp.headers, hdr, "response", ctx.severity) {
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
+            // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
+            for hdr in &config.headers {
+                // The two sections are joined separately, never across the pair: the
+                // sentence cited on `check_section` gathers the lines "in the same
+                // section", so a request's field and a response's field of the same
+                // name are two field values, not one.
+                if let Some(v) =
+                    self.check_section(&tx.request.headers, hdr, "request", ctx.severity)
+                {
                     return Some(v);
                 }
+                if let Some(resp) = &tx.response {
+                    if let Some(v) =
+                        self.check_section(&resp.headers, hdr, "response", ctx.severity)
+                    {
+                        return Some(v);
+                    }
+                }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

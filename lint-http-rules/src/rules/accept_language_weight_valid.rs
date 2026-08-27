@@ -24,139 +24,120 @@ impl Rule for AcceptLanguageWeightValid {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The production the rule is a reading of. A member is a range and at
-        // most one weight; nothing else derives from it.
-        // cite(RFC 9110 § 12.5.4): "Accept-Language = #( language-range [ weight ] )"
-        // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
-        let validate_value = |hdr_value: &str| -> Option<Violation> {
-            // A comma split with no regard for quoting, which is right rather
-            // than merely tolerable: nothing in this grammar is a
-            // quoted-string, so there is no quoted comma to protect. Empty list
-            // elements are skipped, which §5.6.1.2 permits a recipient to do.
-            // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
-            for member in crate::helpers::headers::list_members(hdr_value) {
-                // Each member: language-range [; params]
-                let mut iter = member.split(';').map(|s| s.trim());
-                // The language-range itself is `language_tag_syntax`'s
-                // subject, and that deferral has been checked rather than
-                // assumed: it reports an empty range, whitespace inside one, and
-                // an over-long subtag, and it lets `*` through.
-                let _primary = iter.next().unwrap();
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The production the rule is a reading of. A member is a range and at
+            // most one weight; nothing else derives from it.
+            // cite(RFC 9110 § 12.5.4): "Accept-Language = #( language-range [ weight ] )"
+            // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
+            let validate_value = |hdr_value: &str| -> Option<Violation> {
+                // A comma split with no regard for quoting, which is right rather
+                // than merely tolerable: nothing in this grammar is a
+                // quoted-string, so there is no quoted comma to protect. Empty list
+                // elements are skipped, which §5.6.1.2 permits a recipient to do.
+                // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
+                for member in crate::helpers::headers::list_members(hdr_value) {
+                    // Each member: language-range [; params]
+                    let mut iter = member.split(';').map(|s| s.trim());
+                    // The language-range itself is `language_tag_syntax`'s
+                    // subject, and that deferral has been checked rather than
+                    // assumed: it reports an empty range, whitespace inside one, and
+                    // an over-long subtag, and it lets `*` through.
+                    let _primary = iter.next().unwrap();
 
-                // A language-range may carry a weight. That is the whole of what
-                // may follow it — `#( language-range [ weight ] )` has no
-                // parameter list in it, and `weight` is the fixed shape
-                // `OWS ";" OWS "q=" qvalue`. Checking that parameter names are
-                // tokens and values are tokens-or-quoted-strings validated a
-                // grammar this field does not have, and so called
-                // `en;charset=utf-8` well formed.
-                //
-                // The weight is optional — "can be given" — so its absence is
-                // never a finding. What is a finding is something else in its
-                // place, or two of it.
-                // cite(RFC 9110 § 12.5.4): "Each language-range can be given an associated quality value representing an estimate of the user's preference for the languages specified by that range, as defined in Section 12.4.2."
-                let mut weight_seen = false;
-                for param in iter {
-                    // Not skipped as an empty parameter slot: there are no
-                    // parameter slots, and `weight` brackets nothing, so a `;`
-                    // with nothing after it introduces a weight that is absent.
-                    if param.is_empty() {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "Accept-Language member '{}' has a ';' with no weight after it",
-                                member
-                            ),
-                        });
-                    }
-                    // Matched without regard to case because §12.4.2 defines
-                    // the parameter that way, and this is the only name the
-                    // field admits.
-                    // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
-                    let mut nv = param.splitn(2, '=').map(|s| s.trim());
-                    let name = nv.next().unwrap();
-                    let val_opt = nv.next();
+                    // A language-range may carry a weight. That is the whole of what
+                    // may follow it — `#( language-range [ weight ] )` has no
+                    // parameter list in it, and `weight` is the fixed shape
+                    // `OWS ";" OWS "q=" qvalue`. Checking that parameter names are
+                    // tokens and values are tokens-or-quoted-strings validated a
+                    // grammar this field does not have, and so called
+                    // `en;charset=utf-8` well formed.
+                    //
+                    // The weight is optional — "can be given" — so its absence is
+                    // never a finding. What is a finding is something else in its
+                    // place, or two of it.
+                    // cite(RFC 9110 § 12.5.4): "Each language-range can be given an associated quality value representing an estimate of the user's preference for the languages specified by that range, as defined in Section 12.4.2."
+                    let mut weight_seen = false;
+                    for param in iter {
+                        // Not skipped as an empty parameter slot: there are no
+                        // parameter slots, and `weight` brackets nothing, so a `;`
+                        // with nothing after it introduces a weight that is absent.
+                        if param.is_empty() {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "Accept-Language member '{}' has a ';' with no weight after it",
+                                    member
+                                ),
+                            });
+                        }
+                        // Matched without regard to case because §12.4.2 defines
+                        // the parameter that way, and this is the only name the
+                        // field admits.
+                        // cite(RFC 9110 § 12.4.2): "The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content."
+                        let mut nv = param.splitn(2, '=').map(|s| s.trim());
+                        let name = nv.next().unwrap();
+                        let val_opt = nv.next();
 
-                    if !name.eq_ignore_ascii_case("q") {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "'{}' is not a weight, and a weight is the only thing an Accept-Language range may carry (member '{}')",
-                                param, member
-                            ),
-                        });
-                    }
-                    if weight_seen {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "More than one weight in Accept-Language member '{}'",
-                                member
-                            ),
-                        });
-                    }
-                    weight_seen = true;
+                        if !name.eq_ignore_ascii_case("q") {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "'{}' is not a weight, and a weight is the only thing an Accept-Language range may carry (member '{}')",
+                                    param, member
+                                ),
+                            });
+                        }
+                        if weight_seen {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "More than one weight in Accept-Language member '{}'",
+                                    member
+                                ),
+                            });
+                        }
+                        weight_seen = true;
 
-                    let Some(val) = val_opt else {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "Missing parameter value for '{}' in Accept-Language member '{}'",
-                                name, member
-                            ),
-                        });
-                    };
+                        let Some(val) = val_opt else {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "Missing parameter value for '{}' in Accept-Language member '{}'",
+                                    name, member
+                                ),
+                            });
+                        };
 
-                    // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
-                    if !crate::helpers::headers::valid_qvalue(val) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!(
-                                "Invalid qvalue '{}' in Accept-Language member '{}'",
-                                val, member
-                            ),
-                        });
+                        // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
+                        if !crate::helpers::headers::valid_qvalue(val) {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "Invalid qvalue '{}' in Accept-Language member '{}'",
+                                    val, member
+                                ),
+                            });
+                        }
                     }
                 }
-            }
-            None
-        };
+                None
+            };
 
-        // Request
-        for hv in tx.request.headers.get_all("accept-language").iter() {
-            if let Ok(val) = hv.to_str() {
-                if let Some(v) = validate_value(val) {
-                    return Some(v);
-                }
-            } else {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message:
-                        "Accept-Language contains an octet no part of this field's grammar admits"
-                            .into(),
-                });
-            }
-        }
-
-        // A response carrying Accept-Language is not something §12.5.4
-        // describes, unlike its two siblings. The value is still read, because
-        // a malformed one is malformed wherever it appears and a proxy does see
-        // them echoed — but the finding is about syntax and says nothing about
-        // what the field would mean here.
-        if let Some(resp) = &tx.response {
-            for hv in resp.headers.get_all("accept-language").iter() {
+            // Request
+            for hv in tx.request.headers.get_all("accept-language").iter() {
                 if let Ok(val) = hv.to_str() {
                     if let Some(v) = validate_value(val) {
                         return Some(v);
@@ -171,9 +152,33 @@ impl Rule for AcceptLanguageWeightValid {
                     });
                 }
             }
-        }
 
-        None
+            // A response carrying Accept-Language is not something §12.5.4
+            // describes, unlike its two siblings. The value is still read, because
+            // a malformed one is malformed wherever it appears and a proxy does see
+            // them echoed — but the finding is about syntax and says nothing about
+            // what the field would mean here.
+            if let Some(resp) = &tx.response {
+                for hv in resp.headers.get_all("accept-language").iter() {
+                    if let Ok(val) = hv.to_str() {
+                        if let Some(v) = validate_value(val) {
+                            return Some(v);
+                        }
+                    } else {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message:
+                                "Accept-Language contains an octet no part of this field's grammar admits"
+                                    .into(),
+                        });
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

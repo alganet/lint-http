@@ -16,33 +16,38 @@ impl Rule for OriginIsolatedHeaderValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = if let Some(r) = &tx.response {
-            r
-        } else {
-            return None;
-        };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = if let Some(r) = &tx.response {
+                r
+            } else {
+                return None;
+            };
 
-        let count = resp.headers.get_all("origin-agent-cluster").iter().count();
-        if count == 0 {
-            return None;
-        }
+            let count = resp.headers.get_all("origin-agent-cluster").iter().count();
+            if count == 0 {
+                return None;
+            }
 
-        if count > 1 {
-            return Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message: "Multiple Origin-Agent-Cluster header fields present".into(),
-            });
-        }
+            if count > 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Multiple Origin-Agent-Cluster header fields present".into(),
+                });
+            }
 
-        let val =
-            match crate::helpers::headers::get_header_str(&resp.headers, "origin-agent-cluster") {
+            let val = match crate::helpers::headers::get_header_str(
+                &resp.headers,
+                "origin-agent-cluster",
+            ) {
                 Some(v) => v.trim(),
                 None => {
                     return Some(Violation {
@@ -55,30 +60,32 @@ impl Rule for OriginIsolatedHeaderValid {
                 }
             };
 
-        // Must not be a comma-separated list
-        // cite(HTML § 7.1.2): "This header is a structured header whose value must be a boolean."
-        if crate::helpers::headers::list_members(val).count() != 1 {
-            return Some(Violation {
+            // Must not be a comma-separated list
+            // cite(HTML § 7.1.2): "This header is a structured header whose value must be a boolean."
+            if crate::helpers::headers::list_members(val).count() != 1 {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message: "Origin-Agent-Cluster must be a single value".into(),
+                });
+            }
+
+            // `?1` is the structured-header boolean true value that requests an
+            // origin-keyed agent cluster. The spec *ignores* any other value; this
+            // rule is deliberately stricter and reports it, since a non-`?1` value
+            // (`?0`, `unsafe-none`, …) is almost always a server misconfiguration.
+            // cite(HTML § 7.1.2): "values that are not the structured header boolean true value (i.e., `?1`) will be ignored."
+            if val.eq("?1") {
+                return None;
+            }
+
+            Some(Violation {
                 rule: self.id().into(),
                 severity: ctx.severity,
-                message: "Origin-Agent-Cluster must be a single value".into(),
-            });
-        }
-
-        // `?1` is the structured-header boolean true value that requests an
-        // origin-keyed agent cluster. The spec *ignores* any other value; this
-        // rule is deliberately stricter and reports it, since a non-`?1` value
-        // (`?0`, `unsafe-none`, …) is almost always a server misconfiguration.
-        // cite(HTML § 7.1.2): "values that are not the structured header boolean true value (i.e., `?1`) will be ignored."
-        if val.eq("?1") {
-            return None;
-        }
-
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val),
-        })
+                message: format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

@@ -22,101 +22,162 @@ impl Rule for ContentSecurityPolicyValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Only check responses
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only check responses
+            let resp = tx.response.as_ref()?;
 
-        for hv in resp.headers.get_all("content-security-policy").iter() {
-            // UTF-8
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => {
+            for hv in resp.headers.get_all("content-security-policy").iter() {
+                // UTF-8
+                let s = match hv.to_str() {
+                    Ok(s) => s,
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Content-Security-Policy header value is not valid UTF-8"
+                                .into(),
+                        });
+                    }
+                };
+
+                let s_trim = s.trim();
+                if s_trim.is_empty() {
                     return Some(Violation {
                         rule: self.id().into(),
                         severity: ctx.severity,
-                        message: "Content-Security-Policy header value is not valid UTF-8".into(),
-                    });
-                }
-            };
-
-            let s_trim = s.trim();
-            if s_trim.is_empty() {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: "Content-Security-Policy header MUST not be empty".into(),
-                });
-            }
-
-            // Split directives on ';'
-            for (i, raw_dir) in s.split(';').enumerate() {
-                let dir = raw_dir.trim();
-                if dir.is_empty() {
-                    // Empty directive (e.g., trailing or consecutive semicolons)
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Content-Security-Policy contains empty directive at position {}",
-                            i
-                        ),
+                        message: "Content-Security-Policy header MUST not be empty".into(),
                     });
                 }
 
-                // Directive name is the first token up to whitespace
-                let mut parts = dir.split_whitespace();
-                let name = parts
-                    .next()
-                    .expect("split_whitespace yields at least one item since dir is not empty");
+                // Split directives on ';'
+                for (i, raw_dir) in s.split(';').enumerate() {
+                    let dir = raw_dir.trim();
+                    if dir.is_empty() {
+                        // Empty directive (e.g., trailing or consecutive semicolons)
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Content-Security-Policy contains empty directive at position {}",
+                                i
+                            ),
+                        });
+                    }
 
-                // A CSP directive-name is narrower than the HTTP `token`: only
-                // letters, digits and `-`. Enforcing `token` here let typos like
-                // `default_src` (underscore is a legal tchar) pass unflagged.
-                // cite(CSP3 § 2.3): "directive-name = 1*( ALPHA / DIGIT / "-" )"
-                if let Some(c) = name
-                    .chars()
-                    .find(|c| !(c.is_ascii_alphanumeric() || *c == '-'))
-                {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Invalid character '{}' in CSP directive-name '{}', at position {}",
-                            c, name, i
-                        ),
-                    });
-                }
+                    // Directive name is the first token up to whitespace
+                    let mut parts = dir.split_whitespace();
+                    let name = parts
+                        .next()
+                        .expect("split_whitespace yields at least one item since dir is not empty");
 
-                // Basic checks for values: ensure single-quoted keywords are closed and non-empty
-                for val in parts {
-                    if val.starts_with('\'') {
-                        // Single-quoted token expected (e.g., 'self' or 'nonce-...')
-                        if !val.ends_with('\'') || val.len() < 2 {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Unterminated or empty single-quoted source expression '{}' in directive '{}'", val, name),
-                            });
+                    // A CSP directive-name is narrower than the HTTP `token`: only
+                    // letters, digits and `-`. Enforcing `token` here let typos like
+                    // `default_src` (underscore is a legal tchar) pass unflagged.
+                    // cite(CSP3 § 2.3): "directive-name = 1*( ALPHA / DIGIT / "-" )"
+                    if let Some(c) = name
+                        .chars()
+                        .find(|c| !(c.is_ascii_alphanumeric() || *c == '-'))
+                    {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Invalid character '{}' in CSP directive-name '{}', at position {}",
+                                c, name, i
+                            ),
+                        });
+                    }
+
+                    // Basic checks for values: ensure single-quoted keywords are closed and non-empty
+                    for val in parts {
+                        if val.starts_with('\'') {
+                            // Single-quoted token expected (e.g., 'self' or 'nonce-...')
+                            if !val.ends_with('\'') || val.len() < 2 {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!("Unterminated or empty single-quoted source expression '{}' in directive '{}'", val, name),
+                                });
+                            }
+                            let inner = &val[1..val.len() - 1];
+                            if inner.is_empty() {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!(
+                                        "Empty single-quoted source expression '{}' in directive '{}'",
+                                        val, name
+                                    ),
+                                });
+                            }
+
+                            // Validate nonce/hash when present inside quoted source expression
+                            if let Some(rest) = inner.strip_prefix("nonce-") {
+                                if rest.is_empty() {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: format!(
+                                            "Empty nonce value in directive '{}'",
+                                            name
+                                        ),
+                                    });
+                                }
+                                if rest.chars().any(|c: char| c.is_whitespace()) {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: format!("Invalid nonce value containing whitespace in directive '{}'", name),
+                                    });
+                                }
+                            }
+
+                            if let Some(rest) = inner.strip_prefix("sha256-") {
+                                if rest.is_empty() {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: format!(
+                                            "Empty hash value in directive '{}'",
+                                            name
+                                        ),
+                                    });
+                                }
+                            } else if let Some(rest) = inner.strip_prefix("sha384-") {
+                                if rest.is_empty() {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: format!(
+                                            "Empty hash value in directive '{}'",
+                                            name
+                                        ),
+                                    });
+                                }
+                            } else if let Some(rest) = inner.strip_prefix("sha512-") {
+                                if rest.is_empty() {
+                                    return Some(Violation {
+                                        rule: self.id().into(),
+                                        severity: ctx.severity,
+                                        message: format!(
+                                            "Empty hash value in directive '{}'",
+                                            name
+                                        ),
+                                    });
+                                }
+                            }
                         }
-                        let inner = &val[1..val.len() - 1];
-                        if inner.is_empty() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Empty single-quoted source expression '{}' in directive '{}'",
-                                    val, name
-                                ),
-                            });
-                        }
 
-                        // Validate nonce/hash when present inside quoted source expression
-                        if let Some(rest) = inner.strip_prefix("nonce-") {
+                        // Basic nonce/hash forms: allow 'nonce-<token>' and 'sha256-...'
+                        if let Some(rest) = val.strip_prefix("nonce-") {
                             if rest.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
@@ -124,16 +185,16 @@ impl Rule for ContentSecurityPolicyValid {
                                     message: format!("Empty nonce value in directive '{}'", name),
                                 });
                             }
-                            if rest.chars().any(|c: char| c.is_whitespace()) {
-                                return Some(Violation {
-                                    rule: self.id().into(),
-                                    severity: ctx.severity,
-                                    message: format!("Invalid nonce value containing whitespace in directive '{}'", name),
-                                });
-                            }
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message:
+                                    "Nonce source expressions MUST be single-quoted (e.g., 'nonce-...')"
+                                        .into(),
+                            });
                         }
 
-                        if let Some(rest) = inner.strip_prefix("sha256-") {
+                        if let Some(rest) = val.strip_prefix("sha256-") {
                             if rest.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
@@ -141,7 +202,14 @@ impl Rule for ContentSecurityPolicyValid {
                                     message: format!("Empty hash value in directive '{}'", name),
                                 });
                             }
-                        } else if let Some(rest) = inner.strip_prefix("sha384-") {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message:
+                                    "Hash source expressions MUST be single-quoted (e.g., 'sha256-...')"
+                                        .into(),
+                            });
+                        } else if let Some(rest) = val.strip_prefix("sha384-") {
                             if rest.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
@@ -149,7 +217,14 @@ impl Rule for ContentSecurityPolicyValid {
                                     message: format!("Empty hash value in directive '{}'", name),
                                 });
                             }
-                        } else if let Some(rest) = inner.strip_prefix("sha512-") {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message:
+                                    "Hash source expressions MUST be single-quoted (e.g., 'sha384-...')"
+                                        .into(),
+                            });
+                        } else if let Some(rest) = val.strip_prefix("sha512-") {
                             if rest.is_empty() {
                                 return Some(Violation {
                                     rule: self.id().into(),
@@ -157,78 +232,21 @@ impl Rule for ContentSecurityPolicyValid {
                                     message: format!("Empty hash value in directive '{}'", name),
                                 });
                             }
-                        }
-                    }
-
-                    // Basic nonce/hash forms: allow 'nonce-<token>' and 'sha256-...'
-                    if let Some(rest) = val.strip_prefix("nonce-") {
-                        if rest.is_empty() {
                             return Some(Violation {
                                 rule: self.id().into(),
                                 severity: ctx.severity,
-                                message: format!("Empty nonce value in directive '{}'", name),
+                                message:
+                                    "Hash source expressions MUST be single-quoted (e.g., 'sha512-...')"
+                                        .into(),
                             });
                         }
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
-                                "Nonce source expressions MUST be single-quoted (e.g., 'nonce-...')"
-                                    .into(),
-                        });
-                    }
-
-                    if let Some(rest) = val.strip_prefix("sha256-") {
-                        if rest.is_empty() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Empty hash value in directive '{}'", name),
-                            });
-                        }
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
-                                "Hash source expressions MUST be single-quoted (e.g., 'sha256-...')"
-                                    .into(),
-                        });
-                    } else if let Some(rest) = val.strip_prefix("sha384-") {
-                        if rest.is_empty() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Empty hash value in directive '{}'", name),
-                            });
-                        }
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
-                                "Hash source expressions MUST be single-quoted (e.g., 'sha384-...')"
-                                    .into(),
-                        });
-                    } else if let Some(rest) = val.strip_prefix("sha512-") {
-                        if rest.is_empty() {
-                            return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!("Empty hash value in directive '{}'", name),
-                            });
-                        }
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message:
-                                "Hash source expressions MUST be single-quoted (e.g., 'sha512-...')"
-                                    .into(),
-                        });
                     }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

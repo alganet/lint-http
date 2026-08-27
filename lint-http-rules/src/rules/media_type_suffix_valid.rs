@@ -42,175 +42,180 @@ impl Rule for MediaTypeSuffixValid {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-        let check_media = |hdr_name: &str, val: &str| -> Option<Violation> {
-            // A value that is not a media-type has no subtype to inspect, and
-            // saying so is `content_type_valid`'s finding. The
-            // `media-type` grammar is the helper's.
-            let parsed = match crate::helpers::headers::parse_media_type(val) {
-                Ok(p) => p,
-                Err(_) => return None,
-            };
-            // Not trimmed again. `parse_media_type` has already excluded the
-            // `OWS` its production prints, and it prints none inside
-            // `type "/" subtype` — so a second `str::trim` here removed nothing
-            // legal and, on a value read one `char` per octet, removed %xA0 from
-            // a malformed subtype and left this rule judging the suffix of a
-            // name that is not well formed. That is the finding its own
-            // `description()` promises to leave to the rule that owns it.
-            // cite(RFC 9110 § 8.3.1, label: media-type grammar): "media-type = type "/" subtype parameters"
-            let subtype = parsed.subtype;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+            let check_media = |hdr_name: &str, val: &str| -> Option<Violation> {
+                // A value that is not a media-type has no subtype to inspect, and
+                // saying so is `content_type_valid`'s finding. The
+                // `media-type` grammar is the helper's.
+                let parsed = match crate::helpers::headers::parse_media_type(val) {
+                    Ok(p) => p,
+                    Err(_) => return None,
+                };
+                // Not trimmed again. `parse_media_type` has already excluded the
+                // `OWS` its production prints, and it prints none inside
+                // `type "/" subtype` — so a second `str::trim` here removed nothing
+                // legal and, on a value read one `char` per octet, removed %xA0 from
+                // a malformed subtype and left this rule judging the suffix of a
+                // name that is not well formed. That is the finding its own
+                // `description()` promises to leave to the rule that owns it.
+                // cite(RFC 9110 § 8.3.1, label: media-type grammar): "media-type = type "/" subtype parameters"
+                let subtype = parsed.subtype;
 
-            // `parse_media_type` is structural — it finds the "/" and checks that
-            // neither half is empty — so a subtype full of characters no subtype
-            // may contain still arrives here. Judging its *suffix* would name the
-            // wrong defect and would say it twice, since
-            // `content_type_valid` already reports the subtype. A
-            // suffix question only arises once there is a well-formed name to
-            // hang it on.
-            //
-            // `restricted-name` is stricter than `token`, but `token` is the
-            // shared predicate this catalogue has, and the two agree on
-            // everything that matters here: neither admits obs-text, whitespace,
-            // or a separator. Erring toward `token` keeps the rule from
-            // adjudicating subtype spelling, which is not its job.
-            // cite(RFC 6838 § 4.2): "Type and subtype names MUST conform to the following ABNF:"
-            if crate::helpers::token::find_invalid_token_char(subtype).is_some() {
-                return None;
-            }
-
-            // Which "+" starts the suffix is not a matter of inference: the ABNF
-            // says it in the comment on its own production, which is what the
-            // helper's `rfind('+')` encodes. A base name may itself contain "+".
-            // cite(RFC 6838 § 4.2): "restricted-name-chars =/ "+" ; Characters after last plus always ; specify a structured syntax suffix"
-            if let Some(suffix) = crate::helpers::headers::media_type_subtype_suffix(subtype) {
-                // A subtype that is *only* a suffix has no base name to qualify,
-                // and `restricted-name-first` admits no "+". The mirror image of
-                // the bare-trailing-"+" check below, on the same reasoning.
-                // cite(RFC 6838 § 4.2): "restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT"
-                if subtype.starts_with('+') {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Media type '{}/{}' in {} is a structured suffix with no base subtype name",
-                            parsed.type_, parsed.subtype, hdr_name
-                        ),
-                    });
-                }
-                // Suffixes are compared folded because the subtype they sit in
-                // is case-insensitive; `+JSON` is the same suffix as `+json`.
-                // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-                let suffix = suffix.to_ascii_lowercase();
-                // A trailing "+" appends nothing, so it names no structured
-                // syntax. `restricted-name-chars` admits "+" anywhere after the
-                // first character, so the grammar permits this shape; the
-                // reading is the construct's purpose, as above.
-                if suffix.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Media type '{}/{}' in {} has empty structured suffix",
-                            parsed.type_, parsed.subtype, hdr_name
-                        ),
-                    });
-                }
-
-                // The sentence that actually governs this check. The one that
-                // stood here before — "media types … SHOULD use the appropriate
-                // registered "+suffix" … when they are registered" — is about
-                // choosing a suffix at *registration* time, not about using an
-                // unregistered one on the wire, which is what a linter sees. The
-                // MUST NOT beside it is the sharper half of the same paragraph
-                // and explains why a wrong suffix is worth reporting at all: it
-                // is a claim about the payload's structure.
+                // `parse_media_type` is structural — it finds the "/" and checks that
+                // neither half is empty — so a subtype full of characters no subtype
+                // may contain still arrives here. Judging its *suffix* would name the
+                // wrong defect and would say it twice, since
+                // `content_type_valid` already reports the subtype. A
+                // suffix question only arises once there is a well-formed name to
+                // hang it on.
                 //
-                // As with every `allowed` list in this catalogue, the registry
-                // is not consulted — the operator's array stands in for it.
-                // cite(RFC 6838 § 4.2.8): ""+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions."
-                // cite(RFC 6838 § 4.2.8): "By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ."
-                if !config.allowed.contains(&suffix) {
-                    return Some(Violation {
-                                rule: self.id().into(),
-                                severity: ctx.severity,
-                                message: format!(
-                                    "Unrecognized structured syntax suffix '+{}' in media type '{}/{}' (header '{}')",
-                                    suffix, parsed.type_, parsed.subtype, hdr_name
-                                ),
-                            });
+                // `restricted-name` is stricter than `token`, but `token` is the
+                // shared predicate this catalogue has, and the two agree on
+                // everything that matters here: neither admits obs-text, whitespace,
+                // or a separator. Erring toward `token` keeps the rule from
+                // adjudicating subtype spelling, which is not its job.
+                // cite(RFC 6838 § 4.2): "Type and subtype names MUST conform to the following ABNF:"
+                if crate::helpers::token::find_invalid_token_char(subtype).is_some() {
+                    return None;
                 }
-            }
-            None
-        };
 
-        // Every field line, and decoded from the raw octets. `get_header_str`
-        // does neither: it returns the first value and gives up entirely on a
-        // value `to_str` refuses. Both losses are silent here, and both hide the
-        // exact thing this rule looks for —
-        //
-        //   Content-Type: application/json
-        //   Content-Type: application/vnd.x+bogus
-        //
-        // reported nothing, and so did a bad suffix sitting next to a parameter
-        // carrying obs-text, which is legal in a `quoted-string`.
-        // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-        let values = |headers: &hyper::HeaderMap, name: &'static str| -> Vec<String> {
-            headers
-                .get_all(name)
-                .iter()
-                .map(crate::helpers::headers::field_line_as_written)
-                .collect()
-        };
+                // Which "+" starts the suffix is not a matter of inference: the ABNF
+                // says it in the comment on its own production, which is what the
+                // helper's `rfind('+')` encodes. A base name may itself contain "+".
+                // cite(RFC 6838 § 4.2): "restricted-name-chars =/ "+" ; Characters after last plus always ; specify a structured syntax suffix"
+                if let Some(suffix) = crate::helpers::headers::media_type_subtype_suffix(subtype) {
+                    // A subtype that is *only* a suffix has no base name to qualify,
+                    // and `restricted-name-first` admits no "+". The mirror image of
+                    // the bare-trailing-"+" check below, on the same reasoning.
+                    // cite(RFC 6838 § 4.2): "restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT"
+                    if subtype.starts_with('+') {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Media type '{}/{}' in {} is a structured suffix with no base subtype name",
+                                parsed.type_, parsed.subtype, hdr_name
+                            ),
+                        });
+                    }
+                    // Suffixes are compared folded because the subtype they sit in
+                    // is case-insensitive; `+JSON` is the same suffix as `+json`.
+                    // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
+                    let suffix = suffix.to_ascii_lowercase();
+                    // A trailing "+" appends nothing, so it names no structured
+                    // syntax. `restricted-name-chars` admits "+" anywhere after the
+                    // first character, so the grammar permits this shape; the
+                    // reading is the construct's purpose, as above.
+                    if suffix.is_empty() {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!(
+                                "Media type '{}/{}' in {} has empty structured suffix",
+                                parsed.type_, parsed.subtype, hdr_name
+                            ),
+                        });
+                    }
 
-        for val in values(&tx.request.headers, "content-type") {
-            if let Some(v) = check_media("Content-Type", &val) {
-                return Some(v);
-            }
-        }
-
-        // Accept is a list, so each member is checked. Each field line is split
-        // on its own rather than after recombining them, which is *not* the same
-        // thing: an unbalanced quote in one line would otherwise swallow the
-        // members of every line after it. Splitting per line confines that
-        // damage to the line that carries the typo.
-        //
-        // Quote-aware, because a comma inside a quoted parameter value is not a
-        // list separator. A raw `split(',')` cut such a value apart and then
-        // read the pieces as media types, so text that merely looks like one
-        // was reported as a real media type with a bad suffix:
-        //
-        //   Accept: application/json;p="a,foo/bar+bogus"
-        //   -> Unrecognized structured syntax suffix '+bogus"' in 'foo/bar+bogus"'
-        //
-        // The message even carried the stray quote, which is the tell.
-        for ah in values(&tx.request.headers, "accept") {
-            for part in crate::helpers::headers::split_commas_respecting_quotes(&ah) {
-                let p = part;
-                if p.is_empty() {
-                    continue;
+                    // The sentence that actually governs this check. The one that
+                    // stood here before — "media types … SHOULD use the appropriate
+                    // registered "+suffix" … when they are registered" — is about
+                    // choosing a suffix at *registration* time, not about using an
+                    // unregistered one on the wire, which is what a linter sees. The
+                    // MUST NOT beside it is the sharper half of the same paragraph
+                    // and explains why a wrong suffix is worth reporting at all: it
+                    // is a claim about the payload's structure.
+                    //
+                    // As with every `allowed` list in this catalogue, the registry
+                    // is not consulted — the operator's array stands in for it.
+                    // cite(RFC 6838 § 4.2.8): ""+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions."
+                    // cite(RFC 6838 § 4.2.8): "By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ."
+                    if !config.allowed.contains(&suffix) {
+                        return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message: format!(
+                                        "Unrecognized structured syntax suffix '+{}' in media type '{}/{}' (header '{}')",
+                                        suffix, parsed.type_, parsed.subtype, hdr_name
+                                    ),
+                                });
+                    }
                 }
-                if let Some(v) = check_media("Accept", p) {
-                    return Some(v);
-                }
-            }
-        }
+                None
+            };
 
-        if let Some(resp) = &tx.response {
-            for val in values(&resp.headers, "content-type") {
+            // Every field line, and decoded from the raw octets. `get_header_str`
+            // does neither: it returns the first value and gives up entirely on a
+            // value `to_str` refuses. Both losses are silent here, and both hide the
+            // exact thing this rule looks for —
+            //
+            //   Content-Type: application/json
+            //   Content-Type: application/vnd.x+bogus
+            //
+            // reported nothing, and so did a bad suffix sitting next to a parameter
+            // carrying obs-text, which is legal in a `quoted-string`.
+            // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+            let values = |headers: &hyper::HeaderMap, name: &'static str| -> Vec<String> {
+                headers
+                    .get_all(name)
+                    .iter()
+                    .map(crate::helpers::headers::field_line_as_written)
+                    .collect()
+            };
+
+            for val in values(&tx.request.headers, "content-type") {
                 if let Some(v) = check_media("Content-Type", &val) {
                     return Some(v);
                 }
             }
-        }
 
-        None
+            // Accept is a list, so each member is checked. Each field line is split
+            // on its own rather than after recombining them, which is *not* the same
+            // thing: an unbalanced quote in one line would otherwise swallow the
+            // members of every line after it. Splitting per line confines that
+            // damage to the line that carries the typo.
+            //
+            // Quote-aware, because a comma inside a quoted parameter value is not a
+            // list separator. A raw `split(',')` cut such a value apart and then
+            // read the pieces as media types, so text that merely looks like one
+            // was reported as a real media type with a bad suffix:
+            //
+            //   Accept: application/json;p="a,foo/bar+bogus"
+            //   -> Unrecognized structured syntax suffix '+bogus"' in 'foo/bar+bogus"'
+            //
+            // The message even carried the stray quote, which is the tell.
+            for ah in values(&tx.request.headers, "accept") {
+                for part in crate::helpers::headers::split_commas_respecting_quotes(&ah) {
+                    let p = part;
+                    if p.is_empty() {
+                        continue;
+                    }
+                    if let Some(v) = check_media("Accept", p) {
+                        return Some(v);
+                    }
+                }
+            }
+
+            if let Some(resp) = &tx.response {
+                for val in values(&resp.headers, "content-type") {
+                    if let Some(v) = check_media("Content-Type", &val) {
+                        return Some(v);
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

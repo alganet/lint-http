@@ -114,29 +114,34 @@ impl Rule for UpgradeAndConnectionConsistent {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Each half is measured against its own version. In a reverse-proxy capture
-        // the request may have arrived over HTTP/3 while the response came back from
-        // the origin over HTTP/1.1, and the sender the sentence is about is the one
-        // that wrote the section being read.
-        let message =
-            Self::defect(&tx.request.headers, &tx.request.version, "Request").or_else(|| {
-                let resp = tx.response.as_ref()?;
-                Self::defect(&resp.headers, &resp.version, "Response")
-            })?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Each half is measured against its own version. In a reverse-proxy capture
+            // the request may have arrived over HTTP/3 while the response came back from
+            // the origin over HTTP/1.1, and the sender the sentence is about is the one
+            // that wrote the section being read.
+            let message = Self::defect(&tx.request.headers, &tx.request.version, "Request")
+                .or_else(|| {
+                    let resp = tx.response.as_ref()?;
+                    Self::defect(&resp.headers, &resp.version, "Response")
+                })?;
 
-        // Read last: every gate above ends the rule, so only a message about to be
-        // reported pays for the map probes and the hash over the rule id.
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message,
-        })
+            // Read last: every gate above ends the rule, so only a message about to be
+            // reported pays for the map probes and the hash over the rule id.
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message,
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

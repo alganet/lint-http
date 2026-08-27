@@ -67,7 +67,7 @@ impl Rule for Status103EarlyHintsBeforeFinal {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         // Deliberately unread, and the rule is no longer in `STATEFUL_RULES`.
@@ -77,60 +77,66 @@ impl Rule for Status103EarlyHintsBeforeFinal {
         // the engine build a `ByResource` history nothing looks at.
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // The scope gate. The sentence is the status code's definition, quoted
-        // to its end: the clause after "final response" is what makes the
-        // fields a *hint* about a message still to come, which is the whole
-        // reason a `103` standing alone as an answer is worth a finding.
-        // cite(RFC 8297 § 2): "The 103 (Early Hints) informational status code indicates to the client that the server is likely to send a final response with the header fields included in the informational response."
-        if resp.status != 103 {
-            return None;
-        }
+            // The scope gate. The sentence is the status code's definition, quoted
+            // to its end: the clause after "final response" is what makes the
+            // fields a *hint* about a message still to come, which is the whole
+            // reason a `103` standing alone as an answer is worth a finding.
+            // cite(RFC 8297 § 2): "The 103 (Early Hints) informational status code indicates to the client that the server is likely to send a final response with the header fields included in the informational response."
+            if resp.status != 103 {
+                return None;
+            }
 
-        // ── The HTTP/1.0 client ──
-        // Reported first because it is the narrower fact and the only sentence
-        // in reach that is a MUST NOT on the sender. Both digits, not the major
-        // one: HTTP/1.1 is the version that has 1xx, so the minor digit is the
-        // whole gate. RFC 8297 § 3 spends its Security Considerations on what
-        // goes wrong when a client cannot place an informational response, and
-        // it worries about HTTP/1.1 clients — RFC 9110 turns the same concern
-        // into a requirement one version down, where the client cannot have
-        // learned about 1xx at all.
-        // cite(RFC 9110 § 15.2): "Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client."
-        if matches!(
-            crate::http_version::parse(&tx.request.version),
-            Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
-        ) {
-            return Some(Violation {
+            // ── The HTTP/1.0 client ──
+            // Reported first because it is the narrower fact and the only sentence
+            // in reach that is a MUST NOT on the sender. Both digits, not the major
+            // one: HTTP/1.1 is the version that has 1xx, so the minor digit is the
+            // whole gate. RFC 8297 § 3 spends its Security Considerations on what
+            // goes wrong when a client cannot place an informational response, and
+            // it worries about HTTP/1.1 clients — RFC 9110 turns the same concern
+            // into a requirement one version down, where the client cannot have
+            // learned about 1xx at all.
+            // cite(RFC 9110 § 15.2): "Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client."
+            if matches!(
+                crate::http_version::parse(&tx.request.version),
+                Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
+            ) {
+                return Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message:
+                        "103 (Early Hints) answering an HTTP/1.0 request: HTTP/1.0 defined no \
+                              1xx status codes, so a server must not send one to that client"
+                            .into(),
+                });
+            }
+
+            // ── The interim response standing where the final one goes ──
+            // § 15 is the requirement: interim responses are followed by exactly one
+            // final response. This model records one response per request, so a
+            // `103` in that slot is a capture of an exchange whose final response is
+            // not there. RFC 8297 § 3 names the second reading of the same bytes and
+            // is why the message states both: a recipient that took the interim
+            // response for the final one records exactly this.
+            // cite(RFC 9110 § 15.2): "The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response."
+            // cite(RFC 8297 § 3): "In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response."
+            Some(Violation {
                 rule: self.id().into(),
                 severity: ctx.severity,
-                message: "103 (Early Hints) answering an HTTP/1.0 request: HTTP/1.0 defined no \
-                          1xx status codes, so a server must not send one to that client"
-                    .into(),
-            });
-        }
-
-        // ── The interim response standing where the final one goes ──
-        // § 15 is the requirement: interim responses are followed by exactly one
-        // final response. This model records one response per request, so a
-        // `103` in that slot is a capture of an exchange whose final response is
-        // not there. RFC 8297 § 3 names the second reading of the same bytes and
-        // is why the message states both: a recipient that took the interim
-        // response for the final one records exactly this.
-        // cite(RFC 9110 § 15.2): "The 1xx (Informational) class of status code indicates an interim response for communicating connection status or request progress prior to completing the requested action and sending a final response."
-        // cite(RFC 8297 § 3): "In particular, an HTTP/1.1 client that mishandles an informational response as a final response is likely to consider all responses to the succeeding requests sent over the same connection to be part of the final response."
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "103 (Early Hints) is recorded as the response to '{}', and a 103 is an interim \
-                 response that exactly one final response has to follow: either the final \
-                 response never arrived, or the interim one was taken for it",
-                tx.request.uri
-            ),
-        })
+                message: format!(
+                    "103 (Early Hints) is recorded as the response to '{}', and a 103 is an interim \
+                     response that exactly one final response has to follow: either the final \
+                     response never arrived, or the interim one was taken for it",
+                    tx.request.uri
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

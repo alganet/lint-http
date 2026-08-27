@@ -41,156 +41,166 @@ impl Rule for NoStoreEnforced {
         crate::rules::RuleScope::Both
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // Build maps of validators to a boolean indicating whether the most
-        // recent occurrence of that validator came from a no-store response.
-        //
-        // The `TransactionHistory` type is documented to yield entries "newest
-        // first" (see its own docs).  Our algorithm depends on that ordering
-        // so that the first time we see a given validator value we record the
-        // state that should win.  To make the assumption explicit and guard
-        // against future changes in history construction we sort the entries
-        // ourselves by timestamp.  That way the rule behaves correctly even if
-        // the caller accidentally supplies an unsorted vector.
-        use std::collections::HashSet;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Build maps of validators to a boolean indicating whether the most
+            // recent occurrence of that validator came from a no-store response.
+            //
+            // The `TransactionHistory` type is documented to yield entries "newest
+            // first" (see its own docs).  Our algorithm depends on that ordering
+            // so that the first time we see a given validator value we record the
+            // state that should win.  To make the assumption explicit and guard
+            // against future changes in history construction we sort the entries
+            // ourselves by timestamp.  That way the rule behaves correctly even if
+            // the caller accidentally supplies an unsorted vector.
+            use std::collections::HashSet;
 
-        // We'll keep normalized ETag values (weak prefix stripped) for
-        // comparison, but retain the original header text in violation
-        // messages.  `seen_etags` tracks normalized values we've already
-        // encountered so that later entries win.
-        let mut no_store_etags: HashSet<String> = HashSet::new();
-        let mut seen_etags: HashSet<String> = HashSet::new();
+            // We'll keep normalized ETag values (weak prefix stripped) for
+            // comparison, but retain the original header text in violation
+            // messages.  `seen_etags` tracks normalized values we've already
+            // encountered so that later entries win.
+            let mut no_store_etags: HashSet<String> = HashSet::new();
+            let mut seen_etags: HashSet<String> = HashSet::new();
 
-        // For Last-Modified we need both the raw string (for direct
-        // comparisons) and a parsed `DateTime` to avoid reparsing the same
-        // history value on every request.  Store the parsed time in the map
-        // keyed by the raw string so we can easily remove entries when a
-        // later non-no-store response overrides them.
-        let mut no_store_lastmod: std::collections::HashMap<String, chrono::DateTime<chrono::Utc>> =
-            std::collections::HashMap::new();
-        let mut seen_lastmod: HashSet<String> = HashSet::new();
+            // For Last-Modified we need both the raw string (for direct
+            // comparisons) and a parsed `DateTime` to avoid reparsing the same
+            // history value on every request.  Store the parsed time in the map
+            // keyed by the raw string so we can easily remove entries when a
+            // later non-no-store response overrides them.
+            let mut no_store_lastmod: std::collections::HashMap<
+                String,
+                chrono::DateTime<chrono::Utc>,
+            > = std::collections::HashMap::new();
+            let mut seen_lastmod: HashSet<String> = HashSet::new();
 
-        // Collect the entries and ensure newest-first ordering by timestamp.
-        // This is a small extra cost, but the history is typically short.
-        let mut entries: Vec<&crate::http_transaction::HttpTransaction> = history.iter().collect();
-        entries.sort_by_key(|tx| std::cmp::Reverse(tx.timestamp));
+            // Collect the entries and ensure newest-first ordering by timestamp.
+            // This is a small extra cost, but the history is typically short.
+            let mut entries: Vec<&crate::http_transaction::HttpTransaction> =
+                history.iter().collect();
+            entries.sort_by_key(|tx| std::cmp::Reverse(tx.timestamp));
 
-        // debug-time sanity check: timestamps should now be non-increasing.
-        #[cfg(debug_assertions)]
-        {
-            for pair in entries.windows(2) {
-                if let [first, second] = pair {
-                    debug_assert!(
-                        first.timestamp >= second.timestamp,
-                        "history entries must be newest-first"
-                    );
+            // debug-time sanity check: timestamps should now be non-increasing.
+            #[cfg(debug_assertions)]
+            {
+                for pair in entries.windows(2) {
+                    if let [first, second] = pair {
+                        debug_assert!(
+                            first.timestamp >= second.timestamp,
+                            "history entries must be newest-first"
+                        );
+                    }
                 }
             }
-        }
 
-        for past in entries {
-            if let Some(resp) = &past.response {
-                let is_no_store = header_has_no_store(&resp.headers);
+            for past in entries {
+                if let Some(resp) = &past.response {
+                    let is_no_store = header_has_no_store(&resp.headers);
 
-                if let Some(hv) = resp.headers.get("etag") {
-                    if let Ok(s) = hv.to_str() {
-                        let val = s.trim().to_string();
-                        let normalized = crate::helpers::headers::normalize_etag(&val);
-                        if !seen_etags.contains(&normalized) {
-                            seen_etags.insert(normalized.clone());
-                            if is_no_store {
-                                no_store_etags.insert(normalized.clone());
-                            } else {
-                                no_store_etags.remove(&normalized);
+                    if let Some(hv) = resp.headers.get("etag") {
+                        if let Ok(s) = hv.to_str() {
+                            let val = s.trim().to_string();
+                            let normalized = crate::helpers::headers::normalize_etag(&val);
+                            if !seen_etags.contains(&normalized) {
+                                seen_etags.insert(normalized.clone());
+                                if is_no_store {
+                                    no_store_etags.insert(normalized.clone());
+                                } else {
+                                    no_store_etags.remove(&normalized);
+                                }
                             }
                         }
                     }
-                }
 
-                if let Some(hv) = resp.headers.get("last-modified") {
-                    if let Ok(s) = hv.to_str() {
-                        let val = s.trim().to_string();
-                        if !seen_lastmod.contains(&val) {
-                            seen_lastmod.insert(val.clone());
-                            if is_no_store {
-                                // parse once and store if successful
-                                if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(&val)
-                                {
-                                    no_store_lastmod.insert(val.clone(), dt);
+                    if let Some(hv) = resp.headers.get("last-modified") {
+                        if let Ok(s) = hv.to_str() {
+                            let val = s.trim().to_string();
+                            if !seen_lastmod.contains(&val) {
+                                seen_lastmod.insert(val.clone());
+                                if is_no_store {
+                                    // parse once and store if successful
+                                    if let Ok(dt) =
+                                        crate::http_date::parse_http_date_to_datetime(&val)
+                                    {
+                                        no_store_lastmod.insert(val.clone(), dt);
+                                    } else {
+                                        // unparsable dates can't match later, so
+                                        // ensure they're not in the map
+                                        no_store_lastmod.remove(&val);
+                                    }
                                 } else {
-                                    // unparsable dates can't match later, so
-                                    // ensure they're not in the map
                                     no_store_lastmod.remove(&val);
                                 }
-                            } else {
-                                no_store_lastmod.remove(&val);
                             }
                         }
                     }
                 }
             }
-        }
 
-        // helper to check If-None-Match header members against bad etags.  RFC
-        // dictates that multiple header fields are concatenated with commas, and
-        // HeaderMap.get_all() returns all values in order.
-        for hv in tx.request.headers.get_all("if-none-match").iter() {
-            if let Ok(s) = hv.to_str() {
-                for member in crate::helpers::headers::list_members(s) {
-                    let normalized = crate::helpers::headers::normalize_etag(member);
-                    // A validator echoed back from a no-store response is proof the client
-                    // stored the thing it was told not to store.
+            // helper to check If-None-Match header members against bad etags.  RFC
+            // dictates that multiple header fields are concatenated with commas, and
+            // HeaderMap.get_all() returns all values in order.
+            for hv in tx.request.headers.get_all("if-none-match").iter() {
+                if let Ok(s) = hv.to_str() {
+                    for member in crate::helpers::headers::list_members(s) {
+                        let normalized = crate::helpers::headers::normalize_etag(member);
+                        // A validator echoed back from a no-store response is proof the client
+                        // stored the thing it was told not to store.
+                        // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
+                        if no_store_etags.contains(&normalized) {
+                            return Some(Violation {
+                                rule: self.id().into(),
+                                severity: ctx.severity,
+                                message: format!(
+                                    "Conditional request uses ETag '{}' from a no-store response",
+                                    member
+                                ),
+                            });
+                        }
+                    }
+                }
+            }
+
+            // check If-Modified-Since; treat each header field separately since the
+            // syntax is a single HTTP-date per field.  To avoid reparsing the same
+            // candidate over and over we parse it once before iterating through the
+            // historical values.
+            for hv in tx.request.headers.get_all("if-modified-since").iter() {
+                if let Ok(s) = hv.to_str() {
+                    let candidate = s.trim();
+                    let candidate_dt =
+                        crate::http_date::parse_http_date_to_datetime(candidate).ok();
+
+                    // A Last-Modified validator echoed back from a no-store response is the same
+                    // evidence of forbidden storage as the ETag case above.
                     // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                    if no_store_etags.contains(&normalized) {
+                    if no_store_lastmod.contains_key(candidate)
+                        || (candidate_dt.is_some()
+                            && no_store_lastmod
+                                .values()
+                                .any(|lm_dt| lm_dt == &candidate_dt.unwrap()))
+                    {
                         return Some(Violation {
                             rule: self.id().into(),
                             severity: ctx.severity,
                             message: format!(
-                                "Conditional request uses ETag '{}' from a no-store response",
-                                member
+                                "Conditional request uses Last-Modified '{}' from a no-store response",
+                                candidate
                             ),
                         });
                     }
                 }
             }
-        }
 
-        // check If-Modified-Since; treat each header field separately since the
-        // syntax is a single HTTP-date per field.  To avoid reparsing the same
-        // candidate over and over we parse it once before iterating through the
-        // historical values.
-        for hv in tx.request.headers.get_all("if-modified-since").iter() {
-            if let Ok(s) = hv.to_str() {
-                let candidate = s.trim();
-                let candidate_dt = crate::http_date::parse_http_date_to_datetime(candidate).ok();
-
-                // A Last-Modified validator echoed back from a no-store response is the same
-                // evidence of forbidden storage as the ETag case above.
-                // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                if no_store_lastmod.contains_key(candidate)
-                    || (candidate_dt.is_some()
-                        && no_store_lastmod
-                            .values()
-                            .any(|lm_dt| lm_dt == &candidate_dt.unwrap()))
-                {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!(
-                            "Conditional request uses Last-Modified '{}' from a no-store response",
-                            candidate
-                        ),
-                    });
-                }
-            }
-        }
-
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

@@ -147,173 +147,180 @@ impl Rule for HeadResponseHeadersMatchGet {
         })
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // The sentence the whole rule enforces, and the response it is about.
-        // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
-        //
-        // Which response that is, and why the comparison is exact rather than
-        // case-insensitive: a lowercase `head` is a different method token, and
-        // an unrecognized method has no defined relationship to GET at all.
-        // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
-        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-        if tx.request.method != "HEAD" {
-            return None;
-        }
-
-        let resp = tx.response.as_ref()?;
-
-        // The counterfactual the sentence names is a GET, by the same token —
-        // the most recent one, since the further back the evidence is, the less
-        // it says about what the server would send now. Taking only the
-        // immediately preceding transaction would leave a GET followed by two
-        // HEADs measuring the first of them and nothing else.
-        //
-        // The request-target comparison is not a requirement of any document:
-        // the engine dispatches this rule with a `ByResource` history, already
-        // keyed on this client and this target, so in the proxy and in `lint` it
-        // cannot fail. It guards histories assembled by hand in tests.
-        let prev = history
-            .iter()
-            .find(|t| t.request.method == "GET" && t.request.uri == tx.request.uri)?;
-
-        let prev_resp = prev.response.as_ref()?;
-
-        // Two responses that report different results are not each other's
-        // counterfactual: the fields of a 404 describe the explanation it
-        // encloses, and the fields of a 200 describe the selected
-        // representation. Comparing them measures the resource's state changing,
-        // not the server's answer to § 9.3.2.
-        // cite(RFC 9110 § 15): "The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any)."
-        if prev_resp.status != resp.status {
-            return None;
-        }
-
-        // And a resource may simply have changed between the two exchanges.
-        if selected_representation_changed(&prev_resp.headers, &resp.headers) {
-            return None;
-        }
-
-        // Parse config only after the cheap method/response/history guards above —
-        // non-HEAD transactions (the common case) skip the allocation entirely.
-        let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
-
-        let report = |message: String| {
-            Some(Violation {
-                rule: self.id().into(),
-                severity: ctx.severity,
-                message,
-            })
-        };
-
-        // For each configured header, enforce presence/value equivalence between GET and HEAD
-        for name in &config.headers {
-            let name_str = name.as_str();
-
-            // `Transfer-Encoding` is answered by its own document, in both
-            // directions and for the value as well: it may be sent, it need not
-            // be, and what it names can be taken off the message by anyone on
-            // the way. Nothing about the two responses' framing is comparable.
-            // cite(RFC 9112 § 6.1): "Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET."
-            // cite(RFC 9112 § 6.1): "This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed."
-            if name_str == "transfer-encoding" {
-                continue;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The sentence the whole rule enforces, and the response it is about.
+            // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
+            //
+            // Which response that is, and why the comparison is exact rather than
+            // case-insensitive: a lowercase `head` is a different method token, and
+            // an unrecognized method has no defined relationship to GET at all.
+            // cite(RFC 9110 § 9.3.2): "The HEAD method is identical to GET except that the server MUST NOT send content in the response."
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            if tx.request.method != "HEAD" {
+                return None;
             }
 
-            // `Content-Length` is answered whole by § 8.6 and not by the
-            // presence comparison below: its absence from either response is
-            // permitted, and its *value* is governed whenever the HEAD carries
-            // one — including when the GET declared none at all.
-            if name_str == "content-length" {
-                if let Some(m) = content_length_finding(prev_resp, resp) {
-                    return report(m);
-                }
-                continue;
+            let resp = tx.response.as_ref()?;
+
+            // The counterfactual the sentence names is a GET, by the same token —
+            // the most recent one, since the further back the evidence is, the less
+            // it says about what the server would send now. Taking only the
+            // immediately preceding transaction would leave a GET followed by two
+            // HEADs measuring the first of them and nothing else.
+            //
+            // The request-target comparison is not a requirement of any document:
+            // the engine dispatches this rule with a `ByResource` history, already
+            // keyed on this client and this target, so in the proxy and in `lint` it
+            // cannot fail. It guards histories assembled by hand in tests.
+            let prev = history
+                .iter()
+                .find(|t| t.request.method == "GET" && t.request.uri == tx.request.uri)?;
+
+            let prev_resp = prev.response.as_ref()?;
+
+            // Two responses that report different results are not each other's
+            // counterfactual: the fields of a 404 describe the explanation it
+            // encloses, and the fields of a 200 describe the selected
+            // representation. Comparing them measures the resource's state changing,
+            // not the server's answer to § 9.3.2.
+            // cite(RFC 9110 § 15): "The status code of a response is a three-digit integer code that describes the result of the request and the semantics of the response, including whether the request was successful and what content is enclosed (if any)."
+            if prev_resp.status != resp.status {
+                return None;
             }
 
-            // Both values as their sender wrote them: every field line of the
-            // section, joined, as octets. Reading one line would measure a field
-            // written across two against a field written across one, and
-            // decoding would refuse the `obs-text` § 5.5 admits — while equality
-            // of two field values is equality of two octet strings and needs no
-            // decode at all.
-            let prev_val = crate::helpers::headers::combined_field_value_as_written(
-                &prev_resp.headers,
-                name_str,
-            );
-            let head_val =
-                crate::helpers::headers::combined_field_value_as_written(&resp.headers, name_str);
+            // And a resource may simply have changed between the two exchanges.
+            if selected_representation_changed(&prev_resp.headers, &resp.headers) {
+                return None;
+            }
 
-            match (prev_val, head_val) {
-                (Some(_), None) if !presence_difference_is_permitted(name_str) => {
-                    return report(format!(
-                        "HEAD response missing header field that GET had: '{}'",
-                        name_str
-                    ));
+            // Parse config only after the cheap method/response/history guards above —
+            // non-HEAD transactions (the common case) skip the allocation entirely.
+            let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
+
+            let report = |message: String| {
+                Some(Violation {
+                    rule: self.id().into(),
+                    severity: ctx.severity,
+                    message,
+                })
+            };
+
+            // For each configured header, enforce presence/value equivalence between GET and HEAD
+            for name in &config.headers {
+                let name_str = name.as_str();
+
+                // `Transfer-Encoding` is answered by its own document, in both
+                // directions and for the value as well: it may be sent, it need not
+                // be, and what it names can be taken off the message by anyone on
+                // the way. Nothing about the two responses' framing is comparable.
+                // cite(RFC 9112 § 6.1): "Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET."
+                // cite(RFC 9112 § 6.1): "This indication is not required, however, because any recipient on the response chain (including the origin server) can remove transfer codings when they are not needed."
+                if name_str == "transfer-encoding" {
+                    continue;
                 }
-                (None, Some(_)) if !presence_difference_is_permitted(name_str) => {
-                    return report(format!(
-                        "HEAD response includes header field not present on GET: '{}'",
-                        name_str
-                    ));
-                }
-                (Some(av), Some(bv)) => {
-                    if name_str == "vary" {
-                        // The field value is a set of field names, and field
-                        // names are case-insensitive — so two spellings of one
-                        // set are one advertisement, and neither the order nor
-                        // the case is part of what was advertised.
-                        // cite(RFC 9110 § 12.5.5): "A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response."
-                        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
-                        //
-                        // The sort is what "set" means here, and the field's
-                        // first stated purpose is where it comes from: what a
-                        // recipient does with the value is look each named field
-                        // up, which no ordering changes.
-                        // cite(RFC 9110 § 12.5.5): "To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request"
-                        //
-                        // `list_members` drops empty members, which is the
-                        // recipient's reading and the right one for a question
-                        // about what was advertised; a sender that writes
-                        // `Accept, , Accept-Encoding` is `vary_header_valid`'s.
-                        let members = |v: &str| {
-                            let mut m: Vec<String> = crate::helpers::headers::list_members(v)
-                                .map(|s| s.to_ascii_lowercase())
-                                .collect();
-                            m.sort_unstable();
-                            m
-                        };
-                        if members(&av) != members(&bv) {
-                            return report(format!(
-                                "Vary header in HEAD differs from GET: '{}' vs '{}'",
-                                bv, av
-                            ));
-                        }
-                        continue;
+
+                // `Content-Length` is answered whole by § 8.6 and not by the
+                // presence comparison below: its absence from either response is
+                // permitted, and its *value* is governed whenever the HEAD carries
+                // one — including when the GET declared none at all.
+                if name_str == "content-length" {
+                    if let Some(m) = content_length_finding(prev_resp, resp) {
+                        return report(m);
                     }
+                    continue;
+                }
 
-                    // Every other field is compared as written. A deployment
-                    // that adds a list-typed field to `headers` buys the one
-                    // divergence in this comparison: § 5.3 lets a sender spell
-                    // the separator `,` or `, `, and one list written across two
-                    // field lines joins with the first while the same list on one
-                    // line usually carries the second.
-                    if av != bv {
+                // Both values as their sender wrote them: every field line of the
+                // section, joined, as octets. Reading one line would measure a field
+                // written across two against a field written across one, and
+                // decoding would refuse the `obs-text` § 5.5 admits — while equality
+                // of two field values is equality of two octet strings and needs no
+                // decode at all.
+                let prev_val = crate::helpers::headers::combined_field_value_as_written(
+                    &prev_resp.headers,
+                    name_str,
+                );
+                let head_val = crate::helpers::headers::combined_field_value_as_written(
+                    &resp.headers,
+                    name_str,
+                );
+
+                match (prev_val, head_val) {
+                    (Some(_), None) if !presence_difference_is_permitted(name_str) => {
                         return report(format!(
-                            "Header '{}' value differs between HEAD and GET ('{}' vs '{}')",
-                            name_str, bv, av
+                            "HEAD response missing header field that GET had: '{}'",
+                            name_str
                         ));
                     }
-                }
-                _ => {}
-            }
-        }
+                    (None, Some(_)) if !presence_difference_is_permitted(name_str) => {
+                        return report(format!(
+                            "HEAD response includes header field not present on GET: '{}'",
+                            name_str
+                        ));
+                    }
+                    (Some(av), Some(bv)) => {
+                        if name_str == "vary" {
+                            // The field value is a set of field names, and field
+                            // names are case-insensitive — so two spellings of one
+                            // set are one advertisement, and neither the order nor
+                            // the case is part of what was advertised.
+                            // cite(RFC 9110 § 12.5.5): "A Vary field value is either the wildcard member "*" or a list of request field names, known as the selecting header fields, that might have had a role in selecting the representation for this response."
+                            // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
+                            //
+                            // The sort is what "set" means here, and the field's
+                            // first stated purpose is where it comes from: what a
+                            // recipient does with the value is look each named field
+                            // up, which no ordering changes.
+                            // cite(RFC 9110 § 12.5.5): "To inform cache recipients that they MUST NOT use this response to satisfy a later request unless the later request has the same values for the listed header fields as the original request"
+                            //
+                            // `list_members` drops empty members, which is the
+                            // recipient's reading and the right one for a question
+                            // about what was advertised; a sender that writes
+                            // `Accept, , Accept-Encoding` is `vary_header_valid`'s.
+                            let members = |v: &str| {
+                                let mut m: Vec<String> = crate::helpers::headers::list_members(v)
+                                    .map(|s| s.to_ascii_lowercase())
+                                    .collect();
+                                m.sort_unstable();
+                                m
+                            };
+                            if members(&av) != members(&bv) {
+                                return report(format!(
+                                    "Vary header in HEAD differs from GET: '{}' vs '{}'",
+                                    bv, av
+                                ));
+                            }
+                            continue;
+                        }
 
-        None
+                        // Every other field is compared as written. A deployment
+                        // that adds a list-typed field to `headers` buys the one
+                        // divergence in this comparison: § 5.3 lets a sender spell
+                        // the separator `,` or `, `, and one list written across two
+                        // field lines joins with the first while the same list on one
+                        // line usually carries the second.
+                        if av != bv {
+                            return report(format!(
+                                "Header '{}' value differs between HEAD and GET ('{}' vs '{}')",
+                                name_str, bv, av
+                            ));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

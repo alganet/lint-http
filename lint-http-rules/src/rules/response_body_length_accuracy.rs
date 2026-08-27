@@ -16,146 +16,154 @@ impl Rule for ResponseBodyLengthAccuracy {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
 
-        // The whole `Content-Length` grammar used to be transcribed here --
-        // `1*DIGIT`, the u128 ceiling, the multiple-values-differ check, the
-        // non-UTF8 branch -- with message strings byte-identical to
-        // `content_length_valid`'s, which owns the field's syntax on both
-        // sides. Two identical findings for one defect, and a copy that had
-        // stopped receiving the owner's fixes: it rejected `Content-Length:
-        // 3, 3`, which § 6.3 makes valid. The request-side twin of this rule
-        // carried the same two problems.
-        //
-        // Nothing is re-quoted. A syntax error leaves no number to compare, so
-        // this rule declines and the syntax rule reports.
-        // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
-        let declared = crate::helpers::headers::validate_content_length(&resp.headers).ok()??;
-
-        // § 6.3's list is in precedence order, and the first two items are
-        // about responses that cannot carry a body at all. This rule started at
-        // item 6 and never read up.
-        //
-        // Item 1: a response to HEAD, and any 1xx, 204 or 304, ends at the
-        // blank line -- "regardless of the header fields present". So the
-        // captured length is zero by construction, and comparing a declared
-        // length against it measures nothing.
-        // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
-        //
-        // The Content-Length is not wrong in such a response -- it is
-        // *deliberately* the length of a body that was not sent, and RFC 9110
-        // makes that its defined meaning, twice, in a MUST:
-        // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
-        // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request (Section 15.4.5); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a 200 (OK) response to the same request."
-        //
-        // So the rule was reporting
-        //
-        //     HEAD /large.iso
-        //     HTTP/1.1 200 OK
-        //     Content-Length: 1048576
-        //
-        // -- a response conforming to a MUST -- for every HEAD of a non-empty
-        // resource. § 9.3.2 asks servers to answer HEAD with the same fields
-        // they would send for GET, so this is the common case, not a corner.
-        // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
-        //
-        // Whether the declared length matches what a GET *would* have returned
-        // is the real requirement, and nothing in one transaction can answer
-        // it: the octets it describes were never sent. `head_response_headers_match_get`
-        // is the rule with two transactions to compare.
-        let head_request = tx.request.method.eq_ignore_ascii_case("HEAD");
-        let bodiless_status =
-            (100..200).contains(&resp.status) || resp.status == 204 || resp.status == 304;
-        if head_request || bodiless_status {
-            // Item 1 does still say something checkable about these, and
-            // exempting them from the comparison would have thrown it away: not
-            // that the declared length is wrong, but that there must be *no
-            // body at all*.
+            // The whole `Content-Length` grammar used to be transcribed here --
+            // `1*DIGIT`, the u128 ceiling, the multiple-values-differ check, the
+            // non-UTF8 branch -- with message strings byte-identical to
+            // `content_length_valid`'s, which owns the field's syntax on both
+            // sides. Two identical findings for one defect, and a copy that had
+            // stopped receiving the owner's fixes: it rejected `Content-Length:
+            // 3, 3`, which § 6.3 makes valid. The request-side twin of this rule
+            // carried the same two problems.
             //
-            // Item 1 names two things, though, and only one of them is this
-            // rule's to report now. `no_body_for_1xx_204_304` reads the
-            // captured octets for the three statuses, and reads them without
-            // needing a `Content-Length` first -- which this rule does need, its
-            // whole entry point being a declared length. So the statuses are
-            // left to it, and what stays here is the half its status gate cannot
-            // reach: a response to HEAD that carries octets whatever its status.
-            // Keeping both would have been two findings for one defect.
-            if !bodiless_status && resp.body_length.is_some_and(|n| n > 0) {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "A {} response to {} cannot contain a message body, but {} body \
-                         octets were received",
-                        resp.status,
-                        tx.request.method,
-                        resp.body_length.unwrap_or(0)
-                    ),
-                });
+            // Nothing is re-quoted. A syntax error leaves no number to compare, so
+            // this rule declines and the syntax rule reports.
+            // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
+            let declared =
+                crate::helpers::headers::validate_content_length(&resp.headers).ok()??;
+
+            // § 6.3's list is in precedence order, and the first two items are
+            // about responses that cannot carry a body at all. This rule started at
+            // item 6 and never read up.
+            //
+            // Item 1: a response to HEAD, and any 1xx, 204 or 304, ends at the
+            // blank line -- "regardless of the header fields present". So the
+            // captured length is zero by construction, and comparing a declared
+            // length against it measures nothing.
+            // cite(RFC 9112 § 6.3): "Any response to a HEAD request and any response with a 1xx (Informational), 204 (No Content), or 304 (Not Modified) status code is always terminated by the first empty line after the header fields, regardless of the header fields present in the message, and thus cannot contain a message body or trailer section."
+            //
+            // The Content-Length is not wrong in such a response -- it is
+            // *deliberately* the length of a body that was not sent, and RFC 9110
+            // makes that its defined meaning, twice, in a MUST:
+            // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a response to a HEAD request (Section 9.3.2); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method."
+            // cite(RFC 9110 § 8.6): "A server MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request (Section 15.4.5); a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a 200 (OK) response to the same request."
+            //
+            // So the rule was reporting
+            //
+            //     HEAD /large.iso
+            //     HTTP/1.1 200 OK
+            //     Content-Length: 1048576
+            //
+            // -- a response conforming to a MUST -- for every HEAD of a non-empty
+            // resource. § 9.3.2 asks servers to answer HEAD with the same fields
+            // they would send for GET, so this is the common case, not a corner.
+            // cite(RFC 9110 § 9.3.2): "The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET."
+            //
+            // Whether the declared length matches what a GET *would* have returned
+            // is the real requirement, and nothing in one transaction can answer
+            // it: the octets it describes were never sent. `head_response_headers_match_get`
+            // is the rule with two transactions to compare.
+            let head_request = tx.request.method.eq_ignore_ascii_case("HEAD");
+            let bodiless_status =
+                (100..200).contains(&resp.status) || resp.status == 204 || resp.status == 304;
+            if head_request || bodiless_status {
+                // Item 1 does still say something checkable about these, and
+                // exempting them from the comparison would have thrown it away: not
+                // that the declared length is wrong, but that there must be *no
+                // body at all*.
+                //
+                // Item 1 names two things, though, and only one of them is this
+                // rule's to report now. `no_body_for_1xx_204_304` reads the
+                // captured octets for the three statuses, and reads them without
+                // needing a `Content-Length` first -- which this rule does need, its
+                // whole entry point being a declared length. So the statuses are
+                // left to it, and what stays here is the half its status gate cannot
+                // reach: a response to HEAD that carries octets whatever its status.
+                // Keeping both would have been two findings for one defect.
+                if !bodiless_status && resp.body_length.is_some_and(|n| n > 0) {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "A {} response to {} cannot contain a message body, but {} body \
+                             octets were received",
+                            resp.status,
+                            tx.request.method,
+                            resp.body_length.unwrap_or(0)
+                        ),
+                    });
+                }
+                return None;
             }
-            return None;
-        }
 
-        // Item 2: a 2xx to CONNECT turns the connection into a tunnel, and what
-        // follows the header section is tunnelled octets rather than content.
-        // The field is to be ignored outright.
-        // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
-        // cite(RFC 9112 § 6.3): "A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message."
-        if tx.request.method.eq_ignore_ascii_case("CONNECT") && (200..300).contains(&resp.status) {
-            return None;
-        }
-
-        // Item 3, and then item 6 -- the sentence that licenses the comparison
-        // at all, whose condition is "without Transfer-Encoding". With one
-        // present the declared length is a number the specification says to
-        // disregard, and the body length comes from decoding the transfer
-        // coding instead, which is what the captured count already reflects.
-        // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
-        // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
-        //
-        // Carrying both is its own MUST NOT and its own rule's finding;
-        // presence is what overrides, not validity.
-        // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
-        if resp.headers.contains_key(hyper::header::TRANSFER_ENCODING) {
-            return None;
-        }
-
-        // What is left is item 6's case, and § 8.6 says why a difference in it
-        // is worth reporting rather than merely noting: this proxy is an
-        // intermediary, and forwarding such a message is how a length
-        // disagreement becomes a response-splitting bug downstream.
-        // cite(RFC 9110 § 8.6): "As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect."
-        // cite(RFC 9112 § 6.2): "For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends."
-        //
-        // A response with neither field is close-delimited and declares no
-        // length, so there is nothing to check and the early return above has
-        // already happened.
-        // cite(RFC 9112 § 6.3): "Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection."
-        //
-        // `body_length` counts the octets that streamed through with the
-        // transfer coding resolved and any `Content-Encoding` left encoded,
-        // which is what `Content-Length` counts too.
-        // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
-        if let Some(body_len) = resp.body_length {
-            if declared != body_len as u128 {
-                return Some(Violation {
-                    rule: self.id().into(),
-                    severity: ctx.severity,
-                    message: format!(
-                        "Content-Length ({}) does not match captured body bytes ({})",
-                        declared, body_len
-                    ),
-                });
+            // Item 2: a 2xx to CONNECT turns the connection into a tunnel, and what
+            // follows the header section is tunnelled octets rather than content.
+            // The field is to be ignored outright.
+            // cite(RFC 9112 § 6.3): "Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields."
+            // cite(RFC 9112 § 6.3): "A client MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message."
+            if tx.request.method.eq_ignore_ascii_case("CONNECT")
+                && (200..300).contains(&resp.status)
+            {
+                return None;
             }
-        }
 
-        None
+            // Item 3, and then item 6 -- the sentence that licenses the comparison
+            // at all, whose condition is "without Transfer-Encoding". With one
+            // present the declared length is a number the specification says to
+            // disregard, and the body length comes from decoding the transfer
+            // coding instead, which is what the captured count already reflects.
+            // cite(RFC 9112 § 6.3): "If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length."
+            // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
+            //
+            // Carrying both is its own MUST NOT and its own rule's finding;
+            // presence is what overrides, not validity.
+            // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
+            if resp.headers.contains_key(hyper::header::TRANSFER_ENCODING) {
+                return None;
+            }
+
+            // What is left is item 6's case, and § 8.6 says why a difference in it
+            // is worth reporting rather than merely noting: this proxy is an
+            // intermediary, and forwarding such a message is how a length
+            // disagreement becomes a response-splitting bug downstream.
+            // cite(RFC 9110 § 8.6): "As a result, a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect."
+            // cite(RFC 9112 § 6.2): "For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends."
+            //
+            // A response with neither field is close-delimited and declares no
+            // length, so there is nothing to check and the early return above has
+            // already happened.
+            // cite(RFC 9112 § 6.3): "Otherwise, this is a response message without a declared message body length, so the message body length is determined by the number of octets received prior to the server closing the connection."
+            //
+            // `body_length` counts the octets that streamed through with the
+            // transfer coding resolved and any `Content-Encoding` left encoded,
+            // which is what `Content-Length` counts too.
+            // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
+            if let Some(body_len) = resp.body_length {
+                if declared != body_len as u128 {
+                    return Some(Violation {
+                        rule: self.id().into(),
+                        severity: ctx.severity,
+                        message: format!(
+                            "Content-Length ({}) does not match captured body bytes ({})",
+                            declared, body_len
+                        ),
+                    });
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

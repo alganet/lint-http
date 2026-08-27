@@ -13,17 +13,32 @@ pub use lint_http_core::test_helpers::*;
 /// Prepare `rule` under `cfg`, then dispatch one transaction through it — the
 /// way the engine does, collapsed to one call for tests.
 ///
+/// Returns the **first** finding, which for every single-finding rule is the
+/// finding; tests of the multi-finding rules read [`run_rule_all`] instead.
 /// Returns `None` when `prepare` rejects the config, which preserves what a
-/// direct `check_transaction` call answered when its own per-dispatch parse
-/// failed. Tests asserting *why* preparation fails call `prepare` directly.
+/// failed per-dispatch parse used to answer. Tests asserting *why*
+/// preparation fails call `prepare` directly.
 pub fn run_rule(
     rule: &dyn crate::rules::Rule,
     tx: &crate::http_transaction::HttpTransaction,
     history: &crate::transaction_history::TransactionHistory,
     cfg: &crate::config::Config,
 ) -> Option<crate::lint::Violation> {
-    let resolved = rule.prepare(cfg).ok()?;
-    rule.check_transaction(tx, history, &crate::rules::RuleContext::new(&resolved))
+    run_rule_all(rule, tx, history, cfg).into_iter().next()
+}
+
+/// Prepare `rule` under `cfg`, then dispatch one transaction and return every
+/// finding. An unpreparable config yields the empty vector.
+pub fn run_rule_all(
+    rule: &dyn crate::rules::Rule,
+    tx: &crate::http_transaction::HttpTransaction,
+    history: &crate::transaction_history::TransactionHistory,
+    cfg: &crate::config::Config,
+) -> Vec<crate::lint::Violation> {
+    let Ok(resolved) = rule.prepare(cfg) else {
+        return Vec::new();
+    };
+    rule.findings(tx, history, &crate::rules::RuleContext::new(&resolved))
 }
 
 /// Prepare `rule` under `cfg`, then dispatch one event through it — the way
@@ -40,5 +55,7 @@ pub fn run_protocol_rule(
     cfg: &crate::config::Config,
 ) -> Option<crate::lint::Violation> {
     let resolved = rule.prepare(cfg).ok()?;
-    rule.check_event(event, history, &crate::rules::RuleContext::new(&resolved))
+    rule.findings(event, history, &crate::rules::RuleContext::new(&resolved))
+        .into_iter()
+        .next()
 }

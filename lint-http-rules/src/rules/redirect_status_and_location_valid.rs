@@ -63,51 +63,56 @@ impl Rule for RedirectStatusAndLocationValid {
         crate::rules::RuleScope::Server
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        // `Location` is a response context field, so the response is the message this
-        // rule measures and a request-only transaction is out of its subject entirely.
-        // cite(RFC 9110 § 10.2): "The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources."
-        let resp = tx.response.as_ref()?;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // `Location` is a response context field, so the response is the message this
+            // rule measures and a request-only transaction is out of its subject entirely.
+            // cite(RFC 9110 § 10.2): "The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources."
+            let resp = tx.response.as_ref()?;
 
-        // The status is read before the field because the status is the half of the
-        // pair this rule can answer. The other half — the request method — matters to
-        // the two rules that know it (`status_3xx_vs_request_method`,
-        // `post_creates_resource`); nothing here varies with it.
-        // cite(RFC 9110 § 10.2.2): "The type of relationship is defined by the combination of request method and status code semantics."
-        let status = resp.status;
-        if location_has_a_referent(status) {
-            return None;
-        }
+            // The status is read before the field because the status is the half of the
+            // pair this rule can answer. The other half — the request method — matters to
+            // the two rules that know it (`status_3xx_vs_request_method`,
+            // `post_creates_resource`); nothing here varies with it.
+            // cite(RFC 9110 § 10.2.2): "The type of relationship is defined by the combination of request method and status code semantics."
+            let status = resp.status;
+            if location_has_a_referent(status) {
+                return None;
+            }
 
-        // Presence is the whole test. The value is not read, not decoded and not
-        // joined: whether it is a usable `URI-reference`, whether it is empty, and
-        // whether several field lines were sent are all
-        // `location_header_uri_valid`'s questions, and none of them changes
-        // whether the field was sent on a status that gives it no referent.
-        //
-        // The definitional sentence is the one this finding rests on, and it is
-        // definitional: `Location` is *used in some responses*, and §10.2.2 names
-        // which. It does not forbid the others, which is why the finding is advisory
-        // and says so in `description()`.
-        // cite(RFC 9110 § 10.2.2): "The "Location" header field is used in some responses to refer to a specific resource in relation to the response."
-        resp.headers.get_all("location").iter().next()?;
+            // Presence is the whole test. The value is not read, not decoded and not
+            // joined: whether it is a usable `URI-reference`, whether it is empty, and
+            // whether several field lines were sent are all
+            // `location_header_uri_valid`'s questions, and none of them changes
+            // whether the field was sent on a status that gives it no referent.
+            //
+            // The definitional sentence is the one this finding rests on, and it is
+            // definitional: `Location` is *used in some responses*, and §10.2.2 names
+            // which. It does not forbid the others, which is why the finding is advisory
+            // and says so in `description()`.
+            // cite(RFC 9110 § 10.2.2): "The "Location" header field is used in some responses to refer to a specific resource in relation to the response."
+            resp.headers.get_all("location").iter().next()?;
 
-        Some(Violation {
-            rule: self.id().into(),
-            severity: ctx.severity,
-            message: format!(
-                "Response with status {status} carries a Location header field. RFC 9110 §10.2.2 \
-                 defines what the value refers to on a 201 (Created) response and on a 3xx \
-                 (Redirection) response, and on no other status — so on a {status} the field has \
-                 no relationship to the response that the specification defines. No sentence in \
-                 RFC 9110 forbids sending it."
-            ),
-        })
+            Some(Violation {
+                rule: self.id().into(),
+                severity: ctx.severity,
+                message: format!(
+                    "Response with status {status} carries a Location header field. RFC 9110 §10.2.2 \
+                     defines what the value refers to on a 201 (Created) response and on a 3xx \
+                     (Redirection) response, and on no other status — so on a {status} the field has \
+                     no relationship to the response that the specification defines. No sentence in \
+                     RFC 9110 forbids sending it."
+                ),
+            })
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {

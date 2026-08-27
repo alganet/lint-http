@@ -16,52 +16,57 @@ impl Rule for BearerTokenSyntax {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        for hv in tx.request.headers.get_all("authorization").iter() {
-            let s = match hv.to_str() {
-                Ok(s) => s,
-                Err(_) => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Authorization header contains non-UTF8 value".into(),
-                    })
-                }
-            };
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            for hv in tx.request.headers.get_all("authorization").iter() {
+                let s = match hv.to_str() {
+                    Ok(s) => s,
+                    Err(_) => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Authorization header contains non-UTF8 value".into(),
+                        })
+                    }
+                };
 
-            // Split scheme and credentials. Auth-scheme names match case-insensitively.
-            // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-            let mut parts = s.trim().splitn(2, char::is_whitespace);
-            let scheme = parts.next().unwrap_or("").trim();
-            if scheme.eq_ignore_ascii_case("bearer") {
-                // `credentials = "Bearer" 1*SP b64token` requires a non-empty b64token
-                // after the scheme, which is what the empty check and the helper call
-                // enforce; the b64token grammar itself is owned by helpers::auth (§2.1).
-                // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
-                let creds = parts.next().map(|r| r.trim()).unwrap_or("");
-                if creds.is_empty() {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "Authorization: Bearer missing token".into(),
-                    });
-                }
+                // Split scheme and credentials. Auth-scheme names match case-insensitively.
+                // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                let mut parts = s.trim().splitn(2, char::is_whitespace);
+                let scheme = parts.next().unwrap_or("").trim();
+                if scheme.eq_ignore_ascii_case("bearer") {
+                    // `credentials = "Bearer" 1*SP b64token` requires a non-empty b64token
+                    // after the scheme, which is what the empty check and the helper call
+                    // enforce; the b64token grammar itself is owned by helpers::auth (§2.1).
+                    // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
+                    let creds = parts.next().map(|r| r.trim()).unwrap_or("");
+                    if creds.is_empty() {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "Authorization: Bearer missing token".into(),
+                        });
+                    }
 
-                if let Err(msg) = crate::helpers::auth::validate_bearer_token(creds) {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: format!("Invalid Bearer token: {}", msg),
-                    });
+                    if let Err(msg) = crate::helpers::auth::validate_bearer_token(creds) {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: format!("Invalid Bearer token: {}", msg),
+                        });
+                    }
                 }
             }
-        }
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {

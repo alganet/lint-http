@@ -16,70 +16,77 @@ impl Rule for RequestOriginHeaderPresentForCors {
         crate::rules::RuleScope::Client
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
-        let req = &tx.request;
-        let headers = &req.headers;
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let req = &tx.request;
+            let headers = &req.headers;
 
-        // If this looks like a CORS preflight (OPTIONS with Access-Control-Request-Method)
-        // then Origin header MUST be present and syntactically valid. A preflight is an
-        // `OPTIONS` — neither GET nor HEAD — so it falls in the sentence below twice over.
-        // cite(Fetch § 3.2): "It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`."
-        if req.method == "OPTIONS"
-            && (headers.get("access-control-request-method").is_some()
-                || headers.get("access-control-request-headers").is_some())
-        {
-            // Origin must be present
-            match crate::helpers::headers::get_header_str(headers, "origin") {
-                Some(origin_val) => {
-                    if let Some(err) = crate::helpers::uri::validate_origin_value(origin_val) {
-                        return Some(Violation {
-                            rule: self.id().into(),
-                            severity: ctx.severity,
-                            message: format!("Origin header invalid: {}", err),
-                        });
-                    }
-                }
-                None => {
-                    return Some(Violation {
-                        rule: self.id().into(),
-                        severity: ctx.severity,
-                        message: "CORS preflight request missing Origin header".into(),
-                    })
-                }
-            }
-        }
-
-        // If request-target is absolute-form and its origin differs from Host header,
-        // consider it cross-origin and require Origin header to be present.
-        if let Some(target_origin) = crate::helpers::uri::extract_origin_if_absolute(&req.uri) {
-            if let Some(host_hdr) = crate::helpers::headers::get_header_str(headers, "host") {
-                // host header may include port; compare authority portion
-                let host_authority = host_hdr.trim();
-                // extract authority from target_origin (after '://')
-                if let Some(delimiter_pos) = target_origin.find("://") {
-                    let target_authority = &target_origin[delimiter_pos + 3..];
-                    if !target_authority.eq_ignore_ascii_case(host_authority) {
-                        // they differ; require Origin header
-                        // cite(Fetch § 3.2): "The `Origin` request header indicates where a fetch originates from."
-                        if crate::helpers::headers::get_header_str(headers, "origin").is_none() {
+            // If this looks like a CORS preflight (OPTIONS with Access-Control-Request-Method)
+            // then Origin header MUST be present and syntactically valid. A preflight is an
+            // `OPTIONS` — neither GET nor HEAD — so it falls in the sentence below twice over.
+            // cite(Fetch § 3.2): "It is used for all HTTP fetches whose request’s response tainting is "cors", as well as those where request’s method is neither `GET` nor `HEAD`."
+            if req.method == "OPTIONS"
+                && (headers.get("access-control-request-method").is_some()
+                    || headers.get("access-control-request-headers").is_some())
+            {
+                // Origin must be present
+                match crate::helpers::headers::get_header_str(headers, "origin") {
+                    Some(origin_val) => {
+                        if let Some(err) = crate::helpers::uri::validate_origin_value(origin_val) {
                             return Some(Violation {
                                 rule: self.id().into(),
                                 severity: ctx.severity,
-                                message: "Cross-origin absolute-form request missing Origin header"
-                                    .into(),
+                                message: format!("Origin header invalid: {}", err),
                             });
+                        }
+                    }
+                    None => {
+                        return Some(Violation {
+                            rule: self.id().into(),
+                            severity: ctx.severity,
+                            message: "CORS preflight request missing Origin header".into(),
+                        })
+                    }
+                }
+            }
+
+            // If request-target is absolute-form and its origin differs from Host header,
+            // consider it cross-origin and require Origin header to be present.
+            if let Some(target_origin) = crate::helpers::uri::extract_origin_if_absolute(&req.uri) {
+                if let Some(host_hdr) = crate::helpers::headers::get_header_str(headers, "host") {
+                    // host header may include port; compare authority portion
+                    let host_authority = host_hdr.trim();
+                    // extract authority from target_origin (after '://')
+                    if let Some(delimiter_pos) = target_origin.find("://") {
+                        let target_authority = &target_origin[delimiter_pos + 3..];
+                        if !target_authority.eq_ignore_ascii_case(host_authority) {
+                            // they differ; require Origin header
+                            // cite(Fetch § 3.2): "The `Origin` request header indicates where a fetch originates from."
+                            if crate::helpers::headers::get_header_str(headers, "origin").is_none()
+                            {
+                                return Some(Violation {
+                                    rule: self.id().into(),
+                                    severity: ctx.severity,
+                                    message:
+                                        "Cross-origin absolute-form request missing Origin header"
+                                            .into(),
+                                });
+                            }
                         }
                     }
                 }
             }
-        }
 
-        None
+            None
+        };
+        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {
