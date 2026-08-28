@@ -451,7 +451,7 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         // being reported was § 5.6.2's alphabet when the requirement in force is
         // the Note below, which is about this character and says so.
         //
-        // cite(RFC 9110 § 5.6.6): "|  *Note:* Parameters do not allow whitespace (not even "bad" |  whitespace) around the "=" character."
+        // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
         if parameter.whitespace_beside_equals {
             return Err(format!(
                 "Expect member '{}' writes whitespace beside the '=' of parameter '{}'; parameters do not allow whitespace around that character, not even \"bad\" whitespace",

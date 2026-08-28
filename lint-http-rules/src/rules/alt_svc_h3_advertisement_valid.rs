@@ -302,7 +302,8 @@ fn h3_ma_defect(parameters: &[&str]) -> Option<String> {
         // Every character is a digit by now, so the only way the parse fails is
         // a run longer than 64 bits — a value the document has a cache clamp
         // rather than reject, and one this rule's ceiling already covers.
-        // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent."
+        // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
+        // cite(RFC 9111 § 1.2.2): "or the greatest positive integer it can conveniently represent."
         let n = seconds.parse::<u64>().unwrap_or(u64::MAX);
 
         if n == 0 {

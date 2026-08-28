@@ -66,7 +66,8 @@ impl Rule for AgeHeaderNumeric {
                 // the clamp requirement is why an over-long run of digits is accepted here
                 // rather than reported as malformed.
                 // cite(RFC 9111 § 5.1): "The Age field value is a non-negative integer, representing time in seconds"
-                // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent."
+                // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
+                // cite(RFC 9111 § 1.2.2): "or the greatest positive integer it can conveniently represent."
                 if !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()) {
                     continue;
                 }

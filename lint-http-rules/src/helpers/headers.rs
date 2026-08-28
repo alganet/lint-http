@@ -172,13 +172,8 @@ pub fn get_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str>
 /// one field value at all. No caller passes it today. Do not add one -- for that
 /// field, iterate the lines.
 ///
-/// The `|` inside the second quote is not a typo and must not be tidied. That
-/// sentence sits in one of the RFC's indented note blocks, whose gutter markers
-/// survive extraction, so the `|` is genuinely part of what the document says as
-/// far as verification is concerned.
-///
 // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
-// cite(RFC 9110 § 5.3): "Since it cannot be combined into a single field value, | recipients ought to handle "Set-Cookie" as a special case while | processing fields."
+// cite(RFC 9110 § 5.3): "Since it cannot be combined into a single field value, recipients ought to handle "Set-Cookie" as a special case while processing fields."
 pub fn get_all_header_values(headers: &HeaderMap, name: &str) -> Option<String> {
     let mut iter = headers.get_all(name).iter();
     // Return None if header is absent.
@@ -753,7 +748,7 @@ pub fn compute_freshness_lifetime(
     // The order is the sentence's order, and it is "use the first match". s-maxage is
     // the arm above these two and is deliberately absent: it applies only to a shared
     // cache, and this helper is not told whether it is one.
-    // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or"
+    // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or"
     if let Some(max_age) = get_cache_control_max_age(headers) {
         return max_age;
     }

@@ -157,7 +157,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // "ignore Expires" — their contradiction with a future Expires is a pure heuristic
             // (recorded in the tracker).
             // cite(RFC 9111 § 5.3): "If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field."
-            // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or * If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field"
+            // cite(RFC 9111 § 4.2.1): "If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field"
             if (cc_no_cache || cc_no_store || cc_max_age == Some(0)) && expires > date_ref {
                 return Some(self.violation(ctx.severity, format!(
                         "Response contains Cache-Control directives {:?} that make it non-fresh, but Expires indicates freshness until {} — Cache-Control takes precedence (RFC 9111 §4.2.1)",

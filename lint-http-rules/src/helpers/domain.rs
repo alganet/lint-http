@@ -99,7 +99,7 @@ pub fn preferred_name_syntax_defect(s: &str) -> Option<String> {
         // reject — so the quote below is deliberately the clause about the *end* and
         // the interior, which is the part this branch actually enforces.
         // cite(RFC 1035 § 2.3.1): "end with a letter or digit, and have as interior characters only letters, digits, and hyphen."
-        // cite(RFC 1123 § 2.1): "the restriction on the first character is relaxed to allow either a letter or a digit."
+        // cite(RFC 1123 § 2): "the restriction on the first character is relaxed to allow either a letter or a digit."
         if first == '-' || last == '-' {
             return Some("domain label must not start or end with '-'".into());
         }

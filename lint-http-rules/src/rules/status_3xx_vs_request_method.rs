@@ -24,13 +24,12 @@ pub struct Status3xxVsRequestMethod;
 /// of the servers it reports to change what their redirect means.
 fn unambiguous_alternative(status: u16) -> Option<(&'static str, &'static str)> {
     match status {
-        // Both notes are set in the RFC's gutter block, so the `|` line markers are
-        // part of the extracted passage and part of the quote. §15.4.2's passage also
-        // starts one word later than §15.4.3's — the extractor keeps "For" with the
-        // note marker there — which is why the two quotes are not symmetric.
-        // cite(RFC 9110 § 15.4.2): "historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 308 (Permanent Redirect) status | code can be used instead."
+        // The two notes are the same sentence with the status swapped, and the
+        // quotes below are deliberately identical apart from it: what differs
+        // between a 301 and a 302 here is only which redirect preserves the method.
+        // cite(RFC 9110 § 15.4.2): "For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 308 (Permanent Redirect) status code can be used instead."
         301 => Some(("308 (Permanent Redirect)", "§15.4.2")),
-        // cite(RFC 9110 § 15.4.3): "For historical reasons, a user agent MAY change the | request method from POST to GET for the subsequent request. If | this behavior is undesired, the 307 (Temporary Redirect) status | code can be used instead."
+        // cite(RFC 9110 § 15.4.3): "For historical reasons, a user agent MAY change the request method from POST to GET for the subsequent request. If this behavior is undesired, the 307 (Temporary Redirect) status code can be used instead."
         302 => Some(("307 (Temporary Redirect)", "§15.4.3")),
         // No other status is in the same position, and every §15.4.x subsection was
         // read to say so rather than only the two above. 307 says the method is kept
@@ -40,7 +39,7 @@ fn unambiguous_alternative(status: u16) -> Option<(&'static str, &'static str)> 
         // what makes 308 method-preserving is §15.4's history, which is also the
         // sentence that says what the 301/302 adjustment was for. Reaching this arm is
         // not a judgement about the response.
-        // cite(RFC 9110 § 15.4): "307 | (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] | were later added to unambiguously indicate method-preserving | redirects, and status codes 301 and 302 have been adjusted to | allow a POST request to be redirected as GET."
+        // cite(RFC 9110 § 15.4): "307 (Temporary Redirect) and 308 (Permanent Redirect) [RFC7538] were later added to unambiguously indicate method-preserving redirects, and status codes 301 and 302 have been adjusted to allow a POST request to be redirected as GET."
         // cite(RFC 9110 § 15.4.8): "The 307 (Temporary Redirect) status code indicates that the target resource resides temporarily under a different URI and the user agent MUST NOT change the request method if it performs an automatic redirection to that URI."
         // cite(RFC 9110 § 15.4.4): "The 303 (See Other) status code indicates that the server is redirecting the user agent to a different resource, as indicated by a URI in the Location header field, which is intended to provide an indirect response to the original request."
         _ => None,
