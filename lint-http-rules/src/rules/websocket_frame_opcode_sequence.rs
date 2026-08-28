@@ -10,24 +10,13 @@
 //! that opcode puts the frame in requires of *this* frame, and what the frames
 //! already sent in that direction leave it free to be.
 //!
-//! **What can reach this rule.** The relay reads frames through
-//! tokio-tungstenite, and that reader refuses, before the proxy is handed a
-//! message, every one of the seven defects this rule reports: a reserved opcode
-//! (in the header parser, ahead of everything else), a control frame over 125
-//! bytes, a control frame with FIN clear, a Close whose body is one byte, a
-//! continuation frame with nothing to continue, a data frame interleaved into an
-//! open fragmented message, and any frame at all arriving after that peer's
-//! Close. The eighth — an opcode above 15 — has no wire spelling for a reader to
-//! refuse. (It refuses a non-zero reserved bit too, which is why no rule here
-//! has ever had one to look at.) It also defragments, so a relayed message
-//! becomes one event
-//! with FIN set and an opcode of 1 or 2 — the wire's fragmentation is gone by
-//! then — and the one `Message` variant carrying a real FIN and real RSV bits is
-//! documented as one a reader never returns. So every finding below is reachable
-//! only through `lint`, over a capture file written by something other than this
-//! proxy. That is not a reason to soften them — a capture is a record of what
-//! was on the wire, and this is the rule that reads it — but it is a reason to
-//! say so, here and in `description()`.
+//! **What can reach this rule.** The relay forwards bytes and observes each
+//! frame header exactly as the wire spelled it — a reserved opcode, a control
+//! frame over 125 bytes or with FIN clear, a one-byte Close body, and every
+//! fragmentation shape included — so each of these defects arrives here live,
+//! off this proxy's own relay, as well as through `lint` over any capture that
+//! recorded frames. The one finding no wire can produce is an opcode above 15:
+//! the field is four bits, so that one is a claim about the record itself.
 
 use uuid::Uuid;
 
@@ -433,7 +422,7 @@ impl ProtocolRule for WebsocketFrameOpcodeSequence {
     }
 
     fn description(&self) -> &'static str {
-        "Reads each WebSocket frame the relay observed and asks three groups of questions, in the order a receiving endpoint reaches them.\n\n**What the opcode is.** The opcode field is four bits, so a recorded value above 15 is one no frame header carried (RFC 6455 §11.8 gives the field its range).  Opcodes 3-7 are reserved for further non-control frames and 11-15 for further control frames; a frame carrying one denotes no frame type the document defines, and §5.2 has the receiving endpoint fail the connection on an unknown opcode.\n\n**What the frame's class requires of it.** §5.5 identifies a control frame by the high bit of its opcode and then states two things about it in one sentence: its payload is 125 bytes or less, and it is never fragmented — so a control frame with the FIN bit clear is reported alongside an oversized one.  A Close frame's body is optional, but a body that exists opens with a two-byte status code, so a Close carrying exactly one payload byte is too short to be either.\n\n**What the frames before it allow.** Once an endpoint has sent a Close, §5.5.1 ends what it may send; a data frame — continuation, Text or Binary — following that endpoint's own Close is reported, and the other direction is left alone, since it is still finishing the closing handshake.  §5.4's fragmentation rules supply the rest: a continuation frame with no fragmented message open in that direction has nothing to continue, and a Text or Binary frame arriving while one is still open interleaves two messages.  Control frames are stepped over when answering that question, because §5.4 permits them in the middle of a fragmented message.\n\n**The escape clause, and when it is in evidence.** §5.8 hands opcodes 3-7 and 11-15, and the reserved bits, to extensions negotiated in the opening handshake, and §5.4's interleaving rule has the same escape.  Each frame event now records what the `101` accepted in `Sec-WebSocket-Extensions`, so a session that accepted an extension stands those three findings down — the opcode may have been given a meaning this document does not define, and deciding which is that extension's document's business.  A capture that does not record the handshake — every one written before the field existed, and every one written by something other than this proxy — is measured exactly as before: reading its silence as *no extension* would invent evidence, and reading it as *some extension* would silence findings this rule has always made.  The reserved bits are `websocket_frame_rsv_bits`'s, on the same three-state reading.\n\n**Where these findings come from.** The relay reads frames through tokio-tungstenite, which refuses every defect above before the proxy is handed a message, and which defragments — so a relayed message reaches this rule as a single frame with FIN set.  These findings are therefore reachable through `lint`, over capture files written by something other than this proxy."
+        "Reads each WebSocket frame the relay observed and asks three groups of questions, in the order a receiving endpoint reaches them.\n\n**What the opcode is.** The opcode field is four bits, so a recorded value above 15 is one no frame header carried (RFC 6455 §11.8 gives the field its range).  Opcodes 3-7 are reserved for further non-control frames and 11-15 for further control frames; a frame carrying one denotes no frame type the document defines, and §5.2 has the receiving endpoint fail the connection on an unknown opcode.\n\n**What the frame's class requires of it.** §5.5 identifies a control frame by the high bit of its opcode and then states two things about it in one sentence: its payload is 125 bytes or less, and it is never fragmented — so a control frame with the FIN bit clear is reported alongside an oversized one.  A Close frame's body is optional, but a body that exists opens with a two-byte status code, so a Close carrying exactly one payload byte is too short to be either.\n\n**What the frames before it allow.** Once an endpoint has sent a Close, §5.5.1 ends what it may send; a data frame — continuation, Text or Binary — following that endpoint's own Close is reported, and the other direction is left alone, since it is still finishing the closing handshake.  §5.4's fragmentation rules supply the rest: a continuation frame with no fragmented message open in that direction has nothing to continue, and a Text or Binary frame arriving while one is still open interleaves two messages.  Control frames are stepped over when answering that question, because §5.4 permits them in the middle of a fragmented message.\n\n**The escape clause, and when it is in evidence.** §5.8 hands opcodes 3-7 and 11-15, and the reserved bits, to extensions negotiated in the opening handshake, and §5.4's interleaving rule has the same escape.  Each frame event now records what the `101` accepted in `Sec-WebSocket-Extensions`, so a session that accepted an extension stands those three findings down — the opcode may have been given a meaning this document does not define, and deciding which is that extension's document's business.  A capture that does not record the handshake — every one written before the field existed, and every one written by something other than this proxy — is measured exactly as before: reading its silence as *no extension* would invent evidence, and reading it as *some extension* would silence findings this rule has always made.  The reserved bits are `websocket_frame_rsv_bits`'s, on the same three-state reading.\n\n**Where these findings come from.** The relay forwards bytes and records each frame as the wire spelled it — reserved opcodes, control frames with FIN clear, and fragmentation included — so these findings arrive live off this proxy's own relay, and equally through `lint` over any capture that recorded frames."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
