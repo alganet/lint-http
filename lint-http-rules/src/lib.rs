@@ -23,6 +23,15 @@ pub mod engine;
 pub mod helpers;
 pub mod lint_protocol;
 pub mod queries;
+// `unsafe_code` is denied workspace-wide (see the root `Cargo.toml`), and this
+// subtree is the one exemption. `linkme::distributed_slice` places each rule's
+// registration in a named `#[link_section]`, which the lint counts as unsafe;
+// it fires once per registration, inside each `src/rules/*.rs`, so the
+// exemption has to reach the whole subtree rather than the two declarations in
+// `rules/mod.rs`. Scoped to this `mod` and not to the crate, which leaves
+// `helpers`, `engine`, `queries` and `lint_protocol` — where a parser might
+// actually be tempted — still covered.
+#[allow(unsafe_code)]
 pub mod rules;
 
 #[cfg(test)]
