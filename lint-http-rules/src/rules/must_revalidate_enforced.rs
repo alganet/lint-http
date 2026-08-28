@@ -80,49 +80,25 @@ impl Rule for MustRevalidateEnforced {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // find the most recent past response that contained must-revalidate
-            let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
-            for past in history.iter() {
-                if let Some(resp) = &past.response {
-                    if header_has_must_revalidate(&resp.headers) {
-                        candidate = Some(past);
-                        break;
-                    }
-                }
-            }
-
-            let prev_tx = candidate?;
+            // The most recent past response that contained must-revalidate.
+            let (prev_tx, prev_resp) =
+                history.latest_response(|resp| header_has_must_revalidate(&resp.headers))?;
 
             // Freshness lifetime advertised by the response. The helper owns the §4.2.1
             // derivation (max-age wins, else Expires − Date), returning zero when no explicit
             // lifetime is available.
             let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
-                &prev_tx.response.as_ref().unwrap().headers,
+                &prev_resp.headers,
                 prev_tx.timestamp,
             );
 
-            // Estimate current age as the Age header (if numeric) plus elapsed seconds. This is a
-            // simplification of §4.2.3's full algorithm (it omits response_delay and the Date-based
-            // apparent_age term); adequate for staleness detection. A non-numeric or absurd Age is
-            // treated as zero.
-            let mut age_val: i64 = 0;
-            if let Some(resp) = &prev_tx.response {
-                if let Some(hv) = resp.headers.get("age") {
-                    if let Ok(s) = hv.to_str() {
-                        if let Ok(n) = s.trim().parse::<i64>() {
-                            if n >= 0 {
-                                age_val = n;
-                            }
-                        }
-                    }
-                }
-            }
-            let elapsed = tx
-                .timestamp
-                .signed_duration_since(prev_tx.timestamp)
-                .num_seconds();
-            let elapsed = if elapsed < 0 { 0 } else { elapsed };
-            let current_age = age_val.saturating_add(elapsed);
+            // Age stated by the response plus the time it has since spent in our
+            // record; the helper owns that estimate and what it leaves out.
+            let current_age = crate::helpers::headers::estimated_age(
+                &prev_resp.headers,
+                prev_tx.timestamp,
+                tx.timestamp,
+            );
 
             // A conditional request (carrying a precondition header field) is how a client
             // revalidates — the "successfully validated by the origin" that §5.2.2.2 requires.
@@ -137,9 +113,8 @@ impl Rule for MustRevalidateEnforced {
             // cite(RFC 9111 § 4.2): "A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has."
             if current_age >= freshness_lifetime && !has_conditional {
                 // warn only if there was a validator on the original response
-                let resp = prev_tx.response.as_ref().unwrap();
-                let has_validator =
-                    resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
+                let has_validator = prev_resp.headers.contains_key("etag")
+                    || prev_resp.headers.contains_key("last-modified");
                 // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
                 if has_validator {
                     return Some(self.cited(&RFC_9111_5_2_2_2, ctx.severity, format!(
@@ -194,24 +169,9 @@ impl Rule for MustRevalidateEnforced {
 }
 
 /// Helper to detect presence of a must-revalidate directive in Cache-Control
-/// headers.  We match each directive name case-insensitively, splitting on comma
-/// (the grammar separator) and — as a tolerance — semicolon, which some
-/// implementations wrongly use.
+/// headers. The directive takes no argument, so the bare form is the only form.
 fn header_has_must_revalidate(headers: &hyper::HeaderMap) -> bool {
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            // Cache-Control is a comma-separated list of directives; the semicolon split is a
-            // tolerance for the malformed `a;b` form (the grammar only allows `,`).
-            for directive in s.split(|c| [',', ';'].contains(&c)) {
-                // Directive names are case-insensitive.
-                // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
-                if directive.trim().eq_ignore_ascii_case("must-revalidate") {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    crate::helpers::cache_control::has_unqualified(headers, "must-revalidate")
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

@@ -55,96 +55,86 @@ impl Rule for PrivateCacheVisibility {
                 return None;
             }
 
-            // Detect an *unqualified* private directive: the exact-name match excludes the qualified
-            // `private="field"` form, which lets a shared cache store the rest — matching the cite's
-            // "unqualified" wording.
-            fn header_has_private(headers: &hyper::HeaderMap) -> bool {
-                for hv in headers.get_all("cache-control").iter() {
-                    if let Ok(s) = hv.to_str() {
-                        for directive in s.split(|c| [',', ';'].contains(&c)) {
-                            // Directive names are case-insensitive.
-                            // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
-                            if directive.trim().eq_ignore_ascii_case("private") {
-                                return true;
-                            }
-                        }
-                    }
+            // The validators other clients were handed under an *unqualified*
+            // `private` — the exact-name match excludes the qualified
+            // `private="field"` form, which lets a shared cache store the rest,
+            // matching the cite's "unqualified" wording.
+            //
+            // Collecting them up front is what makes each validator the request
+            // presents one comparison below, rather than a walk of the history
+            // nested inside a walk of the members inside a walk of the field
+            // lines.
+            let private_responses = || {
+                history
+                    .responses()
+                    .filter(|(past, _)| past.client != tx.client)
+                    .filter(|(_, resp)| {
+                        crate::helpers::cache_control::has_unqualified(&resp.headers, "private")
+                    })
+            };
+            let private_etags: Vec<String> = private_responses()
+                .filter_map(|(_, resp)| {
+                    crate::helpers::headers::get_header_str(&resp.headers, "etag")
+                })
+                .map(crate::helpers::headers::normalize_etag)
+                .collect();
+            let private_last_modified: Vec<chrono::DateTime<chrono::Utc>> = private_responses()
+                .filter_map(|(_, resp)| {
+                    crate::http_date::header_timestamp(&resp.headers, "last-modified")
+                })
+                .collect();
+
+            // Heuristic: a validator from a `private` response turning up in a
+            // *different* client's request suggests a shared cache stored what only
+            // one user was to hold. The cite grounds *why that is forbidden*; the
+            // inference is the linter's — an ETag identifies a representation, not a
+            // user, so two clients that fetched the same private representation
+            // directly from the origin share it legitimately.
+            // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
+            for member in tx
+                .request
+                .headers
+                .get_all("if-none-match")
+                .iter()
+                .filter_map(|hv| hv.to_str().ok())
+                .flat_map(crate::helpers::headers::list_members)
+            {
+                if private_etags.contains(&crate::helpers::headers::normalize_etag(member)) {
+                    return Some(self.cited(
+                        &RFC_9111_5_2_2_7,
+                        ctx.severity,
+                        format!(
+                            "Validator '{}' from a private response seen by a different client",
+                            member
+                        ),
+                    ));
                 }
-                false
             }
 
-            // check If-None-Match members
-            for hv in tx.request.headers.get_all("if-none-match").iter() {
-                if let Ok(s) = hv.to_str() {
-                    for member in crate::helpers::headers::list_members(s) {
-                        let normalized = crate::helpers::headers::normalize_etag(member);
-
-                        for past in history.iter() {
-                            if past.client == tx.client {
-                                continue;
-                            }
-                            if let Some(resp) = &past.response {
-                                if header_has_private(&resp.headers) {
-                                    if let Some(hv2) = resp.headers.get("etag") {
-                                        if let Ok(val) = hv2.to_str() {
-                                            let val_norm =
-                                                crate::helpers::headers::normalize_etag(val);
-                                            // Heuristic: a validator from a `private` response turning
-                                            // up in a *different* client's request suggests a shared
-                                            // cache stored what only one user was to hold. The cite
-                                            // grounds *why that is forbidden*; the inference is the
-                                            // linter's — an ETag identifies a representation, not a
-                                            // user, so two clients that fetched the same private
-                                            // representation directly from the origin share it legitimately.
-                                            // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
-                                            if val_norm == normalized {
-                                                return Some(self.cited(&RFC_9111_5_2_2_7, ctx.severity, format!(
-                                                        "Validator '{}' from a private response seen by a different client",
-                                                        member
-                                                    )));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // check If-Modified-Since headers
-            for hv in tx.request.headers.get_all("if-modified-since").iter() {
-                if let Ok(s) = hv.to_str() {
-                    let candidate = s.trim();
-                    if let Ok(candidate_dt) =
-                        crate::http_date::parse_http_date_to_datetime(candidate)
-                    {
-                        for past in history.iter() {
-                            if past.client == tx.client {
-                                continue;
-                            }
-                            if let Some(resp) = &past.response {
-                                if header_has_private(&resp.headers) {
-                                    if let Some(hv2) = resp.headers.get("last-modified") {
-                                        if let Ok(val) = hv2.to_str() {
-                                            if let Ok(val_dt) =
-                                                crate::http_date::parse_http_date_to_datetime(val)
-                                            {
-                                                // Same heuristic + cite as the ETag branch above.
-                                                // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
-                                                if val_dt == candidate_dt {
-                                                    return Some(self.cited(&RFC_9111_5_2_2_7, ctx.severity, format!(
-                                                            "Validator '{}' from a private response seen by a different client",
-                                                            candidate
-                                                        )));
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+            // Same heuristic and cite as the ETag branch above, compared as
+            // timestamps so two spellings of one instant still match.
+            // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
+            for candidate in tx
+                .request
+                .headers
+                .get_all("if-modified-since")
+                .iter()
+                .filter_map(|hv| hv.to_str().ok())
+                .map(str::trim)
+            {
+                let Ok(candidate_dt) = crate::http_date::parse_http_date_to_datetime(candidate)
+                else {
+                    continue;
+                };
+                if private_last_modified.contains(&candidate_dt) {
+                    return Some(self.cited(
+                        &RFC_9111_5_2_2_7,
+                        ctx.severity,
+                        format!(
+                            "Validator '{}' from a private response seen by a different client",
+                            candidate
+                        ),
+                    ));
                 }
             }
 

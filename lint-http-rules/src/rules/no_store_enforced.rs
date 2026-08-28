@@ -66,94 +66,47 @@ impl Rule for NoStoreEnforced {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // Build maps of validators to a boolean indicating whether the most
-            // recent occurrence of that validator came from a no-store response.
+            // Which validators came from a no-store response, and which did not.
             //
-            // The `TransactionHistory` type is documented to yield entries "newest
-            // first" (see its own docs).  Our algorithm depends on that ordering
-            // so that the first time we see a given validator value we record the
-            // state that should win.  To make the assumption explicit and guard
-            // against future changes in history construction we sort the entries
-            // ourselves by timestamp.  That way the rule behaves correctly even if
-            // the caller accidentally supplies an unsorted vector.
-            use std::collections::HashSet;
+            // The history yields entries newest first — the container asserts
+            // that invariant where it is built — so the *first* appearance of a
+            // validator is its most recent one, and that is the appearance that
+            // decides. The `seen` sets below are what make later (older)
+            // entries unable to overwrite it; the earlier reading of this rule
+            // also removed from the no-store sets on a non-no-store entry, which
+            // could never fire — nothing is inserted for a validator that was
+            // already seen — and said the same decision twice.
+            use std::collections::{HashMap, HashSet};
 
-            // We'll keep normalized ETag values (weak prefix stripped) for
-            // comparison, but retain the original header text in violation
-            // messages.  `seen_etags` tracks normalized values we've already
-            // encountered so that later entries win.
+            // ETags compare with the weak prefix stripped; the raw text is kept
+            // for the finding message.
             let mut no_store_etags: HashSet<String> = HashSet::new();
+            // Last-Modified is compared both as written and as a timestamp, so
+            // the parse is done once here rather than per candidate below.
+            let mut no_store_lastmod: HashMap<String, chrono::DateTime<chrono::Utc>> =
+                HashMap::new();
             let mut seen_etags: HashSet<String> = HashSet::new();
-
-            // For Last-Modified we need both the raw string (for direct
-            // comparisons) and a parsed `DateTime` to avoid reparsing the same
-            // history value on every request.  Store the parsed time in the map
-            // keyed by the raw string so we can easily remove entries when a
-            // later non-no-store response overrides them.
-            let mut no_store_lastmod: std::collections::HashMap<
-                String,
-                chrono::DateTime<chrono::Utc>,
-            > = std::collections::HashMap::new();
             let mut seen_lastmod: HashSet<String> = HashSet::new();
 
-            // Collect the entries and ensure newest-first ordering by timestamp.
-            // This is a small extra cost, but the history is typically short.
-            let mut entries: Vec<&crate::http_transaction::HttpTransaction> =
-                history.iter().collect();
-            entries.sort_by_key(|tx| std::cmp::Reverse(tx.timestamp));
+            for (_, resp) in history.responses() {
+                let is_no_store = header_has_no_store(&resp.headers);
 
-            // debug-time sanity check: timestamps should now be non-increasing.
-            #[cfg(debug_assertions)]
-            {
-                for pair in entries.windows(2) {
-                    if let [first, second] = pair {
-                        debug_assert!(
-                            first.timestamp >= second.timestamp,
-                            "history entries must be newest-first"
-                        );
+                if let Some(etag) = crate::helpers::headers::get_header_str(&resp.headers, "etag") {
+                    let normalized = crate::helpers::headers::normalize_etag(etag);
+                    if seen_etags.insert(normalized.clone()) && is_no_store {
+                        no_store_etags.insert(normalized);
                     }
                 }
-            }
 
-            for past in entries {
-                if let Some(resp) = &past.response {
-                    let is_no_store = header_has_no_store(&resp.headers);
-
-                    if let Some(hv) = resp.headers.get("etag") {
-                        if let Ok(s) = hv.to_str() {
-                            let val = s.trim().to_string();
-                            let normalized = crate::helpers::headers::normalize_etag(&val);
-                            if !seen_etags.contains(&normalized) {
-                                seen_etags.insert(normalized.clone());
-                                if is_no_store {
-                                    no_store_etags.insert(normalized.clone());
-                                } else {
-                                    no_store_etags.remove(&normalized);
-                                }
-                            }
-                        }
-                    }
-
-                    if let Some(hv) = resp.headers.get("last-modified") {
-                        if let Ok(s) = hv.to_str() {
-                            let val = s.trim().to_string();
-                            if !seen_lastmod.contains(&val) {
-                                seen_lastmod.insert(val.clone());
-                                if is_no_store {
-                                    // parse once and store if successful
-                                    if let Ok(dt) =
-                                        crate::http_date::parse_http_date_to_datetime(&val)
-                                    {
-                                        no_store_lastmod.insert(val.clone(), dt);
-                                    } else {
-                                        // unparsable dates can't match later, so
-                                        // ensure they're not in the map
-                                        no_store_lastmod.remove(&val);
-                                    }
-                                } else {
-                                    no_store_lastmod.remove(&val);
-                                }
-                            }
+                if let Some(lastmod) =
+                    crate::helpers::headers::get_header_str(&resp.headers, "last-modified")
+                {
+                    let val = lastmod.trim().to_string();
+                    // An unparseable date matches no candidate later, so it is
+                    // recorded as seen and nothing more.
+                    if seen_lastmod.insert(val.clone()) && is_no_store {
+                        if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(&val) {
+                            no_store_lastmod.insert(val, dt);
                         }
                     }
                 }
@@ -255,22 +208,11 @@ impl Rule for NoStoreEnforced {
 }
 
 /// Look for a `no-store` directive in any Cache-Control header field.
+///
+/// `no-store` is defined with no argument, so the bare form is the only form,
+/// and asking for it excludes a member that merely starts with the name.
 fn header_has_no_store(headers: &hyper::HeaderMap) -> bool {
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            // Split on comma (the grammar separator) and, as a tolerance, semicolon, which some
-            // implementations wrongly use. no-store takes no argument, so an exact directive-name
-            // match is correct (no qualified form to distinguish, unlike no-cache).
-            for directive in s.split(|c| [',', ';'].contains(&c)) {
-                // Directive names are case-insensitive.
-                // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
-                if directive.trim().eq_ignore_ascii_case("no-store") {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    crate::helpers::cache_control::has_unqualified(headers, "no-store")
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

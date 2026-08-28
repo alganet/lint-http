@@ -65,53 +65,25 @@ impl Rule for ImmutableCacheNeverStale {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // locate the most recent prior response with an immutable
-            // directive that isn't simultaneously forbidding caching.
-            let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
-            for past in history.iter() {
-                if let Some(resp) = &past.response {
-                    if header_has_immutable(&resp.headers) {
-                        candidate = Some(past);
-                        break;
-                    }
-                }
-            }
-
-            let prev_tx = candidate?;
+            // The most recent prior response with an immutable directive that
+            // isn't simultaneously forbidding caching.
+            let (prev_tx, prev_resp) =
+                history.latest_response(|resp| header_has_immutable(&resp.headers))?;
 
             // Advertised freshness lifetime. The max-age/Expires calculation
             // (RFC 9111 §4.2.1) is owned by the helper, which carries the cite.
             let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
-                &prev_tx.response.as_ref().unwrap().headers,
+                &prev_resp.headers,
                 prev_tx.timestamp,
             );
 
-            // Seed the age from the response's Age field. A non-negative delta-seconds
-            // is the only meaningful value, so a negative or unparseable one is dropped.
-            // cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
-            let mut age_val: i64 = 0;
-            if let Some(resp) = &prev_tx.response {
-                if let Some(hv) = resp.headers.get("age") {
-                    if let Ok(s) = hv.to_str() {
-                        if let Ok(n) = s.trim().parse::<i64>() {
-                            if n >= 0 {
-                                age_val = n;
-                            }
-                        }
-                    }
-                }
-            }
-            // current_age ≈ Age + time observed in our own history. This is a
-            // deliberate simplification of §4.2.3's full age computation (which adds
-            // response_delay and resident_time from request/response timing we do not
-            // record); the elapsed clamp to ≥ 0 absorbs clock skew the same way §4.2.3
-            // does by flooring. It is an estimate, adequate for a best-effort warning.
-            let elapsed = tx
-                .timestamp
-                .signed_duration_since(prev_tx.timestamp)
-                .num_seconds();
-            let elapsed = if elapsed < 0 { 0 } else { elapsed };
-            let current_age = age_val.saturating_add(elapsed);
+            // Age stated by the response plus the time it has since spent in our
+            // record; the helper owns that estimate and what it leaves out.
+            let current_age = crate::helpers::headers::estimated_age(
+                &prev_resp.headers,
+                prev_tx.timestamp,
+                tx.timestamp,
+            );
 
             // Only the two revalidation preconditions count as "revalidation" here:
             // If-None-Match and If-Modified-Since are what a cache sends to revalidate.
@@ -183,29 +155,11 @@ fn header_has_immutable(headers: &hyper::HeaderMap) -> bool {
     // best-effort warning.)
     // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request"
     // cite(RFC 9111 § 5.2.2.4): "the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            let l = s.to_ascii_lowercase();
-            if l.contains("no-store") || l.contains("no-cache") {
-                return false;
-            }
-        }
+    if crate::helpers::cache_control::forbids_storage_or_reuse(headers) {
+        return false;
     }
-    // Search for the immutable directive (RFC 8246 §2) across fields. The name is
-    // a case-insensitive directive token; the `;` in the split is a tolerance —
-    // Cache-Control separates directives with `,`, not `;`, but accepting both
-    // only widens detection of a malformed header, never narrows it.
-    // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            for directive in s.split(|c| [',', ';'].contains(&c)) {
-                if directive.trim().eq_ignore_ascii_case("immutable") {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    // The immutable directive (RFC 8246 §2) takes no argument.
+    crate::helpers::cache_control::has_unqualified(headers, "immutable")
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
