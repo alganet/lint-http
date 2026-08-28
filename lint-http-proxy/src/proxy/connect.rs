@@ -76,6 +76,7 @@ pub(super) async fn handle_connect(
     // `tokio_rustls::TlsAcceptor::accept`.
     let stream = acceptor.accept(TokioIo::new(client_conn)).await?;
 
+    let shutdown = shared.shutdown.clone();
     let service = service_fn(move |req: Request<Incoming>| {
         let shared = shared.clone();
         let conn_metadata = conn_metadata.clone();
@@ -85,14 +86,27 @@ pub(super) async fn handle_connect(
         fut
     });
 
-    // Build an auto-detect HTTP connection for the TLS stream.
+    // Build an auto-detect HTTP connection for the TLS stream, and drive it
+    // against the shutdown token exactly as the plain accept loop does — the
+    // MITM leg was the one connection driver that outlived a graceful shutdown
+    // until its client went away on its own.
     let executor = TokioExecutor::new();
     let builder = hyper_util::server::conn::auto::Builder::new(executor);
-    if let Err(e) = builder
-        .serve_connection_with_upgrades(TokioIo::new(stream), service)
-        .await
-    {
-        error!("TLS connection error: {}", e);
+    let conn = builder.serve_connection_with_upgrades(TokioIo::new(stream), service);
+    tokio::pin!(conn);
+    tokio::select! {
+        res = conn.as_mut() => {
+            if let Err(e) = res {
+                error!("TLS connection error: {}", e);
+            }
+        }
+        _ = shutdown.cancelled() => {
+            // Finish in-flight requests but stop reading new ones.
+            conn.as_mut().graceful_shutdown();
+            if let Err(e) = conn.await {
+                error!("TLS connection error after graceful shutdown: {}", e);
+            }
+        }
     }
 
     Ok(())
