@@ -22,201 +22,202 @@ impl Rule for TransferEncodingChunkedFinal {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Collect the coding names in wire order across every field line.
-            //
-            // `None` means the value could not be read as a list at all: quoting
-            // that never closes leaves every later comma inside it, and an order
-            // derived from members that cannot be delimited would be a guess.
-            // Unlike the ordering questions below, that one has an owner --
-            // `transfer_coding_registered` reports a malformed
-            // `Transfer-Encoding` -- so declining here loses nothing.
-            // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
-            let collect = |headers: &hyper::HeaderMap| -> Option<Vec<String>> {
-                let mut codings: Vec<String> = Vec::new();
-                for hv in headers.get_all(hyper::header::TRANSFER_ENCODING).iter() {
-                    // Decoded from the raw octets. `to_str` refuses everything
-                    // outside visible US-ASCII, and a single such byte -- legal in
-                    // this grammar only inside a `quoted-string` in a parameter
-                    // value, which this rule never reads -- used to drop the whole
-                    // field line. Dropping a line here does not merely miss a
-                    // finding: it silently reorders the sequence this rule exists
-                    // to judge, because the codings on that line are the ones
-                    // between the lines that remain.
-                    let val = crate::helpers::headers::field_line_as_written(hv);
-                    if !crate::helpers::headers::quoting_is_balanced(&val) {
-                        return None;
-                    }
-                    // Quote-aware: a comma inside a transfer-parameter's
-                    // quoted-string value is not a list separator.
-                    // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-                    for part in crate::helpers::headers::split_commas_respecting_quotes(&val) {
-                        // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-                        if part.is_empty() {
-                            continue;
-                        }
-                        // The name, not the member. The old code pushed the whole
-                        // member, so `chunked;ext=1` never equalled `"chunked"` and
-                        // a parameterised chunked in a non-final position was
-                        // invisible to every check below -- the one place where
-                        // being lax about parameters changes the answer rather than
-                        // just the message. Whether the parameter should be there at
-                        // all is `transfer_coding_registered`'s finding.
-                        // The trim is `OWS` because that is the whitespace the
-                        // production prints around the `;`. `str::trim` would take
-                        // more, and on a value read one `char` per octet there is
-                        // more to take: %xA0 arrives as U+00A0, which
-                        // `char::is_whitespace` admits and no `token` does.
-                        // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
-                        // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
-                        let name =
-                            crate::helpers::headers::trim_ows(part.split(';').next().unwrap());
-                        if name.is_empty() {
-                            continue;
-                        }
-                        // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
-                        codings.push(name.to_ascii_lowercase());
-                    }
-                }
-                Some(codings)
-            };
-
-            // Whether the message announces that the connection ends with it.
-            // cite(RFC 9110 § 7.6.1): "Connection        = #connection-option connection-option = token"
-            // cite(RFC 9112 § 9.6): "The "close" connection option is defined as a signal that the sender will close this connection after completion of the response."
-            let announces_close = |headers: &hyper::HeaderMap| -> bool {
-                headers.get_all("connection").iter().any(|hv| {
-                    let val = crate::helpers::headers::field_line_as_written(hv);
-                    // Bound rather than returned directly: the iterator borrows
-                    // `val`, and as a tail expression it outlives it. Not a style
-                    // choice -- inlining it does not compile.
-                    let found = crate::helpers::headers::list_members(&val)
-                        .any(|opt| opt.eq_ignore_ascii_case("close"));
-                    found
-                })
-            };
-
-            let check = |headers: &hyper::HeaderMap, is_request: bool| -> Option<Violation> {
-                let codings = collect(headers)?;
-
-                if codings.is_empty() {
+        // Collect the coding names in wire order across every field line.
+        //
+        // `None` means the value could not be read as a list at all: quoting
+        // that never closes leaves every later comma inside it, and an order
+        // derived from members that cannot be delimited would be a guess.
+        // Unlike the ordering questions below, that one has an owner --
+        // `transfer_coding_registered` reports a malformed
+        // `Transfer-Encoding` -- so declining here loses nothing.
+        // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+        let collect = |headers: &hyper::HeaderMap| -> Option<Vec<String>> {
+            let mut codings: Vec<String> = Vec::new();
+            for hv in headers.get_all(hyper::header::TRANSFER_ENCODING).iter() {
+                // Decoded from the raw octets. `to_str` refuses everything
+                // outside visible US-ASCII, and a single such byte -- legal in
+                // this grammar only inside a `quoted-string` in a parameter
+                // value, which this rule never reads -- used to drop the whole
+                // field line. Dropping a line here does not merely miss a
+                // finding: it silently reorders the sequence this rule exists
+                // to judge, because the codings on that line are the ones
+                // between the lines that remain.
+                let val = crate::helpers::headers::field_line_as_written(hv);
+                if !crate::helpers::headers::quoting_is_balanced(&val) {
                     return None;
                 }
+                // Quote-aware: a comma inside a transfer-parameter's
+                // quoted-string value is not a list separator.
+                // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
+                for part in crate::helpers::headers::split_commas_respecting_quotes(&val) {
+                    // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
+                    if part.is_empty() {
+                        continue;
+                    }
+                    // The name, not the member. The old code pushed the whole
+                    // member, so `chunked;ext=1` never equalled `"chunked"` and
+                    // a parameterised chunked in a non-final position was
+                    // invisible to every check below -- the one place where
+                    // being lax about parameters changes the answer rather than
+                    // just the message. Whether the parameter should be there at
+                    // all is `transfer_coding_registered`'s finding.
+                    // The trim is `OWS` because that is the whitespace the
+                    // production prints around the `;`. `str::trim` would take
+                    // more, and on a value read one `char` per octet there is
+                    // more to take: %xA0 arrives as U+00A0, which
+                    // `char::is_whitespace` admits and no `token` does.
+                    // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                    let name = crate::helpers::headers::trim_ows(part.split(';').next().unwrap());
+                    if name.is_empty() {
+                        continue;
+                    }
+                    // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+                    codings.push(name.to_ascii_lowercase());
+                }
+            }
+            Some(codings)
+        };
 
-                // This sentence was cited on the collection loop from the day the
-                // rule was written, and nothing implemented it. `chunked, chunked`
-                // did produce a finding -- the position check below sees the
-                // *first* one is not last -- but it said "chunked must be the final
-                // coding" about a value whose final coding is chunked. The right
-                // answer for the wrong reason, and unreadable to anyone trying to
-                // fix it. Counted here, ahead of the position check, so the more
-                // specific defect wins -- and ahead of the response's close
-                // exemption, because this sentence offers no alternative. Nothing
-                // in § 6.1 lets a closed connection excuse chunking twice.
-                // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed)."
-                let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
-                if chunked_count > 1 {
-                    return Some(self.violation(
-                        ctx.severity,
-                        format!(
-                            "The chunked transfer coding must not be applied more than once: \
+        // Whether the message announces that the connection ends with it.
+        // cite(RFC 9110 § 7.6.1): "Connection        = #connection-option connection-option = token"
+        // cite(RFC 9112 § 9.6): "The "close" connection option is defined as a signal that the sender will close this connection after completion of the response."
+        let announces_close = |headers: &hyper::HeaderMap| -> bool {
+            headers.get_all("connection").iter().any(|hv| {
+                let val = crate::helpers::headers::field_line_as_written(hv);
+                // Bound rather than returned directly: the iterator borrows
+                // `val`, and as a tail expression it outlives it. Not a style
+                // choice -- inlining it does not compile.
+                let found = crate::helpers::headers::list_members(&val)
+                    .any(|opt| opt.eq_ignore_ascii_case("close"));
+                found
+            })
+        };
+
+        let check = |headers: &hyper::HeaderMap, is_request: bool| -> Option<Violation> {
+            let codings = collect(headers)?;
+
+            if codings.is_empty() {
+                return None;
+            }
+
+            // This sentence was cited on the collection loop from the day the
+            // rule was written, and nothing implemented it. `chunked, chunked`
+            // did produce a finding -- the position check below sees the
+            // *first* one is not last -- but it said "chunked must be the final
+            // coding" about a value whose final coding is chunked. The right
+            // answer for the wrong reason, and unreadable to anyone trying to
+            // fix it. Counted here, ahead of the position check, so the more
+            // specific defect wins -- and ahead of the response's close
+            // exemption, because this sentence offers no alternative. Nothing
+            // in § 6.1 lets a closed connection excuse chunking twice.
+            // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed)."
+            let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
+            if chunked_count > 1 {
+                return Some(self.violation(
+                    ctx.severity,
+                    format!(
+                        "The chunked transfer coding must not be applied more than once: \
                              codings found '{}'",
-                            codings.join(", ")
-                        ),
-                    ));
-                }
+                        codings.join(", ")
+                    ),
+                ));
+            }
 
-                // § 6.1 gives a response two ways to satisfy the same requirement,
-                // and the rule knew only one of them:
-                // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection."
-                //
-                // So `Transfer-Encoding: chunked, gzip` on a response was reported
-                // as a violation of a requirement the sender may have met the other
-                // way -- and it is coherent: gzip applied *after* chunked means the
-                // message is not chunk-framed on the wire, which is exactly when
-                // closing the connection is the framing.
-                //
-                // The transaction records no connection teardown, so the second
-                // alternative is read from the announcement instead. **That
-                // inference rests on a SHOULD, not a MUST**, and the residue is
-                // stated rather than hidden: a response that closes without saying
-                // so is reported here, wrongly, and is also disregarding § 9.6.
-                // Narrowing further would mean dropping the response side
-                // altogether, which costs more than this tolerance does.
-                //
-                // It guards only what follows. The duplication MUST NOT above has
-                // no second alternative, and an earlier draft of this exemption sat
-                // in front of it -- so a response could chunk twice and be excused
-                // by announcing a close.
-                // cite(RFC 9112 § 9.6): "A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection."
-                if !is_request && announces_close(headers) {
-                    return None;
-                }
+            // § 6.1 gives a response two ways to satisfy the same requirement,
+            // and the rule knew only one of them:
+            // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection."
+            //
+            // So `Transfer-Encoding: chunked, gzip` on a response was reported
+            // as a violation of a requirement the sender may have met the other
+            // way -- and it is coherent: gzip applied *after* chunked means the
+            // message is not chunk-framed on the wire, which is exactly when
+            // closing the connection is the framing.
+            //
+            // The transaction records no connection teardown, so the second
+            // alternative is read from the announcement instead. **That
+            // inference rests on a SHOULD, not a MUST**, and the residue is
+            // stated rather than hidden: a response that closes without saying
+            // so is reported here, wrongly, and is also disregarding § 9.6.
+            // Narrowing further would mean dropping the response side
+            // altogether, which costs more than this tolerance does.
+            //
+            // It guards only what follows. The duplication MUST NOT above has
+            // no second alternative, and an earlier draft of this exemption sat
+            // in front of it -- so a response could chunk twice and be excused
+            // by announcing a close.
+            // cite(RFC 9112 § 9.6): "A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection."
+            if !is_request && announces_close(headers) {
+                return None;
+            }
 
-                // If 'chunked' appears anywhere other than the final coding it's a violation
-                if let Some(pos) = codings.iter().position(|c| c == "chunked") {
-                    if pos != codings.len() - 1 {
-                        return Some(self.violation(ctx.severity, format!(
+            // If 'chunked' appears anywhere other than the final coding it's a violation
+            if let Some(pos) = codings.iter().position(|c| c == "chunked") {
+                if pos != codings.len() - 1 {
+                    return Some(self.violation(ctx.severity, format!(
                             "Transfer-Encoding 'chunked' must be the final coding: codings found '{}'",
                             codings.join(", ")
                         )));
-                    }
                 }
-
-                // The rule was named for where `chunked` goes when it is present,
-                // and so only ever asked that. § 6.1 states the requirement the
-                // other way round -- it is about what must be there at all -- and
-                // that half went unchecked, so a request reading
-                //
-                //     Transfer-Encoding: gzip
-                //
-                // passed. It applies a transfer coding other than chunked and never
-                // frames the result, which is the case the sentence exists for.
-                // (A test asserted this was fine.)
-                // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed."
-                //
-                // Requests only. The response form of the sentence offers a second
-                // way to satisfy it, handled below.
-                if is_request
-                    && codings.iter().any(|c| c != "chunked")
-                    && codings.last().map(String::as_str) != Some("chunked")
-                {
-                    return Some(self.violation(ctx.severity, format!(
-                            "A request that applies any transfer coding other than chunked must apply \
-                             chunked as the final coding: codings found '{}'",
-                            codings.join(", ")
-                        )));
-                }
-
-                None
-            };
-
-            if let Some(v) = check(&tx.request.headers, true) {
-                return Some(v);
             }
 
-            if let Some(resp) = &tx.response {
-                // All three of § 6.1's requirements speak of a coding *applied to*
-                // content or to a message body. In these two responses there is no
-                // body for one to have been applied to, and the field means
-                // something else entirely -- what the origin would have done for an
-                // unconditional GET. Judging the sequence for how it frames a body
-                // that does not exist would report an advisory value for failing at
-                // a job it was never doing.
-                // cite(RFC 9112 § 6.1): "Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET."
-                let bodiless = tx.request.method.eq_ignore_ascii_case("HEAD") || resp.status == 304;
-                if !bodiless {
-                    if let Some(v) = check(&resp.headers, false) {
-                        return Some(v);
-                    }
-                }
+            // The rule was named for where `chunked` goes when it is present,
+            // and so only ever asked that. § 6.1 states the requirement the
+            // other way round -- it is about what must be there at all -- and
+            // that half went unchecked, so a request reading
+            //
+            //     Transfer-Encoding: gzip
+            //
+            // passed. It applies a transfer coding other than chunked and never
+            // frames the result, which is the case the sentence exists for.
+            // (A test asserted this was fine.)
+            // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed."
+            //
+            // Requests only. The response form of the sentence offers a second
+            // way to satisfy it, handled below.
+            if is_request
+                && codings.iter().any(|c| c != "chunked")
+                && codings.last().map(String::as_str) != Some("chunked")
+            {
+                return Some(self.violation(
+                    ctx.severity,
+                    format!(
+                        "A request that applies any transfer coding other than chunked must apply \
+                             chunked as the final coding: codings found '{}'",
+                        codings.join(", ")
+                    ),
+                ));
             }
 
             None
         };
-        Vec::from_iter(finding())
+
+        // Two messages, two findings. `check` answers for one message and
+        // deliberately answers once — the three requirements are ordered so
+        // the most specific one wins for a single coding sequence — but the
+        // request's sequence and the response's are separate sequences
+        // framing separate bodies. Reporting only the first meant a request
+        // that applied a coding and never framed the result concealed a
+        // response that chunked twice.
+        let mut out = Vec::new();
+        out.extend(check(&tx.request.headers, true));
+
+        if let Some(resp) = &tx.response {
+            // All three of § 6.1's requirements speak of a coding *applied to*
+            // content or to a message body. In these two responses there is no
+            // body for one to have been applied to, and the field means
+            // something else entirely -- what the origin would have done for an
+            // unconditional GET. Judging the sequence for how it frames a body
+            // that does not exist would report an advisory value for failing at
+            // a job it was never doing.
+            // cite(RFC 9112 § 6.1): "Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response (Section 15.4.5 of [HTTP]) to a GET request, neither of which includes a message body, to indicate that the origin server would have applied a transfer coding to the message body if the request had been an unconditional GET."
+            let bodiless = tx.request.method.eq_ignore_ascii_case("HEAD") || resp.status == 304;
+            if !bodiless {
+                out.extend(check(&resp.headers, false));
+            }
+        }
+
+        out
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -860,6 +861,36 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none(), "{v:?}");
+    }
+
+    /// One coding sequence still gets one finding — the three requirements are
+    /// ordered so the most specific wins — but the request's sequence and the
+    /// response's are two sequences framing two bodies, and each answers for
+    /// itself. The request here never frames its content; the response chunks
+    /// twice. Reporting only the first hid the second.
+    #[test]
+    fn each_side_of_the_exchange_is_its_own_finding() {
+        let rule = TransferEncodingChunkedFinal;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("transfer-encoding", "chunked, chunked")],
+        );
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", "gzip")]);
+
+        let all = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(all[0].message.contains("must apply"), "{}", all[0].message);
+        assert!(
+            all[1].message.contains("more than once"),
+            "{}",
+            all[1].message
+        );
     }
 
     #[test]

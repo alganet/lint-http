@@ -31,136 +31,155 @@ impl Rule for AcceptRangesValuesValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
+        let Some(resp) = tx.response.as_ref() else {
+            return Vec::new();
+        };
 
-            // Both of the sections the field is defined for, and every line inside
-            // each of them. This used to be one `get_header_str` on the header
-            // section, which reads the *first* line of it: a response advertising
-            // `bytes` on one line and `none` on the next was read as advertising
-            // `bytes`, and a response advertising anything at all in its trailer
-            // section was read as advertising nothing.
-            //
-            // The lines of one section are joined and the sections are not. Appending
-            // a field line to the one before it is defined within a field section --
-            // a trailer is a separate section arriving after the content -- so what
-            // is measured against the list production is each section's own value.
-            //
-            // A response carrying no `Accept-Ranges` at all reaches none of this and
-            // is not a finding: the loop runs over nothing. The whole feature is
-            // optional, and a server is under no obligation to say anything about it.
-            //
-            // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
-            let mut units: Vec<String> = Vec::new();
-            for section in crate::helpers::accept_ranges::field_sections(resp) {
-                let mut lines: Vec<&str> = Vec::new();
-                for hv in section.get_all("accept-ranges").iter() {
-                    // `to_str` refuses every octet outside visible US-ASCII, and the
-                    // whole of this field is built from `token`, whose characters
-                    // are a subset of that -- so the refusal is never a false alarm
-                    // here and no other rule owns the field's syntax to report it.
-                    // The line used to be handed to a reader that folds an absent
-                    // field into an unreadable one, so the rule said nothing at all
-                    // about a value no production admits.
-                    //
-                    // What makes it a finding is not that the value failed to be
-                    // UTF-8: a `0xC3 0xA9` that decodes to a perfectly good `é` is
-                    // refused as readily as a lone `0xFF`, and neither octet is one
-                    // a range unit name is allowed to be built from.
-                    //
-                    // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
-                    // cite(RFC 9110 § 5.6.2, label: tchar grammar): "tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA ; any VCHAR, except delimiters"
-                    let Ok(value) = hv.to_str() else {
-                        return Some(self.violation(ctx.severity, "Accept-Ranges holds an octet no range-unit admits: a range unit name is a token, whose characters are all visible US-ASCII".into()));
-                    };
-                    lines.push(value.trim());
-                }
-                if lines.is_empty() {
-                    continue;
-                }
+        // Two kinds of finding, and they nest: each field section is its own
+        // list to measure, so a malformed one is its own finding, while the
+        // `none`-beside-a-unit contradiction below is asked of the response
+        // as a whole and stays one finding however many units it names.
+        let mut out: Vec<Violation> = Vec::new();
 
-                // Comma SP, in the order the lines arrived, because that is the
-                // value a recipient acts on. The field's definition allows it: the
-                // exception in the sentence below turns on whether the field is a
-                // comma-separated list, and `acceptable-ranges = 1#range-unit` is
-                // one -- so several lines here are not a duplication to report but a
-                // single list to read.
+        // Both of the sections the field is defined for, and every line inside
+        // each of them. This used to be one `get_header_str` on the header
+        // section, which reads the *first* line of it: a response advertising
+        // `bytes` on one line and `none` on the next was read as advertising
+        // `bytes`, and a response advertising anything at all in its trailer
+        // section was read as advertising nothing.
+        //
+        // The lines of one section are joined and the sections are not. Appending
+        // a field line to the one before it is defined within a field section --
+        // a trailer is a separate section arriving after the content -- so what
+        // is measured against the list production is each section's own value.
+        //
+        // A response carrying no `Accept-Ranges` at all reaches none of this and
+        // is not a finding: the loop runs over nothing. The whole feature is
+        // optional, and a server is under no obligation to say anything about it.
+        //
+        // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
+        let mut units: Vec<String> = Vec::new();
+        for section in crate::helpers::accept_ranges::field_sections(resp) {
+            let mut lines: Vec<&str> = Vec::new();
+            // Set where this section cannot be read as a list at all. What
+            // follows is then skipped *for this section only* — the other
+            // section is a separate value and answers for itself, which is
+            // what returning at the first defect used to prevent: a header
+            // section holding an octet no range-unit admits hid a trailer
+            // section that was not `1#range-unit` either.
+            let mut unreadable = false;
+            for hv in section.get_all("accept-ranges").iter() {
+                // `to_str` refuses every octet outside visible US-ASCII, and the
+                // whole of this field is built from `token`, whose characters
+                // are a subset of that -- so the refusal is never a false alarm
+                // here and no other rule owns the field's syntax to report it.
+                // The line used to be handed to a reader that folds an absent
+                // field into an unreadable one, so the rule said nothing at all
+                // about a value no production admits.
                 //
-                // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
-                // cite(RFC 9110 § 14.3, label: acceptable-ranges grammar): "acceptable-ranges = 1#range-unit"
-                let value = lines.join(", ");
-
-                if let Err(e) = read_units(&value, &mut units) {
-                    return Some(self.violation(
-                        ctx.severity,
-                        format!("Invalid Accept-Ranges field value '{}': {}", value, e),
-                    ));
-                }
+                // What makes it a finding is not that the value failed to be
+                // UTF-8: a `0xC3 0xA9` that decodes to a perfectly good `é` is
+                // refused as readily as a lone `0xFF`, and neither octet is one
+                // a range unit name is allowed to be built from.
+                //
+                // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
+                // cite(RFC 9110 § 5.6.2, label: tchar grammar): "tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA ; any VCHAR, except delimiters"
+                let Ok(value) = hv.to_str() else {
+                    out.push(self.violation(ctx.severity, "Accept-Ranges holds an octet no range-unit admits: a range unit name is a token, whose characters are all visible US-ASCII".into()));
+                    unreadable = true;
+                    break;
+                };
+                lines.push(value.trim());
+            }
+            if unreadable || lines.is_empty() {
+                continue;
             }
 
-            // `none` says the server supports no kind of range request at all, so a
-            // field that lists it beside a unit it does support says both. Nothing
-            // forbids the combination -- the description used to claim a MUST NOT
-            // that no sentence of § 14.3 states -- but a client cannot act on both
-            // halves, and one of the two is what it will act on.
+            // Comma SP, in the order the lines arrived, because that is the
+            // value a recipient acts on. The field's definition allows it: the
+            // exception in the sentence below turns on whether the field is a
+            // comma-separated list, and `acceptable-ranges = 1#range-unit` is
+            // one -- so several lines here are not a duplication to report but a
+            // single list to read.
             //
-            // The old check counted the list's elements instead of looking at them,
-            // so `Accept-Ranges: none, none` was reported for combining `none` with
-            // other range-units when there was no other range-unit.
-            //
-            // What the second sentence buys is the condition travelling with the
-            // MAY -- "does not support any kind of range request" -- which is the
-            // state a server is in when it sends this name, and not the state of one
-            // listing a unit beside it. The third says the name means nothing else.
-            //
-            // The question is asked of the response rather than of a field value,
-            // because a header section advertising `bytes` and a trailer section
-            // advertising `none` are two well-formed lists and one contradiction.
-            //
-            // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
-            // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
-            let mut others: Vec<&str> = Vec::new();
-            for unit in units.iter().map(String::as_str) {
-                // A unit named twice is named once in the message: the finding is
-                // about which units sit beside `none`, and repeating one of them
-                // says nothing further about that.
-                if unit != "none" && !others.contains(&unit) {
-                    others.push(unit);
-                }
+            // cite(RFC 9110 § 5.3): "A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP."
+            // cite(RFC 9110 § 14.3, label: acceptable-ranges grammar): "acceptable-ranges = 1#range-unit"
+            let value = lines.join(", ");
+
+            // Read into a scratch list and adopt it only where the whole
+            // section parsed. A section that is not `1#range-unit` is not a
+            // list a recipient acts on, so the names in front of the defect
+            // must not go on to answer the `none` question below — that
+            // would measure a contradiction out of text nobody honours.
+            let mut section_units: Vec<String> = Vec::new();
+            match read_units(&value, &mut section_units) {
+                Ok(()) => units.append(&mut section_units),
+                Err(e) => out.push(self.violation(
+                    ctx.severity,
+                    format!("Invalid Accept-Ranges field value '{}': {}", value, e),
+                )),
             }
-            if units.iter().any(|u| u == "none") && !others.is_empty() {
-                return Some(self.violation(ctx.severity, format!(
+        }
+
+        // `none` says the server supports no kind of range request at all, so a
+        // field that lists it beside a unit it does support says both. Nothing
+        // forbids the combination -- the description used to claim a MUST NOT
+        // that no sentence of § 14.3 states -- but a client cannot act on both
+        // halves, and one of the two is what it will act on.
+        //
+        // The old check counted the list's elements instead of looking at them,
+        // so `Accept-Ranges: none, none` was reported for combining `none` with
+        // other range-units when there was no other range-unit.
+        //
+        // What the second sentence buys is the condition travelling with the
+        // MAY -- "does not support any kind of range request" -- which is the
+        // state a server is in when it sends this name, and not the state of one
+        // listing a unit beside it. The third says the name means nothing else.
+        //
+        // The question is asked of the response rather than of a field value,
+        // because a header section advertising `bytes` and a trailer section
+        // advertising `none` are two well-formed lists and one contradiction.
+        //
+        // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
+        // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
+        let mut others: Vec<&str> = Vec::new();
+        for unit in units.iter().map(String::as_str) {
+            // A unit named twice is named once in the message: the finding is
+            // about which units sit beside `none`, and repeating one of them
+            // says nothing further about that.
+            if unit != "none" && !others.contains(&unit) {
+                others.push(unit);
+            }
+        }
+        if units.iter().any(|u| u == "none") && !others.is_empty() {
+            out.push(self.violation(ctx.severity, format!(
                         "Accept-Ranges advertises '{}' beside 'none', which is reserved for advising that no kind of range request is supported: the field says both that this resource supports range requests and that it does not (advice: nothing forbids it)",
                         others.join("', '")
                     )));
-            }
+        }
 
-            // Three things a well-formed `Accept-Ranges` can still be, none of them
-            // reported here, all of them named so the silence is not read as an
-            // oversight.
-            //
-            // *A unit nobody registered* is not a finding. The modal is "ought to
-            // be", which is weaker than SHOULD, and this rule holds no copy of the
-            // registry to check a name against in any case -- the registry is where
-            // the check would have to live, and adding a name to it is IETF Review.
-            //
-            // *In a trailer section rather than a header section* is a preference
-            // stated with its own reason and no modal at all. A response advertising
-            // after its content is doing what the field permits.
-            //
-            // *A promise the next request will be honoured* is the one thing this
-            // field explicitly does not make, and the sentence saying so is addressed
-            // to the client. Nothing in it measures the response that carried it.
-            //
-            // cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
-            // cite(RFC 9110 § 16.5.1): "The "HTTP Range Unit Registry" defines the namespace for the range unit names and refers to their corresponding specifications."
-            // cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
-            // cite(RFC 9110 § 14.3): "Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses."
-            None
-        };
-        Vec::from_iter(finding())
+        // Three things a well-formed `Accept-Ranges` can still be, none of them
+        // reported here, all of them named so the silence is not read as an
+        // oversight.
+        //
+        // *A unit nobody registered* is not a finding. The modal is "ought to
+        // be", which is weaker than SHOULD, and this rule holds no copy of the
+        // registry to check a name against in any case -- the registry is where
+        // the check would have to live, and adding a name to it is IETF Review.
+        //
+        // *In a trailer section rather than a header section* is a preference
+        // stated with its own reason and no modal at all. A response advertising
+        // after its content is doing what the field permits.
+        //
+        // *A promise the next request will be honoured* is the one thing this
+        // field explicitly does not make, and the sentence saying so is addressed
+        // to the client. Nothing in it measures the response that carried it.
+        //
+        // cite(RFC 9110 § 14.1): "All range unit names are case-insensitive and ought to be registered within the "HTTP Range Unit Registry", as defined in Section 16.5.1."
+        // cite(RFC 9110 § 16.5.1): "The "HTTP Range Unit Registry" defines the namespace for the range unit names and refers to their corresponding specifications."
+        // cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
+        // cite(RFC 9110 § 14.3): "Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses."
+        out
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -335,6 +354,17 @@ mod tests {
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
         let rule = AcceptRangesValuesValid;
         crate::test_helpers::run_rule(
+            &rule,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// Every finding, for the tests that are about there being more than one.
+    fn judge_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
+        let rule = AcceptRangesValuesValid;
+        crate::test_helpers::run_rule_all(
             &rule,
             tx,
             &crate::transaction_history::TransactionHistory::empty(),
@@ -554,6 +584,56 @@ mod tests {
     fn missing_response_returns_none() {
         let tx = crate::test_helpers::make_test_transaction();
         assert!(judge(&tx).is_none());
+    }
+
+    /// Each field section is its own list, so each malformed one is its own
+    /// finding. The header section holds an octet no `token` admits and the
+    /// trailer section has an empty element; returning at the first left the
+    /// second unsaid.
+    #[test]
+    fn a_malformed_section_does_not_hide_the_other() {
+        let tx = advertising(&[
+            (Section::Header, b"by\xffes"),
+            (Section::Trailer, b"bytes,,none"),
+        ]);
+        let all = judge_all(&tx);
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(
+            all[0].message.contains("no range-unit admits"),
+            "{}",
+            all[0].message
+        );
+        assert!(all[1].message.contains("is empty"), "{}", all[1].message);
+    }
+
+    /// The names in front of a defect are not a list a recipient acts on, so
+    /// they do not go on to answer the `none` question: this trailer section
+    /// fails `1#range-unit`, and the `bytes` inside it must not be read as
+    /// sitting beside the header section's `none`.
+    #[test]
+    fn a_malformed_section_contributes_no_units_to_the_contradiction() {
+        let tx = advertising(&[
+            (Section::Header, b"none"),
+            (Section::Trailer, b"bytes,,pages"),
+        ]);
+        let all = judge_all(&tx);
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert!(all[0].message.contains("is empty"), "{}", all[0].message);
+    }
+
+    /// The contradiction is one finding however many units it names: one
+    /// response coding both answers at once, which is the single thing a client
+    /// cannot act on.
+    #[test]
+    fn units_beside_none_stay_one_finding() {
+        let tx = advertising(&[(Section::Header, b"bytes, pages, none")]);
+        let all = judge_all(&tx);
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert!(
+            all[0].message.contains("beside 'none'"),
+            "{}",
+            all[0].message
+        );
     }
 
     #[test]

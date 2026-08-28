@@ -4637,7 +4637,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 69
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 51
+      line: 48
   - label: accept_encoding_present
     section: § 12.5.3
     snippet: 'Accept-Encoding = #( codings [ weight ] )'
@@ -4709,7 +4709,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 228
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 73
+      line: 85
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 75
   - label: accept_header_media_type_syntax (7)
@@ -4843,7 +4843,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 110
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 55
+      line: 60
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 40
   - label: accept_ranges_and_206_consistent (2)
@@ -4869,7 +4869,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 119
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 122
+      line: 143
   - label: accept_ranges_and_206_consistent (5)
     section: § 14.3
     snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
@@ -4891,7 +4891,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 93
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 123
+      line: 144
   - label: accept_ranges_and_206_consistent (7)
     section: § 14.3
     snippet: to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path.
@@ -4941,7 +4941,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 156
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 160
+      line: 181
   - label: accept_ranges_on_partial_content (5)
     section: § 15.3.7
     snippet: A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed.
@@ -4961,25 +4961,25 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 37
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 306
+      line: 325
   - label: acceptable-ranges grammar
     section: § 14.3
     snippet: acceptable-ranges = 1#range-unit
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 92
+      line: 106
   - label: accept_ranges_values_valid
     section: § 16.5.1
     snippet: The "HTTP Range Unit Registry" defines the namespace for the range unit names and refers to their corresponding specifications.
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 158
+      line: 179
   - label: tchar grammar
     section: § 5.6.2
     snippet: tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA ; any VCHAR, except delimiters
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 74
+      line: 86
   - label: allow_header_method_tokens_valid
     section: § 10.2
     snippet: The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources.
@@ -5215,21 +5215,21 @@ sources:
     snippet: transfer-coding    = token *( OWS ";" OWS transfer-parameter )
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 92
+      line: 88
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 121
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 72
+      line: 69
   - label: compression_and_transfer_encoding_consistent (2)
     section: § 10.1.4
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 93
+      line: 89
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 102
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 54
+      line: 51
   - label: compression_and_transfer_encoding_consistent (3)
     section: § 8.4
     snippet: An origin server MAY respond with a status code of 415 (Unsupported Media Type) if a representation in the request message has a content coding that is not acceptable.
@@ -5241,7 +5241,7 @@ sources:
     snippet: 'Content-Encoding = #content-coding'
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 50
+      line: 47
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 35
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
@@ -5251,25 +5251,25 @@ sources:
     snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 148
+      line: 143
   - label: compression_and_transfer_encoding_consistent (6)
     section: § 8.4
     snippet: Such a content coding would only be listed if, for some bizarre reason, it is applied a second time to form the representation.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 141
+      line: 136
   - label: compression_and_transfer_encoding_consistent (7)
     section: § 8.4
     snippet: Unlike Transfer-Encoding (Section 6.1 of [HTTP/1.1]), the codings listed in Content-Encoding are a characteristic of the representation; the representation is defined in terms of the coded form, and all other metadata about the representation is about the coded form unless otherwise noted in the metadata definition.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 125
+      line: 120
   - label: compression_and_transfer_encoding_consistent (8)
     section: § 8.4.1
     snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 70
+      line: 67
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 97
   - label: conditional_headers_consistent
@@ -5341,7 +5341,7 @@ sources:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 23
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 87
+      line: 83
   - label: connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
@@ -6243,9 +6243,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 47
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 157
+      line: 178
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 318
+      line: 337
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 54
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -6259,7 +6259,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 80
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 272
+      line: 291
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 224
   - label: Accept-Ranges grammar
@@ -6275,7 +6275,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 61
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 159
+      line: 180
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 49
   - label: lint-http-rules/src/helpers/accept_ranges.rs (4)
@@ -6291,7 +6291,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 53
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 273
+      line: 292
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
       line: 57
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
@@ -6303,7 +6303,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 107
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 56
+      line: 53
   - label: lint-http-rules/src/helpers/accept_ranges.rs (5)
     section: § 5.6.1.2
     snippet: In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production
@@ -6311,7 +6311,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 118
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 280
+      line: 299
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 125
   - label: lint-http-rules/src/helpers/auth.rs
@@ -6359,7 +6359,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 75
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 292
+      line: 311
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 141
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -6593,7 +6593,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 180
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 91
+      line: 105
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 81
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -6739,7 +6739,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 86
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 296
+      line: 315
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 86
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -6869,13 +6869,13 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 67
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 293
+      line: 312
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 33
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 69
+      line: 66
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 101
+      line: 97
     - file: lint-http-rules/src/rules/host_header.rs
       line: 105
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
@@ -6891,7 +6891,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 122
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 73
+      line: 70
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 66
   - label: lint-http-rules/src/helpers/headers.rs (21)
@@ -6963,7 +6963,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 305
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 36
+      line: 33
   - label: lint-http-rules/src/helpers/headers.rs (27)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
@@ -9347,19 +9347,19 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 21
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 178
+      line: 174
   - label: compression_and_transfer_encoding_consistent (2)
     section: § 6.1
     snippet: Unlike Content-Encoding (Section 8.4.1 of [HTTP]), Transfer-Encoding is a property of the message, not of the representation.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 124
+      line: 119
   - label: compression_and_transfer_encoding_consistent (3)
     section: § 7
     snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 102
+      line: 98
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 39
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -9367,19 +9367,19 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 266
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 79
+      line: 75
   - label: compression_and_transfer_encoding_consistent (4)
     section: § 7.2
     snippet: 'The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:'
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 134
+      line: 129
   - label: compression_and_transfer_encoding_consistent (5)
     section: § 7.3
     snippet: Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 133
+      line: 128
   - label: content_length_vs_transfer_encoding
     section: § 6.2
     snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
@@ -9463,7 +9463,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 171
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 208
+      line: 213
   - label: host_and_authority_consistent
     section: § 3.2.2
     snippet: When an origin server receives a request with an absolute-form of request-target, the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target.
@@ -9905,25 +9905,25 @@ sources:
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).
     cited_by:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 118
+      line: 114
   - label: transfer_encoding_chunked_final (2)
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 133
+      line: 129
   - label: transfer_encoding_chunked_final (3)
     section: § 9.6
     snippet: A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 153
+      line: 149
   - label: transfer_encoding_chunked_final (4)
     section: § 9.6
     snippet: The "close" connection option is defined as a signal that the sender will close this connection after completion of the response.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 88
+      line: 84
 - label: RFC 9113
   url: https://www.rfc-editor.org/rfc/rfc9113.txt
   type: text/plain

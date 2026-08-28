@@ -29,152 +29,149 @@ impl Rule for CompressionAndTransferEncodingConsistent {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Both fields are lists whose members a sender may spread over several
-            // field lines, and there the resemblance ends: their grammars differ in
-            // a way that decides how each is split.
+        // Both fields are lists whose members a sender may spread over several
+        // field lines, and there the resemblance ends: their grammars differ in
+        // a way that decides how each is split.
+        //
+        // Values are decoded from the raw octets rather than read through
+        // `to_str`, which refuses everything outside visible US-ASCII and used
+        // to drop the whole field line. Neither coding name can contain such an
+        // octet -- both are `token` -- so one appearing where a name belongs
+        // simply fails to match anything, which is the right outcome; dropping
+        // the line instead hid every *other* name on it.
+        let decode = crate::helpers::headers::field_line_as_written;
+
+        let check = |headers: &hyper::HeaderMap, side: &str| -> Option<Violation> {
+            // `content-coding` is a bare `token` with no parameters, so every comma
+            // is a separator and there is no quoting to respect.
+            // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
+            // cite(RFC 9110 § 8.4.1): "content-coding   = token"
+            let mut ce_set = std::collections::HashSet::new();
+            for hv in headers.get_all("content-encoding").iter() {
+                let s = decode(hv);
+                for part in crate::helpers::headers::list_members(&s) {
+                    // Nothing in this field's grammar sits behind a `;`, so this
+                    // strips something that cannot legally be there. It is kept as
+                    // a deliberate tolerance: a sender writing `gzip;q=1.0` here
+                    // has produced one malformed token, and reading the name out of
+                    // it keeps this advisory useful on a value that
+                    // `content_encoding_registered` is already
+                    // reporting as malformed. It cannot invent an overlap -- the
+                    // text before the `;` is text the sender wrote.
+                    // The trim is `OWS`, not `str::trim`: the value is read one
+                    // `char` per octet, so %xA0 reaches here as U+00A0 —
+                    // `char::is_whitespace` admits it and no `token` does, and
+                    // taking it would turn a name no production writes into
+                    // `gzip`.
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                    // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
+                    let token = crate::helpers::headers::trim_ows(part.split(';').next().unwrap())
+                        .to_ascii_lowercase();
+                    if token.is_empty() {
+                        continue;
+                    }
+                    ce_set.insert(token);
+                }
+            }
+
+            // `transfer-coding` does carry parameters, and a parameter value may be
+            // a `quoted-string` holding a comma, so this split has to respect them.
             //
-            // Values are decoded from the raw octets rather than read through
-            // `to_str`, which refuses everything outside visible US-ASCII and used
-            // to drop the whole field line. Neither coding name can contain such an
-            // octet -- both are `token` -- so one appearing where a name belongs
-            // simply fails to match anything, which is the right outcome; dropping
-            // the line instead hid every *other* name on it.
-            let decode = crate::helpers::headers::field_line_as_written;
-
-            let check = |headers: &hyper::HeaderMap, side: &str| -> Option<Violation> {
-                // `content-coding` is a bare `token` with no parameters, so every comma
-                // is a separator and there is no quoting to respect.
-                // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
-                // cite(RFC 9110 § 8.4.1): "content-coding   = token"
-                let mut ce_set = std::collections::HashSet::new();
-                for hv in headers.get_all("content-encoding").iter() {
-                    let s = decode(hv);
-                    for part in crate::helpers::headers::list_members(&s) {
-                        // Nothing in this field's grammar sits behind a `;`, so this
-                        // strips something that cannot legally be there. It is kept as
-                        // a deliberate tolerance: a sender writing `gzip;q=1.0` here
-                        // has produced one malformed token, and reading the name out of
-                        // it keeps this advisory useful on a value that
-                        // `content_encoding_registered` is already
-                        // reporting as malformed. It cannot invent an overlap -- the
-                        // text before the `;` is text the sender wrote.
-                        // The trim is `OWS`, not `str::trim`: the value is read one
-                        // `char` per octet, so %xA0 reaches here as U+00A0 —
-                        // `char::is_whitespace` admits it and no `token` does, and
-                        // taking it would turn a name no production writes into
-                        // `gzip`.
-                        // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
-                        // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
-                        let token =
-                            crate::helpers::headers::trim_ows(part.split(';').next().unwrap())
-                                .to_ascii_lowercase();
-                        if token.is_empty() {
-                            continue;
-                        }
-                        ce_set.insert(token);
+            // No unbalanced-quote guard, unlike the two sibling rules on these
+            // fields. Quoting that never closes swallows the rest of the value
+            // into one member, and the name this reads off it is still the name
+            // in front of the first `;` -- a name the sender wrote. Later names
+            // are lost, so the only thing at risk is a finding, never a false
+            // one, and this rule reports nothing about the malformed value
+            // anyway. Do not "harmonise" a decline into this loop: it would
+            // trade a missed advisory for nothing.
+            // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
+            // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
+            let mut te_set = std::collections::HashSet::new();
+            for hv in headers.get_all("transfer-encoding").iter() {
+                let s = decode(hv);
+                for part in crate::helpers::headers::split_commas_respecting_quotes(&s) {
+                    // `OWS` for the same reason as the `Content-Encoding` loop
+                    // above, and this production prints it: the whitespace around
+                    // the `;` is `OWS` and nothing wider.
+                    // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+                    // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
+                    let token = crate::helpers::headers::trim_ows(part.split(';').next().unwrap())
+                        .to_ascii_lowercase();
+                    if token.is_empty() {
+                        continue;
                     }
+                    te_set.insert(token);
                 }
+            }
 
-                // `transfer-coding` does carry parameters, and a parameter value may be
-                // a `quoted-string` holding a comma, so this split has to respect them.
-                //
-                // No unbalanced-quote guard, unlike the two sibling rules on these
-                // fields. Quoting that never closes swallows the rest of the value
-                // into one member, and the name this reads off it is still the name
-                // in front of the first `;` -- a name the sender wrote. Later names
-                // are lost, so the only thing at risk is a finding, never a false
-                // one, and this rule reports nothing about the malformed value
-                // anyway. Do not "harmonise" a decline into this loop: it would
-                // trade a missed advisory for nothing.
-                // cite(RFC 9110 § 10.1.4): "transfer-coding    = token *( OWS ";" OWS transfer-parameter )"
-                // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-                let mut te_set = std::collections::HashSet::new();
-                for hv in headers.get_all("transfer-encoding").iter() {
-                    let s = decode(hv);
-                    for part in crate::helpers::headers::split_commas_respecting_quotes(&s) {
-                        // `OWS` for the same reason as the `Content-Encoding` loop
-                        // above, and this production prints it: the whitespace around
-                        // the `;` is `OWS` and nothing wider.
-                        // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
-                        // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
-                        let token =
-                            crate::helpers::headers::trim_ows(part.split(';').next().unwrap())
-                                .to_ascii_lowercase();
-                        if token.is_empty() {
-                            continue;
-                        }
-                        te_set.insert(token);
-                    }
-                }
+            // If either header is absent or no valid tokens present, nothing to check
+            if ce_set.is_empty() || te_set.is_empty() {
+                return None;
+            }
 
-                // If either header is absent or no valid tokens present, nothing to check
-                if ce_set.is_empty() || te_set.is_empty() {
-                    return None;
-                }
+            // The comparison, and the whole premise of the rule -- which had no
+            // citation of any kind, and a user-facing message pointing at
+            // § 5.3, "Field Order".
+            //
+            // The two fields address different layers, and both specifications
+            // say so in mirrored sentences:
+            // cite(RFC 9112 § 6.1): "Unlike Content-Encoding (Section 8.4.1 of [HTTP]), Transfer-Encoding is a property of the message, not of the representation."
+            // cite(RFC 9110 § 8.4): "Unlike Transfer-Encoding (Section 6.1 of [HTTP/1.1]), the codings listed in Content-Encoding are a characteristic of the representation; the representation is defined in terms of the coded form, and all other metadata about the representation is about the coded form unless otherwise noted in the metadata definition."
+            //
+            // **Nothing forbids naming the same coding at both layers.** It
+            // means the representation was coded and then coded again in
+            // transit, which is well defined rather than ambiguous: the two
+            // namespaces may share a name only where the transformation is
+            // identical, and the compression transfer codings are defined by
+            // the algorithm of the content coding they are named after.
+            // cite(RFC 9112 § 7.3): "Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2."
+            // cite(RFC 9112 § 7.2): "The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:"
+            //
+            // § 8.4 goes further and contemplates a coding applied twice,
+            // declining to forbid it and remarking only on how odd it would be.
+            // That sentence is about an encoding inherent in the media type
+            // rather than about Transfer-Encoding, so it does not govern this
+            // check -- but it settles the modal, which is what was in doubt.
+            // cite(RFC 9110 § 8.4): "Such a content coding would only be listed if, for some bizarre reason, it is applied a second time to form the representation."
+            //
+            // So the finding is advisory, and the message now says what is
+            // unusual rather than implying something was broken.
+            //
+            // Content-Encoding is taken at its word -- nothing here decodes a
+            // body -- and § 8.4 is what makes that reading fair.
+            // cite(RFC 9110 § 8.4): "If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied."
+            let mut overlap: Vec<String> = ce_set
+                .intersection(&te_set)
+                .map(|s| s.to_string())
+                .collect();
+            overlap.sort();
 
-                // The comparison, and the whole premise of the rule -- which had no
-                // citation of any kind, and a user-facing message pointing at
-                // § 5.3, "Field Order".
-                //
-                // The two fields address different layers, and both specifications
-                // say so in mirrored sentences:
-                // cite(RFC 9112 § 6.1): "Unlike Content-Encoding (Section 8.4.1 of [HTTP]), Transfer-Encoding is a property of the message, not of the representation."
-                // cite(RFC 9110 § 8.4): "Unlike Transfer-Encoding (Section 6.1 of [HTTP/1.1]), the codings listed in Content-Encoding are a characteristic of the representation; the representation is defined in terms of the coded form, and all other metadata about the representation is about the coded form unless otherwise noted in the metadata definition."
-                //
-                // **Nothing forbids naming the same coding at both layers.** It
-                // means the representation was coded and then coded again in
-                // transit, which is well defined rather than ambiguous: the two
-                // namespaces may share a name only where the transformation is
-                // identical, and the compression transfer codings are defined by
-                // the algorithm of the content coding they are named after.
-                // cite(RFC 9112 § 7.3): "Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2."
-                // cite(RFC 9112 § 7.2): "The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:"
-                //
-                // § 8.4 goes further and contemplates a coding applied twice,
-                // declining to forbid it and remarking only on how odd it would be.
-                // That sentence is about an encoding inherent in the media type
-                // rather than about Transfer-Encoding, so it does not govern this
-                // check -- but it settles the modal, which is what was in doubt.
-                // cite(RFC 9110 § 8.4): "Such a content coding would only be listed if, for some bizarre reason, it is applied a second time to form the representation."
-                //
-                // So the finding is advisory, and the message now says what is
-                // unusual rather than implying something was broken.
-                //
-                // Content-Encoding is taken at its word -- nothing here decodes a
-                // body -- and § 8.4 is what makes that reading fair.
-                // cite(RFC 9110 § 8.4): "If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied."
-                let mut overlap: Vec<String> = ce_set
-                    .intersection(&te_set)
-                    .map(|s| s.to_string())
-                    .collect();
-                overlap.sort();
-
-                if !overlap.is_empty() {
-                    return Some(self.violation(ctx.severity, format!(
+            if !overlap.is_empty() {
+                return Some(self.violation(ctx.severity, format!(
                         "Compression coding(s) '{}' appear in both Content-Encoding and Transfer-Encoding of the {}; the representation is coded once and then coded again in transit, which is decodable but almost never intended",
                         overlap.join(", "),
                         side
                     )));
-                }
-
-                None
-            };
-
-            if let Some(v) = check(&tx.request.headers, "request") {
-                return Some(v);
-            }
-            if let Some(resp) = &tx.response {
-                if let Some(v) = check(&resp.headers, "response") {
-                    return Some(v);
-                }
             }
 
             None
         };
-        Vec::from_iter(finding())
+
+        // One finding per side, and both sides are answered. The overlap a
+        // side has is one observation about one message — a representation
+        // coded once and coded again in transit is a single contradiction,
+        // however many codings it names, which is why the message lists them
+        // together — but the request and the response are two messages with
+        // two representations, and the finding already names which. Stopping
+        // at the request's overlap hid the response's.
+        let mut out = Vec::new();
+        out.extend(check(&tx.request.headers, "request"));
+        if let Some(resp) = &tx.response {
+            out.extend(check(&resp.headers, "response"));
+        }
+
+        out
     }
 
     fn description(&self) -> &'static str {
@@ -639,6 +636,46 @@ mod tests {
         ]);
         crate::rules::validate_rules(&cfg)?;
         Ok(())
+    }
+
+    /// Two messages, two representations, two findings. The overlap on one side
+    /// stays one finding however many codings it names — a representation coded
+    /// and coded again is a single contradiction — but the request's overlap
+    /// used to hide the response's.
+    #[test]
+    fn each_side_of_the_exchange_is_its_own_finding() {
+        let rule = CompressionAndTransferEncodingConsistent;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[
+                ("content-encoding", "br"),
+                ("transfer-encoding", "br, chunked"),
+            ],
+        );
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("content-encoding", "gzip, deflate"),
+            ("transfer-encoding", "gzip, deflate, chunked"),
+        ]);
+
+        let all = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(all.len(), 2, "{all:?}");
+        // One message per side, and the two overlapping codings of the request
+        // are named together in the request's.
+        assert!(
+            all[0].message.contains("'deflate, gzip'") && all[0].message.contains("request"),
+            "{}",
+            all[0].message
+        );
+        assert!(
+            all[1].message.contains("'br'") && all[1].message.contains("response"),
+            "{}",
+            all[1].message
+        );
     }
 
     #[test]
