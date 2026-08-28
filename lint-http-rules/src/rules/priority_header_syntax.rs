@@ -64,25 +64,31 @@ impl PriorityHeaderSyntax {
         headers: &hyper::HeaderMap,
         section: Section,
         severity: crate::lint::Severity,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         let mut lines: Vec<&str> = Vec::new();
         for hv in headers.get_all("priority").iter() {
             // Not "not valid UTF-8", which this used to claim and is a weaker
             // statement: a well-formed multi-byte character passes a UTF-8
             // check and still fails here, because a Structured Field is ASCII
             // and step 1 fails before any type is considered.
+            //
+            // The one finding this section can have: nothing below it parsed,
+            // so there are no members to say anything else about.
             let Ok(v) = hv.to_str() else {
-                return Some(self.violation(
+                return vec![self.violation(
                     severity,
                     whole_field(section, "contains a byte outside ASCII"),
-                ));
+                )];
             };
             lines.push(v);
         }
         if lines.is_empty() {
-            return None;
+            return Vec::new();
         }
-        Some(self.violation(severity, validate_priority(&lines.join(", "), section)?))
+        validate_priority(&lines.join(", "), section)
+            .into_iter()
+            .map(|message| self.violation(severity, message))
+            .collect()
     }
 }
 
@@ -104,27 +110,21 @@ impl Rule for PriorityHeaderSyntax {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // The two sections are judged separately and never joined across the
-            // pair: the sentence on `check_section` gathers the lines "in the same
-            // section", and § 8 has an intermediary combine the two afterwards as
-            // two signals rather than reading them as one field.
-            if let Some(v) = self.check_section(&tx.request.headers, Section::Request, ctx.severity)
-            {
-                return Some(v);
-            }
-            if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_section(&resp.headers, Section::Response, ctx.severity)
-                {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+        // The two sections are judged separately and never joined across the
+        // pair: the sentence on `check_section` gathers the lines "in the same
+        // section", and § 8 has an intermediary combine the two afterwards as
+        // two signals rather than reading them as one field.
+        //
+        // Two sections, so two sets of findings. They are also two signals with
+        // two costs -- § 8 says an ignored request parameter falls back to its
+        // default while an ignored response parameter loses the server's view
+        // outright -- and returning at the request's finding described one
+        // signal and left the other unmeasured.
+        let mut out = self.check_section(&tx.request.headers, Section::Request, ctx.severity);
+        if let Some(resp) = &tx.response {
+            out.extend(self.check_section(&resp.headers, Section::Response, ctx.severity));
+        }
+        out
     }
 
     fn description(&self) -> &'static str {
@@ -236,11 +236,17 @@ fn ignored(section: Section, key: &str, name: &str, reason: &str, default: &str)
     )
 }
 
-/// Return `Some(message)` where the joined field value will not be honoured.
-fn validate_priority(s: &str, section: Section) -> Option<String> {
+/// Every way the joined field value will not be honoured.
+///
+/// A whole-field failure is one message and the only one: nothing parsed, so
+/// there are no members left to describe. Past that point the messages are
+/// per-member and independent -- § 4's requirement is to ignore *a* parameter --
+/// so a field with two unusable parameters is two findings rather than one
+/// finding and a silence.
+fn validate_priority(s: &str, section: Section) -> Vec<String> {
     // The byte-level half of § 4.2's step 1, which precedes any type.
     if let Some(msg) = sf_field_bytes_invalid(s) {
-        return Some(whole_field(section, msg));
+        return vec![whole_field(section, msg)];
     }
 
     // One reading, not three: unlike a rule pointed at a configured header
@@ -256,8 +262,10 @@ fn validate_priority(s: &str, section: Section) -> Option<String> {
         // ignore-this-parameter requirement is scoped to a Dictionary that
         // parsed, which is the sentence that separates the two findings here.
         // cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
-        Err(msg) => return Some(whole_field(section, &msg)),
+        Err(msg) => return vec![whole_field(section, &msg)],
     };
+
+    let mut out: Vec<String> = Vec::new();
 
     // Duplicates first, and in their own pass, because a repeated key is a fact
     // about the field rather than about either copy: reporting that `u=8` is out
@@ -270,14 +278,21 @@ fn validate_priority(s: &str, section: Section) -> Option<String> {
     // what makes this worth saying out loud.
     // cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
     let mut seen: Vec<&str> = Vec::new();
+    let mut reported: Vec<&str> = Vec::new();
     for m in &members {
         if seen.contains(&m.key) {
-            return Some(format!(
-                "the {} Priority field gives '{}' more than once; all but the last are ignored, \
-                 so the earlier one has no effect",
-                section.name(),
-                m.key
-            ));
+            // Once per key, however many times it is repeated: `u=1, u=2, u=3`
+            // is one dead-text fact about `u`, not two.
+            if !reported.contains(&m.key) {
+                reported.push(m.key);
+                out.push(format!(
+                    "the {} Priority field gives '{}' more than once; all but the last are \
+                     ignored, so the earlier one has no effect",
+                    section.name(),
+                    m.key
+                ));
+            }
+            continue;
         }
         seen.push(m.key);
     }
@@ -287,7 +302,16 @@ fn validate_priority(s: &str, section: Section) -> Option<String> {
     // receivers, and it is to ignore -- so a member this rule objects to is
     // never a syntax error, it is a signal that will not arrive.
     // cite(RFC 9218 § 4): "Where the Dictionary is successfully parsed, this document places the additional requirement that unknown priority parameters, priority parameters with out-of-range values, or values of unexpected types MUST be ignored."
-    for m in &members {
+    //
+    // Only the member a receiver acts on is judged, which is the *last* instance
+    // of its key: saying `u=8` is out of range when a later `u=3` has already
+    // superseded it names a value nothing will read. The duplication is what was
+    // reported above. This pass used to be skipped entirely once any key
+    // repeated, so `u=1, u=2, i=5` said nothing about `i=5`.
+    for (index, m) in members.iter().enumerate() {
+        if members[index + 1..].iter().any(|later| later.key == m.key) {
+            continue;
+        }
         match m.key {
             "u" => {
                 // Both halves of one sentence, and they fail differently: a
@@ -323,7 +347,7 @@ fn validate_priority(s: &str, section: Section) -> Option<String> {
                     // carried with it only because "The default is 3." alone is
                     // three characters short of being quotable evidence.
                     // cite(RFC 9218 § 4.1): "between 0 and 7 inclusive, in descending order of priority. The default is 3."
-                    return Some(ignored(section, "u", "urgency", &reason, "3"));
+                    out.push(ignored(section, "u", "urgency", &reason, "3"));
                 }
             }
             "i" => {
@@ -335,7 +359,7 @@ fn validate_priority(s: &str, section: Section) -> Option<String> {
                 if let Some(v) = m.value {
                     if !is_boolean(v) {
                         // cite(RFC 9218 § 4.2): "The default value of the incremental parameter is false (0)."
-                        return Some(ignored(
+                        out.push(ignored(
                             section,
                             "i",
                             "incremental",
@@ -358,7 +382,7 @@ fn validate_priority(s: &str, section: Section) -> Option<String> {
         }
     }
 
-    None
+    out
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -396,6 +420,129 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg(),
         )
+    }
+
+    fn check_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
+        crate::test_helpers::run_rule_all(
+            &PriorityHeaderSyntax,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg(),
+        )
+    }
+
+    /// The two sections are two signals with two costs -- § 8 substitutes a
+    /// default for an ignored request parameter and substitutes nothing for an
+    /// ignored response one -- so each answers for itself. The request's finding
+    /// used to be the whole answer.
+    #[test]
+    fn each_section_is_its_own_finding() {
+        let mut tx =
+            crate::test_helpers::make_test_transaction_with_response(200, &[("priority", "u=9")]);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("priority", "i=5")]);
+
+        let all = check_all(&tx);
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(all[0].message.contains("request"), "{}", all[0].message);
+        assert!(all[1].message.contains("response"), "{}", all[1].message);
+    }
+
+    /// § 4's requirement is to ignore *a* parameter, so two unusable parameters
+    /// are two signals that will not arrive. One of them used to hide the other.
+    #[test]
+    fn each_unusable_parameter_is_its_own_finding() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("priority", "u=9, i=5")]);
+
+        let all = check_all(&tx);
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(all[0].message.contains("urgency (u)"), "{}", all[0].message);
+        assert!(
+            all[1].message.contains("incremental (i)"),
+            "{}",
+            all[1].message
+        );
+    }
+
+    /// A whole-field failure is the only finding a section can have: nothing
+    /// parsed, so there are no members left to say anything about.
+    #[test]
+    fn a_parse_failure_stays_one_finding() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("priority", "U=1, i=5")]);
+
+        let all = check_all(&tx);
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert!(
+            all[0].message.contains("whole") || all[0].message.contains("every"),
+            "{}",
+            all[0].message
+        );
+    }
+
+    /// A repeated key is one fact about the key however many copies there are,
+    /// and it no longer silences the rest of the field: the `i=5` here is a
+    /// second, independent signal that will not arrive.
+    #[test]
+    fn a_repeated_key_is_reported_once_and_silences_nothing() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("priority", "u=1, u=2, u=3, i=5")]);
+
+        let all = check_all(&tx);
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(
+            all[0].message.contains("more than once"),
+            "{}",
+            all[0].message
+        );
+        assert!(
+            all[1].message.contains("incremental (i)"),
+            "{}",
+            all[1].message
+        );
+    }
+
+    /// Only the member a receiver acts on is judged. `u=8` is out of range and
+    /// superseded, so naming it would name a value nothing reads; the surviving
+    /// `u=3` is fine, and the duplication is the finding.
+    #[test]
+    fn a_superseded_value_is_not_judged() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("priority", "u=8, u=3")]);
+
+        let all = check_all(&tx);
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert!(
+            all[0].message.contains("more than once"),
+            "{}",
+            all[0].message
+        );
+    }
+
+    /// The surviving instance *is* judged, which is the other half of the same
+    /// reading: `u=3` was superseded by an `u=8` a receiver will act on.
+    #[test]
+    fn the_surviving_value_is_judged() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("priority", "u=3, u=8")]);
+
+        let all = check_all(&tx);
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(
+            all[0].message.contains("more than once"),
+            "{}",
+            all[0].message
+        );
+        assert!(
+            all[1].message.contains("outside 0 to 7"),
+            "{}",
+            all[1].message
+        );
     }
 
     /// Every `Priority` field value RFC 9218 prints, fed through the rule.
