@@ -22,5 +22,5 @@
 # precedent: 0.8.0 fixed one extraction defect and shipped another in the same
 # tag, so for one release the tool lost section labels it had just gained.
 
-apycite==0.4.2
-apysource==0.8.1
+apycite==0.5.0
+apysource==0.9.0

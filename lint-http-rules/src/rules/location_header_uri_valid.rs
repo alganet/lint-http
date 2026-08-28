@@ -127,8 +127,8 @@ impl Rule for LocationHeaderUriValid {
                 // should not emulate.
                 //
                 // cite(RFC 9110 § 5.5): "Fields that expect to contain a comma within a member, such as within an HTTP-date or URI-reference element, ought to be defined with delimiters around that element to distinguish any comma within that data from potential list separators."
-                // cite(RFC 9110 § 10.2.2): "A Location field value cannot | allow a list of members because the comma list separator is a | valid data character within a URI-reference."
-                // cite(RFC 9110 § 10.2.2): "If an invalid | message is sent with multiple Location field lines, a recipient | along the path might combine those field lines into one value."
+                // cite(RFC 9110 § 10.2.2): "A Location field value cannot allow a list of members because the comma list separator is a valid data character within a URI-reference."
+                // cite(RFC 9110 § 10.2.2): "If an invalid message is sent with multiple Location field lines, a recipient along the path might combine those field lines into one value."
                 // cite(RFC 9110 § 16.3.2.2): "because URIs can include commas, it is not possible to reliably distinguish between a single value that includes a comma from two values"
                 return violation(format!(
                     "{}. The comma a recipient joins them with is a valid data character inside a URI-reference, so the combined value is a well-formed reference to neither resource (RFC 9110 §10.2.2)",

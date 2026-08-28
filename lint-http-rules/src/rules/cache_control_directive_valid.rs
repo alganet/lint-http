@@ -169,7 +169,8 @@ fn check_cache_control_directives(s: &str) -> Option<String> {
                     // syntactically valid `1*DIGIT`, and the spec says what to do about
                     // it — clamp, not reject — so there is nothing here to report. The
                     // value's magnitude is the recipient's problem, not the sender's.
-                    // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648 (2^31) or the greatest positive integer it can conveniently represent."
+                    // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
+                    // cite(RFC 9111 § 1.2.2): "or the greatest positive integer it can conveniently represent."
                 }
                 "private" | "no-cache" => {
                     // Both take the same optional argument: a `#field-name` list, which
