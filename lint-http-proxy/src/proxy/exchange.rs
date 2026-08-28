@@ -72,6 +72,55 @@ pub(super) struct ProxiedResponse {
     pub body: ResponseBody,
 }
 
+/// The response-side facts of a completed upstream exchange, ready for
+/// [`assemble_transaction`].
+pub(super) struct ResponseFacts {
+    pub status: u16,
+    pub version: String,
+    /// Response headers as received (not hop-by-hop filtered — the record
+    /// holds what the upstream wrote).
+    pub headers: HeaderMap,
+    pub body_length: Option<u64>,
+    pub trailers: Option<HeaderMap>,
+}
+
+/// The one place a transaction skeleton is built from request and response
+/// facts — and the one derivation of `was_upgraded`/`upgrade_protocol`.
+/// Callers add only what genuinely differs between paths: captured bodies,
+/// over-limit flags, request body length and trailers.
+pub(super) fn assemble_transaction(
+    facts: &RequestFacts,
+    response: ResponseFacts,
+    duration_ms: u64,
+) -> crate::http_transaction::HttpTransaction {
+    let mut tx = crate::http_transaction::HttpTransaction::new(
+        facts.client_id.clone(),
+        facts.method.as_str().to_string(),
+        facts.uri_str.clone(),
+    );
+    tx.request.headers = facts.headers.clone();
+    tx.request.version = facts.version.clone();
+    tx.connection_id = Some(facts.connection_id);
+    tx.sequence_number = Some(facts.sequence_number);
+    tx.timing = crate::http_transaction::TimingInfo { duration_ms };
+    if response.status == 101 {
+        tx.was_upgraded = true;
+        tx.upgrade_protocol = response
+            .headers
+            .get("upgrade")
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+    }
+    tx.response = Some(crate::http_transaction::ResponseInfo {
+        status: response.status,
+        version: response.version,
+        headers: response.headers,
+        body_length: response.body_length,
+        trailers: response.trailers,
+    });
+    tx
+}
+
 /// Forward `req` upstream, collect the response, build + commit the
 /// transaction, and return the response to deliver. Internal errors (upstream
 /// failure, over-limit / failed response body, request build failure) are
@@ -204,15 +253,6 @@ pub(super) async fn exchange(
     // to the client unbuffered while `TeeBody` copies a bounded prefix and sums
     // the real total; the transaction is committed once the stream ends.
     let out_headers = filter_response_headers(&upstream_headers, status);
-    let (was_upgraded, upgrade_protocol) = if status == 101 {
-        let proto = upstream_headers
-            .get("upgrade")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
-        (true, proto)
-    } else {
-        (false, None)
-    };
 
     let prefix_cap = shared.cfg.general.captures_max_body_bytes;
     // Already a `ResponseBody` from both upstream branches above.
@@ -223,15 +263,6 @@ pub(super) async fn exchange(
     // (already sent upstream) and the response body (just read by the client) —
     // so each `body_length` reflects the real total and each captured body is a
     // bounded prefix.
-    let RequestFacts {
-        method,
-        uri_str,
-        headers,
-        version,
-        client_id,
-        connection_id,
-        sequence_number,
-    } = facts;
     let shared = shared.clone();
     tokio::spawn(async move {
         let (req_cap, resp_cap) = tokio::join!(body_done, done_rx);
@@ -239,39 +270,29 @@ pub(super) async fn exchange(
             // A tee was dropped without finalizing (should not happen — Drop
             // always sends). Surface it so a lost capture is diagnosable.
             warn!(
-                connection_id = %connection_id,
-                sequence_number, "dropped transaction: body capture never resolved"
+                connection_id = %facts.connection_id,
+                sequence_number = facts.sequence_number,
+                "dropped transaction: body capture never resolved"
             );
             return;
         };
-        let mut tx = crate::http_transaction::HttpTransaction::new(
-            client_id,
-            method.as_str().to_string(),
-            uri_str,
+        let mut tx = assemble_transaction(
+            &facts,
+            ResponseFacts {
+                status,
+                version: resp_ver,
+                headers: upstream_headers,
+                body_length: Some(resp_cap.total),
+                trailers: resp_cap.trailers,
+            },
+            started.elapsed().as_millis() as u64,
         );
-        tx.request.headers = headers;
-        tx.request.version = version;
         tx.request.body_length = Some(req_cap.total);
         tx.request.trailers = req_cap.trailers;
         tx.request_body = Some(req_cap.prefix);
         tx.request_body_over_limit = req_cap.truncated;
-
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status,
-            version: resp_ver,
-            headers: upstream_headers,
-            body_length: Some(resp_cap.total),
-            trailers: resp_cap.trailers,
-        });
         tx.response_body = Some(resp_cap.prefix);
         tx.response_body_over_limit = resp_cap.truncated;
-        tx.timing = crate::http_transaction::TimingInfo {
-            duration_ms: started.elapsed().as_millis() as u64,
-        };
-        tx.connection_id = Some(connection_id);
-        tx.sequence_number = Some(sequence_number);
-        tx.was_upgraded = was_upgraded;
-        tx.upgrade_protocol = upgrade_protocol;
 
         shared.pipeline().commit(tx).await;
     });
@@ -463,31 +484,131 @@ pub(super) async fn record_error_transaction(
     facts: &RequestFacts,
     err: ErrorFacts,
 ) {
-    let mut tx = crate::http_transaction::HttpTransaction::new(
-        facts.client_id.clone(),
-        facts.method.as_str().to_string(),
-        facts.uri_str.clone(),
+    let mut tx = assemble_transaction(
+        facts,
+        ResponseFacts {
+            status: err.status,
+            version: facts.version.clone(),
+            headers: err.response_headers.unwrap_or_default(),
+            body_length: None,
+            trailers: None,
+        },
+        err.duration_ms,
     );
-    tx.request.headers = facts.headers.clone();
-    tx.request.version = facts.version.clone();
     if let Some(b) = err.req_body {
         tx.request.body_length = Some(b.len() as u64);
         tx.request_body = Some(b);
     }
     tx.request_body_over_limit = err.request_body_over_limit;
     tx.response_body_over_limit = err.response_body_over_limit;
-    tx.response = Some(crate::http_transaction::ResponseInfo {
-        status: err.status,
-        version: facts.version.clone(),
-        headers: err.response_headers.unwrap_or_default(),
-        body_length: None,
-        trailers: None,
-    });
-    tx.timing = crate::http_transaction::TimingInfo {
-        duration_ms: err.duration_ms,
-    };
-    tx.connection_id = Some(facts.connection_id);
-    tx.sequence_number = Some(facts.sequence_number);
     // Lint, record to state, and capture — error exchanges are real traffic.
     shared.pipeline().commit(tx).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One set of request facts, enough for a transaction skeleton.
+    fn test_facts() -> RequestFacts {
+        RequestFacts {
+            method: Method::GET,
+            uri_str: "http://origin.test/chat".to_string(),
+            headers: {
+                let mut h = HeaderMap::new();
+                h.insert("x-req", "1".parse().unwrap());
+                h
+            },
+            version: "HTTP/1.1".to_string(),
+            client_id: ClientIdentifier::new("127.0.0.1".parse().unwrap(), "test".to_string()),
+            connection_id: Uuid::new_v4(),
+            sequence_number: 7,
+        }
+    }
+
+    /// A 101 is the one response whose assembly derives the upgrade facts, and
+    /// this is the only place they are derived at all.
+    #[test]
+    fn assemble_transaction_derives_the_upgrade_facts_from_a_101() {
+        let facts = test_facts();
+        let mut resp_headers = HeaderMap::new();
+        resp_headers.insert("upgrade", "websocket".parse().unwrap());
+        let tx = assemble_transaction(
+            &facts,
+            ResponseFacts {
+                status: 101,
+                version: "HTTP/1.1".to_string(),
+                headers: resp_headers,
+                body_length: Some(0),
+                trailers: None,
+            },
+            12,
+        );
+        assert!(tx.was_upgraded);
+        assert_eq!(tx.upgrade_protocol.as_deref(), Some("websocket"));
+        assert_eq!(tx.request.headers.get("x-req").unwrap(), "1");
+        assert_eq!(tx.connection_id, Some(facts.connection_id));
+        assert_eq!(tx.sequence_number, Some(7));
+        assert_eq!(tx.timing.duration_ms, 12);
+        let resp = tx.response.expect("assembled response");
+        assert_eq!(resp.status, 101);
+        assert_eq!(resp.body_length, Some(0));
+    }
+
+    /// A non-101 assembles with the upgrade facts at rest.
+    #[test]
+    fn assemble_transaction_leaves_a_plain_response_unupgraded() {
+        let tx = assemble_transaction(
+            &test_facts(),
+            ResponseFacts {
+                status: 200,
+                version: "HTTP/1.1".to_string(),
+                headers: HeaderMap::new(),
+                body_length: None,
+                trailers: None,
+            },
+            5,
+        );
+        assert!(!tx.was_upgraded);
+        assert_eq!(tx.upgrade_protocol, None);
+        assert_eq!(tx.response.expect("assembled response").body_length, None);
+    }
+
+    /// The shared error reply names its media type; see the builder's doc for
+    /// why a linting proxy must not answer without one.
+    #[tokio::test]
+    async fn error_response_carries_status_content_type_and_message() {
+        let proxied = error_response(502, "upstream error: nope".to_string());
+        assert_eq!(proxied.status, 502);
+        assert_eq!(
+            proxied.headers.get(hyper::header::CONTENT_TYPE).unwrap(),
+            "text/plain; charset=utf-8"
+        );
+        let resp = into_response(proxied);
+        assert_eq!(resp.status().as_u16(), 502);
+        assert_eq!(
+            resp.headers().get(hyper::header::CONTENT_TYPE).unwrap(),
+            "text/plain; charset=utf-8"
+        );
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        assert_eq!(&body[..], b"upstream error: nope");
+    }
+
+    /// The 101 carve-out: hop-by-hop stripping would remove the very fields a
+    /// switching-protocols response cannot survive losing.
+    #[test]
+    fn filter_response_headers_keeps_everything_for_a_101_and_strips_otherwise() {
+        let mut headers = HeaderMap::new();
+        headers.insert("connection", "upgrade".parse().unwrap());
+        headers.insert("upgrade", "websocket".parse().unwrap());
+        headers.insert("x-app", "1".parse().unwrap());
+
+        let kept = filter_response_headers(&headers, 101);
+        assert_eq!(kept.len(), 3, "a 101 keeps every header");
+
+        let stripped = filter_response_headers(&headers, 200);
+        assert!(!stripped.contains_key("connection"));
+        assert!(!stripped.contains_key("upgrade"));
+        assert!(stripped.contains_key("x-app"));
+    }
 }

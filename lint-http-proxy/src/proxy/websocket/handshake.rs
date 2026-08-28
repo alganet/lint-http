@@ -15,7 +15,9 @@ use std::sync::Arc;
 use tokio::time::Instant;
 use tracing::{debug, error};
 
-use crate::proxy::exchange::{record_error_transaction, ErrorFacts, RequestFacts};
+use crate::proxy::exchange::{
+    assemble_transaction, record_error_transaction, ErrorFacts, RequestFacts, ResponseFacts,
+};
 use crate::proxy::hop_by_hop::format_http_version;
 use crate::proxy::{boxed_full, BoxError, ResponseBody, Shared};
 
@@ -63,47 +65,33 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
     let resp_ver = format_http_version(upstream_resp.version());
     let duration = started.elapsed().as_millis() as u64;
 
-    // Record the HTTP transaction (the 101 handshake)
-    let mut tx = crate::http_transaction::HttpTransaction::new(
-        facts.client_id.clone(),
-        facts.method.as_str().to_string(),
-        facts.uri_str.clone(),
+    // Record the HTTP transaction (the 101 handshake) through the shared
+    // assembly, adding the buffered request body this path alone captures.
+    let mut tx = assemble_transaction(
+        &facts,
+        ResponseFacts {
+            status,
+            version: resp_ver,
+            headers: headers.clone(),
+            // A 101 has no body; a non-101 response body streams through to the
+            // client but is not captured here, so record it as unknown rather than
+            // falsely claiming zero length.
+            //
+            // The `Some(0)` is knowledge, not a guess -- the sentence below is what
+            // makes zero the only possible answer for a 101, and it is why the two
+            // arms are asymmetric. `None` here means "we did not look"; `Some(0)`
+            // means "there is nothing to look at". Only one of those can be said
+            // without reading the body, and only for 1xx.
+            //
+            // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
+            body_length: if status == 101 { Some(0) } else { None },
+            trailers: None,
+        },
+        duration,
     );
-    tx.request.headers = facts.headers.clone();
-    tx.request.version = facts.version.clone();
     tx.request.body_length = Some(body_bytes.len() as u64);
     tx.request.trailers = req_trailers;
     tx.request_body = Some(body_bytes);
-    tx.response = Some(crate::http_transaction::ResponseInfo {
-        status,
-        version: resp_ver,
-        headers: headers.clone(),
-        // A 101 has no body; a non-101 response body streams through to the
-        // client but is not captured here, so record it as unknown rather than
-        // falsely claiming zero length.
-        //
-        // The `Some(0)` is knowledge, not a guess -- the sentence below is what
-        // makes zero the only possible answer for a 101, and it is why the two
-        // arms are asymmetric. `None` here means "we did not look"; `Some(0)`
-        // means "there is nothing to look at". Only one of those can be said
-        // without reading the body, and only for 1xx.
-        //
-        // cite(RFC 9110 § 15.2): "A 1xx response is terminated by the end of the header section; it cannot contain content or trailers."
-        body_length: if status == 101 { Some(0) } else { None },
-        trailers: None,
-    });
-    tx.timing = crate::http_transaction::TimingInfo {
-        duration_ms: duration,
-    };
-    tx.connection_id = Some(facts.connection_id);
-    tx.sequence_number = Some(facts.sequence_number);
-    if status == 101 {
-        tx.was_upgraded = true;
-        tx.upgrade_protocol = headers
-            .get("upgrade")
-            .and_then(|v| v.to_str().ok())
-            .map(|s| s.to_string());
-    }
 
     let tx_id = tx.id;
 
