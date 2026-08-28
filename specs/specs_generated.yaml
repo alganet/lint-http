@@ -3887,7 +3887,7 @@ sources:
     snippet: Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload).
     cited_by:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 125
+      line: 97
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 122
   - label: immutable_cache_never_stale (2)
@@ -3895,7 +3895,7 @@ sources:
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
     cited_by:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 126
+      line: 98
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
       line: 121
 - label: RFC 8259
@@ -9060,9 +9060,9 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 120
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
-      line: 99
+      line: 93
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
-      line: 134
+      line: 116
   - label: caching_directive_interaction (3)
     section: § 5.2.2.9
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
@@ -9074,39 +9074,39 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 160
+      line: 121
   - label: expires_and_cache_control_consistent (2)
     section: § 5.3
     snippet: A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 124
+      line: 97
   - label: expires_and_cache_control_consistent (3)
     section: § 5.3
     snippet: If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 159
+      line: 120
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 173
+      line: 134
   - label: expires_and_cache_control_consistent (4)
     section: § 5.3
     snippet: The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 56
+      line: 52
   - label: immutable_cache_never_stale
     section: § 5.2.2.4
     snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
     cited_by:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 185
+      line: 157
   - label: immutable_cache_never_stale (2)
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request
     cited_by:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 184
+      line: 156
   - label: delta-seconds
     section: § 1.2.2
     snippet: delta-seconds  = 1*DIGIT
@@ -9127,16 +9127,6 @@ sources:
       line: 27
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 62
-    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 198
-    - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 207
-    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 162
-    - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 266
-    - file: lint-http-rules/src/rules/private_cache_visibility.rs
-      line: 66
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 5.2
     snippet: cache-directive  = token [ "=" ( token / quoted-string ) ]
@@ -9150,7 +9140,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 147
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 103
+      line: 93
   - label: lint-http-rules/src/helpers/cache_control.rs (4)
     section: § 5.2.2.4
     snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
@@ -9160,7 +9150,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 148
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 159
+      line: 142
   - label: lint-http-rules/src/helpers/cache_control.rs (5)
     section: § 5.2.2.5
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
@@ -9170,9 +9160,9 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 135
     - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 171
+      line: 124
     - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 198
+      line: 151
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
@@ -9209,8 +9199,6 @@ sources:
       line: 711
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 27
-    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 91
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
       line: 95
   - label: max_age_directive_valid
@@ -9244,15 +9232,15 @@ sources:
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime. Conversely, a "stale" response is one where it has.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 137
+      line: 113
   - label: must_revalidate_enforced (2)
     section: § 4.3.1
     snippet: It then updates that request with one or more precondition header fields.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 129
+      line: 105
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 99
+      line: 89
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 51
     - file: lint-http-rules/src/rules/s_max_age_enforced.rs
@@ -9264,7 +9252,7 @@ sources:
     snippet: The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3.
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
-      line: 143
+      line: 118
   - label: pragma_token_valid
     section: § 5.4
     snippet: As a result, this specification deprecates Pragma.

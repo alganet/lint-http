@@ -71,25 +71,15 @@ impl Rule for NoCacheRevalidation {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // locate the most recent past response with a no-cache directive.
-            let mut candidate: Option<&crate::http_transaction::HttpTransaction> = None;
-            for past in history.iter() {
-                if let Some(resp) = &past.response {
-                    if header_has_no_cache(&resp.headers) {
-                        candidate = Some(past);
-                        break;
-                    }
-                }
-            }
-
-            let prev_tx = candidate?;
+            // The most recent past response with a no-cache directive.
+            let (_, prev_resp) =
+                history.latest_response(|resp| header_has_no_cache(&resp.headers))?;
 
             // only warn if the original response supplied a validator; without one
             // there is no way to perform a conditional revalidation, so an
             // unconditional request may still be legitimate.
-            let resp = prev_tx.response.as_ref().unwrap();
-            let has_validator =
-                resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
+            let has_validator = prev_resp.headers.contains_key("etag")
+                || prev_resp.headers.contains_key("last-modified");
             if !has_validator {
                 return None;
             }
@@ -144,31 +134,14 @@ impl Rule for NoCacheRevalidation {
     }
 }
 
-/// Look for a `no-cache` directive in any Cache-Control header field.
+/// Look for an unqualified `no-cache` directive in any Cache-Control field line.
+///
+/// Only the bare form forbids reuse without revalidation; the qualified form
+/// lets a cache reuse the response, revalidating or excluding only the listed
+/// fields, so it is not what this rule enforces.
+// cite(RFC 9111 § 5.2.2.4): "The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request"
 fn header_has_no_cache(headers: &hyper::HeaderMap) -> bool {
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            for directive in s.split(|c| [',', ';'].contains(&c)) {
-                let directive = directive.trim();
-                if directive.is_empty() {
-                    continue;
-                }
-                // Only the *unqualified* no-cache (no argument) forbids reuse without
-                // revalidation; the qualified form lets a cache reuse the response, revalidating
-                // or excluding only the listed fields.
-                // cite(RFC 9111 § 5.2.2.4): "The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request"
-                let mut parts = directive.splitn(2, '=');
-                // Directive names are case-insensitive.
-                // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
-                let name = parts.next().map(str::trim).unwrap_or("");
-                let has_argument = parts.next().map(|a| !a.trim().is_empty()).unwrap_or(false);
-                if name.eq_ignore_ascii_case("no-cache") && !has_argument {
-                    return true;
-                }
-            }
-        }
-    }
-    false
+    crate::helpers::cache_control::has_unqualified(headers, "no-cache")
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

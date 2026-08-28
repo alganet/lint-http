@@ -48,67 +48,40 @@ impl Rule for ExpiresAndCacheControlConsistent {
         let finding = || -> Option<Violation> {
             let resp = tx.response.as_ref()?;
 
-            // If either header is missing, nothing to check
-            let mut has_expires = false;
-            let mut expires_dt: Option<DateTime<Utc>> = None;
-            // Expires is an HTTP-date; parse it with the recipient parser (the HTTP-date grammar
-            // itself, §5.6.7, is owned by the http_date helper).
+            // Expires is an HTTP-date; the recipient parser owns the grammar.
             // cite(RFC 9111 § 5.3): "The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP]."
             // An unparseable Expires is not missing information: §5.3 assigns it a meaning,
             // so it is retained here (as already-expired) rather than returning early.
             // Reporting the *invalidity* itself still belongs to other rules; what this rule
             // does with it is compare the meaning against Cache-Control.
-            let mut expires_raw = String::new();
-            if let Some(hv) = resp.headers.get_all("expires").iter().next() {
-                if let Ok(s) = hv.to_str() {
-                    has_expires = true;
-                    expires_raw = s.trim().to_string();
-                    if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                        expires_dt = Some(dt);
-                    }
-                }
-            }
+            let expires_raw =
+                crate::helpers::headers::get_header_str(&resp.headers, "expires")?.trim();
+            let expires_dt: Option<DateTime<Utc>> =
+                crate::http_date::header_timestamp(&resp.headers, "expires");
 
+            // The Cache-Control directives this rule compares against Expires.
+            // `max-age` is read directly rather than through
+            // `get_cache_control_max_age`, which answers None when no-cache or
+            // no-store is present alongside — right for a caller asking what
+            // freshness was advertised, wrong for one asking what the two fields
+            // *said*, which is the contradiction below.
             let mut cc_present = false;
-            // Collect the Cache-Control response directives of interest. `no-cache`/`no-store`
-            // and `max-age` are parsed inline here; `s-maxage` uses a shared helper below.
-            // (NOTE: `get_cache_control_max_age` exists but is intentionally *not* used — it
-            // returns None when no-cache/no-store is also present, whereas the contradiction
-            // checks need the raw max-age even then. This divergence is recorded in the tracker.)
             let mut cc_no_cache = false;
             let mut cc_no_store = false;
             let mut cc_max_age: Option<i64> = None;
-
-            for hv in resp.headers.get_all("cache-control").iter() {
-                if let Ok(s) = hv.to_str() {
-                    cc_present = true;
-                    for part in s.split(',') {
-                        let p = part.trim();
-                        if p.is_empty() {
-                            continue;
-                        }
-                        let mut it = p.splitn(2, '=');
-                        let name = it.next().unwrap().trim().to_ascii_lowercase();
-                        match name.as_str() {
-                            "no-cache" => cc_no_cache = true,
-                            "no-store" => cc_no_store = true,
-                            "max-age" => {
-                                if let Some(val) = it.next() {
-                                    if let Ok(n) = val.trim().parse::<i64>() {
-                                        cc_max_age = Some(n);
-                                    }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
+            for directive in crate::helpers::cache_control::directives(&resp.headers) {
+                cc_present = true;
+                if directive.is("no-cache") {
+                    cc_no_cache = true;
+                } else if directive.is("no-store") {
+                    cc_no_store = true;
+                } else if directive.is("max-age") {
+                    cc_max_age = directive.delta_seconds().or(cc_max_age);
                 }
             }
-            // Parse s-maxage via a shared helper after the loop so that s-maxage
-            // parsing is consistent with other uses in the codebase.
             let cc_s_maxage = crate::helpers::headers::get_cache_control_s_maxage(&resp.headers);
 
-            if !has_expires || !cc_present {
+            if !cc_present {
                 return None;
             }
 
@@ -122,7 +95,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // framing as the dated checks below; needs no reference time, since "already
             // expired" is true against any.
             // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
-            if expires_dt.is_none() {
+            let Some(expires) = expires_dt else {
                 if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
                     return Some(self.cited(&RFC_9111_5_3, ctx.severity, format!(
                             "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory (RFC 9111 §5.3)",
@@ -130,24 +103,12 @@ impl Rule for ExpiresAndCacheControlConsistent {
                         )));
                 }
                 return None;
-            }
-
-            let expires = expires_dt.unwrap();
-
-            // Determine reference time: Date header if present, otherwise fall back to the transaction timestamp
-            let date_ref = if let Some(hv) = resp.headers.get_all("date").iter().next() {
-                if let Ok(s) = hv.to_str() {
-                    if let Ok(dt) = crate::http_date::parse_http_date_to_datetime(s.trim()) {
-                        dt
-                    } else {
-                        tx.timestamp
-                    }
-                } else {
-                    tx.timestamp
-                }
-            } else {
-                tx.timestamp
             };
+
+            // The reference time is the origin's clock where it stated one, and
+            // the time we saw the message where it did not.
+            let date_ref =
+                crate::http_date::header_timestamp(&resp.headers, "date").unwrap_or(tx.timestamp);
 
             // Expires and the Cache-Control freshness directives can disagree. The spec resolves
             // that by *precedence*, not by calling it an error — so flagging the disagreement is
