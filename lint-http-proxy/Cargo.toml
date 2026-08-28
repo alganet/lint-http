@@ -60,11 +60,11 @@ h3-quinn = { workspace = true }
 rcgen = { workspace = true }
 pem = { workspace = true }
 http-body-util = { workspace = true }
-tokio-tungstenite = { workspace = true }
 futures-util = { workspace = true }
 rustls-native-certs = { workspace = true }
 
 [dev-dependencies]
+tokio-tungstenite = { workspace = true }
 lint-http-core = { workspace = true, features = ["test-utils"] }
 wiremock = { workspace = true }
 rstest = { workspace = true }
