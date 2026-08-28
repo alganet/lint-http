@@ -382,22 +382,24 @@ async fn handle_h3_request(
 
     // Run the shared exchange core (forward, collect, lint, capture).
     let pr = ProxiedRequest {
-        method,
+        facts: super::exchange::RequestFacts {
+            method,
+            uri_str,
+            headers: req_headers,
+            // The version number RFC 9114 § 4.3.1 states for a request that has
+            // nowhere to carry one. Rendered through the shared function rather
+            // than written here: every other capture site funnels through it, and
+            // this one holding its own literal is how the workspace came to need
+            // the spelling corrected in two files instead of one.
+            // cite(RFC 9114 § 4.3.1): "HTTP/3 requests implicitly have a protocol version of "3.0"."
+            version: format_http_version(hyper::Version::HTTP_3),
+            client_id,
+            connection_id: conn_metadata.id,
+            sequence_number: stream_id as u32,
+        },
         uri,
-        uri_str,
-        headers: req_headers,
-        // The version number RFC 9114 § 4.3.1 states for a request that has
-        // nowhere to carry one. Rendered through the shared function rather
-        // than written here: every other capture site funnels through it, and
-        // this one holding its own literal is how the workspace came to need
-        // the spelling corrected in two files instead of one.
-        // cite(RFC 9114 § 4.3.1): "HTTP/3 requests implicitly have a protocol version of "3.0"."
-        version: format_http_version(hyper::Version::HTTP_3),
         body,
         body_done: body_done_rx,
-        client_id,
-        connection_id: conn_metadata.id,
-        sequence_number: stream_id as u32,
     };
     let proxied = exchange(pr, &shared, started).await;
 

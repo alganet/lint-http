@@ -8,14 +8,14 @@
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
-use hyper::{Method, Request, Response, Uri};
+use hyper::{Request, Response, Uri};
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::time::Instant;
 use tracing::{debug, error};
 
-use crate::proxy::exchange::record_error_transaction;
+use crate::proxy::exchange::{record_error_transaction, ErrorFacts, RequestFacts};
 use crate::proxy::hop_by_hop::format_http_version;
 use crate::proxy::{boxed_full, BoxError, ResponseBody, Shared};
 
@@ -31,15 +31,10 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
     uri: &Uri,
     scheme: &hyper::http::uri::Scheme,
     started: &Instant,
-    client_id: &crate::state::ClientIdentifier,
-    method: &Method,
-    uri_str: &str,
-    req_headers: &hyper::HeaderMap,
-    req_version: &str,
+    facts: RequestFacts,
     body_bytes: Bytes,
     req_trailers: Option<hyper::HeaderMap>,
     shared: Arc<Shared>,
-    conn_metadata: Arc<crate::connection::ConnectionMetadata>,
 ) -> Result<Response<ResponseBody>, Infallible> {
     // Connect directly to upstream with upgrade support, reusing the shared
     // outbound TLS config (loaded once at startup).
@@ -48,18 +43,7 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
             Ok(s) => s,
             Err(e) => {
                 error!("websocket upstream connect error: {}", e);
-                record_handshake_failure(
-                    &shared,
-                    client_id,
-                    method,
-                    uri_str,
-                    req_headers,
-                    req_version,
-                    &body_bytes,
-                    &conn_metadata,
-                    started,
-                )
-                .await;
+                record_handshake_failure(&shared, &facts, &body_bytes, started).await;
                 return Ok(upstream_error_response(&e));
             }
         };
@@ -69,18 +53,7 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
         Ok(r) => r,
         Err(e) => {
             error!("websocket upstream request error: {}", e);
-            record_handshake_failure(
-                &shared,
-                client_id,
-                method,
-                uri_str,
-                req_headers,
-                req_version,
-                &body_bytes,
-                &conn_metadata,
-                started,
-            )
-            .await;
+            record_handshake_failure(&shared, &facts, &body_bytes, started).await;
             return Ok(upstream_error_response(&e));
         }
     };
@@ -92,12 +65,12 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
 
     // Record the HTTP transaction (the 101 handshake)
     let mut tx = crate::http_transaction::HttpTransaction::new(
-        client_id.clone(),
-        method.as_str().to_string(),
-        uri_str.to_string(),
+        facts.client_id.clone(),
+        facts.method.as_str().to_string(),
+        facts.uri_str.clone(),
     );
-    tx.request.headers = req_headers.clone();
-    tx.request.version = req_version.to_string();
+    tx.request.headers = facts.headers.clone();
+    tx.request.version = facts.version.clone();
     tx.request.body_length = Some(body_bytes.len() as u64);
     tx.request.trailers = req_trailers;
     tx.request_body = Some(body_bytes);
@@ -122,8 +95,8 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
     tx.timing = crate::http_transaction::TimingInfo {
         duration_ms: duration,
     };
-    tx.connection_id = Some(conn_metadata.id);
-    tx.sequence_number = Some(conn_metadata.next_sequence_number());
+    tx.connection_id = Some(facts.connection_id);
+    tx.sequence_number = Some(facts.sequence_number);
     if status == 101 {
         tx.was_upgraded = true;
         tx.upgrade_protocol = headers
@@ -160,7 +133,7 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
         // lets it close promptly on shutdown. The permit is best-effort —
         // an already-upgraded connection can't be rejected if we're at capacity.
         let captures_clone = shared.captures.clone();
-        let connection_id = conn_metadata.id;
+        let connection_id = facts.connection_id;
         let pe_pipeline = shared.protocol_event_pipeline();
         let relay_permit = shared.semaphore.clone().try_acquire_owned().ok();
         if relay_permit.is_none() {
@@ -232,36 +205,23 @@ fn upstream_error_response(e: impl std::fmt::Display) -> Response<ResponseBody> 
 
 /// Record a transaction for a WebSocket handshake that failed before the
 /// upstream produced any response, so the request is not silently lost. Routes
-/// through the pipeline (lint → state → capture) and consumes one sequence
-/// number, matching the success path.
-#[allow(clippy::too_many_arguments)]
+/// through the pipeline (lint → state → capture) with the request's one
+/// sequence number, matching the success path.
 async fn record_handshake_failure(
     shared: &Arc<Shared>,
-    client_id: &crate::state::ClientIdentifier,
-    method: &Method,
-    uri_str: &str,
-    req_headers: &hyper::HeaderMap,
-    req_version: &str,
+    facts: &RequestFacts,
     body_bytes: &Bytes,
-    conn_metadata: &crate::connection::ConnectionMetadata,
     started: &Instant,
 ) {
-    let duration = started.elapsed().as_millis() as u64;
     record_error_transaction(
         shared,
-        client_id,
-        method.as_str(),
-        uri_str,
-        req_headers,
-        req_version,
-        502,
-        None,
-        duration,
-        Some(body_bytes.clone()),
-        conn_metadata.id,
-        conn_metadata.next_sequence_number(),
-        false,
-        false,
+        facts,
+        ErrorFacts {
+            status: 502,
+            duration_ms: started.elapsed().as_millis() as u64,
+            req_body: Some(body_bytes.clone()),
+            ..Default::default()
+        },
     )
     .await;
 }
@@ -324,6 +284,23 @@ mod tests {
         )
     }
 
+    /// The request facts the handshake tests share: a GET from one test
+    /// client, carrying the headers under test.
+    fn test_facts(uri: &Uri, headers: hyper::HeaderMap) -> RequestFacts {
+        RequestFacts {
+            method: hyper::Method::GET,
+            uri_str: uri.to_string(),
+            headers,
+            version: "HTTP/1.1".to_string(),
+            client_id: crate::state::ClientIdentifier::new(
+                "127.0.0.1".parse().unwrap(),
+                "test".to_string(),
+            ),
+            connection_id: uuid::Uuid::new_v4(),
+            sequence_number: 0,
+        }
+    }
+
     /// Whether a captured transaction's request headers (serialized as ordered
     /// `[name, value]` pairs) contain `name`.
     fn captured_request_has_header(v: &serde_json::Value, name: &str) -> bool {
@@ -383,12 +360,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
-            "127.0.0.1:12345".parse()?,
-        ));
         let started = Instant::now();
-        let client_id =
-            crate::state::ClientIdentifier::new("127.0.0.1".parse().unwrap(), "test".to_string());
         let mut req_headers = hyper::HeaderMap::new();
         req_headers.insert("x-test", "1".parse()?);
 
@@ -398,15 +370,10 @@ mod tests {
             &uri,
             &hyper::http::uri::Scheme::HTTP,
             &started,
-            &client_id,
-            &Method::GET,
-            &uri.to_string(),
-            &req_headers,
-            "HTTP/1.1",
+            test_facts(&uri, req_headers),
             Bytes::new(),
             None,
             shared,
-            conn_metadata,
         )
         .await?;
 
@@ -462,12 +429,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
-            "127.0.0.1:12345".parse()?,
-        ));
         let started = Instant::now();
-        let client_id =
-            crate::state::ClientIdentifier::new("127.0.0.1".parse().unwrap(), "test".to_string());
 
         let resp = handle_websocket_upgrade(
             upstream_req,
@@ -475,15 +437,10 @@ mod tests {
             &uri,
             &hyper::http::uri::Scheme::HTTP,
             &started,
-            &client_id,
-            &Method::GET,
-            &uri.to_string(),
-            &hyper::HeaderMap::new(),
-            "HTTP/1.1",
+            test_facts(&uri, hyper::HeaderMap::new()),
             Bytes::new(),
             None,
             shared,
-            conn_metadata,
         )
         .await?;
 
@@ -532,12 +489,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
-            "127.0.0.1:12345".parse()?,
-        ));
         let started = Instant::now();
-        let client_id =
-            crate::state::ClientIdentifier::new("127.0.0.1".parse().unwrap(), "test".to_string());
 
         let resp = handle_websocket_upgrade(
             upstream_req,
@@ -545,15 +497,10 @@ mod tests {
             &uri,
             &hyper::http::uri::Scheme::HTTP,
             &started,
-            &client_id,
-            &Method::GET,
-            &uri.to_string(),
-            &hyper::HeaderMap::new(),
-            "HTTP/1.1",
+            test_facts(&uri, hyper::HeaderMap::new()),
             Bytes::new(),
             None,
             shared,
-            conn_metadata,
         )
         .await?;
 
@@ -640,12 +587,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
-            "127.0.0.1:12345".parse()?,
-        ));
         let started = Instant::now();
-        let client_id =
-            crate::state::ClientIdentifier::new("127.0.0.1".parse().unwrap(), "test".to_string());
         let mut req_headers = hyper::HeaderMap::new();
         req_headers.insert("x-test", "1".parse()?);
 
@@ -655,15 +597,10 @@ mod tests {
             &uri,
             &hyper::http::uri::Scheme::HTTP,
             &started,
-            &client_id,
-            &Method::GET,
-            &uri.to_string(),
-            &req_headers,
-            "HTTP/1.1",
+            test_facts(&uri, req_headers),
             Bytes::new(),
             None,
             shared,
-            conn_metadata,
         )
         .await?;
 
