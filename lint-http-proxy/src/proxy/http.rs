@@ -114,21 +114,11 @@ where
     handle_http_logic(req, shared, conn_metadata, scheme).await
 }
 
-/// Build a boxed plaintext error response: status, a `Content-Type` describing
-/// the message, and the message.
-///
-/// The `Content-Type` is not decoration. These responses carry a line of US-ASCII
-/// text and used to carry no media type at all, which is exactly what
-/// `content_type_present` reports -- RFC 9110 § 8.3 leaves such a
-/// recipient to assume `application/octet-stream` or to sniff the bytes. A proxy
-/// that lints for a missing Content-Type should not be answering with one.
+/// Build a boxed plaintext error response. Thin wrapper over the one shared
+/// builder, [`super::exchange::error_response`], which owns the rationale for
+/// the `Content-Type` these responses carry.
 pub(super) fn error_resp(status: u16, msg: &str) -> Response<ResponseBody> {
-    let body = Bytes::from(msg.to_string());
-    Response::builder()
-        .status(status)
-        .header(hyper::header::CONTENT_TYPE, "text/plain; charset=utf-8")
-        .body(boxed_full(body.clone()))
-        .unwrap_or_else(|_| Response::new(boxed_full(body)))
+    super::exchange::into_response(super::exchange::error_response(status, msg.to_string()))
 }
 
 async fn handle_http_logic<B>(
@@ -330,17 +320,7 @@ where
 
     let proxied = exchange(pr, &shared, started).await;
 
-    let mut resp_builder = Response::builder().status(proxied.status);
-    for (name, value) in proxied.headers.iter() {
-        resp_builder = resp_builder.header(name, value);
-    }
-    // The streaming body can't be cloned, so fall back to a fresh error
-    // response if building fails (it shouldn't: status + filtered headers are
-    // valid).
-    Ok(resp_builder.body(proxied.body).unwrap_or_else(|e| {
-        error!("failed to build client response: {}", e);
-        error_resp(502, "failed to build response")
-    }))
+    Ok(super::exchange::into_response(proxied))
 }
 
 #[cfg(test)]

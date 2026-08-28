@@ -55,8 +55,8 @@ pub(super) struct ProxiedRequest {
 }
 
 /// What the transport should deliver to the client. Headers are already
-/// hop-by-hop filtered (with the 101 carve-out); they are empty for
-/// proxy-generated error responses. The body streams: for a successful
+/// hop-by-hop filtered (with the 101 carve-out); proxy-generated error
+/// responses carry only a `Content-Type`. The body streams: for a successful
 /// exchange it tees a bounded prefix into the transaction (committed at
 /// stream-end); for a proxy error it is the buffered error message.
 pub(super) struct ProxiedResponse {
@@ -393,12 +393,43 @@ pub(super) fn filter_response_headers(headers: &HeaderMap, status: u16) -> Heade
     out
 }
 
-fn error_response(status: u16, body: String) -> ProxiedResponse {
+/// Build the plaintext error reply shared by every proxy error path: status,
+/// a `Content-Type` describing the message, and the message.
+///
+/// The `Content-Type` is not decoration. These responses carry a line of US-ASCII
+/// text and used to carry no media type at all, which is exactly what
+/// `content_type_present` reports -- RFC 9110 § 8.3 leaves such a
+/// recipient to assume `application/octet-stream` or to sniff the bytes. A proxy
+/// that lints for a missing Content-Type should not be answering with one.
+pub(super) fn error_response(status: u16, body: String) -> ProxiedResponse {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        hyper::header::CONTENT_TYPE,
+        hyper::header::HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
     ProxiedResponse {
         status,
-        headers: HeaderMap::new(),
+        headers,
         body: boxed_full(Bytes::from(body)),
     }
+}
+
+/// Convert a [`ProxiedResponse`] into the hyper response the H1/H2 transport
+/// hands back to the client. (The H3 transport drives the body itself and does
+/// not come through here.)
+pub(super) fn into_response(proxied: ProxiedResponse) -> hyper::Response<ResponseBody> {
+    let mut resp_builder = hyper::Response::builder().status(proxied.status);
+    for (name, value) in proxied.headers.iter() {
+        resp_builder = resp_builder.header(name, value);
+    }
+    // The streaming body can't be cloned, so fall back to a fresh error
+    // response if building fails (it shouldn't: status + filtered headers are
+    // valid). The fallback's own build cannot fail the same way -- its status
+    // and header are constants -- so the recursion is one level deep.
+    resp_builder.body(proxied.body).unwrap_or_else(|e| {
+        error!("failed to build client response: {}", e);
+        into_response(error_response(502, "failed to build response".to_string()))
+    })
 }
 
 /// Record an error transaction from inside [`exchange`] (build / upstream
