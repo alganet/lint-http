@@ -5099,19 +5099,19 @@ sources:
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
     cited_by:
     - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
-      line: 97
+      line: 92
   - label: authentication_challenge_valid (2)
     section: § 11.5
     snippet: Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time.
     cited_by:
     - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
-      line: 65
+      line: 62
   - label: authentication_challenge_valid (3)
     section: § 11.5
     snippet: These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database.
     cited_by:
     - file: lint-http-rules/src/rules/authentication_challenge_valid.rs
-      line: 96
+      line: 91
   - label: authentication_failure_loop
     section: § 15.5.2
     snippet: If the 401 response contains the same challenge as the prior response, and the user agent has already attempted authentication at least once, then the user agent SHOULD present the enclosed representation to the user, since it usually contains relevant diagnostic information.
