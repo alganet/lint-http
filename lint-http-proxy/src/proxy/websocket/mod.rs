@@ -12,10 +12,12 @@ use hyper::Request;
 
 use super::hop_by_hop::parse_connection_tokens;
 
-// Wired into the relay by the transparent-relay change; the allow dies there.
+// Wired into the relay by the transparent-relay change; the allows die there.
 #[allow(dead_code)]
 mod frame;
 mod handshake;
+#[allow(dead_code)]
+mod observer;
 mod relay;
 
 pub(super) use handshake::{handle_websocket_upgrade, WsUpgradeRequest};

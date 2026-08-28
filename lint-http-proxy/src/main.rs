@@ -371,8 +371,11 @@ fn lint_websocket_session(
     );
     let mut violations = Vec::new();
     for msg in &session.messages {
+        // Frames recorded with their own arrival time replay with it; records
+        // written before the per-frame field existed fall back to the session
+        // timestamp, which is all they ever carried.
         let event = msg.frame_event(
-            session.timestamp,
+            msg.timestamp.unwrap_or(session.timestamp),
             session.id,
             session.id,
             &session.extensions,
@@ -734,6 +737,7 @@ severity = "warn"
             fin: true,
             rsv: 0,
             masked: None,
+            timestamp: None,
         }
     }
 
