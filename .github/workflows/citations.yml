@@ -80,5 +80,20 @@ jobs:
       # --strict-redirects turns a moved source into a failure. The catalogue this
       # replaced had 14 MDN URLs that a plain fetcher followed a 301 to and passed
       # green; that silence is the thing being bought out here.
+      #
+      # There is no --strict-supersession, and its absence is a decision rather
+      # than an oversight. This job reports six RFCs whose publisher has replaced
+      # them — 2068, 2616, 2617, 3230, 7231, 7234 — and the run stays green,
+      # because for five of them the successor *deleted* the thing being linted:
+      # RFC 9111 removed the Warning header field, RFC 2616 removed Keep-Alive,
+      # RFC 9110 does not repeat 7231's account of why Content-MD5 went, and
+      # RFC 6455 points normatively at 2616's #rule ABNF. A rule enforcing those
+      # has nowhere current to cite. Only 3230 -> 9530 is worth a look.
+      #
+      # So the warnings are the feature: what they are for is the *next* one, the
+      # day an RFC this project cites as current stops being so. Until a cite can
+      # record "knowingly historical, because the successor removed this", the
+      # six standing warnings are the price, and turning them into failures would
+      # only mean deleting the check.
       - name: Verify every quote against its source
         run: apycite verify --refresh --strict-redirects
