@@ -989,11 +989,18 @@ severity = "warn"
     ///
     /// Raise the floor when a batch lands. If this fails downward, a `cited()`
     /// site became a `violation()` one: say why in the commit or put it back.
+    ///
+    /// **Two finding sites merging into one lowers this number without losing a
+    /// citation**, and that is the only reason it has ever moved down: the
+    /// `Date` field's request and response readings were two copies of the same
+    /// two findings and now share one function, which cites what both cited.
+    /// The count of *sites* is not the count of sentences read, so when a
+    /// duplicate disappears, lower the floor and say which one.
     #[test]
     fn citation_coverage_does_not_regress() {
         /// Finding sites that name the specification sentence they enforce, out
-        /// of 583. The rest are the per-rule reading that has not happened yet.
-        const FLOOR: usize = 173;
+        /// of 579. The rest are the per-rule reading that has not happened yet.
+        const FLOOR: usize = 172;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

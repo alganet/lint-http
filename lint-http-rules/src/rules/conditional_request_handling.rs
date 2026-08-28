@@ -54,6 +54,141 @@ const RFC_9110_8_8_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Last-Modified header field",
 };
 
+/// Which preconditions a request carried.
+///
+/// The four fields are asked in three different groupings — the two entity-tag
+/// ones together, the two date ones together, and `If-None-Match` alone, which
+/// § 13.2.2 makes govern whether `If-Modified-Since` is evaluated at all — and
+/// naming the groupings is what keeps a check from testing the wrong pair.
+struct Preconditions {
+    if_none_match: bool,
+    if_match: bool,
+    if_modified_since: bool,
+    if_unmodified_since: bool,
+}
+
+impl Preconditions {
+    fn of(headers: &hyper::HeaderMap) -> Self {
+        Self {
+            if_none_match: headers.contains_key("if-none-match"),
+            if_match: headers.contains_key("if-match"),
+            if_modified_since: headers.contains_key("if-modified-since"),
+            if_unmodified_since: headers.contains_key("if-unmodified-since"),
+        }
+    }
+
+    /// Whether the request is conditional at all.
+    fn any(&self) -> bool {
+        self.if_none_match || self.if_match || self.if_modified_since || self.if_unmodified_since
+    }
+
+    /// Whether a precondition compares against an entity-tag validator.
+    fn entity_tag(&self) -> bool {
+        self.if_none_match || self.if_match
+    }
+
+    /// Whether a precondition compares against a modification date.
+    fn date(&self) -> bool {
+        self.if_modified_since || self.if_unmodified_since
+    }
+}
+
+/// The two methods whose failed precondition is answered with 304 rather than
+/// 412, which is what makes the checks below about a `200` at all.
+// cite(RFC 9110 § 13.1.2): "the 304 (Not Modified) status code if the request method is GET or HEAD"
+fn is_get_or_head(method: &str) -> bool {
+    method.eq_ignore_ascii_case("GET") || method.eq_ignore_ascii_case("HEAD")
+}
+
+impl ConditionalRequestHandling {
+    /// A precondition carries validator metadata from a stored response, so a
+    /// client sending one should have been given that validator.
+    ///
+    /// Requiring the client to have *previously observed* the validator is a
+    /// stateful heuristic with no governing MUST/SHOULD in RFC 9110 (recorded
+    /// §4.1) — `If-None-Match: *` legitimately needs no prior tag — so none of
+    /// these findings carries a cite.
+    fn validator_was_observed(
+        &self,
+        sent: &Preconditions,
+        history: &crate::transaction_history::TransactionHistory,
+        severity: crate::lint::Severity,
+    ) -> Option<Violation> {
+        let Some(prev) = history.previous() else {
+            return Some(self.violation(severity, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()));
+        };
+        let Some(resp) = &prev.response else {
+            return Some(self.violation(
+                severity,
+                "Conditional request sent but previous transaction has no response recorded".into(),
+            ));
+        };
+        if sent.entity_tag() && !resp.headers.contains_key("etag") {
+            return Some(self.violation(severity, "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into()));
+        }
+        if sent.date() && !resp.headers.contains_key("last-modified") {
+            return Some(self.violation(severity, "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into()));
+        }
+        None
+    }
+
+    /// A GET or HEAD whose `If-None-Match` condition is false is answered with
+    /// 304, not 200.
+    ///
+    /// The members are compared exactly rather than by the weak comparison
+    /// § 8.8.3.2 mandates: a deliberate narrowing that only ever under-flags,
+    /// since an exact match is also a weak match.
+    // cite(RFC 9110 § 13.1.2): "An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods."
+    fn if_none_match_was_evaluated(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        sent: &Preconditions,
+        severity: crate::lint::Severity,
+    ) -> Option<Violation> {
+        if !sent.if_none_match || !is_get_or_head(&tx.request.method) {
+            return None;
+        }
+        let resp = tx.response.as_ref()?;
+        if resp.status != 200 {
+            return None;
+        }
+        let etag = crate::helpers::headers::get_header_str(&resp.headers, "etag")?.trim();
+        let condition_was_false =
+            crate::helpers::headers::field_lines(&tx.request.headers, "if-none-match")
+                .flat_map(crate::helpers::headers::list_members)
+                .any(|member| member == etag || member == "*");
+
+        condition_was_false.then(|| self.violation(severity, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 §13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()))
+    }
+
+    /// A GET or HEAD whose `If-Modified-Since` condition is false should be
+    /// answered with 304 — a SHOULD here, unlike § 13.1.2's MUST.
+    ///
+    /// Asked only where `If-None-Match` is absent: § 13.2.2 evaluates
+    /// `If-Modified-Since` only then, so with both present the check above
+    /// governs and a 200 may be perfectly legal.
+    // cite(RFC 9110 § 13.1.3): "An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response"
+    // cite(RFC 9110 § 13.2.2): "When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition"
+    fn if_modified_since_was_evaluated(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        sent: &Preconditions,
+        severity: crate::lint::Severity,
+    ) -> Option<Violation> {
+        if !sent.if_modified_since || sent.if_none_match || !is_get_or_head(&tx.request.method) {
+            return None;
+        }
+        let resp = tx.response.as_ref()?;
+        if resp.status != 200 {
+            return None;
+        }
+        let since = crate::http_date::header_timestamp(&tx.request.headers, "if-modified-since")?;
+        let last_modified = crate::http_date::header_timestamp(&resp.headers, "last-modified")?;
+
+        (last_modified <= since).then(|| self.violation(severity, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; consider returning 304 Not Modified".into()))
+    }
+}
+
 impl Rule for ConditionalRequestHandling {
     fn id(&self) -> &'static str {
         "conditional_request_handling"
@@ -72,121 +207,13 @@ impl Rule for ConditionalRequestHandling {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // Only applies when request contains one or more conditional headers
-            let req = &tx.request;
-            let has_inm = req.headers.get("if-none-match").is_some();
-            let has_ifm = req.headers.get("if-modified-since").is_some();
-            let has_imatch = req.headers.get("if-match").is_some();
-            let has_iunmod = req.headers.get("if-unmodified-since").is_some();
-
-            if !(has_inm || has_ifm || has_imatch || has_iunmod) {
+            let sent = Preconditions::of(&tx.request.headers);
+            if !sent.any() {
                 return None;
             }
-
-            // If we have no previous transaction recorded for this client+resource,
-            // warn that conditionals were sent without an observed validator.
-            let prev = match history.previous() {
-                Some(p) => p,
-                None => {
-                    return Some(self.violation(ctx.severity, "Conditional request sent but no previous response recorded for this resource (no ETag/Last-Modified to validate against)".into()))
-                }
-            };
-
-            // Previous transaction must include a response with validators when
-            // entity-tag/date conditionals are used.
-            if let Some(resp) = &prev.response {
-                // An entity-tag precondition compares against a validator (an ETag). Requiring the
-                // client to have *previously observed* that validator is a stateful heuristic with
-                // no governing MUST/SHOULD in RFC 9110 (recorded §4.1) — e.g. `If-None-Match: *`
-                // legitimately needs no prior tag — so this construct carries no cite.
-                if (has_inm || has_imatch) && resp.headers.get("etag").is_none() {
-                    return Some(self.violation(ctx.severity, "Request contains entity-tag conditional (If-Match/If-None-Match) but previous response did not include an ETag".into()));
-                }
-
-                // Same shape for a date-based precondition (a Last-Modified validator): the
-                // prior-observation requirement is the same uncited stateful heuristic.
-                if (has_ifm || has_iunmod) && resp.headers.get("last-modified").is_none() {
-                    return Some(self.violation(ctx.severity, "Request contains time-based conditional (If-Modified-Since/If-Unmodified-Since) but previous response did not include Last-Modified".into()));
-                }
-            } else {
-                return Some(self.violation(ctx.severity, "Conditional request sent but previous transaction has no response recorded"
-                            .into()));
-            }
-
-            // Response-side sanity checks for common conditional patterns (GET/HEAD):
-            // - If-None-Match: if the response ETag matches one of the request's tags (or the
-            //   request sent `*` against an existing representation) and the server returned 200
-            //   for GET/HEAD, the If-None-Match condition was false — §13.1.2 requires a 304, not
-            //   a 200. (Exact string match, not the weak comparison §8.8.3.2 mandates: a deliberate
-            //   narrowing that only under-flags — an exact match is also a weak match.)
-            // cite(RFC 9110 § 13.1.2): "An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods."
-            if has_inm
-                && (req.method.eq_ignore_ascii_case("GET")
-                    || req.method.eq_ignore_ascii_case("HEAD"))
-            {
-                if let Some(resp) = &tx.response {
-                    if resp.status == 200 {
-                        if let Some(resp_etag_hv) = resp.headers.get("etag") {
-                            if let Ok(resp_etag) = resp_etag_hv.to_str() {
-                                for hv in req.headers.get_all("if-none-match").iter() {
-                                    if let Ok(inm_raw) = hv.to_str() {
-                                        for member in crate::helpers::headers::list_members(inm_raw)
-                                        {
-                                            if member == resp_etag.trim() || member == "*" {
-                                                return Some(self.violation(ctx.severity, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 §13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // - If-Modified-Since: if the response Last-Modified is not more recent than the
-            //   conditional value and the server returned 200 for GET/HEAD, the condition was
-            //   false, so a 304 SHOULD have been sent. (A SHOULD here, unlike §13.1.2's MUST.)
-            //   Guarded by `!has_inm`: per §13.2.2, If-Modified-Since is evaluated only when
-            //   If-None-Match is absent, so if both are present the If-None-Match branch governs
-            //   and a 200 may be legal (INM condition true) — flagging here would be a false
-            //   positive.
-            // cite(RFC 9110 § 13.1.3): "An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response"
-            // cite(RFC 9110 § 13.2.2): "When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition"
-            if has_ifm
-                && !has_inm
-                && (req.method.eq_ignore_ascii_case("GET")
-                    || req.method.eq_ignore_ascii_case("HEAD"))
-            {
-                if let Some(resp) = &tx.response {
-                    if resp.status == 200 {
-                        if let (Some(req_ifms), Some(resp_lm_hv)) = (
-                            crate::helpers::headers::get_header_str(
-                                &req.headers,
-                                "if-modified-since",
-                            ),
-                            resp.headers.get("last-modified"),
-                        ) {
-                            if let Ok(resp_lm) = resp_lm_hv.to_str() {
-                                if crate::http_date::is_valid_http_date(req_ifms)
-                                    && crate::http_date::is_valid_http_date(resp_lm)
-                                {
-                                    if let (Ok(req_dt), Ok(resp_dt)) = (
-                                        crate::http_date::parse_http_date_to_datetime(req_ifms),
-                                        crate::http_date::parse_http_date_to_datetime(resp_lm),
-                                    ) {
-                                        if resp_dt <= req_dt {
-                                            return Some(self.violation(ctx.severity, "Conditional GET/HEAD used If-Modified-Since but server returned 200 even though Last-Modified indicates the resource was not modified; consider returning 304 Not Modified".into()));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            None
+            self.validator_was_observed(&sent, history, ctx.severity)
+                .or_else(|| self.if_none_match_was_evaluated(tx, &sent, ctx.severity))
+                .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx.severity))
         };
         Vec::from_iter(finding())
     }
