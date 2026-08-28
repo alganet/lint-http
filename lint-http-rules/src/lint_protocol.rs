@@ -4,9 +4,9 @@
 
 //! Protocol-event linting entry point.
 //!
-//! Mirrors [`lint_transaction`](crate::lint::lint_transaction) but evaluates
+//! Mirrors [`lint_transaction`](crate::engine::lint_transaction) but evaluates
 //! [`ProtocolRule`](crate::rules::ProtocolRule) implementations against
-//! [`ProtocolEvent`](crate::protocol_event::ProtocolEvent) instances.
+//! [`ProtocolEvent`] instances.
 
 use crate::config::Config;
 use crate::engine::PreparedEngine;

@@ -12,7 +12,7 @@ use crate::helpers::headers::split_commas_respecting_quotes;
 /// members without a leading scheme are treated as continuation parameters for
 /// the current challenge.
 ///
-/// Returns Ok(Vec<String>) on success or Err(String) describing a parsing
+/// Returns `Ok(Vec<String>)` on success or `Err(String)` describing a parsing
 /// problem: an empty member, or a parameter with no challenge before it. There
 /// was a third — *missing scheme on a member that starts with whitespace* — and
 /// it was the same problem read off a character the list grammar puts outside

@@ -335,7 +335,7 @@ impl FrameObserver {
 // ── Instrumented RecvStream ──────────────────────────────────────────
 
 /// A transparent wrapper around [`h3_quinn::RecvStream`] that feeds incoming
-/// bytes through a [`FrameObserver`] before returning them to `h3`.
+/// bytes through a `FrameObserver` before returning them to `h3`.
 pub struct InstrumentedRecvStream {
     inner: h3_quinn::RecvStream,
     observer: FrameObserver,
@@ -383,7 +383,7 @@ impl InstrumentedConnection {
     /// Wrap an existing [`h3_quinn::Connection`], observing the peer identified
     /// by `direction`.
     ///
-    /// Every unidirectional stream accepted via [`poll_accept_recv`] will be
+    /// Every unidirectional stream accepted via `poll_accept_recv` will be
     /// wrapped in an [`InstrumentedRecvStream`] whose frame observer emits
     /// events through `sink`, tagged with `direction`.
     pub fn new(conn: h3_quinn::Connection, sink: EventSink, direction: MessageDirection) -> Self {

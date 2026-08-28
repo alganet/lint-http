@@ -4,9 +4,11 @@
 
 //! Lint result types.
 //!
-//! The dispatch engine that produces these from a transaction lives in
-//! [`engine`](crate::engine), which sits above the rule catalogue; these data
-//! types sit below it (every rule returns a [`Violation`]).
+//! The dispatch engine that produces these from a transaction lives in the
+//! `lint-http-rules` crate, in its `engine` module — it sits above the rule
+//! catalogue, while these data types sit below it (every rule returns a
+//! [`Violation`]). This crate depends on no other, so the reference is by name:
+//! the arrow only points one way.
 
 use serde::{Deserialize, Serialize};
 

@@ -2269,7 +2269,7 @@ sources:
     snippet: The endpoints of a connection MUST negotiate the use of any extensions during the opening handshake.
     cited_by:
     - file: lint-http-core/src/protocol_event.rs
-      line: 70
+      line: 72
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 111
   - label: lint-http-core/src/protocol_event.rs (2)
@@ -2277,13 +2277,13 @@ sources:
     snippet: Note that the client is only offering to use any advertised extensions and MUST NOT use them unless the server indicates that it wishes to use the extension.
     cited_by:
     - file: lint-http-core/src/protocol_event.rs
-      line: 72
+      line: 74
   - label: lint-http-core/src/protocol_event.rs (3)
     section: § 9.1
     snippet: The extensions listed by the server in response represent the extensions actually in use for the connection.
     cited_by:
     - file: lint-http-core/src/protocol_event.rs
-      line: 71
+      line: 73
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
       line: 73
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs

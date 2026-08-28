@@ -64,7 +64,7 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
 /// host name are one question however the name reached the reader — a cookie's
 /// `Domain` attribute, or the `dot-atom` half of an `addr-spec`, which RFC 5322
 /// § 3.4.1 says *"is interpreted as an Internet domain name … as described in
-/// [RFC1034], [RFC1035], and [RFC1123]"*. The second caller had a hand copy of
+/// \[RFC1034], \[RFC1035], and \[RFC1123]"*. The second caller had a hand copy of
 /// the same four checks with neither cite and without either length bound, so a
 /// 300-character domain was clean there and reported here.
 ///

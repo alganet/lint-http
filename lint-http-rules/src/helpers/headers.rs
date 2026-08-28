@@ -488,7 +488,7 @@ pub fn inm_matches_known(inm: &str, known: &str) -> bool {
 /// `If-Range` or range revalidation), use
 /// [`extract_strong_validators_from_response`] instead.
 ///
-/// See [`cache_validation_chain`] for an example consumer.
+/// See the `cache_validation_chain` rule for an example consumer.
 pub fn extract_validators_from_response(headers: &HeaderMap) -> (Option<String>, Option<String>) {
     (
         validator(headers, "etag"),
@@ -2079,8 +2079,8 @@ pub fn parameter_of(segment: &str) -> Option<Result<Parameter<'_>, ParameterDefe
 /// What is trimmed is the whole value (§ 5.5) and the run before the first
 /// semicolon, where `parameters` does print `OWS`.
 ///
-/// cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
-/// cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
+// cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
+// cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
 pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
     let trimmed = trim_ows(val);
     if trimmed.is_empty() {

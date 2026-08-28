@@ -4,15 +4,17 @@
 
 //! Protocol-level event model for sub-transaction analysis.
 //!
-//! While [`HttpTransaction`] captures complete request/response pairs, some
-//! lint rules need visibility into frame-level and transport-level events that
-//! occur outside or below the HTTP message abstraction: WebSocket frames,
-//! HTTP/3 control frames, QUIC transport parameters, etc.
+//! While [`HttpTransaction`](crate::http_transaction::HttpTransaction) captures
+//! complete request/response pairs, some lint rules need visibility into
+//! frame-level and transport-level events that occur outside or below the HTTP
+//! message abstraction: WebSocket frames, HTTP/3 control frames, QUIC transport
+//! parameters, etc.
 //!
 //! `ProtocolEvent` represents a single observable event on a connection.
 //! Events are stored in [`ProtocolEventStore`](crate::protocol_event_store)
-//! and routed to [`ProtocolRule`](crate::rules::ProtocolRule) implementations
-//! via [`lint_protocol_event`](crate::lint_protocol::lint_protocol_event).
+//! and routed to `ProtocolRule` implementations via `lint_protocol_event` —
+//! both in the `lint-http-rules` crate, which depends on this one and not the
+//! reverse, so they are named here rather than linked.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -50,7 +52,7 @@ fn default_direction_client() -> MessageDirection {
 /// reserved opcodes needs to know whether *any* extension was negotiated, since
 /// the specification hands both to extensions and requires the negotiation to
 /// happen in the opening handshake — which is an HTTP exchange a
-/// [`ProtocolRule`](crate::rules::ProtocolRule) never sees. So the answer
+/// `ProtocolRule` never sees. So the answer
 /// travels with the frame, and *"the server accepted no extension"* is a
 /// different record from *"this capture does not say"*: the first licenses a
 /// finding, and the second is why [`Unrecorded`](Self::Unrecorded) is the
@@ -217,8 +219,9 @@ pub struct QuicTransportParameters {
 /// Pre-queried protocol event history passed to protocol rules.
 ///
 /// Contains zero or more previous events for the same connection,
-/// ordered **newest first**.  Mirrors [`TransactionHistory`] for the
-/// protocol event pipeline.
+/// ordered **newest first**.  Mirrors
+/// [`TransactionHistory`](crate::transaction_history::TransactionHistory) for
+/// the protocol event pipeline.
 #[derive(Debug, Clone)]
 pub struct ProtocolEventHistory {
     entries: Vec<ProtocolEvent>,

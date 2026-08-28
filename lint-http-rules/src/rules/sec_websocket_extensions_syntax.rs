@@ -271,7 +271,7 @@ impl Rule for SecWebsocketExtensionsSyntax {
     /// grammar, and its malformed-value MUST names *"either the client or the
     /// server"*.
     ///
-    /// cite(RFC 6455 § 9.1): "A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616]."
+    // cite(RFC 6455 § 9.1): "A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616]."
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }

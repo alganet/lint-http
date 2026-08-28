@@ -27,7 +27,7 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Regenerate the rule documentation under <out>/ from rule metadata.
+    /// Regenerate the rule documentation under the --out directory from rule metadata.
     Gendocs(GendocsArgs),
 }
 
