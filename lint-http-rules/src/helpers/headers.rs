@@ -150,6 +150,28 @@ pub fn get_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str>
     headers.get(name).and_then(|v| v.to_str().ok())
 }
 
+/// The field lines for `name` that are readable as text, in order.
+///
+/// **The three-line ladder this replaces was written at over a hundred call
+/// sites** — `for hv in headers.get_all(name).iter()`, then `if let Ok(s) =
+/// hv.to_str()`, then the work — and the two outer lines cost every one of them
+/// a level of nesting before the question being asked could be stated. What
+/// they mean is uniform: a field line that is not text is not a value this
+/// caller can compare, and naming *that* as a defect belongs to the rule owning
+/// the field.
+///
+/// Composition is the point: `.flat_map(list_members)` for a `#rule` field,
+/// `.map(str::trim)` for a singleton, `.next()` for the first line. Callers
+/// that must measure what a sender actually wrote — including the octets
+/// `to_str` refuses — want [`combined_field_value_octets`] instead, and the
+/// distinction is the same one drawn at [`get_all_header_values`].
+pub fn field_lines<'a>(headers: &'a HeaderMap, name: &str) -> impl Iterator<Item = &'a str> {
+    headers
+        .get_all(name)
+        .iter()
+        .filter_map(|hv| hv.to_str().ok())
+}
+
 /// Collect all header values for the given name and concatenate them using
 /// ", " as a separator, trimming each entry.
 ///
@@ -620,37 +642,16 @@ pub fn parse_semicolon_list(val: &str) -> impl Iterator<Item = &str> {
 ///
 /// This logic was previously duplicated across several stateful caching rules;
 /// consolidating it here makes future maintenance easier.
+/// Where the member boundary is, and what counts as the directive being
+/// present, is [`crate::helpers::cache_control`]'s answer; this function adds
+/// only the caching policy above it.
 pub fn get_cache_control_max_age(headers: &HeaderMap) -> Option<i64> {
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            // if the header value contains no-store or no-cache, we treat it as
-            // forbidding caching (RFC 9111 §5.2) and ignore any max-age that may
-            // appear alongside.  Lowercase search is sufficient for our purposes.
-            let l = s.to_ascii_lowercase();
-            if l.contains("no-store") || l.contains("no-cache") {
-                continue;
-            }
-
-            for part in s.split(|c| [',', ';'].contains(&c)) {
-                let part = part.trim();
-                // look for name=value pairs so we can compare the name without
-                // depending on the case used by the sender.  RFC9111 §5.2 says
-                // directive names are case‑insensitive.
-                if let Some(idx) = part.find('=') {
-                    let (name, value) = part.split_at(idx);
-                    if name.trim().eq_ignore_ascii_case("max-age") {
-                        let eq = &value[1..]; // drop the '='
-                        if let Ok(n) = eq.trim().parse::<i64>() {
-                            if n >= 0 {
-                                return Some(n);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    // A section forbidding storage or unvalidated reuse advertises no freshness
+    // a caller could use, so a `max-age` written alongside is ignored.
+    if crate::helpers::cache_control::forbids_storage_or_reuse(headers) {
+        return None;
     }
-    None
+    crate::helpers::cache_control::delta_seconds(headers, "max-age")
 }
 
 /// Strip an optional weak (`W/`) prefix from an ETag value, leaving the
@@ -687,39 +688,39 @@ pub fn normalize_etag(s: &str) -> String {
 /// directives that explicitly forbid caching (`no-store`/`no-cache`) cause the
 /// value to be ignored.
 pub fn get_cache_control_s_maxage(headers: &HeaderMap) -> Option<i64> {
-    // First, scan all Cache-Control header values for directives that forbid
-    // caching. If any header contains `no-store` or `no-cache`, the combined
-    // semantics require caches to treat the response as non-cacheable and to
-    // ignore freshness directives such as `s-maxage`.
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            let l = s.to_ascii_lowercase();
-            if l.contains("no-store") || l.contains("no-cache") {
-                return None;
-            }
-        }
+    if crate::helpers::cache_control::forbids_storage_or_reuse(headers) {
+        return None;
     }
-    // No `no-store`/`no-cache` was found across any Cache-Control header value;
-    // now look for a syntactically valid `s-maxage` directive.
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            for part in s.split(|c| [',', ';'].contains(&c)) {
-                let part = part.trim();
-                if let Some(idx) = part.find('=') {
-                    let (name, value) = part.split_at(idx);
-                    if name.trim().eq_ignore_ascii_case("s-maxage") {
-                        let eq = &value[1..];
-                        if let Ok(n) = eq.trim().parse::<i64>() {
-                            if n >= 0 {
-                                return Some(n);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
+    crate::helpers::cache_control::delta_seconds(headers, "s-maxage")
+}
+
+/// Estimate the current age, in whole seconds, of a response observed at
+/// `observed_at` and being reasoned about at `now`.
+///
+/// This is a deliberate simplification of § 4.2.3's algorithm: it takes the
+/// `Age` the sender stated and adds the time the response has since spent in
+/// our own record, omitting the `response_delay` and `apparent_age` terms,
+/// which need request/response timing this linter does not record. The clamp of
+/// a negative elapsed to zero absorbs clock skew the way § 4.2.3 floors its own
+/// result. It is an estimate, and the two rules that ask are best-effort
+/// warnings about staleness — but they had each written it out, so they had two
+/// estimates, and only one of them said which.
+///
+/// A non-numeric or negative `Age` is dropped rather than propagated: the field
+/// is `delta-seconds`, so a value outside it states nothing about elapsed time.
+// cite(RFC 9111 § 5.1): "The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server"
+// cite(RFC 9111 § 4.2.3): "corrected_initial_age = max(apparent_age, corrected_age_value)"
+pub fn estimated_age(
+    headers: &HeaderMap,
+    observed_at: chrono::DateTime<chrono::Utc>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> i64 {
+    let stated_age = get_header_str(headers, "age")
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .filter(|seconds| *seconds >= 0)
+        .unwrap_or(0);
+    let resident = now.signed_duration_since(observed_at).num_seconds().max(0);
+    stated_age.saturating_add(resident)
 }
 
 /// Compute the freshness lifetime (in whole seconds) advertised by a response.
@@ -732,17 +733,12 @@ pub fn compute_freshness_lifetime(
     headers: &HeaderMap,
     resp_timestamp: chrono::DateTime<chrono::Utc>,
 ) -> i64 {
-    // if any Cache-Control value forbids caching, the response should be
-    // treated as immediately stale regardless of max-age or Expires.  This
-    // mirrors the more careful scan performed by `get_cache_control_s_maxage`
-    // and ensures that split header fields cannot defeat the check.
-    for hv in headers.get_all("cache-control").iter() {
-        if let Ok(s) = hv.to_str() {
-            let l = s.to_ascii_lowercase();
-            if l.contains("no-store") || l.contains("no-cache") {
-                return 0;
-            }
-        }
+    // A section forbidding storage or unvalidated reuse is immediately stale
+    // whatever max-age or Expires says alongside it. The question is asked of
+    // the whole section, so splitting the directives across field lines cannot
+    // defeat it.
+    if crate::helpers::cache_control::forbids_storage_or_reuse(headers) {
+        return 0;
     }
 
     // The order is the sentence's order, and it is "use the first match". s-maxage is
@@ -1207,38 +1203,48 @@ pub fn list_members_as_written(value: &str) -> Vec<&str> {
 // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
 // cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
 pub fn split_commas_respecting_quotes(s: &str) -> Vec<&str> {
-    let bytes = s.as_bytes();
+    split_top_level(s, b",")
+}
+
+/// Split `s` at every one of `separators` that is not inside a quoted-string,
+/// returning the segments with the `OWS` their grammars print around the
+/// separator removed.
+///
+/// **One walk, because there is one question.** This was written out twice —
+/// once for the comma of a `#rule`, once for the semicolon of a parameter list —
+/// and the copies were identical but for the byte compared, which is exactly the
+/// shape that lets the two drift: a fix to the escape handling in one is a
+/// silent non-fix in the other. `separators` is a byte string rather than one
+/// byte because `Cache-Control` is read with a tolerance for both.
+///
+/// A backslash escapes only inside a quoted-string: `quoted-pair` is defined as
+/// part of `quoted-string` and nowhere else, so outside one a backslash is an
+/// ordinary octet. Both productions are transcribed at `validate_quoted_string`
+/// below, which owns them; honouring an escape out here let a stray backslash
+/// suppress the DQUOTE after it, flipping quote parity for the rest of the value
+/// and swallowing every later member into one segment.
+///
+// cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
+// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
+pub fn split_top_level<'a>(s: &'a str, separators: &[u8]) -> Vec<&'a str> {
     let mut res = Vec::new();
     let mut start = 0usize;
-    let mut i = 0usize;
     let mut in_quote = false;
     let mut prev_backslash = false;
 
-    while i < bytes.len() {
-        let b = bytes[i];
+    for (i, b) in s.bytes().enumerate() {
         if prev_backslash {
             prev_backslash = false;
-        // A backslash escapes only inside a quoted-string: `quoted-pair` is
-        // defined as part of `quoted-string` and nowhere else, so outside one
-        // a backslash is an ordinary octet. Both productions are transcribed
-        // at `validate_quoted_string` below, which owns them; honouring an
-        // escape out here let a stray backslash suppress the DQUOTE after it,
-        // flipping quote parity for the rest of the value and swallowing every
-        // later member into one segment.
         } else if b == b'\\' && in_quote {
             prev_backslash = true;
         } else if b == b'"' {
             in_quote = !in_quote;
-        } else if b == b',' && !in_quote {
+        } else if separators.contains(&b) && !in_quote {
             res.push(&s[start..i]);
             start = i + 1;
         }
-        i += 1;
     }
-    // push remaining
-    if start <= s.len() {
-        res.push(&s[start..]);
-    }
+    res.push(&s[start..]);
     res.into_iter().map(trim_ows).collect()
 }
 
@@ -1247,45 +1253,18 @@ pub fn split_commas_respecting_quotes(s: &str) -> Vec<&str> {
 ///
 /// Useful for header grammars like `Strict-Transport-Security` where directives are separated
 /// with `;` and may include quoted-strings (rare but defensive).
+/// Each segment comes back without the `OWS` the grammars print around their
+/// semicolons, so no caller repeats the trim.
+///
+/// `str::trim` was wrong here for the same reason it is wrong on a member: a
+/// value read through [`combined_field_value_as_written`] carries one `char`
+/// per octet, so %xA0 in it arrives as U+00A0 — `obs-text`, which no
+/// parameter production admits and which `str::trim` removed, handing the
+/// caller an *empty* segment and hiding the octet behind whichever finding
+/// the caller has for emptiness. [`trim_ows`] is the same three characters of
+/// intent bounded to what `OWS` is.
 pub fn split_semicolons_respecting_quotes(s: &str) -> Vec<&str> {
-    let bytes = s.as_bytes();
-    let mut res = Vec::new();
-    let mut start = 0usize;
-    let mut i = 0usize;
-    let mut in_quote = false;
-    let mut prev_backslash = false;
-
-    while i < bytes.len() {
-        let b = bytes[i];
-        if prev_backslash {
-            prev_backslash = false;
-        // Same as the comma splitter: `quoted-pair` lives inside
-        // `quoted-string`, so a backslash outside one escapes nothing.
-        } else if b == b'\\' && in_quote {
-            prev_backslash = true;
-        } else if b == b'"' {
-            in_quote = !in_quote;
-        } else if b == b';' && !in_quote {
-            res.push(&s[start..i]);
-            start = i + 1;
-        }
-        i += 1;
-    }
-    // push remaining
-    if start <= s.len() {
-        res.push(&s[start..]);
-    }
-    // Each segment comes back without the `OWS` the grammars print around their
-    // semicolons, so no caller repeats the trim.
-    //
-    // `str::trim` was wrong here for the same reason it is wrong on a member: a
-    // value read through [`combined_field_value_as_written`] carries one `char`
-    // per octet, so %xA0 in it arrives as U+00A0 — `obs-text`, which no
-    // parameter production admits and which `str::trim` removed, handing the
-    // caller an *empty* segment and hiding the octet behind whichever finding
-    // the caller has for emptiness. [`trim_ows`] is the same three characters of
-    // intent bounded to what `OWS` is.
-    res.into_iter().map(trim_ows).collect()
+    split_top_level(s, b";")
 }
 
 /// Whether every DQUOTE in `s` closes, under exactly the escape rules the two
