@@ -34,6 +34,16 @@ lint:
 test:
     cargo test --workspace --all-features
 
+# Build .venv from the pinned citation toolchain. The pin lives in
+# specs/requirements.txt because the bytes of specs/specs_generated.yaml depend
+# on it; a .venv built by hand is how a local `extract` and CI's disagree about a
+# file neither of them edited.
+install-citations:
+    python3 -m venv .venv
+    .venv/bin/pip install --quiet --upgrade pip
+    .venv/bin/pip install --quiet -r specs/requirements.txt
+    @.venv/bin/apycite --help >/dev/null && echo "✓ citation toolchain installed from specs/requirements.txt"
+
 # Citations file is current and the ratchet holds — offline, from the .venv.
 citations:
     #!/usr/bin/env bash
