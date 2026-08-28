@@ -2264,7 +2264,7 @@ sources:
     - file: lint-http-core/src/protocol_event.rs
       line: 71
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 103
+      line: 100
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 250
   - label: lint-http-proxy/src/proxy/websocket/frame.rs
@@ -2318,7 +2318,7 @@ sources:
     snippet: The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 41
+      line: 38
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 24
   - label: lint-http-proxy/src/proxy/websocket/mod.rs (2)
@@ -2326,7 +2326,7 @@ sources:
     snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 40
+      line: 37
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 110
   - label: lint-http-proxy/src/proxy/websocket/mod.rs (3)
@@ -2334,7 +2334,7 @@ sources:
     snippet: Note that like other HTTP header fields, this header field MAY be split or combined across multiple lines.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 72
+      line: 69
   - label: lint-http-proxy/src/proxy/websocket/observer.rs
     section: § 5.5.1
     snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
@@ -2343,12 +2343,6 @@ sources:
       line: 98
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 210
-  - label: lint-http-proxy/src/proxy/websocket/relay.rs
-    section: § 5.2
-    snippet: '%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong'
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/relay.rs
-      line: 174
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: (as a string, not base64-decoded) with the string
