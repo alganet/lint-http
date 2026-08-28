@@ -35,6 +35,24 @@ pub fn parse_http_date_to_datetime(s: &str) -> anyhow::Result<DateTime<Utc>> {
     Ok(DateTime::<Utc>::from(st))
 }
 
+/// The named field read as a timestamp, if it carries one a recipient can read.
+///
+/// The three-step ladder this replaces — get the field, read it as text, parse
+/// it — was written out at twenty-five call sites, and each step of it means
+/// the same thing to every one of them: **the message stated no time here.**
+/// Whether *that* is a defect is a question about the field's own grammar, and
+/// it belongs to the rule that owns the field, not to a caller comparing two
+/// timestamps.
+///
+/// Only the first field line is read. Every field defined as an `HTTP-date` is
+/// a singleton, so a second line is a defect its own rule reports; reading past
+/// the first here would let this function's answer depend on which duplicate a
+/// sender wrote last.
+// cite(RFC 9110 § 5.6.7): "A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats."
+pub fn header_timestamp(headers: &hyper::HeaderMap, name: &str) -> Option<DateTime<Utc>> {
+    parse_http_date_to_datetime(headers.get(name)?.to_str().ok()?).ok()
+}
+
 /// Return true when the string is a valid HTTP-date — any of the three formats.
 ///
 /// This is the recipient's question. To ask whether a *sender* was allowed to emit

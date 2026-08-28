@@ -9,7 +9,7 @@
 //! never on `StateStore` or the query layer, so the rule crate can be extracted
 //! independently in the future.
 
-use crate::http_transaction::HttpTransaction;
+use crate::http_transaction::{HttpTransaction, ResponseInfo};
 use std::sync::Arc;
 
 /// Pre-queried transaction history passed to rules.
@@ -71,6 +71,28 @@ impl TransactionHistory {
     /// Iterate over all entries, newest first.
     pub fn iter(&self) -> impl Iterator<Item = &HttpTransaction> {
         self.entries.iter().map(|tx| tx.as_ref())
+    }
+
+    /// Iterate the entries that carry a response, newest first, pairing each
+    /// transaction with the response it carries.
+    ///
+    /// A rule looking back at what an origin said is never interested in an
+    /// entry without a response, so it wrote `if let Some(resp) = &past.response`
+    /// and then, having lost the binding at the end of the loop, reached for
+    /// `.response.as_ref().unwrap()` again on whichever entry it kept. The pair
+    /// is handed out together so the `Option` is opened once and there is no
+    /// second reading of it to get wrong.
+    pub fn responses(&self) -> impl Iterator<Item = (&HttpTransaction, &ResponseInfo)> {
+        self.iter()
+            .filter_map(|tx| tx.response.as_ref().map(|resp| (tx, resp)))
+    }
+
+    /// The most recent entry whose response satisfies `predicate`.
+    pub fn latest_response(
+        &self,
+        predicate: impl Fn(&ResponseInfo) -> bool,
+    ) -> Option<(&HttpTransaction, &ResponseInfo)> {
+        self.responses().find(|(_, resp)| predicate(resp))
     }
 
     /// Number of entries in the history.

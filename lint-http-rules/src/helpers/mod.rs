@@ -40,6 +40,7 @@
 
 pub mod accept_ranges;
 pub mod auth;
+pub mod cache_control;
 pub mod comment;
 pub mod content_range;
 pub mod cookie;

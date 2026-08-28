@@ -42,19 +42,19 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2408
+      line: 2387
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2403
+      line: 2382
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2402
+      line: 2381
   - label: origin_matching_for_cors
     section: § 4.10
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
@@ -340,7 +340,7 @@ sources:
     snippet: A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2468
+      line: 2447
   - label: refresh_header_syntax
     section: § 1.1
     snippet: A code point is found that is not a URL unit.
@@ -1118,7 +1118,7 @@ sources:
     snippet: authority   = [ userinfo "@" ] host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2450
+      line: 2429
     - file: lint-http-rules/src/helpers/uri.rs
       line: 170
   - label: lint-http-rules/src/helpers/ipv6.rs
@@ -2210,7 +2210,7 @@ sources:
     snippet: serialized-origin = scheme "://" host [ ":" port ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2404
+      line: 2383
     - file: lint-http-rules/src/helpers/uri.rs
       line: 320
   - label: lint-http-rules/src/helpers/uri.rs
@@ -3860,25 +3860,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1927
+      line: 1906
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1868
+      line: 1847
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1906
+      line: 1885
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1899
+      line: 1878
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.html
   fragments:
@@ -4259,7 +4259,7 @@ sources:
     snippet: An Early-Data header field MUST NOT be included in responses or request trailers.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 976
+      line: 972
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 162
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
@@ -6040,12 +6040,14 @@ sources:
     cited_by:
     - file: lint-http-core/src/http_date.rs
       line: 32
+    - file: lint-http-core/src/http_date.rs
+      line: 51
   - label: lint-http-core/src/http_date.rs (2)
     section: § 5.6.7
     snippet: A sender MUST NOT generate additional whitespace in an HTTP-date beyond that specifically included as SP in the grammar
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 80
+      line: 98
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 536
   - label: lint-http-core/src/http_date.rs (3)
@@ -6059,13 +6061,13 @@ sources:
     snippet: IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 79
+      line: 97
   - label: lint-http-core/src/http_date.rs (5)
     section: § 5.6.7
     snippet: When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format.
     cited_by:
     - file: lint-http-core/src/http_date.rs
-      line: 82
+      line: 100
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
       line: 77
     - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
@@ -6163,7 +6165,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 22
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1008
+      line: 1004
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 40
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
@@ -6175,7 +6177,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 125
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1043
+      line: 1039
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 108
   - label: lint-http-proxy/src/proxy/websocket/handshake.rs
@@ -6243,7 +6245,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 97
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 547
+      line: 569
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 84
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
@@ -6311,9 +6313,9 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 60
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1178
+      line: 1174
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1207
+      line: 1203
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 75
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -6324,6 +6326,32 @@ sources:
       line: 184
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 251
+  - label: lint-http-rules/src/helpers/cache_control.rs
+    section: § 5.2
+    snippet: When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 94
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 228
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1613
+    - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
+      line: 54
+    - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
+      line: 54
+    - file: lint-http-rules/src/rules/max_forwards_numeric.rs
+      line: 94
+    - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
+      line: 216
+    - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
+      line: 93
+    - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
+      line: 134
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 21
+    - file: lint-http-rules/src/rules/te_header_valid.rs
+      line: 25
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
@@ -6451,19 +6479,19 @@ sources:
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 992
+      line: 988
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 11.7.3
     snippet: Proxy-Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 993
+      line: 989
   - label: qvalue grammar
     section: § 12.4.2
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1836
+      line: 1815
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 179
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
@@ -6473,7 +6501,7 @@ sources:
     snippet: 'Vary = #( "*" / field-name )'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1108
+      line: 1104
     - file: lint-http-rules/src/rules/vary_header_valid.rs
       line: 49
   - label: If-None-Match weak comparison
@@ -6481,19 +6509,19 @@ sources:
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 424
+      line: 446
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 16.3.2
     snippet: If the field is allowable in trailers; by default, it will not be (see Section 6.5.1).
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 913
+      line: 909
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 5
     snippet: Fields are sent and received within the header and trailer sections of messages
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 337
+      line: 359
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 52
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
@@ -6503,39 +6531,15 @@ sources:
     snippet: Field names are case-insensitive
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1041
+      line: 1037
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1109
+      line: 1105
   - label: lint-http-rules/src/helpers/headers.rs (6)
-    section: § 5.2
-    snippet: When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma.
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 206
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 1634
-    - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 54
-    - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 54
-    - file: lint-http-rules/src/rules/max_forwards_numeric.rs
-      line: 94
-    - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 216
-    - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
-      line: 93
-    - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 134
-    - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 21
-    - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 25
-  - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1110
+      line: 1106
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 110
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -6544,30 +6548,30 @@ sources:
       line: 295
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 245
-  - label: lint-http-rules/src/helpers/headers.rs (8)
+  - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 175
+      line: 197
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 145
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 115
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 340
-  - label: lint-http-rules/src/helpers/headers.rs (9)
+  - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, recipients ought to handle "Set-Cookie" as a special case while processing fields.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 176
-  - label: lint-http-rules/src/helpers/headers.rs (10)
+      line: 198
+  - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.3
     snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1635
+      line: 1614
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 28
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
@@ -6602,12 +6606,12 @@ sources:
       line: 59
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
       line: 58
-  - label: lint-http-rules/src/helpers/headers.rs (11)
+  - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 5.5
     snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2106
+      line: 2085
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 209
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
@@ -6634,14 +6638,14 @@ sources:
       line: 43
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 137
-  - label: lint-http-rules/src/helpers/headers.rs (12)
+  - label: lint-http-rules/src/helpers/headers.rs (11)
     section: § 5.5
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 207
+      line: 229
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 242
+      line: 264
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 226
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
@@ -6662,38 +6666,38 @@ sources:
       line: 246
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 88
-  - label: lint-http-rules/src/helpers/headers.rs (13)
+  - label: lint-http-rules/src/helpers/headers.rs (12)
     section: § 5.5
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1632
+      line: 1611
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 159
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 252
-  - label: lint-http-rules/src/helpers/headers.rs (14)
+  - label: lint-http-rules/src/helpers/headers.rs (13)
     section: § 5.5
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1633
+      line: 1612
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 253
-  - label: lint-http-rules/src/helpers/headers.rs (15)
+  - label: lint-http-rules/src/helpers/headers.rs (14)
     section: § 5.5
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 243
-  - label: lint-http-rules/src/helpers/headers.rs (16)
+      line: 265
+  - label: lint-http-rules/src/helpers/headers.rs (15)
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 549
+      line: 571
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 585
+      line: 607
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 86
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -6744,12 +6748,12 @@ sources:
       line: 265
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 339
-  - label: lint-http-rules/src/helpers/headers.rs (17)
+  - label: lint-http-rules/src/helpers/headers.rs (16)
     section: § 5.6.1.2
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 546
+      line: 568
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 78
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
@@ -6760,36 +6764,36 @@ sources:
       line: 485
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 507
-  - label: lint-http-rules/src/helpers/headers.rs (18)
+  - label: lint-http-rules/src/helpers/headers.rs (17)
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements:'
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 548
+      line: 570
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 584
+      line: 606
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 189
-  - label: lint-http-rules/src/helpers/headers.rs (19)
+  - label: lint-http-rules/src/helpers/headers.rs (18)
     section: § 5.6.2
     snippet: Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 583
+      line: 605
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1697
+      line: 1676
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 76
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 90
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 46
-  - label: lint-http-rules/src/helpers/headers.rs (20)
+  - label: lint-http-rules/src/helpers/headers.rs (19)
     section: § 5.6.2
     snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1698
+      line: 1677
     - file: lint-http-rules/src/helpers/token.rs
       line: 7
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -6813,17 +6817,19 @@ sources:
     snippet: OWS            = *( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 396
+      line: 418
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 550
+      line: 572
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 586
+      line: 608
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1179
+      line: 1175
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1208
+      line: 1204
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2035
+      line: 1228
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 2014
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 101
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -6852,64 +6858,66 @@ sources:
       line: 98
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 66
-  - label: lint-http-rules/src/helpers/headers.rs (21)
+  - label: lint-http-rules/src/helpers/headers.rs (20)
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1758
-  - label: lint-http-rules/src/helpers/headers.rs (22)
+      line: 1737
+  - label: lint-http-rules/src/helpers/headers.rs (21)
     section: § 5.6.3
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 395
-  - label: lint-http-rules/src/helpers/headers.rs (23)
+      line: 417
+  - label: lint-http-rules/src/helpers/headers.rs (22)
     section: § 5.6.4
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1473
-  - label: lint-http-rules/src/helpers/headers.rs (24)
+      line: 1452
+  - label: lint-http-rules/src/helpers/headers.rs (23)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1471
+      line: 1450
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 33
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 353
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 537
-  - label: lint-http-rules/src/helpers/headers.rs (25)
+  - label: lint-http-rules/src/helpers/headers.rs (24)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1312
+      line: 1291
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1340
+      line: 1319
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1472
+      line: 1451
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 418
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 586
-  - label: lint-http-rules/src/helpers/headers.rs (26)
+  - label: lint-http-rules/src/helpers/headers.rs (25)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1180
+      line: 1176
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1339
+      line: 1227
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1377
+      line: 1318
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1470
+      line: 1356
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1699
+      line: 1449
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 1678
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 115
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -6922,38 +6930,38 @@ sources:
       line: 352
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 61
-  - label: lint-http-rules/src/helpers/headers.rs (27)
+  - label: lint-http-rules/src/helpers/headers.rs (26)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2325
+      line: 2304
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 198
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 113
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 225
-  - label: lint-http-rules/src/helpers/headers.rs (28)
+  - label: lint-http-rules/src/helpers/headers.rs (27)
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2033
+      line: 2012
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2060
+      line: 2039
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 390
-  - label: lint-http-rules/src/helpers/headers.rs (29)
+  - label: lint-http-rules/src/helpers/headers.rs (28)
     section: § 5.6.6
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2034
+      line: 2013
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2061
+      line: 2040
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2242
+      line: 2221
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 263
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -6963,7 +6971,7 @@ sources:
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2256
+      line: 2235
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 305
     - file: lint-http-rules/src/rules/charset_registered.rs
@@ -6974,27 +6982,27 @@ sources:
       line: 231
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 89
-  - label: lint-http-rules/src/helpers/headers.rs (30)
+  - label: lint-http-rules/src/helpers/headers.rs (29)
     section: § 5.6.6
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2032
+      line: 2011
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2105
+      line: 2084
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 100
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 389
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 215
-  - label: lint-http-rules/src/helpers/headers.rs (31)
+  - label: lint-http-rules/src/helpers/headers.rs (30)
     section: § 6.4
     snippet: For example, an HTTP/1.1 message body (Section 6 of [HTTP/1.1]) might consist of a stream of data encoded with the chunked transfer coding -- a sequence of data chunks, one zero-length chunk, and a trailer section -- whereas the content of that same message includes only the data stream after the transfer coding has been decoded; it does not include the chunk lengths, chunked framing syntax, nor the trailer fields (Section 6.5).
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 120
-  - label: lint-http-rules/src/helpers/headers.rs (32)
+  - label: lint-http-rules/src/helpers/headers.rs (31)
     section: § 6.4
     snippet: 'HTTP messages often transfer a complete or partial representation as the message "content": a stream of octets sent after the header section, as delineated by the message framing.'
     cited_by:
@@ -7002,24 +7010,24 @@ sources:
       line: 119
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 86
-  - label: lint-http-rules/src/helpers/headers.rs (33)
+  - label: lint-http-rules/src/helpers/headers.rs (32)
     section: § 6.5
     snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 288
+      line: 310
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 338
+      line: 360
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 93
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
       line: 69
-  - label: lint-http-rules/src/helpers/headers.rs (34)
+  - label: lint-http-rules/src/helpers/headers.rs (33)
     section: § 6.5.1
     snippet: A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 912
+      line: 908
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 44
     - file: lint-http-rules/src/rules/post_creates_resource.rs
@@ -7042,18 +7050,18 @@ sources:
       line: 70
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
       line: 74
-  - label: lint-http-rules/src/helpers/headers.rs (35)
+  - label: lint-http-rules/src/helpers/headers.rs (34)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 911
-  - label: lint-http-rules/src/helpers/headers.rs (36)
+      line: 907
+  - label: lint-http-rules/src/helpers/headers.rs (35)
     section: § 8.3.1
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2187
+      line: 2166
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 246
     - file: lint-http-rules/src/rules/charset_present.rs
@@ -7074,12 +7082,12 @@ sources:
       line: 122
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 73
-  - label: lint-http-rules/src/helpers/headers.rs (37)
+  - label: lint-http-rules/src/helpers/headers.rs (36)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2206
+      line: 2185
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 88
   - label: media-type grammar
@@ -7087,35 +7095,35 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2121
+      line: 2100
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 99
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 98
-  - label: lint-http-rules/src/helpers/headers.rs (38)
+  - label: lint-http-rules/src/helpers/headers.rs (37)
     section: § 8.3.1
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 2186
+      line: 2165
   - label: Content-Length grammar
     section: § 8.6
     snippet: Content-Length = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 53
-  - label: lint-http-rules/src/helpers/headers.rs (39)
+  - label: lint-http-rules/src/helpers/headers.rs (38)
     section: § 8.6
     snippet: When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 140
-  - label: lint-http-rules/src/helpers/headers.rs (40)
+  - label: lint-http-rules/src/helpers/headers.rs (39)
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1956
+      line: 1935
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 74
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
@@ -7127,13 +7135,13 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1958
-  - label: lint-http-rules/src/helpers/headers.rs (41)
+      line: 1937
+  - label: lint-http-rules/src/helpers/headers.rs (40)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 670
+      line: 671
   - label: lint-http-rules/src/helpers/mailbox.rs
     section: § 10.1.2
     snippet: mailbox = <mailbox, see [RFC5322], Section 3.4>
@@ -8955,16 +8963,6 @@ sources:
       line: 45
   - label: age_header_numeric (4)
     section: § 5.1
-    snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
-    cited_by:
-    - file: lint-http-rules/src/rules/age_header_numeric.rs
-      line: 27
-    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 91
-    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
-      line: 95
-  - label: age_header_numeric (5)
-    section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
     cited_by:
     - file: lint-http-rules/src/rules/age_header_numeric.rs
@@ -8977,16 +8975,6 @@ sources:
       line: 294
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 157
-  - label: delta-seconds
-    section: § 1.2.2
-    snippet: delta-seconds  = 1*DIGIT
-    cited_by:
-    - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 293
-    - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 611
-    - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 51
   - label: cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -9066,16 +9054,6 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 145
   - label: caching_directive_interaction (2)
-    section: § 5.2.2.5
-    snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
-    cited_by:
-    - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 135
-    - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 171
-    - file: lint-http-rules/src/rules/no_store_enforced.rs
-      line: 198
-  - label: caching_directive_interaction (3)
     section: § 5.2.2.7
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
     cited_by:
@@ -9085,7 +9063,7 @@ sources:
       line: 99
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 134
-  - label: caching_directive_interaction (4)
+  - label: caching_directive_interaction (3)
     section: § 5.2.2.9
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
     cited_by:
@@ -9118,9 +9096,37 @@ sources:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
       line: 56
   - label: immutable_cache_never_stale
+    section: § 5.2.2.4
+    snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
+    cited_by:
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 185
+  - label: immutable_cache_never_stale (2)
+    section: § 5.2.2.5
+    snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request
+    cited_by:
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 184
+  - label: delta-seconds
+    section: § 1.2.2
+    snippet: delta-seconds  = 1*DIGIT
+    cited_by:
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 82
+    - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
+      line: 293
+    - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
+      line: 611
+    - file: lint-http-rules/src/rules/prefer_header_valid.rs
+      line: 51
+  - label: lint-http-rules/src/helpers/cache_control.rs
     section: § 5.2
     snippet: Cache directives are identified by a token, to be compared case-insensitively
     cited_by:
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 27
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 62
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
       line: 198
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
@@ -9131,24 +9137,48 @@ sources:
       line: 266
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 66
-  - label: immutable_cache_never_stale (2)
+  - label: lint-http-rules/src/helpers/cache_control.rs (2)
+    section: § 5.2
+    snippet: cache-directive  = token [ "=" ( token / quoted-string ) ]
+    cited_by:
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 28
+  - label: lint-http-rules/src/helpers/cache_control.rs (3)
     section: § 5.2.2.4
-    snippet: the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
+    snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
     cited_by:
-    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 185
-  - label: immutable_cache_never_stale (3)
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 147
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 103
+  - label: lint-http-rules/src/helpers/cache_control.rs (4)
+    section: § 5.2.2.4
+    snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
+    cited_by:
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 71
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 148
+    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
+      line: 159
+  - label: lint-http-rules/src/helpers/cache_control.rs (5)
     section: § 5.2.2.5
-    snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request
+    snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
     cited_by:
-    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
-      line: 184
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 146
+    - file: lint-http-rules/src/rules/caching_directive_interaction.rs
+      line: 135
+    - file: lint-http-rules/src/rules/no_store_enforced.rs
+      line: 171
+    - file: lint-http-rules/src/rules/no_store_enforced.rs
+      line: 198
   - label: lint-http-rules/src/helpers/headers.rs
     section: § 4.1
     snippet: A stored response with a Vary header field value containing a member "*" always fails to match.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 1111
+      line: 1107
     - file: lint-http-rules/src/rules/vary_and_cache_consistent.rs
       line: 63
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
@@ -9158,13 +9188,31 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 751
+      line: 747
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 761
+      line: 757
+  - label: lint-http-rules/src/helpers/headers.rs (4)
+    section: § 4.2.3
+    snippet: corrected_initial_age = max(apparent_age, corrected_age_value)
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 712
+  - label: lint-http-rules/src/helpers/headers.rs (5)
+    section: § 5.1
+    snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
+    cited_by:
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 711
+    - file: lint-http-rules/src/rules/age_header_numeric.rs
+      line: 27
+    - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
+      line: 91
+    - file: lint-http-rules/src/rules/max_age_directive_valid.rs
+      line: 95
   - label: max_age_directive_valid
     section: § 4.2
     snippet: A "fresh" response is one whose age has not yet exceeded its freshness lifetime
@@ -9217,18 +9265,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/must_revalidate_enforced.rs
       line: 143
-  - label: no_cache_revalidation
-    section: § 5.2.2.4
-    snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
-    cited_by:
-    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 103
-  - label: no_cache_revalidation (2)
-    section: § 5.2.2.4
-    snippet: The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request
-    cited_by:
-    - file: lint-http-rules/src/rules/no_cache_revalidation.rs
-      line: 159
   - label: pragma_token_valid
     section: § 5.4
     snippet: As a result, this specification deprecates Pragma.
@@ -10060,7 +10096,7 @@ sources:
     snippet: This includes the Connection header field and those listed as having connection-specific semantics in Section 7.6.1 of [HTTP] (that is, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade).
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 966
+      line: 962
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 39
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
