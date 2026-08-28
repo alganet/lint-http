@@ -221,13 +221,13 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
 }
 
 /// Build the 502 returned to the client when a WebSocket upstream handshake
-/// fails (connect or request-send error).
+/// fails (connect or request-send error), through the one shared error-response
+/// builder.
 fn upstream_error_response(e: impl std::fmt::Display) -> Response<ResponseBody> {
-    let body = boxed_full(Bytes::from(format!("websocket upstream error: {}", e)));
-    Response::builder()
-        .status(502)
-        .body(body)
-        .unwrap_or_else(|_| Response::new(boxed_full(Bytes::from("upstream error"))))
+    crate::proxy::exchange::into_response(crate::proxy::exchange::error_response(
+        502,
+        format!("websocket upstream error: {}", e),
+    ))
 }
 
 /// Record a transaction for a WebSocket handshake that failed before the
