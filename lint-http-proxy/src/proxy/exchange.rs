@@ -29,29 +29,36 @@ use super::tee_body::{self, CapturedBody};
 use super::upstream_h3::H3Failure;
 use super::{boxed_full, BoxError, ClientBody, ResponseBody, Shared};
 
-/// The post-front-half request inputs both transports compute, ready for the
-/// shared upstream exchange.
-pub(super) struct ProxiedRequest {
+/// The request-side facts every transaction record needs: computed once by the
+/// transport front half, consumed by the exchange, the WebSocket handshake,
+/// and every error path.
+pub(super) struct RequestFacts {
     pub method: Method,
-    /// Absolute URI used for the upstream request line.
-    pub uri: Uri,
     /// Value recorded in `tx.request.uri` — the transport's original request
-    /// target (H1 keeps the possibly origin-form `req.uri()`; not `uri`).
+    /// target (H1 keeps the possibly origin-form `req.uri()`).
     pub uri_str: String,
     /// Original client request headers; suppression is applied only when
     /// building the upstream request.
     pub headers: HeaderMap,
     /// Request version string ("HTTP/1.1", "HTTP/3.0", …).
     pub version: String,
+    pub client_id: ClientIdentifier,
+    pub connection_id: Uuid,
+    pub sequence_number: u32,
+}
+
+/// The post-front-half request inputs both transports compute, ready for the
+/// shared upstream exchange.
+pub(super) struct ProxiedRequest {
+    pub facts: RequestFacts,
+    /// Absolute URI used for the upstream request line.
+    pub uri: Uri,
     /// The request body, already wrapped so it streams to the upstream while a
     /// bounded prefix is teed for capture (H3 wraps a buffered body).
     pub body: ClientBody,
     /// Resolves with the teed request-body capture (prefix, total length,
     /// trailers) once the body has finished streaming to the upstream.
     pub body_done: oneshot::Receiver<CapturedBody>,
-    pub client_id: ClientIdentifier,
-    pub connection_id: Uuid,
-    pub sequence_number: u32,
 }
 
 /// What the transport should deliver to the client. Headers are already
@@ -76,41 +83,23 @@ pub(super) async fn exchange(
     started: Instant,
 ) -> ProxiedResponse {
     let ProxiedRequest {
-        method,
+        facts,
         uri,
-        uri_str,
-        headers,
-        version,
         body,
         body_done,
-        client_id,
-        connection_id,
-        sequence_number,
     } = req;
 
-    let upstream_req = match build_upstream_request(&method, &uri, &headers, body, shared) {
-        Ok(r) => r,
-        Err(e) => {
-            error!("failed to build upstream request: {}", e);
-            let duration = started.elapsed().as_millis() as u64;
-            record_exchange_error(
-                shared,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &headers,
-                &version,
-                connection_id,
-                sequence_number,
-                500,
-                None,
-                duration,
-                body_done.await.ok().as_ref(),
-            )
-            .await;
-            return error_response(500, format!("request build error: {}", e));
-        }
-    };
+    let upstream_req =
+        match build_upstream_request(&facts.method, &uri, &facts.headers, body, shared) {
+            Ok(r) => r,
+            Err(e) => {
+                error!("failed to build upstream request: {}", e);
+                let duration = started.elapsed().as_millis() as u64;
+                record_exchange_error(shared, &facts, 500, duration, body_done.await.ok().as_ref())
+                    .await;
+                return error_response(500, format!("request build error: {}", e));
+            }
+        };
 
     // Choose the upstream transport at this single seam: HTTP/3 when the origin
     // authority is on the H3 allowlist (capability-driven, opt-in) and not
@@ -159,7 +148,7 @@ pub(super) async fn exchange(
                 if pre_request {
                     h3.record_failure(&authority);
                 }
-                if pre_request || method.is_idempotent() {
+                if pre_request || facts.method.is_idempotent() {
                     warn!(%authority, error = %error, "h3 upstream unavailable; falling back to H1/H2");
                     forward_via_hyper(shared, *request).await
                 } else {
@@ -192,21 +181,8 @@ pub(super) async fn exchange(
         Ok(r) => r,
         Err(e) => {
             let duration = started.elapsed().as_millis() as u64;
-            record_exchange_error(
-                shared,
-                &client_id,
-                method.as_str(),
-                &uri_str,
-                &headers,
-                &version,
-                connection_id,
-                sequence_number,
-                502,
-                None,
-                duration,
-                body_done.await.ok().as_ref(),
-            )
-            .await;
+            record_exchange_error(shared, &facts, 502, duration, body_done.await.ok().as_ref())
+                .await;
             return error_response(502, format!("upstream error: {}", e));
         }
     };
@@ -247,6 +223,15 @@ pub(super) async fn exchange(
     // (already sent upstream) and the response body (just read by the client) —
     // so each `body_length` reflects the real total and each captured body is a
     // bounded prefix.
+    let RequestFacts {
+        method,
+        uri_str,
+        headers,
+        version,
+        client_id,
+        connection_id,
+        sequence_number,
+    } = facts;
     let shared = shared.clone();
     tokio::spawn(async move {
         let (req_cap, resp_cap) = tokio::join!(body_done, done_rx);
@@ -435,86 +420,74 @@ pub(super) fn into_response(proxied: ProxiedResponse) -> hyper::Response<Respons
 /// Record an error transaction from inside [`exchange`] (build / upstream
 /// failure), using whatever request-body prefix the tee captured before the
 /// request was dropped.
-#[allow(clippy::too_many_arguments)]
 async fn record_exchange_error(
     shared: &Arc<Shared>,
-    client_id: &ClientIdentifier,
-    method: &str,
-    uri_str: &str,
-    headers: &HeaderMap,
-    version: &str,
-    connection_id: Uuid,
-    sequence_number: u32,
+    facts: &RequestFacts,
     status: u16,
-    response_headers: Option<HeaderMap>,
     duration_ms: u64,
     req_captured: Option<&CapturedBody>,
 ) {
     record_error_transaction(
         shared,
-        client_id,
-        method,
-        uri_str,
-        headers,
-        version,
-        status,
-        response_headers,
-        duration_ms,
-        req_captured.map(|c| c.prefix.clone()),
-        connection_id,
-        sequence_number,
-        req_captured.is_some_and(|c| c.truncated),
-        false,
+        facts,
+        ErrorFacts {
+            status,
+            duration_ms,
+            req_body: req_captured.map(|c| c.prefix.clone()),
+            request_body_over_limit: req_captured.is_some_and(|c| c.truncated),
+            ..Default::default()
+        },
     )
     .await;
+}
+
+/// The response-side facts of a failed exchange: everything
+/// [`record_error_transaction`] cannot read from the request facts.
+#[derive(Default)]
+pub(super) struct ErrorFacts {
+    pub status: u16,
+    pub duration_ms: u64,
+    pub response_headers: Option<HeaderMap>,
+    pub req_body: Option<Bytes>,
+    pub request_body_over_limit: bool,
+    pub response_body_over_limit: bool,
 }
 
 /// Build a minimal `HttpTransaction` (request + response status only) and route
 /// it through the full pipeline (lint → state record → capture), so error
 /// exchanges are linted and enter `TransactionHistory` like any other traffic.
 /// Used on the error paths where the upstream exchange never completes
-/// normally. Shared by both transports; the caller supplies the transport's
-/// version string, connection id, and sequence number.
-#[allow(clippy::too_many_arguments)]
+/// normally. Shared by both transports and the WebSocket handshake.
 pub(super) async fn record_error_transaction(
     shared: &Arc<Shared>,
-    client_id: &ClientIdentifier,
-    method: &str,
-    uri_str: &str,
-    req_headers: &HeaderMap,
-    version: &str,
-    status: u16,
-    response_headers: Option<HeaderMap>,
-    duration_ms: u64,
-    req_body: Option<Bytes>,
-    connection_id: Uuid,
-    sequence_number: u32,
-    request_body_over_limit: bool,
-    response_body_over_limit: bool,
+    facts: &RequestFacts,
+    err: ErrorFacts,
 ) {
     let mut tx = crate::http_transaction::HttpTransaction::new(
-        client_id.clone(),
-        method.to_string(),
-        uri_str.to_string(),
+        facts.client_id.clone(),
+        facts.method.as_str().to_string(),
+        facts.uri_str.clone(),
     );
-    tx.request.headers = req_headers.clone();
-    tx.request.version = version.to_string();
-    if let Some(b) = req_body {
+    tx.request.headers = facts.headers.clone();
+    tx.request.version = facts.version.clone();
+    if let Some(b) = err.req_body {
         tx.request.body_length = Some(b.len() as u64);
         tx.request_body = Some(b);
     }
-    tx.request_body_over_limit = request_body_over_limit;
-    tx.response_body_over_limit = response_body_over_limit;
+    tx.request_body_over_limit = err.request_body_over_limit;
+    tx.response_body_over_limit = err.response_body_over_limit;
     tx.response = Some(crate::http_transaction::ResponseInfo {
-        status,
-        version: version.to_string(),
-        headers: response_headers.unwrap_or_default(),
+        status: err.status,
+        version: facts.version.clone(),
+        headers: err.response_headers.unwrap_or_default(),
         body_length: None,
         trailers: None,
     });
-    tx.timing = crate::http_transaction::TimingInfo { duration_ms };
-    tx.connection_id = Some(connection_id);
-    tx.sequence_number = Some(sequence_number);
+    tx.timing = crate::http_transaction::TimingInfo {
+        duration_ms: err.duration_ms,
+    };
+    tx.connection_id = Some(facts.connection_id);
+    tx.sequence_number = Some(facts.sequence_number);
     // Lint, record to state, and capture — error exchanges are real traffic.
     shared.pipeline().commit(tx).await;
 }

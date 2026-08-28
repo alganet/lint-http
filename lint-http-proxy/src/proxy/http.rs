@@ -15,7 +15,7 @@ use tracing::{error, warn};
 use super::body::{collect_limited, CollectLimitedError};
 use super::connect::handle_connect;
 use super::exchange::{
-    exchange, record_error_transaction, upstream_request_builder, ProxiedRequest,
+    exchange, record_error_transaction, upstream_request_builder, ErrorFacts, ProxiedRequest,
 };
 use super::hop_by_hop::format_http_version;
 use super::tee_body;
@@ -168,6 +168,19 @@ where
     // Capture request version before moving `req` into body.
     let req_version = format_http_version(req.version());
 
+    // Every request allocates exactly one sequence number and produces exactly
+    // one transaction record, whichever path ends up writing it — the exchange,
+    // the WebSocket handshake, or an error.
+    let facts = super::exchange::RequestFacts {
+        method,
+        uri_str,
+        headers: req_headers,
+        version: req_version,
+        client_id,
+        connection_id: conn_metadata.id,
+        sequence_number: conn_metadata.next_sequence_number(),
+    };
+
     // Extract the client OnUpgrade before consuming the request body; for
     // WebSocket upgrades we need it to reach the upgraded client IO later.
     let client_on_upgrade = if is_ws_upgrade {
@@ -194,44 +207,29 @@ where
                     Ok((bytes, trailers)) => (bytes, trailers),
                     Err(CollectLimitedError::OverLimit) => {
                         warn!("request body exceeds max_body_bytes ({})", max_body_bytes);
-                        let duration = started.elapsed().as_millis() as u64;
                         record_error_transaction(
                             &shared,
-                            &client_id,
-                            method.as_str(),
-                            &uri_str,
-                            &req_headers,
-                            &req_version,
-                            413,
-                            None,
-                            duration,
-                            None,
-                            conn_metadata.id,
-                            conn_metadata.next_sequence_number(),
-                            true,
-                            false,
+                            &facts,
+                            ErrorFacts {
+                                status: 413,
+                                duration_ms: started.elapsed().as_millis() as u64,
+                                request_body_over_limit: true,
+                                ..Default::default()
+                            },
                         )
                         .await;
                         return Ok(error_resp(413, "request body exceeds max_body_bytes"));
                     }
                     Err(CollectLimitedError::Other(e)) => {
                         error!("failed to collect request body: {}", e);
-                        let duration = started.elapsed().as_millis() as u64;
                         record_error_transaction(
                             &shared,
-                            &client_id,
-                            method.as_str(),
-                            &uri_str,
-                            &req_headers,
-                            &req_version,
-                            500,
-                            None,
-                            duration,
-                            None,
-                            conn_metadata.id,
-                            conn_metadata.next_sequence_number(),
-                            false,
-                            false,
+                            &facts,
+                            ErrorFacts {
+                                status: 500,
+                                duration_ms: started.elapsed().as_millis() as u64,
+                                ..Default::default()
+                            },
                         )
                         .await;
                         return Ok(error_resp(500, "request body collect error"));
@@ -246,50 +244,43 @@ where
             // session tungstenite cannot read is a session it kills. The
             // capture records `req_headers` as received, offer included; see
             // `websocket::without_extension_negotiation`.
-            let upstream_headers = super::websocket::without_extension_negotiation(&req_headers);
-            let upstream_req =
-                match upstream_request_builder(&method, &uri, &upstream_headers, &shared, false)
-                    .body(Full::new(body_bytes.clone()))
-                {
-                    Ok(r) => r,
-                    Err(e) => {
-                        error!("failed to build upstream request: {}", e);
-                        let duration = started.elapsed().as_millis() as u64;
-                        record_error_transaction(
-                            &shared,
-                            &client_id,
-                            method.as_str(),
-                            &uri_str,
-                            &req_headers,
-                            &req_version,
-                            500,
-                            None,
-                            duration,
-                            Some(body_bytes.clone()),
-                            conn_metadata.id,
-                            conn_metadata.next_sequence_number(),
-                            false,
-                            false,
-                        )
-                        .await;
-                        return Ok(error_resp(500, &format!("request build error: {}", e)));
-                    }
-                };
+            let upstream_headers = super::websocket::without_extension_negotiation(&facts.headers);
+            let upstream_req = match upstream_request_builder(
+                &facts.method,
+                &uri,
+                &upstream_headers,
+                &shared,
+                false,
+            )
+            .body(Full::new(body_bytes.clone()))
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("failed to build upstream request: {}", e);
+                    record_error_transaction(
+                        &shared,
+                        &facts,
+                        ErrorFacts {
+                            status: 500,
+                            duration_ms: started.elapsed().as_millis() as u64,
+                            req_body: Some(body_bytes.clone()),
+                            ..Default::default()
+                        },
+                    )
+                    .await;
+                    return Ok(error_resp(500, &format!("request build error: {}", e)));
+                }
+            };
             return handle_websocket_upgrade(
                 upstream_req,
                 client_on_upgrade,
                 &uri,
                 &scheme,
                 &started,
-                &client_id,
-                &method,
-                &uri_str,
-                &req_headers,
-                &req_version,
+                facts,
                 body_bytes,
                 req_trailers,
                 shared,
-                conn_metadata,
             )
             .await;
         }
@@ -306,16 +297,10 @@ where
     let (body, body_done_rx) = tee_body::tee(inner, prefix_cap);
 
     let pr = ProxiedRequest {
-        method,
+        facts,
         uri,
-        uri_str,
-        headers: req_headers,
-        version: req_version,
         body,
         body_done: body_done_rx,
-        client_id,
-        connection_id: conn_metadata.id,
-        sequence_number: conn_metadata.next_sequence_number(),
     };
 
     let proxied = exchange(pr, &shared, started).await;
