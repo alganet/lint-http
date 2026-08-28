@@ -511,12 +511,10 @@ mod tests {
     /// rather than one. A minimal-encoding assumption anywhere in the decoder
     /// would pass every other case here and fail this one.
     ///
-    /// The worked examples live in Appendix A.1, and the cite names it. That was long
-    /// uncitable: a `§` selector compared a *digit* prefix, so the `A. Pseudocode` node
-    /// the parser built could never be selected, and the bare `A.1.` heading was not
-    /// recognised as a heading at all. apysource 0.5.1 fixed both, so the section is
-    /// named here and the quote is checked against the appendix it actually comes from,
-    /// not the whole document.
+    /// The worked examples live in Appendix A.1, and the cite names it — so the
+    /// quote is checked against the appendix it comes from rather than against the
+    /// whole document, which is the difference between catching a vector that moved
+    /// and noticing it is still somewhere in a hundred pages.
     ///
     // cite(RFC 9000 § A.1): "For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025)."
     #[test]

@@ -8,11 +8,13 @@
 # cite names an entry here by its `label`; apysource does the rest — claiming the
 # URL for a repo, parsing the format, resolving `§ N` and `#anchor` targeting.
 #
-# RFCs are deliberately absent. `RFC 9110` resolves by pattern to
-# rfc-editor.org/rfc/rfc9110.txt, so this file holds only what a pattern cannot
-# mint: documents with a biography. That is also where the catalogue's
-# rfc-editor / datatracker host mixing ends — an RFC on datatracker is cited as
-# `RFC 6454`, and comes from one place.
+# RFCs are deliberately absent. apysource ships a repository that claims
+# rfc-editor and declares the `RFC NNNN` name family beside it, so `RFC 9110`
+# needs no entry and this file holds only what a name cannot mint: documents with
+# a biography. It is also where the catalogue's rfc-editor / datatracker host
+# mixing ends, and now by construction rather than by convention — both hosts are
+# one repository's, so an RFC cited as `RFC 6454` comes from one place whichever
+# of them you had open.
 #
 # THE URLS HERE ARE CANONICAL, AND CHECKED (2026-07-13). The catalogue they were
 # drawn from was not: of the 40 documents cited by the 185 rules, 22 were stale,

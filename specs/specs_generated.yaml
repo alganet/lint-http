@@ -4376,7 +4376,7 @@ sources:
     snippet: For example, the eight-byte sequence 0xc2197c5eff14e88c decodes to the decimal value 151,288,809,941,952,652; the four-byte sequence 0x9d7f3e7d decodes to 494,878,333; the two-byte sequence 0x7bbd decodes to 15,293; and the single byte 0x25 decodes to 37 (as does the two-byte sequence 0x4025).
     cited_by:
     - file: lint-http-proxy/src/h3_instrument.rs
-      line: 521
+      line: 519
   - label: quic_transport_parameters_valid
     section: § 18
     snippet: The extension_data field of the quic_transport_parameters extension defined in [QUIC-TLS] contains the QUIC transport parameters
