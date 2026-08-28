@@ -59,32 +59,17 @@ impl Rule for StatusAndCachingSemantics {
             }
 
             // Helper: check Cache-Control directives for explicit freshness (max-age or s-maxage)
-            for hv in resp.headers.get_all("cache-control").iter() {
-                if let Ok(s) = hv.to_str() {
-                    for part in s.split(',') {
-                        let p = part.trim();
-                        if p.is_empty() {
-                            continue;
-                        }
-                        // split on '=' to check for max-age / s-maxage. Directive names are
-                        // case-insensitive; a present max-age or s-maxage is explicit freshness that
-                        // makes the response storable (RFC 9111 §3), so no violation.
-                        // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
-                        // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires"
-                        let mut it = p.splitn(2, '=');
-                        let name = it.next().unwrap().trim().to_ascii_lowercase();
-                        if name == "max-age" || name == "s-maxage" {
-                            if let Some(val) = it.next() {
-                                // Accept non-negative integer delta-seconds (allow whitespace)
-                                if let Ok(n) = val.trim().parse::<i64>() {
-                                    if n >= 0 {
-                                        return None; // explicit freshness present
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            // A present max-age or s-maxage is explicit freshness that makes the
+            // response storable (RFC 9111 §3), so there is nothing to report. The
+            // helper answers with the first non-negative delta-seconds given for
+            // the directive, which is exactly this question.
+            // cite(RFC 9111 § 5.2.2.1): "The max-age response directive indicates that the response is to be considered stale after its age is greater than the specified number of seconds."
+            // cite(RFC 9111 § 5.2.2.10): "The s-maxage response directive indicates that, for a shared cache, the maximum age specified by this directive overrides the maximum age specified by either the max-age directive or the Expires"
+            let advertises_freshness = ["max-age", "s-maxage"].iter().any(|directive| {
+                crate::helpers::cache_control::delta_seconds(&resp.headers, directive).is_some()
+            });
+            if advertises_freshness {
+                return None;
             }
 
             // A present, well-formed Expires is explicit freshness. Note this is stricter than

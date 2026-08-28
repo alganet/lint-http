@@ -172,6 +172,17 @@ pub fn field_lines<'a>(headers: &'a HeaderMap, name: &str) -> impl Iterator<Item
         .filter_map(|hv| hv.to_str().ok())
 }
 
+/// Whether any field line for `name` carries octets that are not text.
+///
+/// The companion to [`field_lines`], and the reason that one can be silent: it
+/// skips such a line, so a rule whose *finding* is that the sender wrote one
+/// has to ask separately. Keeping the two beside each other is what stops the
+/// silent skip from quietly deleting a rule's finding when it adopts the
+/// reader.
+pub fn has_unreadable_line(headers: &HeaderMap, name: &str) -> bool {
+    headers.get_all(name).iter().any(|hv| hv.to_str().is_err())
+}
+
 /// Collect all header values for the given name and concatenate them using
 /// ", " as a separator, trimming each entry.
 ///

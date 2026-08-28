@@ -68,36 +68,17 @@ impl Rule for VaryAndCacheConsistent {
             // If Vary: * is present, an explicit cacheability directive is likely ineffective (the
             // response can never be selected). No sentence says this pairing is illegal, so this is
             // a misconfiguration heuristic, recorded in the tracker.
-            for hv in resp.headers.get_all("cache-control").iter() {
-                let s = match hv.to_str() {
-                    Ok(s) => s,
-                    Err(_) => continue,
-                };
-
-                for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-                    let m = member;
-                    if m.is_empty() {
-                        continue;
-                    }
-                    // directive = token [ '=' ... ]
-                    let name = m
-                        .split('=')
-                        .next()
-                        .expect("split always yields at least one item")
-                        .trim()
-                        .to_ascii_lowercase();
-                    match name.as_str() {
-                        // Only directives that *advertise reuse* are flagged. `no-cache` is
-                        // deliberately excluded: it promises no reuse benefit (it requires
-                        // revalidation), so pairing it with Vary: * is not a misconfiguration signal.
-                        "max-age" | "s-maxage" | "public" => {
-                            return Some(self.violation(ctx.severity, format!(
-                                    "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
-                                    name, name
-                                )));
-                        }
-                        _ => {}
-                    }
+            // Only directives that *advertise reuse* are flagged. `no-cache` is
+            // deliberately excluded: it promises no reuse benefit (it requires
+            // revalidation), so pairing it with Vary: * is not a misconfiguration signal.
+            const ADVERTISES_REUSE: [&str; 3] = ["max-age", "s-maxage", "public"];
+            for directive in crate::helpers::cache_control::directives(&resp.headers) {
+                if ADVERTISES_REUSE.iter().any(|name| directive.is(name)) {
+                    let name = directive.name.to_ascii_lowercase();
+                    return Some(self.violation(ctx.severity, format!(
+                            "Response includes Vary: '*' and Cache-Control directive '{}'; Vary: '*' prevents caches from selecting stored responses, making cache directives like '{}' ineffective (see RFC 9111 §4.1)",
+                            name, name
+                        )));
                 }
             }
 

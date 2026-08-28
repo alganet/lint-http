@@ -41,32 +41,21 @@ impl Rule for CacheControlAndPragmaConsistent {
             // read by two generations of cache and had better say the same thing to each.
             // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
             for hv in tx.request.headers.get_all("pragma").iter() {
-                let s = match hv.to_str() {
-                    Ok(v) => v,
-                    Err(_) => {
-                        // Ignore non-UTF8 header values here and let dedicated
-                        // syntax/token rules (e.g., `pragma_token_valid`) handle encoding errors.
-                        continue;
-                    }
+                let Ok(s) = hv.to_str() else {
+                    // Ignore non-UTF8 header values here and let dedicated
+                    // syntax/token rules (e.g., `pragma_token_valid`) handle encoding errors.
+                    continue;
                 };
                 for m in crate::helpers::headers::list_members(s) {
                     if m.eq_ignore_ascii_case("no-cache") {
                         // if request also contains Cache-Control: only-if-cached, that's contradictory
-                        for cc in tx.request.headers.get_all("cache-control").iter() {
-                            if let Ok(ccv) = cc.to_str() {
-                                for part in
-                                    crate::helpers::headers::split_commas_respecting_quotes(ccv)
-                                {
-                                    let name = part.split('=').next().unwrap().trim();
-                                    if name.eq_ignore_ascii_case("only-if-cached") {
-                                        // No sentence says this combination is illegal; it is a
-                                        // heuristic — Pragma: no-cache asks a cache to revalidate,
-                                        // only-if-cached asks it to serve from cache or fail. Recorded
-                                        // in the tracker.
-                                        return Some(self.violation(ctx.severity, "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)".to_string()));
-                                    }
-                                }
-                            }
+                        // No sentence says this combination is illegal; it is a
+                        // heuristic — Pragma: no-cache asks a cache to revalidate,
+                        // only-if-cached asks it to serve from cache or fail. Recorded
+                        // in the tracker.
+                        if crate::helpers::cache_control::has(&tx.request.headers, "only-if-cached")
+                        {
+                            return Some(self.violation(ctx.severity, "Request contains 'Pragma: no-cache' and 'Cache-Control: only-if-cached' which are contradictory (RFC 9111 §5.4)".to_string()));
                         }
                     }
                 }

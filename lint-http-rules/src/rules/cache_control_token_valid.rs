@@ -17,6 +17,40 @@ const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Cache-Control directives and general directive syntax",
 };
 
+impl CacheControlTokenValid {
+    /// The first defect in one message's `Cache-Control` field, if it has one.
+    ///
+    /// Read line by line rather than over the whole section, because an
+    /// unreadable line is one of the findings and the field line is what that
+    /// finding is about. Where the members come from, and which of them the
+    /// grammar's `#element` even admits, is
+    /// [`crate::helpers::cache_control`]'s answer.
+    fn defect(
+        &self,
+        headers: &hyper::HeaderMap,
+        side: &str,
+        severity: crate::lint::Severity,
+    ) -> Option<Violation> {
+        for line in headers.get_all("cache-control").iter() {
+            let Ok(line) = line.to_str() else {
+                return Some(self.violation(
+                    severity,
+                    "Cache-Control header contains non-UTF8 value".into(),
+                ));
+            };
+            for member in crate::helpers::cache_control::members_of(line) {
+                if let Some(message) = member_defect(member) {
+                    return Some(self.violation(
+                        severity,
+                        format!("Invalid Cache-Control header in {}: {}", side, message),
+                    ));
+                }
+            }
+        }
+        None
+    }
+}
+
 impl Rule for CacheControlTokenValid {
     fn id(&self) -> &'static str {
         "cache_control_token_valid"
@@ -34,56 +68,16 @@ impl Rule for CacheControlTokenValid {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
+        //
+        // Both sides of the exchange carry this field and are read the same way;
+        // only the word in the finding differs.
+        // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         let finding = || -> Option<Violation> {
-            // Apply to both request and response messages
-            // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
-            for header_val in tx.request.headers.get_all("cache-control").iter() {
-                if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
-                    // An entirely empty Cache-Control value is a zero-element list, which is legal
-                    // (`#element => [ 1#element ]`); that is distinct from an empty *element*
-                    // within a list, which check_cache_control_value flags. Skip it.
-                    if v.is_empty() {
-                        continue;
-                    }
-                    if let Some(msg) = check_cache_control_value(v) {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!("Invalid Cache-Control header in request: {}", msg),
-                        ));
-                    }
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Cache-Control header contains non-UTF8 value".into(),
-                    ));
-                }
-            }
-
-            if let Some(resp) = &tx.response {
-                for header_val in resp.headers.get_all("cache-control").iter() {
-                    if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
-                        // An entirely empty Cache-Control value is a zero-element list, which is legal
-                        // (`#element => [ 1#element ]`); that is distinct from an empty *element*
-                        // within a list, which check_cache_control_value flags. Skip it.
-                        if v.is_empty() {
-                            continue;
-                        }
-                        if let Some(msg) = check_cache_control_value(v) {
-                            return Some(self.violation(
-                                ctx.severity,
-                                format!("Invalid Cache-Control header in response: {}", msg),
-                            ));
-                        }
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Cache-Control header contains non-UTF8 value".into(),
-                        ));
-                    }
-                }
-            }
-
-            None
+            self.defect(&tx.request.headers, "request", ctx.severity)
+                .or_else(|| {
+                    let resp = tx.response.as_ref()?;
+                    self.defect(&resp.headers, "response", ctx.severity)
+                })
         };
         Vec::from_iter(finding())
     }
@@ -113,64 +107,39 @@ impl Rule for CacheControlTokenValid {
     }
 }
 
-fn check_cache_control_value(s: &str) -> Option<String> {
-    // Split by top-level commas but ignore commas inside quoted-strings
-    for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-        // An empty element *within* the list is forbidden, unlike the empty whole
-        // value the callers skip as a zero-element list.
-        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-        if member.is_empty() {
-            return Some("Empty directive in Cache-Control header".into());
-        }
+/// What is wrong with one `cache-directive`, if anything.
+///
+/// The name is read by the shared strict reader; what stays here is this rule's
+/// own question, which is about the value's *shape* rather than about what any
+/// particular directive means by it.
+// cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
+fn member_defect(member: &str) -> Option<String> {
+    let directive = match crate::helpers::cache_control::read_member(member) {
+        Ok(directive) => directive,
+        Err(message) => return Some(message),
+    };
+    let argument = directive.argument?;
 
-        // The name/value split transcribes the cache-directive grammar. The two
-        // value shapes it names, `token` (§5.6.2) and `quoted-string` (§5.6.4),
-        // stay owned by the helpers this function calls below.
-        // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
-        let mut kv = member.splitn(2, '=');
-        let name = kv.next().unwrap().trim();
-        if name.is_empty() {
-            return Some(format!(
-                "Empty directive name in Cache-Control member: '{}'",
-                member
-            ));
+    // The `( token / quoted-string )` alternation is read by the shared helper
+    // that owns it; what stays here is what this field says about each answer.
+    match crate::helpers::headers::token_or_quoted_string(argument) {
+        Ok(_) => None,
+        // Leniency, recorded rather than changed: `foo=` does not match the
+        // grammar above — once "=" is present the optional group requires a
+        // token (`1*tchar`) or a quoted-string, neither of which can be empty.
+        // The rule accepts it anyway, so it under-reports this one shape. That
+        // is the safe direction for a linter, and tightening it would be a
+        // behavior change. (`foo=""` is genuinely valid: quoted-string permits
+        // empty content.)
+        Err(crate::helpers::headers::WordDefect::Empty) => None,
+        Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
+            Some(format!("Invalid quoted-string in directive value: {}", e))
         }
-
-        if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-            return Some(format!(
-                "Directive name contains invalid character: '{}'",
-                c
-            ));
-        }
-
-        if let Some(vpart) = kv.next() {
-            let vpart = vpart.trim();
-            // The `( token / quoted-string )` alternation is read by the shared
-            // helper that owns it; what stays here is what this field says about
-            // each answer.
-            match crate::helpers::headers::token_or_quoted_string(vpart) {
-                Ok(_) => {}
-                // Leniency, recorded rather than changed: `foo=` does not match the
-                // grammar above — once "=" is present the optional group requires a
-                // token (`1*tchar`) or a quoted-string, neither of which can be empty.
-                // The rule accepts it anyway, so it under-reports this one shape. That
-                // is the safe direction for a linter, and tightening it would be a
-                // behavior change. (`foo=""` is genuinely valid: quoted-string permits
-                // empty content.)
-                Err(crate::helpers::headers::WordDefect::Empty) => continue,
-                Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
-                    return Some(format!("Invalid quoted-string in directive value: {}", e));
-                }
-                Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
-                    return Some(format!(
-                        "Directive value contains invalid character: '{}'",
-                        c
-                    ));
-                }
-            }
-        }
+        Err(crate::helpers::headers::WordDefect::NotToken(c)) => Some(format!(
+            "Directive value contains invalid character: '{}'",
+            c
+        )),
     }
-    None
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.

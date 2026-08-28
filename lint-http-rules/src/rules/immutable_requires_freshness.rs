@@ -65,52 +65,43 @@ impl Rule for ImmutableRequiresFreshness {
             let mut found_immutable = false;
             let mut conflicting: Option<String> = None;
 
-            for hv in resp.headers.get_all("cache-control").iter() {
-                let s = match hv.to_str() {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Cache-Control header contains non-UTF8 value".into(),
-                        ))
+            // The shared reader skips a field line it cannot read as text;
+            // reporting that is this rule's, so it is asked for separately.
+            if crate::helpers::headers::has_unreadable_line(&resp.headers, "cache-control") {
+                return Some(self.violation(
+                    ctx.severity,
+                    "Cache-Control header contains non-UTF8 value".into(),
+                ));
+            }
+
+            for directive in crate::helpers::cache_control::directives(&resp.headers) {
+                let lname = directive.name.to_ascii_lowercase();
+                let value = directive.argument;
+
+                // `immutable` is the RFC 8246 §2 Cache-Control extension: it tells clients the
+                // origin will not update the representation during the response's freshness
+                // lifetime. (Its defining sentence resists machine extraction from the RFC HTML,
+                // so the two §2 cites on the violation below — its freshness-window behaviour —
+                // carry the spec reference for this rule.)
+                if lname == "immutable" {
+                    found_immutable = true;
+                    continue;
+                }
+
+                let normalized = match (lname.as_str(), value) {
+                    // A zero lifetime is a zero lifetime however it is spelled.
+                    ("max-age" | "s-maxage", Some(v)) if v.parse::<u64>() == Ok(0) => {
+                        format!("{}=0", lname)
                     }
+                    ("no-store" | "no-cache", None) => lname.clone(),
+                    // A qualified `no-cache="field"` restricts reuse of the listed fields
+                    // only; the response still has a freshness lifetime, so `immutable`
+                    // still has a window to apply to.
+                    _ => continue,
                 };
 
-                for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-                    if member.is_empty() {
-                        continue;
-                    }
-                    let (name, value) = match member.split_once('=') {
-                        Some((n, v)) => (n.trim(), Some(v.trim())),
-                        None => (member, None),
-                    };
-                    let lname = name.to_ascii_lowercase();
-
-                    // `immutable` is the RFC 8246 §2 Cache-Control extension: it tells clients the
-                    // origin will not update the representation during the response's freshness
-                    // lifetime. (Its defining sentence resists machine extraction from the RFC HTML,
-                    // so the two §2 cites on the violation below — its freshness-window behaviour —
-                    // carry the spec reference for this rule.)
-                    if lname == "immutable" {
-                        found_immutable = true;
-                        continue;
-                    }
-
-                    let normalized = match (lname.as_str(), value) {
-                        // A zero lifetime is a zero lifetime however it is spelled.
-                        ("max-age" | "s-maxage", Some(v)) if v.parse::<u64>() == Ok(0) => {
-                            format!("{}=0", lname)
-                        }
-                        ("no-store" | "no-cache", None) => lname.clone(),
-                        // A qualified `no-cache="field"` restricts reuse of the listed fields
-                        // only; the response still has a freshness lifetime, so `immutable`
-                        // still has a window to apply to.
-                        _ => continue,
-                    };
-
-                    if NEVER_FRESH.contains(&normalized.as_str()) && conflicting.is_none() {
-                        conflicting = Some(normalized);
-                    }
+                if NEVER_FRESH.contains(&normalized.as_str()) && conflicting.is_none() {
+                    conflicting = Some(normalized);
                 }
             }
 
