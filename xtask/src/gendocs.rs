@@ -459,8 +459,21 @@ mod tests {
     /// URL that file calls canonical. Without this, the two halves of a reference
     /// drift apart silently: a rule can point at a host the registry retired, and
     /// nothing notices, because `apycite` only ever fetches what a `// cite`
-    /// quotes — never the reference list. RFCs are absent from the registry by
-    /// design (they resolve by pattern), so they are checked against the pattern.
+    /// quotes — never the reference list.
+    ///
+    /// RFCs are absent from the registry by design: apysource ships a repository
+    /// that claims rfc-editor and declares the `RFC NNNN` name family, so they are
+    /// checked against that repository's canonical URL instead. Until apysource
+    /// 0.9.0 this assertion was a convention with nothing behind it — the docs
+    /// linked `.html` while every quote was verified against `.txt`. It is now the
+    /// claim that the URL a reader clicks is the URL the verifier read.
+    ///
+    /// This deliberately does *not* read `specs/specs_generated.yaml`, which
+    /// carries the exact URL apysource minted for every cited document and would
+    /// kill the literal below. Twenty-four declared `SpecRef`s are never `// cite`d
+    /// — including RFC 2978 and RFC 7034 — so they have no block in that file, and
+    /// a lookup would need a silent skip for them. A silent skip is how the drift
+    /// gets back in.
     #[test]
     fn spec_refs_use_the_source_registry() {
         let registry = std::fs::read_to_string(repo_root().join("specs/sources.yaml"))
@@ -476,7 +489,12 @@ mod tests {
                     .peek()
                     .and_then(|l| l.trim().strip_prefix("url: "))
                     .unwrap_or_else(|| {
-                        panic!("registry entry {} has no url on the next line", label)
+                        panic!(
+                            "registry entry {} has no url on the line immediately after \
+                             it. This is a line scan, not a YAML parse: keep `url:` \
+                             directly under `- label:`, comments above the entry",
+                            label
+                        )
                     });
                 canonical.push((label, url));
             }
@@ -493,8 +511,9 @@ mod tests {
             for s in specs {
                 assert!(!s.url.is_empty(), "{}: {} has no url", id, s.spec);
                 match s.spec.strip_prefix("RFC ") {
-                    // The pattern that keeps rfc-editor / datatracker from
-                    // splitting one RFC across two hosts again.
+                    // What keeps rfc-editor / datatracker from splitting one RFC
+                    // across two hosts again — and, since 0.9.0, what keeps the
+                    // link and the verified document from being two documents.
                     Some(number) => {
                         let expected = format!("https://www.rfc-editor.org/rfc/rfc{}.html", number);
                         assert_eq!(
@@ -527,6 +546,34 @@ mod tests {
                         );
                     }
                 }
+            }
+        };
+        for rule in RULES.iter() {
+            check(rule.id(), rule.specifications());
+        }
+        for rule in PROTOCOL_RULES.iter() {
+            check(rule.id(), rule.specifications());
+        }
+    }
+
+    /// No reference points at a rendition nobody reads.
+    ///
+    /// `.txt` was the whole story here until apysource 0.9.0: every quote was
+    /// verified against rfc-editor's text rendition while every link in the docs
+    /// pointed at the HTML. Nothing is fetched as `.txt` any more, and a URL that
+    /// reappears with that extension is a reference that has quietly gone back to
+    /// naming a document the verifier never opens.
+    #[test]
+    fn no_spec_ref_names_a_text_rendition() {
+        let check = |id: &str, specs: &[SpecRef]| {
+            for s in specs {
+                assert!(
+                    !s.url.split('#').next().unwrap_or(s.url).ends_with(".txt"),
+                    "{}: {} points at {} — the verified document is the HTML rendition",
+                    id,
+                    s.spec,
+                    s.url
+                );
             }
         };
         for rule in RULES.iter() {
