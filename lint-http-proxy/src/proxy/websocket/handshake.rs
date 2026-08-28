@@ -8,7 +8,7 @@
 
 use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
-use hyper::{Request, Response, Uri};
+use hyper::{Response, Uri};
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -16,7 +16,8 @@ use tokio::time::Instant;
 use tracing::{debug, error};
 
 use crate::proxy::exchange::{
-    assemble_transaction, record_error_transaction, ErrorFacts, RequestFacts, ResponseFacts,
+    assemble_transaction, error_response, into_response, record_error_transaction,
+    upstream_request_builder, ErrorFacts, RequestFacts, ResponseFacts,
 };
 use crate::proxy::hop_by_hop::format_http_version;
 use crate::proxy::{boxed_full, BoxError, ResponseBody, Shared};
@@ -24,24 +25,78 @@ use crate::proxy::{boxed_full, BoxError, ResponseBody, Shared};
 use super::relay::relay_websocket;
 use super::{accepted_extensions, without_extension_negotiation};
 
+/// Everything the transport front half hands the WebSocket upgrade path.
+pub(in crate::proxy) struct WsUpgradeRequest {
+    pub facts: RequestFacts,
+    /// Absolute URI used for the upstream request line and dial.
+    pub uri: Uri,
+    /// Scheme used only when the URI itself carries none (origin-form
+    /// requests).
+    pub fallback_scheme: hyper::http::uri::Scheme,
+    /// The buffered handshake body (DoS-guarded by `max_body_bytes`).
+    pub body: Bytes,
+    pub trailers: Option<hyper::HeaderMap>,
+    /// The client half of the upgrade, extracted before the body was consumed.
+    pub client_on_upgrade: hyper::upgrade::OnUpgrade,
+}
+
 /// Handle a WebSocket upgrade request: connect directly to upstream, relay
 /// frames via tokio-tungstenite, and capture the session.
-#[allow(clippy::too_many_arguments)]
 pub(in crate::proxy) async fn handle_websocket_upgrade(
-    upstream_req: Request<Full<Bytes>>,
-    client_on_upgrade: hyper::upgrade::OnUpgrade,
-    uri: &Uri,
-    scheme: &hyper::http::uri::Scheme,
-    started: &Instant,
-    facts: RequestFacts,
-    body_bytes: Bytes,
-    req_trailers: Option<hyper::HeaderMap>,
+    req: WsUpgradeRequest,
     shared: Arc<Shared>,
+    started: Instant,
 ) -> Result<Response<ResponseBody>, Infallible> {
+    let WsUpgradeRequest {
+        facts,
+        uri,
+        fallback_scheme,
+        body: body_bytes,
+        trailers: req_trailers,
+        client_on_upgrade,
+    } = req;
+
+    // Build the upstream handshake request. Preserve hop-by-hop headers: the
+    // WebSocket upgrade depends on `Connection`/`Upgrade` reaching the origin
+    // (the request-side analog of the 101 carve-out in
+    // `filter_response_headers`). The one field removed is the extension
+    // negotiation, which stops at the relay — the frames of an accepted
+    // extension would be unreadable in the middle, and a session tungstenite
+    // cannot read is a session it kills. The capture records `facts.headers`
+    // as received, offer included; see
+    // `websocket::without_extension_negotiation`.
+    let upstream_headers = without_extension_negotiation(&facts.headers);
+    let upstream_req =
+        match upstream_request_builder(&facts.method, &uri, &upstream_headers, &shared, false)
+            .body(Full::new(body_bytes.clone()))
+        {
+            Ok(r) => r,
+            Err(e) => {
+                error!("failed to build upstream request: {}", e);
+                record_error_transaction(
+                    &shared,
+                    &facts,
+                    ErrorFacts {
+                        status: 500,
+                        duration_ms: started.elapsed().as_millis() as u64,
+                        req_body: Some(body_bytes.clone()),
+                        ..Default::default()
+                    },
+                )
+                .await;
+                return Ok(into_response(error_response(
+                    500,
+                    format!("request build error: {}", e),
+                )));
+            }
+        };
+
     // Connect directly to upstream with upgrade support, reusing the shared
     // outbound TLS config (loaded once at startup).
     let (mut sender, _conn_handle) =
-        match connect_upstream_for_upgrade(uri, scheme, &shared.upstream.tls_config).await {
+        match connect_upstream_for_upgrade(&uri, &fallback_scheme, &shared.upstream.tls_config)
+            .await
+        {
             Ok(s) => s,
             Err(e) => {
                 error!("websocket upstream connect error: {}", e);
@@ -199,7 +254,7 @@ async fn record_handshake_failure(
     shared: &Arc<Shared>,
     facts: &RequestFacts,
     body_bytes: &Bytes,
-    started: &Instant,
+    started: Instant,
 ) {
     record_error_transaction(
         shared,
@@ -260,6 +315,7 @@ async fn connect_upstream_for_upgrade(
 mod tests {
     use super::*;
     use crate::proxy::test_support::make_shared_with_cfg;
+    use hyper::Request;
     use std::sync::Arc as StdArc;
 
     /// A trust-store-free client config for the `ws://` (non-TLS) tests below —
@@ -332,13 +388,6 @@ mod tests {
         drop(l);
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
-        let upstream_req = Request::builder()
-            .method("GET")
-            .uri(uri.clone())
-            .header("connection", "Upgrade")
-            .header("upgrade", "websocket")
-            .body(Full::new(Bytes::new()))?;
-
         // Create a fake OnUpgrade that will never complete
         let fake_on_upgrade = hyper::upgrade::on(
             Request::builder()
@@ -353,15 +402,16 @@ mod tests {
         req_headers.insert("x-test", "1".parse()?);
 
         let resp = handle_websocket_upgrade(
-            upstream_req,
-            fake_on_upgrade,
-            &uri,
-            &hyper::http::uri::Scheme::HTTP,
-            &started,
-            test_facts(&uri, req_headers),
-            Bytes::new(),
-            None,
+            WsUpgradeRequest {
+                facts: test_facts(&uri, req_headers),
+                uri: uri.clone(),
+                fallback_scheme: hyper::http::uri::Scheme::HTTP,
+                body: Bytes::new(),
+                trailers: None,
+                client_on_upgrade: fake_on_upgrade,
+            },
             shared,
+            started,
         )
         .await?;
 
@@ -402,13 +452,6 @@ mod tests {
         let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
-        let upstream_req = Request::builder()
-            .method("GET")
-            .uri(uri.clone())
-            .header("connection", "Upgrade")
-            .header("upgrade", "websocket")
-            .body(Full::new(Bytes::new()))?;
-
         let fake_on_upgrade = hyper::upgrade::on(
             Request::builder()
                 .method("GET")
@@ -420,15 +463,16 @@ mod tests {
         let started = Instant::now();
 
         let resp = handle_websocket_upgrade(
-            upstream_req,
-            fake_on_upgrade,
-            &uri,
-            &hyper::http::uri::Scheme::HTTP,
-            &started,
-            test_facts(&uri, hyper::HeaderMap::new()),
-            Bytes::new(),
-            None,
+            WsUpgradeRequest {
+                facts: test_facts(&uri, hyper::HeaderMap::new()),
+                uri: uri.clone(),
+                fallback_scheme: hyper::http::uri::Scheme::HTTP,
+                body: Bytes::new(),
+                trailers: None,
+                client_on_upgrade: fake_on_upgrade,
+            },
             shared,
+            started,
         )
         .await?;
 
@@ -462,13 +506,6 @@ mod tests {
         let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
-        let upstream_req = Request::builder()
-            .method("GET")
-            .uri(uri.clone())
-            .header("connection", "Upgrade")
-            .header("upgrade", "websocket")
-            .body(Full::new(Bytes::new()))?;
-
         let fake_on_upgrade = hyper::upgrade::on(
             Request::builder()
                 .method("GET")
@@ -480,15 +517,16 @@ mod tests {
         let started = Instant::now();
 
         let resp = handle_websocket_upgrade(
-            upstream_req,
-            fake_on_upgrade,
-            &uri,
-            &hyper::http::uri::Scheme::HTTP,
-            &started,
-            test_facts(&uri, hyper::HeaderMap::new()),
-            Bytes::new(),
-            None,
+            WsUpgradeRequest {
+                facts: test_facts(&uri, hyper::HeaderMap::new()),
+                uri: uri.clone(),
+                fallback_scheme: hyper::http::uri::Scheme::HTTP,
+                body: Bytes::new(),
+                trailers: None,
+                client_on_upgrade: fake_on_upgrade,
+            },
             shared,
+            started,
         )
         .await?;
 
@@ -560,13 +598,6 @@ mod tests {
         let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
-        let upstream_req = Request::builder()
-            .method("GET")
-            .uri(uri.clone())
-            .header("connection", "Upgrade")
-            .header("upgrade", "websocket")
-            .body(Full::new(Bytes::new()))?;
-
         let fake_on_upgrade = hyper::upgrade::on(
             Request::builder()
                 .method("GET")
@@ -580,15 +611,16 @@ mod tests {
         req_headers.insert("x-test", "1".parse()?);
 
         let resp = handle_websocket_upgrade(
-            upstream_req,
-            fake_on_upgrade,
-            &uri,
-            &hyper::http::uri::Scheme::HTTP,
-            &started,
-            test_facts(&uri, req_headers),
-            Bytes::new(),
-            None,
+            WsUpgradeRequest {
+                facts: test_facts(&uri, req_headers),
+                uri: uri.clone(),
+                fallback_scheme: hyper::http::uri::Scheme::HTTP,
+                body: Bytes::new(),
+                trailers: None,
+                client_on_upgrade: fake_on_upgrade,
+            },
             shared,
+            started,
         )
         .await?;
 

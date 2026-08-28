@@ -6225,7 +6225,7 @@ sources:
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/handshake.rs
-      line: 86
+      line: 141
     - file: lint-http-rules/src/rules/http3_status_code_valid.rs
       line: 83
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
