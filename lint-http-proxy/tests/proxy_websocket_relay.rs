@@ -486,3 +486,184 @@ async fn a_frame_sent_with_the_101_is_relayed_and_recorded() -> anyhow::Result<(
     let _ = tokio::fs::remove_file(&captures_path).await;
     Ok(())
 }
+
+/// Build one RFC 6455 frame, raw.
+fn raw_frame(fin: bool, rsv1: bool, opcode: u8, mask: Option<[u8; 4]>, payload: &[u8]) -> Vec<u8> {
+    assert!(payload.len() < 126, "test frames stay in len7");
+    let mut out = vec![
+        (if fin { 0x80 } else { 0 }) | (if rsv1 { 0x40 } else { 0 }) | opcode,
+        (if mask.is_some() { 0x80 } else { 0 }) | payload.len() as u8,
+    ];
+    match mask {
+        Some(k) => {
+            out.extend(k);
+            out.extend(payload.iter().enumerate().map(|(i, b)| b ^ k[i % 4]));
+        }
+        None => out.extend(payload),
+    }
+    out
+}
+
+/// The frames the frame rules were written for, live and end to end: a
+/// fragmented message, an unmasked client frame, and an RSV1 frame with
+/// nothing negotiated — each recorded with its real header bits, and the
+/// masking and RSV rules each producing their finding on the session record.
+#[tokio::test]
+async fn defective_frames_produce_live_findings() -> anyhow::Result<()> {
+    // A raw, tolerant origin: complete the 101 handshake, then read and
+    // discard until EOF — so one defective frame cannot end the session
+    // before the next is observed (a conforming endpoint would fail the
+    // connection, which is its right and not this test's subject).
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let origin_addr = listener.local_addr()?;
+    tokio::spawn(async move {
+        if let Ok((mut sock, _)) = listener.accept().await {
+            let mut buf = [0u8; 4096];
+            let mut req = Vec::new();
+            loop {
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                if n == 0 {
+                    return;
+                }
+                req.extend_from_slice(&buf[..n]);
+                if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let key = String::from_utf8_lossy(&req)
+                .lines()
+                .find_map(|l| {
+                    l.to_ascii_lowercase()
+                        .starts_with("sec-websocket-key:")
+                        .then(|| l.split(':').nth(1).unwrap().trim().to_string())
+                })
+                .unwrap_or_default();
+            let accept = {
+                use base64::Engine;
+                use sha1::{Digest, Sha1};
+                let mut h = Sha1::new();
+                h.update(key.as_bytes());
+                h.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+                base64::engine::general_purpose::STANDARD.encode(h.finalize())
+            };
+            let _ = sock
+                .write_all(
+                    format!(
+                        "HTTP/1.1 101 Switching Protocols\r\n\
+                         Upgrade: websocket\r\n\
+                         Connection: Upgrade\r\n\
+                         Sec-WebSocket-Accept: {accept}\r\n\r\n"
+                    )
+                    .as_bytes(),
+                )
+                .await;
+            while sock.read(&mut buf).await.unwrap_or(0) > 0 {}
+        }
+    });
+
+    let cfg = Config {
+        lint: lint_http_core::test_helpers::make_test_config_with_enabled_rules(&[
+            "websocket_frame_masking",
+            "websocket_frame_rsv_bits",
+            "websocket_frame_opcode_sequence",
+        ]),
+        ..Default::default()
+    };
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let mut tcp = tokio::net::TcpStream::connect(proxy_addr).await?;
+    let ws_key = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        uuid::Uuid::new_v4().as_bytes(),
+    );
+    tcp.write_all(
+        format!(
+            "GET http://{origin}/ws HTTP/1.1\r\n\
+             Host: {origin}\r\n\
+             Connection: Upgrade\r\n\
+             Upgrade: websocket\r\n\
+             Sec-WebSocket-Version: 13\r\n\
+             Sec-WebSocket-Key: {ws_key}\r\n\r\n",
+            origin = origin_addr,
+        )
+        .as_bytes(),
+    )
+    .await?;
+    let mut buf = Vec::new();
+    let mut tmp = [0u8; 4096];
+    loop {
+        let n = tcp.read(&mut tmp).await?;
+        anyhow::ensure!(n > 0, "proxy closed during handshake");
+        buf.extend_from_slice(&tmp[..n]);
+        if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+            break;
+        }
+    }
+    anyhow::ensure!(String::from_utf8_lossy(&buf).contains("101"));
+
+    // The defect parade: a fragmented text message (legal — it exercises the
+    // fin/continuation path the old relay could never record), an unmasked
+    // client frame, an RSV1 frame with nothing negotiated, a clean close.
+    let key = [5u8, 6, 7, 8];
+    let mut wire = raw_frame(false, false, 0x1, Some(key), b"he");
+    wire.extend(raw_frame(true, false, 0x0, Some(key), b"llo"));
+    wire.extend(raw_frame(true, false, 0x1, None, b"naked"));
+    wire.extend(raw_frame(true, true, 0x1, Some(key), b"rsv"));
+    wire.extend(raw_frame(
+        true,
+        false,
+        0x8,
+        Some(key),
+        &1000u16.to_be_bytes(),
+    ));
+    tcp.write_all(&wire).await?;
+    drop(tcp);
+
+    // The session record carries the real header bits and the findings.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let session = loop {
+        let content = tokio::fs::read_to_string(&captures_path)
+            .await
+            .unwrap_or_default();
+        let session = content.lines().find_map(|l| {
+            serde_json::from_str::<serde_json::Value>(l)
+                .ok()
+                .filter(|v| v["type"] == "websocket_session")
+        });
+        if session.is_some() || std::time::Instant::now() > deadline {
+            break session;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    .expect("a websocket session in the capture");
+
+    let messages = session["messages"].as_array().unwrap();
+    assert_eq!(messages.len(), 5, "all five frames recorded: {messages:?}");
+    assert_eq!(messages[0]["fin"].as_bool(), Some(false), "first fragment");
+    assert_eq!(messages[1]["opcode"].as_u64(), Some(0), "continuation");
+    assert_eq!(messages[1]["fin"].as_bool(), Some(true));
+    assert_eq!(
+        messages[2]["masked"].as_bool(),
+        Some(false),
+        "unmasked frame"
+    );
+    assert_eq!(messages[3]["rsv"].as_u64(), Some(0b100), "RSV1 recorded");
+    assert_eq!(session["client_close_code"].as_u64(), Some(1000));
+
+    let violations: Vec<&str> = session["violations"]
+        .as_array()
+        .map(|v| v.iter().filter_map(|x| x["rule"].as_str()).collect())
+        .unwrap_or_default();
+    assert!(
+        violations.contains(&"websocket_frame_masking"),
+        "the unmasked client frame is a live finding: {violations:?}"
+    );
+    assert!(
+        violations.contains(&"websocket_frame_rsv_bits"),
+        "the un-negotiated RSV1 bit is a live finding: {violations:?}"
+    );
+
+    handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    Ok(())
+}
