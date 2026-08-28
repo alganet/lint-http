@@ -2263,38 +2263,38 @@ sources:
     cited_by:
     - file: lint-http-core/src/protocol_event.rs
       line: 71
-    - file: lint-http-proxy/src/proxy/websocket.rs
-      line: 384
+    - file: lint-http-proxy/src/proxy/websocket/mod.rs
+      line: 96
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 250
-  - label: lint-http-proxy/src/proxy/websocket.rs
+  - label: lint-http-proxy/src/proxy/websocket/mod.rs
     section: § 4.1
     snippet: The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token.
     cited_by:
-    - file: lint-http-proxy/src/proxy/websocket.rs
-      line: 38
+    - file: lint-http-proxy/src/proxy/websocket/mod.rs
+      line: 34
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 24
-  - label: lint-http-proxy/src/proxy/websocket.rs (2)
+  - label: lint-http-proxy/src/proxy/websocket/mod.rs (2)
     section: § 4.1
     snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
     cited_by:
-    - file: lint-http-proxy/src/proxy/websocket.rs
-      line: 37
+    - file: lint-http-proxy/src/proxy/websocket/mod.rs
+      line: 33
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 110
-  - label: lint-http-proxy/src/proxy/websocket.rs (3)
-    section: § 5.2
-    snippet: '%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong'
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket.rs
-      line: 558
-  - label: lint-http-proxy/src/proxy/websocket.rs (4)
+  - label: lint-http-proxy/src/proxy/websocket/mod.rs (3)
     section: § 9.1
     snippet: Note that like other HTTP header fields, this header field MAY be split or combined across multiple lines.
     cited_by:
-    - file: lint-http-proxy/src/proxy/websocket.rs
-      line: 353
+    - file: lint-http-proxy/src/proxy/websocket/mod.rs
+      line: 65
+  - label: lint-http-proxy/src/proxy/websocket/relay.rs
+    section: § 5.2
+    snippet: '%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong'
+    cited_by:
+    - file: lint-http-proxy/src/proxy/websocket/relay.rs
+      line: 179
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: (as a string, not base64-decoded) with the string
@@ -6220,12 +6220,12 @@ sources:
       line: 1048
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 108
-  - label: lint-http-proxy/src/proxy/websocket.rs
+  - label: lint-http-proxy/src/proxy/websocket/handshake.rs
     section: § 15.2
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
     cited_by:
-    - file: lint-http-proxy/src/proxy/websocket.rs
-      line: 144
+    - file: lint-http-proxy/src/proxy/websocket/handshake.rs
+      line: 118
     - file: lint-http-rules/src/rules/http3_status_code_valid.rs
       line: 83
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
