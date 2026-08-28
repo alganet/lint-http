@@ -7,6 +7,16 @@ use crate::rules::Rule;
 
 pub struct CacheControlTokenValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
+    note: "Cache-Control directives and general directive syntax",
+};
+
 impl Rule for CacheControlTokenValid {
     fn id(&self) -> &'static str {
         "cache_control_token_valid"
@@ -83,12 +93,7 @@ impl Rule for CacheControlTokenValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9111",
-            section: Some("5.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
-            note: "Cache-Control directives and general directive syntax",
-        }]
+        &[RFC_9111_5_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

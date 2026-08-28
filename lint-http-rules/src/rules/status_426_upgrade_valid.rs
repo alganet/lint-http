@@ -8,6 +8,61 @@ use crate::rules::Rule;
 
 pub struct Status426UpgradeValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_5_22: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.22"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.22",
+    note: "426 Upgrade Required — the MUST, its object clause (to indicate the \
+           required protocol(s)), and what the status itself says the server is \
+           asking the client to do",
+};
+const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
+    note: "Upgrade — the same MUST from the field's side, worded with the ordering \
+           clause; also the MAY that licenses the field's absence on every other \
+           response",
+};
+const RFC_9113_8_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
+    note: "Connection-Specific Header Fields — why an HTTP/2 response is not asked \
+           for a field it must not generate",
+};
+const RFC_9114_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
+    note: "HTTP Upgrade — HTTP/3 does not have the mechanism this field belongs to, \
+           which is a stronger reason than the field being forbidden",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "A field value excludes the whitespace around it, so a value that is only \
+           whitespace is the empty value",
+};
+const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+    note: "Several `Upgrade` lines in one field section are one field value, so the \
+           field is there if any line carries it",
+};
+const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
+    note: "Why an `Upgrade` in the trailer section does not answer this requirement — \
+           a trailer field needs its own definition's permission, and §7.8 gives none",
+};
+
 impl Rule for Status426UpgradeValid {
     fn id(&self) -> &'static str {
         "status_426_upgrade_valid"
@@ -148,57 +203,13 @@ impl Rule for Status426UpgradeValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.5.22"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.22",
-                note: "426 Upgrade Required — the MUST, its object clause (to indicate the \
-                       required protocol(s)), and what the status itself says the server is \
-                       asking the client to do",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
-                note: "Upgrade — the same MUST from the field's side, worded with the ordering \
-                       clause; also the MAY that licenses the field's absence on every other \
-                       response",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
-                note: "Connection-Specific Header Fields — why an HTTP/2 response is not asked \
-                       for a field it must not generate",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
-                note: "HTTP Upgrade — HTTP/3 does not have the mechanism this field belongs to, \
-                       which is a stronger reason than the field being forbidden",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "A field value excludes the whitespace around it, so a value that is only \
-                       whitespace is the empty value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
-                note: "Several `Upgrade` lines in one field section are one field value, so the \
-                       field is there if any line carries it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
-                note: "Why an `Upgrade` in the trailer section does not answer this requirement — \
-                       a trailer field needs its own definition's permission, and §7.8 gives none",
-            },
+            RFC_9110_15_5_22,
+            RFC_9110_7_8,
+            RFC_9113_8_2_2,
+            RFC_9114_4_5,
+            RFC_9110_5_5,
+            RFC_9110_5_2,
+            RFC_9110_6_5_1,
         ]
     }
 

@@ -20,6 +20,34 @@ use crate::rules::Rule;
 ///   should appear (the connection has been handed off to the upgraded protocol).
 pub struct Status101SwitchingProtocols;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2",
+    note: "101 Switching Protocols",
+};
+const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
+    note: "Upgrade",
+};
+const RFC_9113_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6",
+    note: "The Upgrade Header Field (HTTP/2 forbids 101)",
+};
+const RFC_9114_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
+    note: "HTTP Upgrade — the only place RFC 9114 mentions 101; forbids it alongside the Upgrade mechanism",
+};
+
 impl Rule for Status101SwitchingProtocols {
     fn id(&self) -> &'static str {
         "status_101_switching_protocols"
@@ -217,32 +245,7 @@ impl Rule for Status101SwitchingProtocols {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2",
-                note: "101 Switching Protocols",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
-                note: "Upgrade",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6",
-                note: "The Upgrade Header Field (HTTP/2 forbids 101)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
-                note: "HTTP Upgrade — the only place RFC 9114 mentions 101; forbids it alongside the Upgrade mechanism",
-            },
-        ]
+        &[RFC_9110_15_2_2, RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -89,6 +89,53 @@ fn parse_method_token_config(
 
 pub struct RequestMethodTokenValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "`method = token`, the token's case-sensitivity, the convention that standardized methods are defined in all-uppercase US-ASCII letters, and the 501 an origin server gives an unrecognized method",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The sentence that makes a value outside its ABNF a violation rather than an observation",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "`token = 1*tchar`. The character set is transcribed once, in `helpers::token::is_tchar`; the `1*` floor is what the empty-method branch here reads",
+};
+const RFC_9110_16_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("16.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.1.1",
+    note: "The IANA method registry, which holds the names `registered_methods` is a deployment's copy of, and grows by IETF Review",
+};
+const RFC_9112_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.1",
+    note: "Where an HTTP/1.1 message carries the method. This reference said §5.1, which is Field Line Parsing",
+};
+const RFC_9113_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
+    note:
+        "The `:method` pseudo-header field, which is where an HTTP/2 request carries the same value",
+};
+const RFC_9114_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
+    note: "The `:method` pseudo-header field over HTTP/3",
+};
+
 impl Rule for RequestMethodTokenValid {
     fn id(&self) -> &'static str {
         "request_method_token_valid"
@@ -221,48 +268,13 @@ impl Rule for RequestMethodTokenValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "`method = token`, the token's case-sensitivity, the convention that standardized methods are defined in all-uppercase US-ASCII letters, and the 501 an origin server gives an unrecognized method",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The sentence that makes a value outside its ABNF a violation rather than an observation",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "`token = 1*tchar`. The character set is transcribed once, in `helpers::token::is_tchar`; the `1*` floor is what the empty-method branch here reads",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("16.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.1.1",
-                note: "The IANA method registry, which holds the names `registered_methods` is a deployment's copy of, and grows by IETF Review",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.1",
-                note: "Where an HTTP/1.1 message carries the method. This reference said §5.1, which is Field Line Parsing",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
-                note: "The `:method` pseudo-header field, which is where an HTTP/2 request carries the same value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
-                note: "The `:method` pseudo-header field over HTTP/3",
-            },
+            RFC_9110_9_1,
+            RFC_9110_2_2,
+            RFC_9110_5_6_2,
+            RFC_9110_16_1_1,
+            RFC_9112_3_1,
+            RFC_9113_8_3_1,
+            RFC_9114_4_3_1,
         ]
     }
 

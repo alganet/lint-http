@@ -116,6 +116,23 @@ fn highest_nc_for_nonce(
 
 pub struct DigestAuthNonceHandling;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7616_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7616",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3",
+    note:
+        "The WWW-Authenticate Response Header Field — the server challenge (nonce, opaque, stale)",
+};
+const RFC_7616_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7616",
+    section: Some("3.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
+    note: "The Authorization Header Field — the client response parameters (nonce, nc, opaque)",
+};
+
 impl Rule for DigestAuthNonceHandling {
     fn id(&self) -> &'static str {
         "digest_auth_nonce_handling"
@@ -268,20 +285,7 @@ impl Rule for DigestAuthNonceHandling {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 7616",
-                section: Some("3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.3",
-                note: "The WWW-Authenticate Response Header Field — the server challenge (nonce, opaque, stale)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7616",
-                section: Some("3.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
-                note: "The Authorization Header Field — the client response parameters (nonce, nc, opaque)",
-            },
-        ]
+        &[RFC_7616_3_3, RFC_7616_3_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

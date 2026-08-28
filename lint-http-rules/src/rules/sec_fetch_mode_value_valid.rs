@@ -11,6 +11,16 @@ use crate::rules::Rule;
 /// token carries no case folding; token syntax is validated.
 pub struct SecFetchModeValueValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const FETCH_METADATA_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+spec: "Fetch Metadata",
+section: Some("2.2"),
+url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode-header",
+note: "Fetch Metadata (W3C) — `Sec-Fetch-Mode`: an sf-token whose valid values are the five request modes",
+        };
+
 impl Rule for SecFetchModeValueValid {
     fn id(&self) -> &'static str {
         "sec_fetch_mode_value_valid"
@@ -100,12 +110,7 @@ impl Rule for SecFetchModeValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "Fetch Metadata",
-            section: Some("2.2"),
-            url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode-header",
-            note: "Fetch Metadata (W3C) — `Sec-Fetch-Mode`: an sf-token whose valid values are the five request modes",
-        }]
+        &[FETCH_METADATA_2_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

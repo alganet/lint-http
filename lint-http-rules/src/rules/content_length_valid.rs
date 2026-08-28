@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct ContentLengthValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+    note: "Where `Content-Length = 1*DIGIT` is defined — the grammar every value here is checked against",
+};
+const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+    note: "Why differing values are an error and why a single field line may carry a comma-separated list, provided every member is valid and identical",
+};
+
 impl Rule for ContentLengthValid {
     fn id(&self) -> &'static str {
         "content_length_valid"
@@ -88,20 +104,7 @@ impl Rule for ContentLengthValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "Where `Content-Length = 1*DIGIT` is defined — the grammar every value here is checked against",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "Why differing values are an error and why a single field line may carry a comma-separated list, provided every member is valid and identical",
-            },
-        ]
+        &[RFC_9110_8_6, RFC_9112_6_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

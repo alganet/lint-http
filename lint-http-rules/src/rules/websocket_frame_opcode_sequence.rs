@@ -320,6 +320,58 @@ impl WebsocketFrameOpcodeSequence {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6455_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1",
+    note: "Overview: when an endpoint may transmit a data frame",
+};
+const RFC_6455_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
+    note: "Base Framing Protocol, opcode definitions and reserved ranges",
+};
+const RFC_6455_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.4",
+    note: "Fragmentation: what a fragmented message is made of",
+};
+const RFC_6455_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5",
+    note: "Control Frames: the class test and its two constraints",
+};
+const RFC_6455_5_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1",
+    note: "Close: the body's first two bytes, and the end of what a sender may send",
+};
+const RFC_6455_5_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.6",
+    note: "Data Frames: the class test for the sequence questions",
+};
+const RFC_6455_5_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.8",
+    note: "Extensibility: what the reserved opcodes are reserved for",
+};
+const RFC_6455_11_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("11.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.8",
+    note: "WebSocket Opcode Registry: the field's range and its registration policy",
+};
+
 impl ProtocolRule for WebsocketFrameOpcodeSequence {
     fn id(&self) -> &'static str {
         "websocket_frame_opcode_sequence"
@@ -386,54 +438,14 @@ impl ProtocolRule for WebsocketFrameOpcodeSequence {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1",
-                note: "Overview: when an endpoint may transmit a data frame",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
-                note: "Base Framing Protocol, opcode definitions and reserved ranges",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.4",
-                note: "Fragmentation: what a fragmented message is made of",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5",
-                note: "Control Frames: the class test and its two constraints",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.5.1",
-                note: "Close: the body's first two bytes, and the end of what a sender may send",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.6",
-                note: "Data Frames: the class test for the sequence questions",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.8",
-                note: "Extensibility: what the reserved opcodes are reserved for",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("11.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.8",
-                note: "WebSocket Opcode Registry: the field's range and its registration policy",
-            },
+            RFC_6455_5_1,
+            RFC_6455_5_2,
+            RFC_6455_5_4,
+            RFC_6455_5_5,
+            RFC_6455_5_5_1,
+            RFC_6455_5_6,
+            RFC_6455_5_8,
+            RFC_6455_11_8,
         ]
     }
 

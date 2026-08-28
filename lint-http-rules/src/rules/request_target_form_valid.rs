@@ -114,6 +114,40 @@ fn classify(target: &str) -> Option<TargetForm<'_>> {
 
 pub struct RequestTargetFormValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+    note: "Request Target: the four forms, and the exclusion of whitespace from all of them",
+};
+const RFC_9112_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3",
+    note: "authority-form: CONNECT's target, and where the port number is asked for in prose rather than in the grammar",
+};
+const RFC_9112_3_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.4",
+    note: "asterisk-form: the server-wide OPTIONS request's target",
+};
+const RFC_9110_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
+    note: "Determining the Target Resource: the two method-specific forms, the MUST NOT that keeps each to its method, and the reconstruction being specific to each major protocol version",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The sender's MUST NOT against generating protocol elements outside the ABNF, which is what makes a target in none of the four forms a violation",
+};
+
 impl Rule for RequestTargetFormValid {
     fn id(&self) -> &'static str {
         "request_target_form_valid"
@@ -319,38 +353,12 @@ impl Rule for RequestTargetFormValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        use crate::rules::SpecRef;
         &[
-            SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
-                note: "Request Target: the four forms, and the exclusion of whitespace from all of them",
-            },
-            SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3",
-                note: "authority-form: CONNECT's target, and where the port number is asked for in prose rather than in the grammar",
-            },
-            SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.4",
-                note: "asterisk-form: the server-wide OPTIONS request's target",
-            },
-            SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
-                note: "Determining the Target Resource: the two method-specific forms, the MUST NOT that keeps each to its method, and the reconstruction being specific to each major protocol version",
-            },
-            SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The sender's MUST NOT against generating protocol elements outside the ABNF, which is what makes a target in none of the four forms a violation",
-            },
+            RFC_9112_3_2,
+            RFC_9112_3_2_3,
+            RFC_9112_3_2_4,
+            RFC_9110_7_1,
+            RFC_9110_2_2,
         ]
     }
 

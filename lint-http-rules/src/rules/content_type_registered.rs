@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct ContentTypeRegistered;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+    note: "`media-type` syntax, the case-insensitivity of its tokens, and the \"ought to be registered with IANA\" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies",
+};
+const RFC_6838_4_2_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6838",
+    section: Some("4.2.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
+    note: "Structured syntax suffixes — a suffix is appended to a base subtype after a `+`, which is what a `+json` allowlist entry matches",
+};
+const IANA_MEDIA_TYPES: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA Media Types",
+    section: None,
+    url: "https://www.iana.org/assignments/media-types/media-types.xhtml",
+    note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
+};
+
 impl Rule for ContentTypeRegistered {
     fn id(&self) -> &'static str {
         "content_type_registered"
@@ -141,26 +163,7 @@ impl Rule for ContentTypeRegistered {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-                note: "`media-type` syntax, the case-insensitivity of its tokens, and the \"ought to be registered with IANA\" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6838",
-                section: Some("4.2.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
-                note: "Structured syntax suffixes — a suffix is appended to a base subtype after a `+`, which is what a `+json` allowlist entry matches",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA Media Types",
-                section: None,
-                url: "https://www.iana.org/assignments/media-types/media-types.xhtml",
-                note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
-            },
-        ]
+        &[RFC_9110_8_3_1, RFC_6838_4_2_8, IANA_MEDIA_TYPES]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

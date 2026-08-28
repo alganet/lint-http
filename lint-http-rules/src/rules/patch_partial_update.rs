@@ -16,6 +16,52 @@ use crate::rules::Rule;
 /// (`patch_method_content_type_match`).
 pub struct PatchPartialUpdate;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_5789_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2",
+    note: "The PATCH method — a patch document is identified by a media type, the request's fields describe that document rather than the resource, and no patch format is one implementations must support, which is why this rule reports the field's absence and does not judge its value",
+};
+const RFC_5789_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
+    note: "Error Handling — `415 (Unsupported Media Type)` is offered, not required, for a patch format the server does not support; it is the recipient's side of the media type this rule asks for",
+};
+const RFC_5789_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
+    note: "The `Accept-Patch` header — how a server says which patch formats it takes. It is a response field, so a lone request cannot be measured against it; `patch_method_content_type_match` is the rule that has one",
+};
+const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+    note: "Content-Type — the SHOULD this rule enforces, the exception excusing a sender that does not know its own media type, and the two guesses a recipient is left with when the field is absent",
+};
+const RFC_9110_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+    note: "Content — the octet stream left once framing has been taken off, which is why a `Transfer-Encoding` is not evidence of any and the captured count decides",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "Methods overview — the method token is case-sensitive, which is why `PATCH` is matched exactly and a lowercase `patch` is not a PATCH request",
+};
+const RFC_9110_12_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.3",
+    note: "Request content negotiation — names `Accept-Patch` as the way the acceptable PATCH content types are discovered, rather than inferred from a media type's spelling",
+};
+
 impl Rule for PatchPartialUpdate {
     fn id(&self) -> &'static str {
         "patch_partial_update"
@@ -113,48 +159,13 @@ impl Rule for PatchPartialUpdate {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2",
-                note: "The PATCH method — a patch document is identified by a media type, the request's fields describe that document rather than the resource, and no patch format is one implementations must support, which is why this rule reports the field's absence and does not judge its value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
-                note: "Error Handling — `415 (Unsupported Media Type)` is offered, not required, for a patch format the server does not support; it is the recipient's side of the media type this rule asks for",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
-                note: "The `Accept-Patch` header — how a server says which patch formats it takes. It is a response field, so a lone request cannot be measured against it; `patch_method_content_type_match` is the rule that has one",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Content-Type — the SHOULD this rule enforces, the exception excusing a sender that does not know its own media type, and the two guesses a recipient is left with when the field is absent",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
-                note: "Content — the octet stream left once framing has been taken off, which is why a `Transfer-Encoding` is not evidence of any and the captured count decides",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "Methods overview — the method token is case-sensitive, which is why `PATCH` is matched exactly and a lowercase `patch` is not a PATCH request",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.3",
-                note: "Request content negotiation — names `Accept-Patch` as the way the acceptable PATCH content types are discovered, rather than inferred from a media type's spelling",
-            },
+            RFC_5789_2,
+            RFC_5789_2_2,
+            RFC_5789_3_1,
+            RFC_9110_8_3,
+            RFC_9110_6_4,
+            RFC_9110_9_1,
+            RFC_9110_12_3,
         ]
     }
 

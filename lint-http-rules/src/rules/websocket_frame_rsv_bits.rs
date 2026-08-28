@@ -38,6 +38,31 @@ impl WebsocketFrameRsvBits {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6455_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
+    note: "Base Framing Protocol — the three reserved bits, their width, the \
+           conditional MUST on the sender and the MUST-fail on the recipient",
+};
+const RFC_6455_5_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.8",
+    note: "Extensibility — what the reserved bits are reserved for, and that the \
+           negotiation happens in the opening handshake",
+};
+const RFC_6455_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1",
+    note: "Negotiating Extensions — why the server's response field is the whole of \
+           the agreement, and the client's own field only an offer",
+};
+
 impl ProtocolRule for WebsocketFrameRsvBits {
     fn id(&self) -> &'static str {
         "websocket_frame_rsv_bits"
@@ -141,29 +166,7 @@ impl ProtocolRule for WebsocketFrameRsvBits {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
-                note: "Base Framing Protocol — the three reserved bits, their width, the \
-                       conditional MUST on the sender and the MUST-fail on the recipient",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.8",
-                note: "Extensibility — what the reserved bits are reserved for, and that the \
-                       negotiation happens in the opening handshake",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1",
-                note: "Negotiating Extensions — why the server's response field is the whole of \
-                       the agreement, and the client's own field only an offer",
-            },
-        ]
+        &[RFC_6455_5_2, RFC_6455_5_8, RFC_6455_9_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

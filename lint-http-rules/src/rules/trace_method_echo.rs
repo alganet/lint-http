@@ -51,6 +51,48 @@ fn carries_a_value(headers: &hyper::HeaderMap, name: &str) -> bool {
         .any(|v| v.as_bytes().iter().any(|b| !matches!(b, b' ' | b'\t')))
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_9_3_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8",
+    note: "TRACE — the two client `MUST NOT`s this rule reports, the example naming credentials and cookies, and the `SHOULD` to reflect the message, which is addressed to a recipient no message identifies",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "The method token is case-sensitive, which is why `TRACE` is matched exactly and a lowercase `trace` is not a TRACE",
+};
+const RFC_9110_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+    note: "Content — the octet stream left after framing is removed, which is what the content check measures instead of the presence of a framing field",
+};
+const RFC_9110_11_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
+    note: "`Authorization` carries the user agent's credentials; §11.7.2 says the same of `Proxy-Authorization` for a proxy",
+};
+const RFC_6265_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.2.1",
+    note: "`Cookie` is the field a user agent returns stored cookies in — the second kind of data §9.3.8's example names",
+};
+const RFC_9110_B_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("B.3"),
+    // `appendix-B.3`, not `section-B.3`: an appendix anchors under
+    // its own prefix, and the `section-` form scrolls nowhere.
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.3",
+    note: "Changes from RFC 7231 — the normative requirement to use `message/http` in TRACE responses was removed, which is why this rule no longer asks for it",
+};
+
 impl Rule for TraceMethodEcho {
     fn id(&self) -> &'static str {
         "trace_method_echo"
@@ -133,44 +175,12 @@ impl Rule for TraceMethodEcho {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.8",
-                note: "TRACE — the two client `MUST NOT`s this rule reports, the example naming credentials and cookies, and the `SHOULD` to reflect the message, which is addressed to a recipient no message identifies",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "The method token is case-sensitive, which is why `TRACE` is matched exactly and a lowercase `trace` is not a TRACE",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
-                note: "Content — the octet stream left after framing is removed, which is what the content check measures instead of the presence of a framing field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
-                note: "`Authorization` carries the user agent's credentials; §11.7.2 says the same of `Proxy-Authorization` for a proxy",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("4.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.2.1",
-                note: "`Cookie` is the field a user agent returns stored cookies in — the second kind of data §9.3.8's example names",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("B.3"),
-                // `appendix-B.3`, not `section-B.3`: an appendix anchors under
-                // its own prefix, and the `section-` form scrolls nowhere.
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.3",
-                note: "Changes from RFC 7231 — the normative requirement to use `message/http` in TRACE responses was removed, which is why this rule no longer asks for it",
-            },
+            RFC_9110_9_3_8,
+            RFC_9110_9_1,
+            RFC_9110_6_4,
+            RFC_9110_11_6_2,
+            RFC_6265_4_2_1,
+            RFC_9110_B_3,
         ]
     }
 

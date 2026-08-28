@@ -114,6 +114,41 @@ impl ConnectionHeaderTokensValid {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+    note: "The field itself: its grammar, the case-insensitivity of its options, the note that an option need not correspond to a field present in the message, and the MUST NOT this rule implements for the one field the section names",
+};
+const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("A"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
+    note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "The sender's half of the list construct. The recipient's half (§5.6.1.2, ignore empty elements) is a different party's requirement, which is why the shared list reader is not used here",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note:
+        "`token` and `tchar`: what a connection-option is made of, and the delimiters it excludes",
+};
+const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+    note: "Several `Connection` lines in one field section are one field value, so the members are counted after the lines are joined",
+};
+
 impl Rule for ConnectionHeaderTokensValid {
     fn id(&self) -> &'static str {
         "connection_header_tokens_valid"
@@ -157,36 +192,11 @@ impl Rule for ConnectionHeaderTokensValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "The field itself: its grammar, the case-insensitivity of its options, the note that an option need not correspond to a field present in the message, and the MUST NOT this rule implements for the one field the section names",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("A"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
-                note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "The sender's half of the list construct. The recipient's half (§5.6.1.2, ignore empty elements) is a different party's requirement, which is why the shared list reader is not used here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "`token` and `tchar`: what a connection-option is made of, and the delimiters it excludes",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
-                note: "Several `Connection` lines in one field section are one field value, so the members are counted after the lines are joined",
-            },
+            RFC_9110_7_6_1,
+            RFC_9110_A,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_2,
         ]
     }
 

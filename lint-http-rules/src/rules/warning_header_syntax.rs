@@ -13,6 +13,81 @@ use crate::rules::Rule;
 
 pub struct WarningHeaderSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7234_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7234",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5",
+    note: "The last statement of the `Warning` grammar, and the requirements about \
+           warn-codes and warn-dates that go with it. Obsoleted by RFC 9111, which \
+           removed the field rather than restating it — so this is where the \
+           productions are read from, and RFC 9111 §5.5 is where the field's status \
+           is read from",
+};
+const RFC_9111_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5",
+    note: "Where `Warning` is obsoleted. The section carries no BCP 14 keyword, so it \
+           states no requirement on a sender and the field's presence is not reported",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The sender MUST NOT behind every finding here: a value that derives from \
+           none of §5.5's productions is a protocol element matching no ABNF rule",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "The list construct's sender requirement — an empty member is the finding, \
+           and §5.6.1.2's worked example is what makes an empty *value* one too, \
+           because `Warning` is `1#`",
+};
+const RFC_9110_5_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
+    note: "`quoted-string`, the `qdtext` that admits `obs-text` inside a warn-text, \
+           and the recipient's handling of a `quoted-pair` — which is why a warn-date \
+           is unescaped before it is read as a date",
+};
+const RFC_9110_5_6_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
+    note: "`HTTP-date`, and the MUST that a sender generate it in the IMF-fixdate \
+           format — the two obsolete formats parse and are still findings. This \
+           reference said §7.1.1.1, which is RFC 7231's number for it and does not \
+           exist in RFC 9110",
+};
+const RFC_9110_7_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3",
+    note: "`pseudonym = token`, the second alternative of `warn-agent`. RFC 7234 \
+           imported the name from RFC 7230 §5.7.1; this is where it lives now",
+};
+const RFC_9110_B_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("B.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.2",
+    note: "Why `Via` and `Warning` no longer agree: RFC 9110 removed `uri-host` from \
+           `received-by`, and RFC 7234's `warn-agent` — the same production — was \
+           never touched, so a bracketed IPv6 literal is a finding there and not here",
+};
+const RFC_3986_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2",
+    note: "`host`, which `warn-agent`'s first alternative reaches through RFC 9110 \
+           §4.1 — including the `reg-name` that derives the empty string",
+};
+
 impl Rule for WarningHeaderSyntax {
     fn id(&self) -> &'static str {
         "warning_header_syntax"
@@ -131,77 +206,15 @@ impl Rule for WarningHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 7234",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5",
-                note: "The last statement of the `Warning` grammar, and the requirements about \
-                       warn-codes and warn-dates that go with it. Obsoleted by RFC 9111, which \
-                       removed the field rather than restating it — so this is where the \
-                       productions are read from, and RFC 9111 §5.5 is where the field's status \
-                       is read from",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5",
-                note: "Where `Warning` is obsoleted. The section carries no BCP 14 keyword, so it \
-                       states no requirement on a sender and the field's presence is not reported",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The sender MUST NOT behind every finding here: a value that derives from \
-                       none of §5.5's productions is a protocol element matching no ABNF rule",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "The list construct's sender requirement — an empty member is the finding, \
-                       and §5.6.1.2's worked example is what makes an empty *value* one too, \
-                       because `Warning` is `1#`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
-                note: "`quoted-string`, the `qdtext` that admits `obs-text` inside a warn-text, \
-                       and the recipient's handling of a `quoted-pair` — which is why a warn-date \
-                       is unescaped before it is read as a date",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
-                note: "`HTTP-date`, and the MUST that a sender generate it in the IMF-fixdate \
-                       format — the two obsolete formats parse and are still findings. This \
-                       reference said §7.1.1.1, which is RFC 7231's number for it and does not \
-                       exist in RFC 9110",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3",
-                note: "`pseudonym = token`, the second alternative of `warn-agent`. RFC 7234 \
-                       imported the name from RFC 7230 §5.7.1; this is where it lives now",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("B.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.2",
-                note: "Why `Via` and `Warning` no longer agree: RFC 9110 removed `uri-host` from \
-                       `received-by`, and RFC 7234's `warn-agent` — the same production — was \
-                       never touched, so a bracketed IPv6 literal is a finding there and not here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2",
-                note: "`host`, which `warn-agent`'s first alternative reaches through RFC 9110 \
-                       §4.1 — including the `reg-name` that derives the empty string",
-            },
+            RFC_7234_5_5,
+            RFC_9111_5_5,
+            RFC_9110_2_2,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_4,
+            RFC_9110_5_6_7,
+            RFC_9110_7_6_3,
+            RFC_9110_B_2,
+            RFC_3986_3_2_2,
         ]
     }
 

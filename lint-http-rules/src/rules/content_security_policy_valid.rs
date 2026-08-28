@@ -13,6 +13,22 @@ use crate::rules::Rule;
 /// full CSP grammar; it aims to catch obvious syntactic problems and misuses.
 pub struct ContentSecurityPolicyValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const CSP3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "CSP3",
+    section: None,
+    url: "https://www.w3.org/TR/CSP3/",
+    note: "W3C Content Security Policy Level 3 — directive and source-list syntax",
+};
+const MDN_CONTENT_SECURITY_POLICY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Content-Security-Policy",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy",
+    note: "Mozilla MDN overview and directive examples",
+};
+
 impl Rule for ContentSecurityPolicyValid {
     fn id(&self) -> &'static str {
         "content_security_policy_valid"
@@ -197,20 +213,7 @@ impl Rule for ContentSecurityPolicyValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "CSP3",
-                section: None,
-                url: "https://www.w3.org/TR/CSP3/",
-                note: "W3C Content Security Policy Level 3 — directive and source-list syntax",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Content-Security-Policy",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy",
-                note: "Mozilla MDN overview and directive examples",
-            },
-        ]
+        &[CSP3, MDN_CONTENT_SECURITY_POLICY]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

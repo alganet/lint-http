@@ -81,6 +81,34 @@ impl StructuredHeadersValid {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9651_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
+    note: "Parsing — the algorithm this rule runs, the field_type it needs and does not have, the MUST to join field lines, and the discard rule that makes a failure cost the whole field",
+};
+const RFC_9651_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3",
+    note: "The bare item types, including the Date and Display String added over RFC 8941",
+};
+const RFC_9651_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-2.4",
+    note: "Why a 9651 parser must accept the two new types: it parses everything an 8941 parser does, and more",
+};
+const RFC_9651_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-5",
+    note: "The registry's \"Structured Type\" column — where the field_type this rule lacks is published, for the fields that have one",
+};
+
 impl Rule for StructuredHeadersValid {
     fn id(&self) -> &'static str {
         "structured_headers_valid"
@@ -143,32 +171,7 @@ impl Rule for StructuredHeadersValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
-                note: "Parsing — the algorithm this rule runs, the field_type it needs and does not have, the MUST to join field lines, and the discard rule that makes a failure cost the whole field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3",
-                note: "The bare item types, including the Date and Display String added over RFC 8941",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-2.4",
-                note: "Why a 9651 parser must accept the two new types: it parses everything an 8941 parser does, and more",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-5",
-                note: "The registry's \"Structured Type\" column — where the field_type this rule lacks is published, for the fields that have one",
-            },
-        ]
+        &[RFC_9651_4_2, RFC_9651_3_3, RFC_9651_2_4, RFC_9651_5]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

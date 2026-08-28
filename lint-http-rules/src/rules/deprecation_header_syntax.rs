@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct DeprecationHeaderSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9745_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9745",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
+    note: "Syntax: `Deprecation` is an Item Structured Header Field whose value MUST be a `Date`",
+};
+const RFC_9651_3_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("3.3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7",
+    note: "Structured Field `Date` item syntax (leading `@`)",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order: an Item field (non-list) must not appear as multiple field lines",
+};
+
 impl Rule for DeprecationHeaderSyntax {
     fn id(&self) -> &'static str {
         "deprecation_header_syntax"
@@ -89,26 +111,7 @@ impl Rule for DeprecationHeaderSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9745",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
-                note: "Syntax: `Deprecation` is an Item Structured Header Field whose value MUST be a `Date`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("3.3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7",
-                note: "Structured Field `Date` item syntax (leading `@`)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order: an Item field (non-list) must not appear as multiple field lines",
-            },
-        ]
+        &[RFC_9745_2_1, RFC_9651_3_3_7, RFC_9110_5_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

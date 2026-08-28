@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct AccessControlAllowOriginValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const MDN_ACCESS_CONTROL_ALLOW_ORIGIN: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Access-Control-Allow-Origin",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
+    note: "Access-Control-Allow-Origin",
+};
+const FETCH_3_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("3.3.3"),
+    url: "https://fetch.spec.whatwg.org/#http-access-control-allow-origin",
+    note: "`Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`",
+};
+const FETCH_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("3.2"),
+    url: "https://fetch.spec.whatwg.org/#origin-header",
+    note: "Governing origin syntax: `serialized-origin` ends at its authority, so a path (not even a trailing slash), a query or a fragment all disqualify it; the host inside it is a `reg-name` or a bracketed `IP-literal`, so a character outside those productions or a malformed percent-encoding disqualifies it too; and `origin-or-null`'s `null` is case-sensitive",
+};
+const RFC_6454_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6454",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
+    note: "Historical origin syntax the non-`*` value is validated against — `serialized-origin = scheme \"://\" host [ \":\" port ]`, and `null` via origin-list-or-null; Fetch §3.2 supplants it",
+};
+
 impl Rule for AccessControlAllowOriginValid {
     fn id(&self) -> &'static str {
         "access_control_allow_origin_valid"
@@ -94,30 +122,10 @@ impl Rule for AccessControlAllowOriginValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "MDN Access-Control-Allow-Origin",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
-                note: "Access-Control-Allow-Origin",
-            },
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: Some("3.3.3"),
-                url: "https://fetch.spec.whatwg.org/#http-access-control-allow-origin",
-                note: "`Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`",
-            },
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: Some("3.2"),
-                url: "https://fetch.spec.whatwg.org/#origin-header",
-                note: "Governing origin syntax: `serialized-origin` ends at its authority, so a path (not even a trailing slash), a query or a fragment all disqualify it; the host inside it is a `reg-name` or a bracketed `IP-literal`, so a character outside those productions or a malformed percent-encoding disqualifies it too; and `origin-or-null`'s `null` is case-sensitive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6454",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
-                note: "Historical origin syntax the non-`*` value is validated against — `serialized-origin = scheme \"://\" host [ \":\" port ]`, and `null` via origin-list-or-null; Fetch §3.2 supplants it",
-            },
+            MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
+            FETCH_3_3_3,
+            FETCH_3_2,
+            RFC_6454_7_1,
         ]
     }
 

@@ -73,6 +73,22 @@ paths = ["/logout"]"#
     Ok(ClearSiteDataConfig { paths, severity })
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const CLEAR_SITE_DATA_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Clear-Site-Data",
+    section: Some("3.1"),
+    url: "https://www.w3.org/TR/clear-site-data/#header",
+    note: "The `Clear-Site-Data` HTTP response header field (its purpose; §1.1.1 is the sign-out example this rule encodes)",
+};
+const MDN_CLEAR_SITE_DATA: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Clear-Site-Data",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Clear-Site-Data",
+    note: "Clear-Site-Data",
+};
+
 impl Rule for ClearSiteDataPresent {
     fn id(&self) -> &'static str {
         "clear_site_data_present"
@@ -147,20 +163,7 @@ impl Rule for ClearSiteDataPresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "Clear-Site-Data",
-                section: Some("3.1"),
-                url: "https://www.w3.org/TR/clear-site-data/#header",
-                note: "The `Clear-Site-Data` HTTP response header field (its purpose; §1.1.1 is the sign-out example this rule encodes)",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Clear-Site-Data",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Clear-Site-Data",
-                note: "Clear-Site-Data",
-            },
-        ]
+        &[CLEAR_SITE_DATA_3_1, MDN_CLEAR_SITE_DATA]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

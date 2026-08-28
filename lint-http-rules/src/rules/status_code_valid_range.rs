@@ -7,6 +7,40 @@ use crate::rules::Rule;
 
 pub struct StatusCodeValidRange;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
+    note: "Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, and what a client does with an invalid code",
+};
+const RFC_9110_15_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1",
+    note: "Overview of Status Codes: additional codes `ought to be` registered — the modal that keeps this rule from checking registration",
+};
+const RFC_9110_16_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("16.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.2.2",
+    note: "Considerations for New Status Codes: a new code must fall under one of the five classes §15 defines, so the range cannot widen",
+};
+const RFC_9112_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-4",
+    note: "Status Line: `status-code = 3DIGIT`, the written form an HTTP/1.1 response can carry, and the optional reason phrase this rule does not read",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "Conformance: a sender must not generate an element that does not match its ABNF — reached from RFC 9112 §1.1, and the modal behind the one value no `status-code` can express",
+};
+
 impl Rule for StatusCodeValidRange {
     fn id(&self) -> &'static str {
         "status_code_valid_range"
@@ -116,36 +150,11 @@ impl Rule for StatusCodeValidRange {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
-                note: "Status Codes: the three-digit code, the 100..599 range, the statement that values outside it are invalid, what 600..999 is used for, and what a client does with an invalid code",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1",
-                note: "Overview of Status Codes: additional codes `ought to be` registered — the modal that keeps this rule from checking registration",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("16.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.2.2",
-                note: "Considerations for New Status Codes: a new code must fall under one of the five classes §15 defines, so the range cannot widen",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-4",
-                note: "Status Line: `status-code = 3DIGIT`, the written form an HTTP/1.1 response can carry, and the optional reason phrase this rule does not read",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "Conformance: a sender must not generate an element that does not match its ABNF — reached from RFC 9112 §1.1, and the modal behind the one value no `status-code` can express",
-            },
+            RFC_9110_15,
+            RFC_9110_15_1,
+            RFC_9110_16_2_2,
+            RFC_9112_4,
+            RFC_9110_2_2,
         ]
     }
 

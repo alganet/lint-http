@@ -18,6 +18,16 @@ use crate::rules::ProtocolRule;
 
 pub struct Http3GoawaySemantics;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9114_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-5.2",
+    note: "Connection Shutdown (GOAWAY)",
+};
+
 impl ProtocolRule for Http3GoawaySemantics {
     fn id(&self) -> &'static str {
         "http3_goaway_semantics"
@@ -129,12 +139,7 @@ impl ProtocolRule for Http3GoawaySemantics {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9114",
-            section: Some("5.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-5.2",
-            note: "Connection Shutdown (GOAWAY)",
-        }]
+        &[RFC_9114_5_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

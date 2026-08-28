@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct CrossOriginResourcePolicyValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const FETCH_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("3.7"),
+    url: "https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header",
+    note: "`Cross-Origin-Resource-Policy` — the case-sensitive `same-origin`/`same-site`/`cross-origin` grammar, and unrecognized values set to null",
+};
+const MDN_CROSS_ORIGIN_RESOURCE_POLICY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Cross-Origin-Resource-Policy",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy",
+    note: "Cross-Origin-Resource-Policy",
+};
+
 impl Rule for CrossOriginResourcePolicyValid {
     fn id(&self) -> &'static str {
         "cross_origin_resource_policy_valid"
@@ -96,20 +112,7 @@ impl Rule for CrossOriginResourcePolicyValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: Some("3.7"),
-                url: "https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header",
-                note: "`Cross-Origin-Resource-Policy` — the case-sensitive `same-origin`/`same-site`/`cross-origin` grammar, and unrecognized values set to null",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Cross-Origin-Resource-Policy",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy",
-                note: "Cross-Origin-Resource-Policy",
-            },
-        ]
+        &[FETCH_3_7, MDN_CROSS_ORIGIN_RESOURCE_POLICY]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

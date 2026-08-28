@@ -97,6 +97,46 @@ fn advertised_formats(headers: &hyper::HeaderMap) -> Option<Vec<String>> {
     )
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_5789_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
+    note: "The `Accept-Patch` header — the patch document formats a server accepts, advertised per resource and readable from a response to any method. This reference said §2.2, which is Error Handling",
+};
+const RFC_5789_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
+    note: "Error handling — `415 (Unsupported Media Type)` is what a server may answer a format it does not support with, which is the consequence this rule anticipates rather than a requirement it enforces",
+};
+const RFC_9110_12_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.3",
+    note: "Request content negotiation — enrols `Accept-Patch` among the preferences a server sends to influence the content of subsequent requests, which is what lets §12.4.3 reach it",
+};
+const RFC_9110_12_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.3",
+    note: "Wildcard values — a field has one only where its own definition indicates one, and where none is present the values not mentioned are considered unacceptable. Both halves of this rule",
+};
+const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+    note: "`Content-Type` is a singleton, and recipients differ over which member wins when it is sent more than once — so a duplicated field states no media type to compare",
+};
+const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+    note: "The `media-type` grammar: type and subtype are case-insensitive, and whether a parameter is significant depends on the media type's registration",
+};
+
 impl Rule for PatchMethodContentTypeMatch {
     fn id(&self) -> &'static str {
         "patch_method_content_type_match"
@@ -229,42 +269,12 @@ impl Rule for PatchMethodContentTypeMatch {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
-                note: "The `Accept-Patch` header — the patch document formats a server accepts, advertised per resource and readable from a response to any method. This reference said §2.2, which is Error Handling",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
-                note: "Error handling — `415 (Unsupported Media Type)` is what a server may answer a format it does not support with, which is the consequence this rule anticipates rather than a requirement it enforces",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.3",
-                note: "Request content negotiation — enrols `Accept-Patch` among the preferences a server sends to influence the content of subsequent requests, which is what lets §12.4.3 reach it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.3",
-                note: "Wildcard values — a field has one only where its own definition indicates one, and where none is present the values not mentioned are considered unacceptable. Both halves of this rule",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "`Content-Type` is a singleton, and recipients differ over which member wins when it is sent more than once — so a duplicated field states no media type to compare",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-                note: "The `media-type` grammar: type and subtype are case-insensitive, and whether a parameter is significant depends on the media type's registration",
-            },
+            RFC_5789_3_1,
+            RFC_5789_2_2,
+            RFC_9110_12_3,
+            RFC_9110_12_4_3,
+            RFC_9110_8_3,
+            RFC_9110_8_3_1,
         ]
     }
 

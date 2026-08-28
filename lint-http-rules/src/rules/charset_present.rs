@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct CharsetPresent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+    note: "`media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here",
+};
+const RFC_9110_8_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
+    note: "What `charset` is for. Note it mandates nothing: no requirement to send the parameter exists, so flagging its absence is this linter's policy",
+};
+const MDN_CONTENT_TYPE: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Content-Type",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type",
+    note: "Content-Type",
+};
+
 impl Rule for CharsetPresent {
     fn id(&self) -> &'static str {
         "charset_present"
@@ -105,26 +127,7 @@ impl Rule for CharsetPresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-                note: "`media-type` and the case-insensitivity of its type/subtype tokens, which decides what counts as `text/*` here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
-                note: "What `charset` is for. Note it mandates nothing: no requirement to send the parameter exists, so flagging its absence is this linter's policy",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Content-Type",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type",
-                note: "Content-Type",
-            },
-        ]
+        &[RFC_9110_8_3_1, RFC_9110_8_3_2, MDN_CONTENT_TYPE]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

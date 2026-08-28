@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct CookiePathValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6265_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("4.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
+    note: "Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; `path-value` excludes control characters and `;`",
+};
+const RFC_6265_5_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4",
+    note: "Path attribute — the user agent replaces an empty or non-`/` Path with the default-path (why those forms are flagged)",
+};
+const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
+    note: "Whitespace — rationale for being conservative about whitespace in header fields; this rule adopts a stricter profile by disallowing unencoded whitespace in cookie paths",
+};
+
 impl Rule for CookiePathValid {
     fn id(&self) -> &'static str {
         "cookie_path_valid"
@@ -85,26 +107,7 @@ impl Rule for CookiePathValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("4.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
-                note: "Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; `path-value` excludes control characters and `;`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("5.2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4",
-                note: "Path attribute — the user agent replaces an empty or non-`/` Path with the default-path (why those forms are flagged)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-                note: "Whitespace — rationale for being conservative about whitespace in header fields; this rule adopts a stricter profile by disallowing unencoded whitespace in cookie paths",
-            },
-        ]
+        &[RFC_6265_4_1_1, RFC_6265_5_2_4, RFC_9110_5_6_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

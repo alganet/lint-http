@@ -105,6 +105,40 @@ impl UpgradeAndConnectionConsistent {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
+    note: "Upgrade — the sender's obligation to name the field as a connection-option \
+           beside it, and the `#protocol` grammar that makes the field's presence the \
+           thing the obligation turns on",
+};
+const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+    note: "Connection — the same obligation stated generally, what a recipient does \
+           with a connection-specific field that arrives without its option, the \
+           sentence permitting an option that names no present field, and the note \
+           that some versions do not allow the field at all",
+};
+const RFC_9113_8_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
+    note: "Connection-specific header fields — why an HTTP/2 message is not asked \
+           for an option it must not send",
+};
+const RFC_9114_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
+    note: "HTTP fields — the same prohibition for HTTP/3",
+};
+
 impl Rule for UpgradeAndConnectionConsistent {
     fn id(&self) -> &'static str {
         "upgrade_and_connection_consistent"
@@ -145,38 +179,7 @@ impl Rule for UpgradeAndConnectionConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
-                note: "Upgrade — the sender's obligation to name the field as a connection-option \
-                       beside it, and the `#protocol` grammar that makes the field's presence the \
-                       thing the obligation turns on",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "Connection — the same obligation stated generally, what a recipient does \
-                       with a connection-specific field that arrives without its option, the \
-                       sentence permitting an option that names no present field, and the note \
-                       that some versions do not allow the field at all",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
-                note: "Connection-specific header fields — why an HTTP/2 message is not asked \
-                       for an option it must not send",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
-                note: "HTTP fields — the same prohibition for HTTP/3",
-            },
-        ]
+        &[RFC_9110_7_8, RFC_9110_7_6_1, RFC_9113_8_2_2, RFC_9114_4_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

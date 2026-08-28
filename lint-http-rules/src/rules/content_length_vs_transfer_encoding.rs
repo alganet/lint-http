@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct ContentLengthVsTransferEncoding;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
+    note: "The sender-side prohibition this rule enforces: Content-Length MUST NOT be sent in any message that contains Transfer-Encoding",
+};
+const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+    note: "The recipient side and the stakes: Transfer-Encoding overrides, a forwarding intermediary must strip the Content-Length, and such a message may be an attempt at request smuggling or response splitting",
+};
+
 impl Rule for ContentLengthVsTransferEncoding {
     fn id(&self) -> &'static str {
         "content_length_vs_transfer_encoding"
@@ -73,20 +89,7 @@ impl Rule for ContentLengthVsTransferEncoding {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-                note: "The sender-side prohibition this rule enforces: Content-Length MUST NOT be sent in any message that contains Transfer-Encoding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "The recipient side and the stakes: Transfer-Encoding overrides, a forwarding intermediary must strip the Content-Length, and such a message may be an attempt at request smuggling or response splitting",
-            },
-        ]
+        &[RFC_9112_6_2, RFC_9112_6_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

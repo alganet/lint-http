@@ -66,6 +66,26 @@ const RESPONSE_CONTEXT_FIELDS: &[(&str, &str)] = &[
     ),
 ];
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
+    note: "Request Context Fields — the five fields whose subjects are the user, \
+           user agent and resource behind a request; the section split this rule \
+           reads the direction from",
+};
+const RFC_9110_10_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2",
+    note: "Response Context Fields — the four whose subjects are the server, the \
+           target resource and related resources. No sentence in either section \
+           forbids the misdirection, which is why the finding is advice",
+};
+
 impl Rule for ContextFieldsDirection {
     fn id(&self) -> &'static str {
         "context_fields_direction"
@@ -152,24 +172,7 @@ impl Rule for ContextFieldsDirection {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
-                note: "Request Context Fields — the five fields whose subjects are the user, \
-                       user agent and resource behind a request; the section split this rule \
-                       reads the direction from",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2",
-                note: "Response Context Fields — the four whose subjects are the server, the \
-                       target resource and related resources. No sentence in either section \
-                       forbids the misdirection, which is why the finding is advice",
-            },
-        ]
+        &[RFC_9110_10_1, RFC_9110_10_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

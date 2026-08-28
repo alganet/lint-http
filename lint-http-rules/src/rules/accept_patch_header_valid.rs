@@ -185,6 +185,52 @@ fn allow_names_patch(headers: &hyper::HeaderMap) -> bool {
         .is_some_and(|value| value.split(',').any(|member| trim_ows(member) == "PATCH"))
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_5789_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
+    note: "The field: its grammar, its definition as a response header, its meaning in a response to any method, and the SHOULD that asks for it — in the OPTIONS response, not in the response to a PATCH. This reference said §2.2, which is Error Handling — and §2.2 turned out to hold a second SHOULD, listed below",
+};
+const RFC_5789_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3",
+    note: "Advertising support in OPTIONS — how a resource says it supports PATCH, which is the antecedent §3.1's SHOULD needs, and the sentence that leaves an Allow listing conforming without the field while naming what its absence costs",
+};
+const RFC_5789_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
+    note: "Error handling — the second SHOULD: a 415 answering a PATCH is told to carry the field, and what a 415 means is the whole of that requirement's condition",
+};
+const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+    note: "`media-type`, transcribed once in `helpers::headers` and shared with the Content-Type rule. It is where RFC 5789 §3.1's pointer at `[RFC2616], Section 3.7` resolves today; the obsolete name stays byte-exact inside the quote because it is the RFC's own wording",
+};
+const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
+    note: "The list construct expanded, and the worked example naming the values a `1#` production rejects for holding no non-empty member. §5.6.1.1 is the sender's half — the empty-member finding",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "The method token is case-sensitive, which is why `PATCH` and `OPTIONS` are compared exactly and a `patch` request draws nothing from this rule",
+};
+const RFC_9110_10_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
+    note: "`Allow` — the value read to decide whether the OPTIONS response's resource supports PATCH. Its own grammar is `allow_header_method_tokens_valid`'s",
+};
+
 impl Rule for AcceptPatchHeaderValid {
     fn id(&self) -> &'static str {
         "accept_patch_header_valid"
@@ -310,48 +356,13 @@ impl Rule for AcceptPatchHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
-                note: "The field: its grammar, its definition as a response header, its meaning in a response to any method, and the SHOULD that asks for it — in the OPTIONS response, not in the response to a PATCH. This reference said §2.2, which is Error Handling — and §2.2 turned out to hold a second SHOULD, listed below",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3",
-                note: "Advertising support in OPTIONS — how a resource says it supports PATCH, which is the antecedent §3.1's SHOULD needs, and the sentence that leaves an Allow listing conforming without the field while naming what its absence costs",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-2.2",
-                note: "Error handling — the second SHOULD: a 415 answering a PATCH is told to carry the field, and what a 415 means is the whole of that requirement's condition",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-                note: "`media-type`, transcribed once in `helpers::headers` and shared with the Content-Type rule. It is where RFC 5789 §3.1's pointer at `[RFC2616], Section 3.7` resolves today; the obsolete name stays byte-exact inside the quote because it is the RFC's own wording",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
-                note: "The list construct expanded, and the worked example naming the values a `1#` production rejects for holding no non-empty member. §5.6.1.1 is the sender's half — the empty-member finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "The method token is case-sensitive, which is why `PATCH` and `OPTIONS` are compared exactly and a `patch` request draws nothing from this rule",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
-                note: "`Allow` — the value read to decide whether the OPTIONS response's resource supports PATCH. Its own grammar is `allow_header_method_tokens_valid`'s",
-            },
+            RFC_5789_3_1,
+            RFC_5789_3,
+            RFC_5789_2_2,
+            RFC_9110_8_3_1,
+            RFC_9110_5_6_1_2,
+            RFC_9110_9_1,
+            RFC_9110_10_2_1,
         ]
     }
 

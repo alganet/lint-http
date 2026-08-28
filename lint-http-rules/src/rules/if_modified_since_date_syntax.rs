@@ -9,6 +9,16 @@ use crate::rules::Rule;
 /// generate it as an IMF-fixdate (§5.6.7). This checks the sender's obligation.
 pub struct IfModifiedSinceDateSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_13_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
+    note: "If-Modified-Since header",
+};
+
 impl Rule for IfModifiedSinceDateSyntax {
     fn id(&self) -> &'static str {
         "if_modified_since_date_syntax"
@@ -90,12 +100,7 @@ impl Rule for IfModifiedSinceDateSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("13.1.3"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
-            note: "If-Modified-Since header",
-        }]
+        &[RFC_9110_13_1_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

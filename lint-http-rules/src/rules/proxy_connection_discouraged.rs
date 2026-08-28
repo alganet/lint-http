@@ -8,6 +8,28 @@ use crate::rules::Rule;
 
 pub struct ProxyConnectionDiscouraged;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_C_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("C.2.2"),
+    // An appendix anchors as `appendix-C.2.2`, not `section-c.2.2`,
+    // and the letter is case-sensitive -- the `section-` prefix
+    // every other `SpecRef` in the tree uses scrolls nowhere here.
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#appendix-C.2.2",
+    note: "Keep-Alive Connections — the only description of the field in either core \
+           document, and it states no requirement: the section carries no BCP 14 \
+           keyword",
+};
+const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+    note: "Connection — lists the field among those intermediaries are asked to \
+           remove before forwarding, and names Appendix C.2.2 as its definition",
+};
+
 impl Rule for ProxyConnectionDiscouraged {
     fn id(&self) -> &'static str {
         "proxy_connection_discouraged"
@@ -100,26 +122,7 @@ impl Rule for ProxyConnectionDiscouraged {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("C.2.2"),
-                // An appendix anchors as `appendix-C.2.2`, not `section-c.2.2`,
-                // and the letter is case-sensitive -- the `section-` prefix
-                // every other `SpecRef` in the tree uses scrolls nowhere here.
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#appendix-C.2.2",
-                note: "Keep-Alive Connections — the only description of the field in either core \
-                       document, and it states no requirement: the section carries no BCP 14 \
-                       keyword",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "Connection — lists the field among those intermediaries are asked to \
-                       remove before forwarding, and names Appendix C.2.2 as its definition",
-            },
-        ]
+        &[RFC_9112_C_2_2, RFC_9110_7_6_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

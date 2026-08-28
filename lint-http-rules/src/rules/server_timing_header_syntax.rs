@@ -127,6 +127,70 @@ fn is_valid_floating_point_number(s: &str) -> bool {
 /// § 2 prints.
 pub struct ServerTimingHeaderSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const SERVER_TIMING_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Server Timing",
+    section: Some("2"),
+    url: "https://www.w3.org/TR/server-timing/#the-server-timing-header-field",
+    note: "The `Server-Timing` Header Field: the ABNF this rule enforces, the two parameter names the specification establishes, and the user-agent parsing algorithm. Eight BCP 14 keywords: six addressed to the user agent, a MAY permitting a response to repeat a metric name, and a SHOULD NOT on a parameter name appearing twice in one metric — that last one is the only sentence in the whole document that measures what a server wrote. The section takes `#`, `*`, `OWS`, `token` and `quoted-string` from `[RFC7230]`, which is obsolete; the current productions are RFC 9110 § 5.6.1, § 5.6.3, § 5.6.2 and § 5.6.4 and are carried forward unchanged, so nothing this rule decides turns on which document is read. The document is a W3C Working Draft (7 April 2026) whose own Status section says \"It is inappropriate to cite this document as other than a work in progress\" — and it is nonetheless the field's only specification: the IANA HTTP Field Name Registry lists `Server-Timing` as **permanent** with this document as its sole reference, the same way it lists `Keep-Alive` against an obsoleted RFC. A work in progress is what there is to read",
+};
+const SERVER_TIMING_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Server Timing",
+    section: Some("3.2"),
+    url: "https://www.w3.org/TR/server-timing/#dom-performanceservertiming-duration",
+    note: "The `duration` attribute: `params[\"dur\"]` parsed with HTML's rules for parsing floating-point number values, returning 0 on error. This is what a non-numeric `dur` costs, and it is a consequence rather than a requirement — the lookup is by the exact string, which is why a differently-cased name surfaces nothing",
+};
+const SERVER_TIMING_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Server Timing",
+    section: Some("3.3"),
+    url: "https://www.w3.org/TR/server-timing/#dom-performanceservertiming-description",
+    note: "The `description` attribute: `params[\"desc\"]` if it exists, otherwise the empty string. The same exact-string lookup as § 3.2's",
+};
+const IANA_HTTP_FIELD_NAME_REGISTRY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA HTTP Field Name Registry",
+    section: None,
+    url: "https://www.iana.org/assignments/http-fields/http-fields.xhtml",
+    note: "Where the claim above is checkable: `Server-Timing` is listed `permanent`, with the W3C Working Draft as its only reference. No branch of this rule consults the registry — the field's grammar comes from the document, not from an entry — but the footing does, and an operator asked to trust a work in progress should be able to see that IANA does",
+};
+const HTML_COMMON_MICROSYNTAXES_2_3_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Common Microsyntaxes",
+    section: Some("2.3.4.3"),
+    url: "https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#floating-point-numbers",
+    note: "Floating-point numbers: the *valid floating-point number* production a conforming author writes, kept deliberately apart from the *rules for parsing floating-point number values* a user agent runs. `dur` is measured against the first. Neither is `f64::from_str`, which admits Infinity, NaN and a leading `+`",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "Conformance and Error Handling: \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.\" The Server Timing specification states no requirement on a server, so every grammar finding here rests on this sentence",
+};
+const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
+    note: "Lists (#rule ABNF Extension): `#element => [ 1#element ]` is why an empty `Server-Timing` field value is zero metrics and not a defect, and § 5.6.1.1's \"a sender MUST NOT generate empty list elements\" is why a comma with nothing between it and the next one is",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "Tokens: `metric-name` and both halves of a parameter's name are `token`, whose characters are all visible US-ASCII — so an `obs-text` octet in one of those positions is the defect, not the reader's inability to decode it",
+};
+const RFC_9110_5_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
+    note: "Quoted Strings: the other alternative a `server-timing-param-value` may be. `qdtext` admits `obs-text`, which is why a `desc` carrying a high octet is conforming, and `quoted-pair` is why a DQUOTE inside one is not a terminator",
+};
+const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
+    note: "Limitations on Use of Trailers: the sentence that decides whether this field may sit in a trailer section at all. Not asked here — `trailer_fields_valid` owns it — but it is why the second section this rule reads is worth naming: the Server Timing specification puts the field there only in a section marked non-normative",
+};
+
 impl Rule for ServerTimingHeaderSyntax {
     fn id(&self) -> &'static str {
         "server_timing_header_syntax"
@@ -210,66 +274,16 @@ impl Rule for ServerTimingHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "Server Timing",
-                section: Some("2"),
-                url: "https://www.w3.org/TR/server-timing/#the-server-timing-header-field",
-                note: "The `Server-Timing` Header Field: the ABNF this rule enforces, the two parameter names the specification establishes, and the user-agent parsing algorithm. Eight BCP 14 keywords: six addressed to the user agent, a MAY permitting a response to repeat a metric name, and a SHOULD NOT on a parameter name appearing twice in one metric — that last one is the only sentence in the whole document that measures what a server wrote. The section takes `#`, `*`, `OWS`, `token` and `quoted-string` from `[RFC7230]`, which is obsolete; the current productions are RFC 9110 § 5.6.1, § 5.6.3, § 5.6.2 and § 5.6.4 and are carried forward unchanged, so nothing this rule decides turns on which document is read. The document is a W3C Working Draft (7 April 2026) whose own Status section says \"It is inappropriate to cite this document as other than a work in progress\" — and it is nonetheless the field's only specification: the IANA HTTP Field Name Registry lists `Server-Timing` as **permanent** with this document as its sole reference, the same way it lists `Keep-Alive` against an obsoleted RFC. A work in progress is what there is to read",
-            },
-            crate::rules::SpecRef {
-                spec: "Server Timing",
-                section: Some("3.2"),
-                url: "https://www.w3.org/TR/server-timing/#dom-performanceservertiming-duration",
-                note: "The `duration` attribute: `params[\"dur\"]` parsed with HTML's rules for parsing floating-point number values, returning 0 on error. This is what a non-numeric `dur` costs, and it is a consequence rather than a requirement — the lookup is by the exact string, which is why a differently-cased name surfaces nothing",
-            },
-            crate::rules::SpecRef {
-                spec: "Server Timing",
-                section: Some("3.3"),
-                url: "https://www.w3.org/TR/server-timing/#dom-performanceservertiming-description",
-                note: "The `description` attribute: `params[\"desc\"]` if it exists, otherwise the empty string. The same exact-string lookup as § 3.2's",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA HTTP Field Name Registry",
-                section: None,
-                url: "https://www.iana.org/assignments/http-fields/http-fields.xhtml",
-                note: "Where the claim above is checkable: `Server-Timing` is listed `permanent`, with the W3C Working Draft as its only reference. No branch of this rule consults the registry — the field's grammar comes from the document, not from an entry — but the footing does, and an operator asked to trust a work in progress should be able to see that IANA does",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML Common Microsyntaxes",
-                section: Some("2.3.4.3"),
-                url: "https://html.spec.whatwg.org/multipage/common-microsyntaxes.html#floating-point-numbers",
-                note: "Floating-point numbers: the *valid floating-point number* production a conforming author writes, kept deliberately apart from the *rules for parsing floating-point number values* a user agent runs. `dur` is measured against the first. Neither is `f64::from_str`, which admits Infinity, NaN and a leading `+`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "Conformance and Error Handling: \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.\" The Server Timing specification states no requirement on a server, so every grammar finding here rests on this sentence",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
-                note: "Lists (#rule ABNF Extension): `#element => [ 1#element ]` is why an empty `Server-Timing` field value is zero metrics and not a defect, and § 5.6.1.1's \"a sender MUST NOT generate empty list elements\" is why a comma with nothing between it and the next one is",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "Tokens: `metric-name` and both halves of a parameter's name are `token`, whose characters are all visible US-ASCII — so an `obs-text` octet in one of those positions is the defect, not the reader's inability to decode it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
-                note: "Quoted Strings: the other alternative a `server-timing-param-value` may be. `qdtext` admits `obs-text`, which is why a `desc` carrying a high octet is conforming, and `quoted-pair` is why a DQUOTE inside one is not a terminator",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
-                note: "Limitations on Use of Trailers: the sentence that decides whether this field may sit in a trailer section at all. Not asked here — `trailer_fields_valid` owns it — but it is why the second section this rule reads is worth naming: the Server Timing specification puts the field there only in a section marked non-normative",
-            },
+            SERVER_TIMING_2,
+            SERVER_TIMING_3_2,
+            SERVER_TIMING_3_3,
+            IANA_HTTP_FIELD_NAME_REGISTRY,
+            HTML_COMMON_MICROSYNTAXES_2_3_4_3,
+            RFC_9110_2_2,
+            RFC_9110_5_6_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+            RFC_9110_6_5_1,
         ]
     }
 

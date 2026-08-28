@@ -41,6 +41,28 @@ pub struct QuicTransportParametersValid;
 /// large timeouts waste server resources for idle connections.
 const MAX_REASONABLE_IDLE_TIMEOUT_MS: u64 = 600_000;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9000_18_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9000",
+    section: Some("18.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2",
+    note: "Transport Parameter Definitions",
+};
+const RFC_9114_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-6.1",
+    note: "Bidirectional Streams — servers SHOULD grant non-zero stream and flow-control limits",
+};
+const RFC_9114_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-6.2",
+    note: "Unidirectional Streams — restricting their flow-control window blocks control/QPACK",
+};
+
 impl ProtocolRule for QuicTransportParametersValid {
     fn id(&self) -> &'static str {
         "quic_transport_parameters_valid"
@@ -184,26 +206,7 @@ impl ProtocolRule for QuicTransportParametersValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9000",
-                section: Some("18.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9000.html#section-18.2",
-                note: "Transport Parameter Definitions",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-6.1",
-                note: "Bidirectional Streams — servers SHOULD grant non-zero stream and flow-control limits",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-6.2",
-                note: "Unidirectional Streams — restricting their flow-control window blocks control/QPACK",
-            },
-        ]
+        &[RFC_9000_18_2, RFC_9114_6_1, RFC_9114_6_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

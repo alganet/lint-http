@@ -96,6 +96,41 @@ const SINGLETON_FIELDS: &[(&str, &str)] = &[
     ("expires", "`Expires = HTTP-date` (RFC 9111 §5.3)"),
 ];
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order: the MUST NOT this rule enforces — multiple field lines with \
+           one name in a message, headers or trailers, unless the field's \
+           definition has a comma-separated-list alternative",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "Field Values: what a singleton field is, and the sentence saying that \
+           detecting an erroneously repeated one improves interoperability",
+};
+const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
+    note: "Lists: the `#rule` extension — the shape a field's definition has when \
+           §5.3's exception applies to it, and the shape none of the sixteen \
+           grammars in this rule's table has",
+};
+const RFC_9111_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1",
+    note: "Age — defined as a singleton header field in as many words, with the \
+           recipient's first-member recovery beside it, which is a recipient's \
+           SHOULD and not a sender's licence",
+};
+
 impl Rule for SingletonFieldsNotRepeated {
     fn id(&self) -> &'static str {
         "singleton_fields_not_repeated"
@@ -167,39 +202,7 @@ impl Rule for SingletonFieldsNotRepeated {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order: the MUST NOT this rule enforces — multiple field lines with \
-                       one name in a message, headers or trailers, unless the field's \
-                       definition has a comma-separated-list alternative",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "Field Values: what a singleton field is, and the sentence saying that \
-                       detecting an erroneously repeated one improves interoperability",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
-                note: "Lists: the `#rule` extension — the shape a field's definition has when \
-                       §5.3's exception applies to it, and the shape none of the sixteen \
-                       grammars in this rule's table has",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1",
-                note: "Age — defined as a singleton header field in as many words, with the \
-                       recipient's first-member recovery beside it, which is a recipient's \
-                       SHOULD and not a sender's licence",
-            },
-        ]
+        &[RFC_9110_5_3, RFC_9110_5_5, RFC_9110_5_6_1, RFC_9111_5_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

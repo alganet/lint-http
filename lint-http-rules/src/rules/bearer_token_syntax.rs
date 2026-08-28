@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct BearerTokenSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6750_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6750",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1",
+    note: "Bearer credentials — `credentials = \"Bearer\" 1*SP b64token`; the Authorization header form and grammar for the Bearer scheme",
+};
+const RFC_9110_11_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2",
+    note: "token68 — the current auth framework's credential-token grammar, defined identically to RFC 6750's b64token; anchors the shape in a live spec (RFC 6750 references the obsolete RFC 2617). Replaces a stale RFC 7235 pointer.",
+};
+
 impl Rule for BearerTokenSyntax {
     fn id(&self) -> &'static str {
         "bearer_token_syntax"
@@ -70,20 +86,7 @@ impl Rule for BearerTokenSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6750",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1",
-                note: "Bearer credentials — `credentials = \"Bearer\" 1*SP b64token`; the Authorization header form and grammar for the Bearer scheme",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2",
-                note: "token68 — the current auth framework's credential-token grammar, defined identically to RFC 6750's b64token; anchors the shape in a live spec (RFC 6750 references the obsolete RFC 2617). Replaces a stale RFC 7235 pointer.",
-            },
-        ]
+        &[RFC_6750_2_1, RFC_9110_11_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

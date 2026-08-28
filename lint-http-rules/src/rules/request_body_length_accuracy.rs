@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct RequestBodyLengthAccuracy;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+    note: "Message body length — item 6 is what licenses this rule at all, and its condition is 'without Transfer-Encoding'; item 3 is why a message carrying both is measured by neither",
+};
+const RFC_9112_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
+    note: "Content-Length as framing — why a mismatch matters rather than merely differing. Also the MUST NOT against sending it beside Transfer-Encoding, which is another rule's finding",
+};
+const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+    note: "Where the field and its `1*DIGIT` grammar are actually defined — the syntax itself is `content_length_valid`'s subject, not this rule's",
+};
+
 impl Rule for RequestBodyLengthAccuracy {
     fn id(&self) -> &'static str {
         "request_body_length_accuracy"
@@ -126,26 +148,7 @@ impl Rule for RequestBodyLengthAccuracy {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "Message body length — item 6 is what licenses this rule at all, and its condition is 'without Transfer-Encoding'; item 3 is why a message carrying both is measured by neither",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-                note: "Content-Length as framing — why a mismatch matters rather than merely differing. Also the MUST NOT against sending it beside Transfer-Encoding, which is another rule's finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "Where the field and its `1*DIGIT` grammar are actually defined — the syntax itself is `content_length_valid`'s subject, not this rule's",
-            },
-        ]
+        &[RFC_9112_6_3, RFC_9112_6_2, RFC_9110_8_6]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

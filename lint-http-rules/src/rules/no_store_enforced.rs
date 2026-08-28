@@ -31,6 +31,22 @@ use crate::rules::Rule;
 /// filtered out.
 pub struct NoStoreEnforced;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_2_2_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5",
+    note: "`no-store`",
+};
+const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
+    note: "Validation (conditional requests carry the validators this rule tracks)",
+};
+
 impl Rule for NoStoreEnforced {
     fn id(&self) -> &'static str {
         "no_store_enforced"
@@ -207,20 +223,7 @@ impl Rule for NoStoreEnforced {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.2.2.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.5",
-                note: "`no-store`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-                note: "Validation (conditional requests carry the validators this rule tracks)",
-            },
-        ]
+        &[RFC_9111_5_2_2_5, RFC_9111_4_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -191,6 +191,58 @@ fn shown_alpn_name(name: &[u8]) -> String {
 /// rule asks whether the name is one this deployment offers.
 pub struct AltSvcProtocolRegistered;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7838_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-2",
+    note: "Alternative Services Concepts: an alternative service is identified by an ALPN protocol name as per RFC 7301, a host and a port; §2.4 requires a client to treat a connection that does not negotiate the expected protocol as failed",
+};
+const RFC_7838_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
+    note: "The Alt-Svc HTTP Header Field: `protocol-id = token ; percent-encoded ALPN protocol name`, the escaping table that is its round trip, and the `clear` keyword",
+};
+const RFC_7301_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7301",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7301.html#section-3.1",
+    note: "The Application-Layer Protocol Negotiation Extension: protocol names are IANA-registered opaque byte strings, carried in a `ProtocolName` vector of at most 255 octets; §3.2 is the fatal alert a server sends when nothing is in common",
+};
+const RFC_7301_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7301",
+    section: Some("6"),
+    url: "https://www.rfc-editor.org/rfc/rfc7301.html#section-6",
+    note: "IANA Considerations: the ALPN Protocol IDs registry, its Identification Sequence column, and its Expert Review policy — the reason the allowed list is configuration rather than a table compiled in here",
+};
+const RFC_8447_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8447",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8447.html#section-3",
+    note: "Adding \"TLS\" to Registry Names: the registry RFC 7301 §6 created is now \"TLS Application-Layer Protocol Negotiation (ALPN) Protocol IDs\"",
+};
+const IANA_TLS_ALPN_PROTOCOL_IDS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA TLS ALPN Protocol IDs",
+    section: None,
+    url: "https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#alpn-protocol-ids",
+    note: "TLS Application-Layer Protocol Negotiation (ALPN) Protocol IDs: the registry an operator writes the allowed list from — nothing in this rule reads it",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "Tokens: `token = 1*tchar`, the production a `protocol-id` is, and §5.3's rule for combining a field spread over several lines",
+};
+const RFC_3986_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
+    note: "Percent-Encoding: `pct-encoded = \"%\" HEXDIG HEXDIG`, the triplet decoded back into an octet of the name",
+};
+
 impl Rule for AltSvcProtocolRegistered {
     fn id(&self) -> &'static str {
         "alt_svc_protocol_registered"
@@ -362,54 +414,14 @@ impl Rule for AltSvcProtocolRegistered {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-2",
-                note: "Alternative Services Concepts: an alternative service is identified by an ALPN protocol name as per RFC 7301, a host and a port; §2.4 requires a client to treat a connection that does not negotiate the expected protocol as failed",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
-                note: "The Alt-Svc HTTP Header Field: `protocol-id = token ; percent-encoded ALPN protocol name`, the escaping table that is its round trip, and the `clear` keyword",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7301",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7301.html#section-3.1",
-                note: "The Application-Layer Protocol Negotiation Extension: protocol names are IANA-registered opaque byte strings, carried in a `ProtocolName` vector of at most 255 octets; §3.2 is the fatal alert a server sends when nothing is in common",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7301",
-                section: Some("6"),
-                url: "https://www.rfc-editor.org/rfc/rfc7301.html#section-6",
-                note: "IANA Considerations: the ALPN Protocol IDs registry, its Identification Sequence column, and its Expert Review policy — the reason the allowed list is configuration rather than a table compiled in here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8447",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8447.html#section-3",
-                note: "Adding \"TLS\" to Registry Names: the registry RFC 7301 §6 created is now \"TLS Application-Layer Protocol Negotiation (ALPN) Protocol IDs\"",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA TLS ALPN Protocol IDs",
-                section: None,
-                url: "https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#alpn-protocol-ids",
-                note: "TLS Application-Layer Protocol Negotiation (ALPN) Protocol IDs: the registry an operator writes the allowed list from — nothing in this rule reads it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "Tokens: `token = 1*tchar`, the production a `protocol-id` is, and §5.3's rule for combining a field spread over several lines",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
-                note: "Percent-Encoding: `pct-encoded = \"%\" HEXDIG HEXDIG`, the triplet decoded back into an octet of the name",
-            },
+            RFC_7838_2,
+            RFC_7838_3,
+            RFC_7301_3_1,
+            RFC_7301_6,
+            RFC_8447_3,
+            IANA_TLS_ALPN_PROTOCOL_IDS,
+            RFC_9110_5_6_2,
+            RFC_3986_2_1,
         ]
     }
 

@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct MediaTypeSuffixValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6838_4_2_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6838",
+    section: Some("4.2.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
+    note: "Structured Syntax Name Suffixes: that an unregistered `+suffix` SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ",
+};
+const RFC_6838_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6838",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2",
+    note: "Naming Requirements: `restricted-name`, which decides where a suffix starts (\"characters after last plus\") and that a name must begin with ALPHA or DIGIT — so a subtype that is only a suffix has no base name",
+};
+const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+    note: "Media Type: the subtype a suffix lives in is case-insensitive, which is why suffixes are compared folded",
+};
+const IANA_MEDIA_TYPE_STRUCTURED_SUFFIXES: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA Media Type Structured Suffixes",
+    section: None,
+    url: "https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml",
+    note: "The registry this rule stands in for but does not read; the configured `allowed` array is what it actually checks against",
+};
+
 impl Rule for MediaTypeSuffixValid {
     fn id(&self) -> &'static str {
         "media_type_suffix_valid"
@@ -219,30 +247,10 @@ impl Rule for MediaTypeSuffixValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 6838",
-                section: Some("4.2.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8",
-                note: "Structured Syntax Name Suffixes: that an unregistered `+suffix` SHOULD NOT be used, and — the sharper half — that a suffix MUST NOT name a syntax the type does not employ",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6838",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2",
-                note: "Naming Requirements: `restricted-name`, which decides where a suffix starts (\"characters after last plus\") and that a name must begin with ALPHA or DIGIT — so a subtype that is only a suffix has no base name",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-                note: "Media Type: the subtype a suffix lives in is case-insensitive, which is why suffixes are compared folded",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA Media Type Structured Suffixes",
-                section: None,
-                url: "https://www.iana.org/assignments/media-type-structured-suffix/media-type-structured-suffix.xhtml",
-                note: "The registry this rule stands in for but does not read; the configured `allowed` array is what it actually checks against",
-            },
+            RFC_6838_4_2_8,
+            RFC_6838_4_2,
+            RFC_9110_8_3_1,
+            IANA_MEDIA_TYPE_STRUCTURED_SUFFIXES,
         ]
     }
 

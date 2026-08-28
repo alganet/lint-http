@@ -118,6 +118,46 @@ fn check_member(field: &str, kind: Members, member: &str) -> Option<String> {
 
 pub struct XForwardedConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7239_7_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("7.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-7.4",
+    note: "Transition: what each `X-Forwarded-*` field converts into, and the one difference in how an IPv6 address is written there. The only sentences in any specification that reach these fields.",
+};
+const RFC_7239_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-1",
+    note: "Names `X-Forwarded-For`, `X-Forwarded-By` and `X-Forwarded-Proto` as non-standard header fields",
+};
+const RFC_7239_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("6"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-6",
+    note: "`node` — the identifier an `X-Forwarded-For` / `X-Forwarded-By` member becomes once §7.4's conversion prepends `for=` / `by=`",
+};
+const RFC_7239_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("5.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-5.4",
+    note: "`proto` is a URI scheme name; `http` and `https` are called typical, not exhaustive",
+};
+const RFC_7239_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-5.3",
+    note: "`host` conforms to the `Host` field ABNF. That `X-Forwarded-Host` is the field this parameter carries is a reading of §7.4's `X-Forwarded-*` wildcard, not a sentence.",
+};
+const RFC_9110_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
+    note: "`Host = uri-host [ \":\" port ]`, the production an `X-Forwarded-Host` member is measured against",
+};
+
 impl Rule for XForwardedConsistent {
     fn id(&self) -> &'static str {
         "x_forwarded_consistent"
@@ -176,42 +216,12 @@ impl Rule for XForwardedConsistent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("7.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-7.4",
-                note: "Transition: what each `X-Forwarded-*` field converts into, and the one difference in how an IPv6 address is written there. The only sentences in any specification that reach these fields.",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-1",
-                note: "Names `X-Forwarded-For`, `X-Forwarded-By` and `X-Forwarded-Proto` as non-standard header fields",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("6"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-6",
-                note: "`node` — the identifier an `X-Forwarded-For` / `X-Forwarded-By` member becomes once §7.4's conversion prepends `for=` / `by=`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("5.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-5.4",
-                note: "`proto` is a URI scheme name; `http` and `https` are called typical, not exhaustive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-5.3",
-                note: "`host` conforms to the `Host` field ABNF. That `X-Forwarded-Host` is the field this parameter carries is a reading of §7.4's `X-Forwarded-*` wildcard, not a sentence.",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
-                note: "`Host = uri-host [ \":\" port ]`, the production an `X-Forwarded-Host` member is measured against",
-            },
+            RFC_7239_7_4,
+            RFC_7239_1,
+            RFC_7239_6,
+            RFC_7239_5_4,
+            RFC_7239_5_3,
+            RFC_9110_7_2,
         ]
     }
 

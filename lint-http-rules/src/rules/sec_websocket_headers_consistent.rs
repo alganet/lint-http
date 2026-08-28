@@ -161,6 +161,52 @@ impl SecWebsocketHeadersConsistent {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6455_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1",
+    note: "Client Requirements — the numbered list this rule measures: GET, HTTP version at least 1.1, `Upgrade: websocket`, the `Upgrade` connection-option, the `Sec-WebSocket-Key` nonce, `Sec-WebSocket-Version: 13`, and `Sec-WebSocket-Protocol`'s non-empty unique `token` members",
+};
+const RFC_6455_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
+    note: "Reading the Client's Opening Handshake — the same list from the server's side, which is where the two case-insensitive comparisons and the `Origin` decline are stated",
+};
+const RFC_6455_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
+    note: "Collected ABNF — `Sec-WebSocket-Key = base64-value-non-empty`, `Sec-WebSocket-Version-Client = version`, `Sec-WebSocket-Protocol-Client = 1#token`; the client's version field is one `version` and only the server's is a list",
+};
+const RFC_6455_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.4",
+    note: "Supporting Multiple Versions — why a `Sec-WebSocket-Version` other than 13 is a version advertisement rather than a malformed value, and what a server owes it",
+};
+const RFC_8441_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8441",
+    section: Some("5"),
+    url: "https://www.rfc-editor.org/rfc/rfc8441.html#section-5",
+    note: "Updates RFC 6455: over HTTP/2 the handshake is an extended CONNECT, `Connection` and `Upgrade` MUST NOT be included, and `Sec-WebSocket-Key` is not processed — the sentences behind this rule's version gate",
+};
+const RFC_9220_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9220",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9220.html#section-3",
+    note: "Carries RFC 8441's mechanism to HTTP/3 with identical semantics",
+};
+const RFC_4648_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 4648",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3",
+    note: "The instruction to reject encoded data holding a character outside the base alphabet, which is what makes a malformed `Sec-WebSocket-Key` reportable rather than merely unusual",
+};
+
 impl Rule for SecWebsocketHeadersConsistent {
     fn id(&self) -> &'static str {
         "sec_websocket_headers_consistent"
@@ -238,48 +284,13 @@ impl Rule for SecWebsocketHeadersConsistent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1",
-                note: "Client Requirements — the numbered list this rule measures: GET, HTTP version at least 1.1, `Upgrade: websocket`, the `Upgrade` connection-option, the `Sec-WebSocket-Key` nonce, `Sec-WebSocket-Version: 13`, and `Sec-WebSocket-Protocol`'s non-empty unique `token` members",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
-                note: "Reading the Client's Opening Handshake — the same list from the server's side, which is where the two case-insensitive comparisons and the `Origin` decline are stated",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
-                note: "Collected ABNF — `Sec-WebSocket-Key = base64-value-non-empty`, `Sec-WebSocket-Version-Client = version`, `Sec-WebSocket-Protocol-Client = 1#token`; the client's version field is one `version` and only the server's is a list",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.4",
-                note: "Supporting Multiple Versions — why a `Sec-WebSocket-Version` other than 13 is a version advertisement rather than a malformed value, and what a server owes it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8441",
-                section: Some("5"),
-                url: "https://www.rfc-editor.org/rfc/rfc8441.html#section-5",
-                note: "Updates RFC 6455: over HTTP/2 the handshake is an extended CONNECT, `Connection` and `Upgrade` MUST NOT be included, and `Sec-WebSocket-Key` is not processed — the sentences behind this rule's version gate",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9220",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9220.html#section-3",
-                note: "Carries RFC 8441's mechanism to HTTP/3 with identical semantics",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 4648",
-                section: Some("3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3",
-                note: "The instruction to reject encoded data holding a character outside the base alphabet, which is what makes a malformed `Sec-WebSocket-Key` reportable rather than merely unusual",
-            },
+            RFC_6455_4_1,
+            RFC_6455_4_2_1,
+            RFC_6455_4_3,
+            RFC_6455_4_4,
+            RFC_8441_5,
+            RFC_9220_3,
+            RFC_4648_3_3,
         ]
     }
 

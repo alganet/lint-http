@@ -10,6 +10,61 @@ use crate::rules::Rule;
 
 pub struct ViaHeaderSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_7_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3",
+    note: "The `Via` grammar this rule parses, the sentence that puts the field in both \
+           directions, and the requirements about forwarding and combining that a single \
+           captured message cannot answer",
+};
+const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
+    note: "`received-protocol` points here for its two halves: `protocol-name = token` \
+           and `protocol-version = token`",
+};
+const RFC_9110_B_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("B.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.2",
+    note: "Why a `received-by` is a token: RFC 9110 removed `uri-host` from the \
+           production, which is what makes a bracketed IPv6 literal a finding here and \
+           not under RFC 7230",
+};
+const RFC_9110_5_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
+    note: "The `comment` a member may end with, and the `ctext` that admits `obs-text` \
+           inside it",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "`Via` is a `#` list, so an empty member is the sender's defect and an empty \
+           value is not",
+};
+const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+    note: "Several `Via` lines in one section are one field value, which is why the \
+           members are counted after they are joined",
+};
+const RFC_3986_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3",
+    note: "`port = *DIGIT` — the production `received-by` reaches through RFC 9110 §4.1, \
+           with no range and no minimum digit count",
+};
+
 impl Rule for ViaHeaderSyntax {
     fn id(&self) -> &'static str {
         "via_header_syntax"
@@ -81,57 +136,13 @@ impl Rule for ViaHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3",
-                note: "The `Via` grammar this rule parses, the sentence that puts the field in both \
-                       directions, and the requirements about forwarding and combining that a single \
-                       captured message cannot answer",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
-                note: "`received-protocol` points here for its two halves: `protocol-name = token` \
-                       and `protocol-version = token`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("B.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.2",
-                note: "Why a `received-by` is a token: RFC 9110 removed `uri-host` from the \
-                       production, which is what makes a bracketed IPv6 literal a finding here and \
-                       not under RFC 7230",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
-                note: "The `comment` a member may end with, and the `ctext` that admits `obs-text` \
-                       inside it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "`Via` is a `#` list, so an empty member is the sender's defect and an empty \
-                       value is not",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
-                note: "Several `Via` lines in one section are one field value, which is why the \
-                       members are counted after they are joined",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3",
-                note: "`port = *DIGIT` — the production `received-by` reaches through RFC 9110 §4.1, \
-                       with no range and no minimum digit count",
-            },
+            RFC_9110_7_6_3,
+            RFC_9110_7_8,
+            RFC_9110_B_2,
+            RFC_9110_5_6_5,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_2,
+            RFC_3986_3_2_3,
         ]
     }
 

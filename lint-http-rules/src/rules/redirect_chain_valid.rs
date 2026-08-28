@@ -91,6 +91,46 @@ fn location_names_another_resource(status: u16) -> Option<&'static str> {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
+    note: "Redirection 3xx: a client SHOULD detect and intervene in cyclical redirections, and MAY follow a Location even where the specific status code is not understood",
+};
+const RFC_9110_10_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
+    note: "Location: a relative reference is resolved against the target URI, and a fragmentless value inherits the target's fragment",
+};
+const RFC_9110_15_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
+    note: "201 Created: with no Location field the resource created is the target URI, which is why a 201 naming its own target is not reported",
+};
+const RFC_9112_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.3",
+    note: "Reconstructing the target URI: the authority comes from Host when the request-target has none, and the scheme from the connection — which the capture does not record",
+};
+const RFC_3986_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("5"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-5",
+    note: "Reference resolution: the transform that makes a Location value and a request-target comparable",
+};
+const RFC_3986_6_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2",
+    note: "Syntax-Based Normalization: all three of its normalizations are applied to both sides after resolution — the percent-encoding decoded where the octet is unreserved, the dot segments removed, and the case of the path and query left alone. §6.2.3's scheme-based normalization is not applied",
+};
+
 impl Rule for RedirectChainValid {
     fn id(&self) -> &'static str {
         "redirect_chain_valid"
@@ -257,42 +297,12 @@ impl Rule for RedirectChainValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
-                note: "Redirection 3xx: a client SHOULD detect and intervene in cyclical redirections, and MAY follow a Location even where the specific status code is not understood",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
-                note: "Location: a relative reference is resolved against the target URI, and a fragmentless value inherits the target's fragment",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
-                note: "201 Created: with no Location field the resource created is the target URI, which is why a 201 naming its own target is not reported",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.3",
-                note: "Reconstructing the target URI: the authority comes from Host when the request-target has none, and the scheme from the connection — which the capture does not record",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("5"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-5",
-                note: "Reference resolution: the transform that makes a Location value and a request-target comparable",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2",
-                note: "Syntax-Based Normalization: all three of its normalizations are applied to both sides after resolution — the percent-encoding decoded where the octet is unreserved, the dot segments removed, and the case of the path and query left alone. §6.2.3's scheme-based normalization is not applied",
-            },
+            RFC_9110_15_4,
+            RFC_9110_10_2_2,
+            RFC_9110_15_3_2,
+            RFC_9112_3_3,
+            RFC_3986_5,
+            RFC_3986_6_2_2,
         ]
     }
 

@@ -18,6 +18,34 @@ use crate::rules::Rule;
 /// secondary key, so URI identity is itself an approximation of the cache key.
 pub struct CacheCoherence;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_4_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4",
+    note: "Serving Stale Responses — the MUST NOT this rule heuristically approximates",
+};
+const RFC_9110_8_8_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
+    note: "Last-Modified — the representation's modification time (preferred signal)",
+};
+const RFC_9110_6_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
+    note: "Date — the message's origination time (coarser fallback signal)",
+};
+const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
+    note: "304 Not Modified — conveys no representation, so it is skipped",
+};
+
 impl Rule for CacheCoherence {
     fn id(&self) -> &'static str {
         "cache_coherence"
@@ -129,30 +157,10 @@ impl Rule for CacheCoherence {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.4",
-                note: "Serving Stale Responses — the MUST NOT this rule heuristically approximates",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
-                note: "Last-Modified — the representation's modification time (preferred signal)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
-                note: "Date — the message's origination time (coarser fallback signal)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
-                note: "304 Not Modified — conveys no representation, so it is skipped",
-            },
+            RFC_9111_4_2_4,
+            RFC_9110_8_8_2,
+            RFC_9110_6_6_1,
+            RFC_9110_15_4_5,
         ]
     }
 

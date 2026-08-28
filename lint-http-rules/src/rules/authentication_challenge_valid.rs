@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct AuthenticationChallengeValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_11_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5",
+    note: "Establishing a Protection Space (Realm)",
+};
+const RFC_9110_11_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
+    note: "WWW-Authenticate",
+};
+
 impl Rule for AuthenticationChallengeValid {
     fn id(&self) -> &'static str {
         "authentication_challenge_valid"
@@ -135,20 +151,7 @@ impl Rule for AuthenticationChallengeValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.5",
-                note: "Establishing a Protection Space (Realm)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
-                note: "WWW-Authenticate",
-            },
-        ]
+        &[RFC_9110_11_5, RFC_9110_11_6_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

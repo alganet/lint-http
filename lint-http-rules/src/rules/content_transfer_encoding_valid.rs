@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct ContentTransferEncodingValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_B_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("B.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#appendix-B.5",
+    note: "Why the field is reported at all: HTTP does not use Content-Transfer-Encoding, and gateways from MIME-compliant protocols must remove it",
+};
+const RFC_2045_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2045",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc2045.html#section-6.1",
+    note: "The MIME `mechanism` grammar the value is described against — five named encodings plus `ietf-token` / `x-token`, all case-insensitive",
+};
+const RFC_2045_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2045",
+    section: Some("6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc2045.html#section-6.3",
+    note: "Private mechanisms must be spelled with an `X-` prefix, which is why an `x-` value is well-formed MIME rather than an unrecognized one",
+};
+
 impl Rule for ContentTransferEncodingValid {
     fn id(&self) -> &'static str {
         "content_transfer_encoding_valid"
@@ -113,26 +135,7 @@ impl Rule for ContentTransferEncodingValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("B.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#appendix-B.5",
-                note: "Why the field is reported at all: HTTP does not use Content-Transfer-Encoding, and gateways from MIME-compliant protocols must remove it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2045",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc2045.html#section-6.1",
-                note: "The MIME `mechanism` grammar the value is described against — five named encodings plus `ietf-token` / `x-token`, all case-insensitive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2045",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc2045.html#section-6.3",
-                note: "Private mechanisms must be spelled with an `X-` prefix, which is why an `x-` value is well-formed MIME rather than an unrecognized one",
-            },
-        ]
+        &[RFC_9112_B_5, RFC_2045_6_1, RFC_2045_6_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

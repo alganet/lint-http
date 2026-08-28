@@ -7,6 +7,41 @@ use crate::rules::Rule;
 
 pub struct CookieAttributeConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6265_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("4.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
+    note:
+        "Set-Cookie syntax — the cookie-name/`Secure`/`HttpOnly`/`Expires` grammar this rule checks",
+};
+const RFC_6265_5_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2",
+    note: "The Max-Age attribute — ignored unless it is a `-`-or-DIGIT first character with an all-DIGIT remainder",
+};
+const DRAFT_IETF_HTTPBIS_RFC6265BIS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "draft-ietf-httpbis-rfc6265bis",
+    section: None,
+    url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
+    note: "`SameSite` value grammar and the `SameSite=None` requires `Secure` rule. No section: a draft renumbers between revisions",
+};
+const MDN_SET_COOKIE: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Set-Cookie",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
+    note: "SameSite cookies (SameSite=None should be Secure) — browser compatibility guidance on `SameSite` usage",
+};
+const RFC_9110_5_6_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
+    note: "HTTP-date (IMF-fixdate) — used for the `Expires` attribute",
+};
+
 impl Rule for CookieAttributeConsistent {
     fn id(&self) -> &'static str {
         "cookie_attribute_consistent"
@@ -265,36 +300,11 @@ impl Rule for CookieAttributeConsistent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("4.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
-                note: "Set-Cookie syntax — the cookie-name/`Secure`/`HttpOnly`/`Expires` grammar this rule checks",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("5.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2",
-                note: "The Max-Age attribute — ignored unless it is a `-`-or-DIGIT first character with an all-DIGIT remainder",
-            },
-            crate::rules::SpecRef {
-                spec: "draft-ietf-httpbis-rfc6265bis",
-                section: None,
-                url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
-                note: "`SameSite` value grammar and the `SameSite=None` requires `Secure` rule. No section: a draft renumbers between revisions",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Set-Cookie",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
-                note: "SameSite cookies (SameSite=None should be Secure) — browser compatibility guidance on `SameSite` usage",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
-                note: "HTTP-date (IMF-fixdate) — used for the `Expires` attribute",
-            },
+            RFC_6265_4_1_1,
+            RFC_6265_5_2_2,
+            DRAFT_IETF_HTTPBIS_RFC6265BIS,
+            MDN_SET_COOKIE,
+            RFC_9110_5_6_7,
         ]
     }
 

@@ -7,6 +7,52 @@ use crate::rules::Rule;
 
 pub struct RequestUriPercentEncodingValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_3986_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
+    note: "Percent-Encoding: the triplet production, and percent-encoding as the mechanism for an octet whose character is outside the allowed set",
+};
+const RFC_3986_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2",
+    note: "Characters: the limited set a URI is composed from, whose terminals the notation maps back through US-ASCII",
+};
+const RFC_3986_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.4",
+    note: "When to Encode or Decode: a URI on the wire is already in its percent-encoded form, a '%' meant as data is written %25, and octets decoded before their components are separated can be taken for delimiters",
+};
+const RFC_9110_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
+    note: "URI References: the generic syntax's productions are adopted by name for the HTTP elements that carry a URI",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The sender MUST NOT that a value matching no production breaks",
+};
+const RFC_9110_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
+    note: "Determining the Target Resource: the components sent are collectively the request target on every major protocol version",
+};
+const RFC_5234_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5234",
+    section: Some("2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc5234.html#section-2.3",
+    note: "ABNF strings are case insensitive, which is why a lowercase hexadecimal digit derives from HEXDIG",
+};
+
 impl Rule for RequestUriPercentEncodingValid {
     fn id(&self) -> &'static str {
         "request_uri_percent_encoding_valid"
@@ -143,48 +189,13 @@ impl Rule for RequestUriPercentEncodingValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
-                note: "Percent-Encoding: the triplet production, and percent-encoding as the mechanism for an octet whose character is outside the allowed set",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2",
-                note: "Characters: the limited set a URI is composed from, whose terminals the notation maps back through US-ASCII",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.4",
-                note: "When to Encode or Decode: a URI on the wire is already in its percent-encoded form, a '%' meant as data is written %25, and octets decoded before their components are separated can be taken for delimiters",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
-                note: "URI References: the generic syntax's productions are adopted by name for the HTTP elements that carry a URI",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The sender MUST NOT that a value matching no production breaks",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
-                note: "Determining the Target Resource: the components sent are collectively the request target on every major protocol version",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5234",
-                section: Some("2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc5234.html#section-2.3",
-                note: "ABNF strings are case insensitive, which is why a lowercase hexadecimal digit derives from HEXDIG",
-            },
+            RFC_3986_2_1,
+            RFC_3986_2,
+            RFC_3986_2_4,
+            RFC_9110_4_1,
+            RFC_9110_2_2,
+            RFC_9110_7_1,
+            RFC_5234_2_3,
         ]
     }
 

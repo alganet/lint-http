@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct PriorityAndCacheabilityConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9218_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9218",
+    section: Some("5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-5",
+    note: "`Priority` response header guidance: \"When an origin server generates the Priority response header ... the server is expected to control the cacheability ... by using header fields that control the caching behavior (e.g., Cache-Control, Vary)\"",
+};
+const RFC_9111: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html",
+    note: "HTTP caching and `Cache-Control`/`Vary` semantics (informative)",
+};
+
 impl Rule for PriorityAndCacheabilityConsistent {
     fn id(&self) -> &'static str {
         "priority_and_cacheability_consistent"
@@ -91,20 +107,7 @@ impl Rule for PriorityAndCacheabilityConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9218",
-                section: Some("5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-5",
-                note: "`Priority` response header guidance: \"When an origin server generates the Priority response header ... the server is expected to control the cacheability ... by using header fields that control the caching behavior (e.g., Cache-Control, Vary)\"",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html",
-                note: "HTTP caching and `Cache-Control`/`Vary` semantics (informative)",
-            },
-        ]
+        &[RFC_9218_5, RFC_9111]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

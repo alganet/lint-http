@@ -13,6 +13,22 @@ use crate::rules::Rule;
 /// `Vary: *` is present. This rule flags those cases as likely misconfiguration.
 pub struct VaryAndCacheConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
+    note: "Calculating Cache Keys with the Vary Header Field (a `Vary: *` never matches)",
+};
+const RFC_9111_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
+    note: "Storing Responses in Caches (cacheability requirements)",
+};
+
 impl Rule for VaryAndCacheConsistent {
     fn id(&self) -> &'static str {
         "vary_and_cache_consistent"
@@ -99,21 +115,7 @@ impl Rule for VaryAndCacheConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
-                note:
-                    "Calculating Cache Keys with the Vary Header Field (a `Vary: *` never matches)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
-                note: "Storing Responses in Caches (cacheability requirements)",
-            },
-        ]
+        &[RFC_9111_4_1, RFC_9111_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

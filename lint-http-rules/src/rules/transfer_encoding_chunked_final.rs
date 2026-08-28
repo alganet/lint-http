@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct TransferEncodingChunkedFinal;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+    note: "Transfer-Encoding — every requirement this rule enforces is here: chunked at most once, and chunked last (unconditionally for requests, or the connection closes for responses)",
+};
+const RFC_9112_9_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("9.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-9.6",
+    note: "The 'close' connection option — how a response announces the alternative §6.1 gives it. §9.6 makes announcing a SHOULD, which bounds what this rule can conclude",
+};
+const RFC_9112_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
+    note: "Chunked Transfer Coding — what chunked is, and why nothing may follow it. It does NOT contain the ordering requirement this rule's SpecRef used to attribute to it",
+};
+const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+    note: "The transfer-coding grammar the members are parsed with, including the quoted-string a parameter may carry",
+};
+
 impl Rule for TransferEncodingChunkedFinal {
     fn id(&self) -> &'static str {
         "transfer_encoding_chunked_final"
@@ -229,32 +257,7 @@ impl Rule for TransferEncodingChunkedFinal {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
-                note: "Transfer-Encoding — every requirement this rule enforces is here: chunked at most once, and chunked last (unconditionally for requests, or the connection closes for responses)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("9.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-9.6",
-                note: "The 'close' connection option — how a response announces the alternative §6.1 gives it. §9.6 makes announcing a SHOULD, which bounds what this rule can conclude",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
-                note: "Chunked Transfer Coding — what chunked is, and why nothing may follow it. It does NOT contain the ordering requirement this rule's SpecRef used to attribute to it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
-                note: "The transfer-coding grammar the members are parsed with, including the quoted-string a parameter may carry",
-            },
-        ]
+        &[RFC_9112_6_1, RFC_9112_9_6, RFC_9112_7_1, RFC_9110_10_1_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

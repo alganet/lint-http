@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct PostCreatesResource;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_9_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3",
+    note: "POST: the SHOULD this rule enforces — an origin server that created one or more resources sends a 201 containing a Location field that provides an identifier for the primary resource created",
+};
+const RFC_9110_15_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
+    note: "201 Created: the status indicates one or more new resources were created, which is what makes §9.3.3's condition observable, and the primary resource is identified by the Location field or, if none is received, by the target URI",
+};
+const RFC_9110_10_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
+    note: "Location: on a 201 (Created) response the value refers to the primary resource created by the request. The field's relationship to any other status is left to \"the combination of request method and status code semantics\", which is why a Location on a non-201 is not reported here",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "The method token is case-sensitive, which is why `POST` is matched exactly and a lowercase `post` is not a POST",
+};
+
 impl Rule for PostCreatesResource {
     fn id(&self) -> &'static str {
         "post_creates_resource"
@@ -113,30 +141,10 @@ impl Rule for PostCreatesResource {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3",
-                note: "POST: the SHOULD this rule enforces — an origin server that created one or more resources sends a 201 containing a Location field that provides an identifier for the primary resource created",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
-                note: "201 Created: the status indicates one or more new resources were created, which is what makes §9.3.3's condition observable, and the primary resource is identified by the Location field or, if none is received, by the target URI",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
-                note: "Location: on a 201 (Created) response the value refers to the primary resource created by the request. The field's relationship to any other status is left to \"the combination of request method and status code semantics\", which is why a Location on a non-201 is not reported here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "The method token is case-sensitive, which is why `POST` is matched exactly and a lowercase `post` is not a POST",
-            },
+            RFC_9110_9_3_3,
+            RFC_9110_15_3_2,
+            RFC_9110_10_2_2,
+            RFC_9110_9_1,
         ]
     }
 

@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct AccessControlAllowCredentialsWhenOrigin;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const MDN_ACCESS_CONTROL_ALLOW_CREDENTIALS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Access-Control-Allow-Credentials",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials",
+    note: "Access-Control-Allow-Credentials",
+};
+const MDN_ACCESS_CONTROL_ALLOW_ORIGIN: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Access-Control-Allow-Origin",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
+    note: "Access-Control-Allow-Origin",
+};
+const FETCH_4_10: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("4.10"),
+    url: "https://fetch.spec.whatwg.org/#concept-cors-check",
+    note: "Fetch CORS check — `*` succeeds only for non-credentialed requests, so `*` paired with `Access-Control-Allow-Credentials: true` can never authorize a credentialed request (the two cited steps)",
+};
+
 impl Rule for AccessControlAllowCredentialsWhenOrigin {
     fn id(&self) -> &'static str {
         "access_control_allow_credentials_when_origin"
@@ -99,24 +121,9 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "MDN Access-Control-Allow-Credentials",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Credentials",
-                note: "Access-Control-Allow-Credentials",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Access-Control-Allow-Origin",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
-                note: "Access-Control-Allow-Origin",
-            },
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: Some("4.10"),
-                url: "https://fetch.spec.whatwg.org/#concept-cors-check",
-                note: "Fetch CORS check — `*` succeeds only for non-credentialed requests, so `*` paired with `Access-Control-Allow-Credentials: true` can never authorize a credentialed request (the two cited steps)",
-            },
+            MDN_ACCESS_CONTROL_ALLOW_CREDENTIALS,
+            MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
+            FETCH_4_10,
         ]
     }
 

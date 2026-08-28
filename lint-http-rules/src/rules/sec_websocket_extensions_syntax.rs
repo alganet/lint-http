@@ -233,6 +233,34 @@ impl SecWebsocketExtensionsSyntax {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6455_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1",
+    note: "Negotiating Extensions — the grammar, the MUST that makes a non-conforming \
+           value a failure of the connection, the note that the notation is RFC \
+           2616's, and the requirement on a quoted-string value after unescaping",
+};
+const RFC_2616_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2616",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-2.1",
+    note: "Augmented BNF — the notation §9.1 imports by name: the `#rule` whose null \
+           elements are allowed (RFC 9110 §5.6.1.1 forbids them) and the implied \
+           *LWS rule that permits whitespace beside the separators. Obsolete and \
+           correct: the current document is what sends the reader here",
+};
+const RFC_6455_11_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("11.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.4",
+    note: "WebSocket Extension Name Registry — First Come First Served, which is why \
+           no extension-token is compared against a list here",
+};
+
 impl Rule for SecWebsocketExtensionsSyntax {
     fn id(&self) -> &'static str {
         "sec_websocket_extensions_syntax"
@@ -272,32 +300,7 @@ impl Rule for SecWebsocketExtensionsSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1",
-                note: "Negotiating Extensions — the grammar, the MUST that makes a non-conforming \
-                       value a failure of the connection, the note that the notation is RFC \
-                       2616's, and the requirement on a quoted-string value after unescaping",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2616",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-2.1",
-                note: "Augmented BNF — the notation §9.1 imports by name: the `#rule` whose null \
-                       elements are allowed (RFC 9110 §5.6.1.1 forbids them) and the implied \
-                       *LWS rule that permits whitespace beside the separators. Obsolete and \
-                       correct: the current document is what sends the reader here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("11.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.4",
-                note: "WebSocket Extension Name Registry — First Come First Served, which is why \
-                       no extension-token is compared against a list here",
-            },
-        ]
+        &[RFC_6455_9_1, RFC_2616_2_1, RFC_6455_11_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

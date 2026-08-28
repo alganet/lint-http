@@ -30,6 +30,28 @@ use crate::rules::Rule;
 /// is covered by the separate `cached_validators_reused` rule.
 pub struct CacheValidationChain;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1",
+    note: "Sending a Validation Request — a cache builds preconditions from stored validators (entity tags MUST, Last-Modified SHOULD)",
+};
+const RFC_9110_13_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
+    note: "If-None-Match",
+};
+const RFC_9110_13_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
+    note: "If-Modified-Since",
+};
+
 impl Rule for CacheValidationChain {
     fn id(&self) -> &'static str {
         "cache_validation_chain"
@@ -188,26 +210,7 @@ impl Rule for CacheValidationChain {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1",
-                note: "Sending a Validation Request — a cache builds preconditions from stored validators (entity tags MUST, Last-Modified SHOULD)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
-                note: "If-None-Match",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
-                note: "If-Modified-Since",
-            },
-        ]
+        &[RFC_9111_4_3_1, RFC_9110_13_1_2, RFC_9110_13_1_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

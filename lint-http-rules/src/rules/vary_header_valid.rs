@@ -12,6 +12,16 @@ use crate::rules::Rule;
 /// field-names (RFC 7231's `"*" / 1#field-name` exclusivity was dropped).
 pub struct VaryHeaderValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_12_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+spec: "RFC 9110",
+section: Some("12.5.5"),
+url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
+note: "Vary = #( \"*\" / field-name ) — a comma-separated list; \"*\" is an ordinary member (RFC 7231's \"*\"-or-a-list form is obsolete). Not checked: the same section's \"A proxy MUST NOT generate \\\"*\\\"\", since a forwarded \"*\" is indistinguishable from a generated one in an observed response",
+        };
+
 impl Rule for VaryHeaderValid {
     fn id(&self) -> &'static str {
         "vary_header_valid"
@@ -106,12 +116,7 @@ impl Rule for VaryHeaderValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("12.5.5"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
-            note: "Vary = #( \"*\" / field-name ) — a comma-separated list; \"*\" is an ordinary member (RFC 7231's \"*\"-or-a-list form is obsolete). Not checked: the same section's \"A proxy MUST NOT generate \\\"*\\\"\", since a forwarded \"*\" is indistinguishable from a generated one in an observed response",
-        }]
+        &[RFC_9110_12_5_5]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

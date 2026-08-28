@@ -7,6 +7,16 @@ use crate::rules::Rule;
 
 pub struct AgeHeaderNumeric;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1",
+    note: "`Age` field-value: delta-seconds (non-negative integer)",
+};
+
 impl Rule for AgeHeaderNumeric {
     fn id(&self) -> &'static str {
         "age_header_numeric"
@@ -84,12 +94,7 @@ impl Rule for AgeHeaderNumeric {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9111",
-            section: Some("5.1"),
-            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1",
-            note: "`Age` field-value: delta-seconds (non-negative integer)",
-        }]
+        &[RFC_9111_5_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -257,6 +257,45 @@ impl NoConnectionSpecificFields {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9113_8_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
+    note: "Connection-Specific Header Fields — HTTP/2's prohibition, and the one \
+           sentence of the two that closes the list of names",
+};
+const RFC_9114_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
+    note: "HTTP Fields — HTTP/3's prohibition, which enumerates nothing and defers \
+           to RFC 9110 §7.6.1",
+};
+const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+    note: "Connection — the field itself, and the open list of those that carry \
+           connection-specific semantics",
+};
+const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+    note: "TE — the capabilities of the client, which is why a response carrying \
+           the field gets no part of the exception",
+};
+const RFC_5234_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5234",
+    section: Some("2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc5234.html#section-2.3",
+    note: "Terminal Values — an ABNF string is case-insensitive, which is what \
+           licenses matching `trailers` without regard to case",
+};
+
 impl Rule for NoConnectionSpecificFields {
     fn id(&self) -> &'static str {
         "no_connection_specific_fields"
@@ -324,41 +363,11 @@ impl Rule for NoConnectionSpecificFields {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
-                note: "Connection-Specific Header Fields — HTTP/2's prohibition, and the one \
-                       sentence of the two that closes the list of names",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
-                note: "HTTP Fields — HTTP/3's prohibition, which enumerates nothing and defers \
-                       to RFC 9110 §7.6.1",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "Connection — the field itself, and the open list of those that carry \
-                       connection-specific semantics",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
-                note: "TE — the capabilities of the client, which is why a response carrying \
-                       the field gets no part of the exception",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5234",
-                section: Some("2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc5234.html#section-2.3",
-                note: "Terminal Values — an ABNF string is case-insensitive, which is what \
-                       licenses matching `trailers` without regard to case",
-            },
+            RFC_9113_8_2_2,
+            RFC_9114_4_2,
+            RFC_9110_7_6_1,
+            RFC_9110_10_1_4,
+            RFC_5234_2_3,
         ]
     }
 

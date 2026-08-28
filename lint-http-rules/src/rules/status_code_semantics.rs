@@ -41,6 +41,46 @@ fn carries_a_challenge(headers: &hyper::HeaderMap, name: &str) -> bool {
     })
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
+    note: "401 (Unauthorized) — the MUST for a `WWW-Authenticate` header field containing at least one challenge",
+};
+const RFC_9110_11_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
+    note: "`WWW-Authenticate` — the field definition, the same MUST for a 401, and the MAY that permits the field on any other response (which is why this rule reports no such response)",
+};
+const RFC_9110_15_5_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.8",
+    note: "407 (Proxy Authentication Required) — the MUST for a `Proxy-Authenticate` header field containing a challenge applicable to that proxy",
+};
+const RFC_9110_11_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.1",
+    note: "`Proxy-Authenticate` — at least one field in each 407 the proxy generates, and the sentence limiting the field to the next outbound client, which is all that stands behind the advisory finding on other statuses",
+};
+const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
+    note: "Empty list elements do not contribute to the count of elements present — why `WWW-Authenticate: ,` carries no challenge",
+};
+const RFC_9110_15: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
+    note: "Status Codes — the part of the document both status definitions live in",
+};
+
 impl Rule for StatusCodeSemantics {
     fn id(&self) -> &'static str {
         "status_code_semantics"
@@ -186,42 +226,12 @@ impl Rule for StatusCodeSemantics {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
-                note: "401 (Unauthorized) — the MUST for a `WWW-Authenticate` header field containing at least one challenge",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
-                note: "`WWW-Authenticate` — the field definition, the same MUST for a 401, and the MAY that permits the field on any other response (which is why this rule reports no such response)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.5.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.8",
-                note: "407 (Proxy Authentication Required) — the MUST for a `Proxy-Authenticate` header field containing a challenge applicable to that proxy",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.7.1",
-                note: "`Proxy-Authenticate` — at least one field in each 407 the proxy generates, and the sentence limiting the field to the next outbound client, which is all that stands behind the advisory finding on other statuses",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
-                note: "Empty list elements do not contribute to the count of elements present — why `WWW-Authenticate: ,` carries no challenge",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
-                note: "Status Codes — the part of the document both status definitions live in",
-            },
+            RFC_9110_15_5_2,
+            RFC_9110_11_6_1,
+            RFC_9110_15_5_8,
+            RFC_9110_11_7_1,
+            RFC_9110_5_6_1_2,
+            RFC_9110_15,
         ]
     }
 

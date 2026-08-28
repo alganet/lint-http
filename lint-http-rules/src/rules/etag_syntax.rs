@@ -9,6 +9,22 @@ use crate::rules::Rule;
 /// per RFC 9110 §8.8.3. Also flags invalid UTF-8 and multiple header fields.
 pub struct EtagSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
+    note: "`ETag` header field, the `ETag = entity-tag` field production, and the `entity-tag` grammar",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order: a non-list field (such as `ETag = entity-tag`) must not appear as multiple field lines",
+};
+
 impl Rule for EtagSyntax {
     fn id(&self) -> &'static str {
         "etag_syntax"
@@ -94,20 +110,7 @@ impl Rule for EtagSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
-                note: "`ETag` header field, the `ETag = entity-tag` field production, and the `entity-tag` grammar",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order: a non-list field (such as `ETag = entity-tag`) must not appear as multiple field lines",
-            },
-        ]
+        &[RFC_9110_8_8_3, RFC_9110_5_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

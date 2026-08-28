@@ -112,6 +112,70 @@ fn connect_port_range_finding(port: &str) -> Option<String> {
     })
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9113_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3",
+    note: "HTTP Control Data — what a pseudo-header field is, and that a request carrying an invalid one is malformed. Its two requirements about the field block itself (ordering before regular field lines, one occurrence per name) are not checked: a capture holds no pseudo-header fields and no field order.",
+};
+const RFC_9113_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
+    note: "Request Pseudo-Header Fields — what each of `:method`, `:scheme`, `:authority` and `:path` conveys, the `'*'` value for asterisk-form OPTIONS, the `:path`-must-not-be-empty MUST, and the userinfo MUST NOT written for `http` and `https` targets",
+};
+const RFC_9113_8_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.2",
+    note: "Response Pseudo-Header Fields — `:status` is always present in this model and its range is RFC 9110 §15's, so nothing here reads it",
+};
+const RFC_9113_8_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.5",
+    note: "The CONNECT Method — `:method` is set to CONNECT, `:scheme` and `:path` are omitted, `:authority` carries the host and port, and the proxy opens a TCP connection to them",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "Overview of methods — `method = token`, and the token is case-sensitive, which is why CONNECT and OPTIONS are matched exactly",
+};
+const RFC_9110_9_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+    note: "CONNECT — the host and port number of the tunnel destination, the absence of a default port, and the server's MUST to reject an empty or invalid one. This is where the port requirements come from; the grammar states none.",
+};
+const RFC_9110_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
+    note: "Determining the Target Resource — the asterisk is OPTIONS's target and the method-specific forms must not be used with other methods",
+};
+const RFC_9112_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3",
+    note: "authority-form — the production RFC 9113 §8.5 points at for what `:authority` carries on a CONNECT, and where both halves turn out to be `*`-quantified",
+};
+const RFC_8441_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8441",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc8441.html#section-4",
+    note: "The Extended CONNECT Method — `:protocol` is what distinguishes it, and on such a request `:scheme` and `:path` MUST be included. A capture records no `:protocol`, which is why an absolute-form CONNECT target is accepted.",
+};
+const RFC_6335_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6335",
+    section: Some("6"),
+    url: "https://www.rfc-editor.org/rfc/rfc6335.html#section-6",
+    note: "Port Number Ranges — the 16-bit namespace that bounds a CONNECT port above, and the reserved edge values that are why `0` is not reported",
+};
+
 impl Rule for Http2PseudoHeadersValid {
     fn id(&self) -> &'static str {
         "http2_pseudo_headers_valid"
@@ -361,66 +425,16 @@ impl Rule for Http2PseudoHeadersValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3",
-                note: "HTTP Control Data — what a pseudo-header field is, and that a request carrying an invalid one is malformed. Its two requirements about the field block itself (ordering before regular field lines, one occurrence per name) are not checked: a capture holds no pseudo-header fields and no field order.",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
-                note: "Request Pseudo-Header Fields — what each of `:method`, `:scheme`, `:authority` and `:path` conveys, the `'*'` value for asterisk-form OPTIONS, the `:path`-must-not-be-empty MUST, and the userinfo MUST NOT written for `http` and `https` targets",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.2",
-                note: "Response Pseudo-Header Fields — `:status` is always present in this model and its range is RFC 9110 §15's, so nothing here reads it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.5",
-                note: "The CONNECT Method — `:method` is set to CONNECT, `:scheme` and `:path` are omitted, `:authority` carries the host and port, and the proxy opens a TCP connection to them",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "Overview of methods — `method = token`, and the token is case-sensitive, which is why CONNECT and OPTIONS are matched exactly",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
-                note: "CONNECT — the host and port number of the tunnel destination, the absence of a default port, and the server's MUST to reject an empty or invalid one. This is where the port requirements come from; the grammar states none.",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
-                note: "Determining the Target Resource — the asterisk is OPTIONS's target and the method-specific forms must not be used with other methods",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3",
-                note: "authority-form — the production RFC 9113 §8.5 points at for what `:authority` carries on a CONNECT, and where both halves turn out to be `*`-quantified",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8441",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc8441.html#section-4",
-                note: "The Extended CONNECT Method — `:protocol` is what distinguishes it, and on such a request `:scheme` and `:path` MUST be included. A capture records no `:protocol`, which is why an absolute-form CONNECT target is accepted.",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6335",
-                section: Some("6"),
-                url: "https://www.rfc-editor.org/rfc/rfc6335.html#section-6",
-                note: "Port Number Ranges — the 16-bit namespace that bounds a CONNECT port above, and the reserved edge values that are why `0` is not reported",
-            },
+            RFC_9113_8_3,
+            RFC_9113_8_3_1,
+            RFC_9113_8_3_2,
+            RFC_9113_8_5,
+            RFC_9110_9_1,
+            RFC_9110_9_3_6,
+            RFC_9110_7_1,
+            RFC_9112_3_2_3,
+            RFC_8441_4,
+            RFC_6335_6,
         ]
     }
 

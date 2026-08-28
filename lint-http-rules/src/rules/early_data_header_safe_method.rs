@@ -109,6 +109,46 @@ impl EarlyDataHeaderSafeMethod {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_8470_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8470",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-4",
+    note: "Using Early Data in HTTP Clients — the MUST NOT that licenses this rule, and it covers two sets: unsafe methods, and methods whose safety is not known. It opens \"Absent other information\", an out-of-band state no message records",
+};
+const RFC_8470_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8470",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-5.1",
+    note: "The Early-Data Header Field — one valid value, at most one instance, invalid or repeated instances read as a single \"1\", added by an intermediary rather than by the user agent, and forbidden in a Connection field, in a response, and in a request's trailer section",
+};
+const RFC_8470_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8470",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-5.2",
+    note: "The 425 (Too Early) Status Code — what a server sends instead of processing a marked request it judges too risky. Nothing here reads it: whether a given resource tolerates replay is knowledge only the origin has",
+};
+const RFC_9110_9_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1",
+    note: "Safe Methods — the property RFC 8470 §4 names. GET, HEAD, OPTIONS and TRACE are the safe methods this document defines, which is a smaller set than the safe methods there are",
+};
+const RFC_9110_16_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("16.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.1.1",
+    note: "Method Registry — every registration MUST carry a Safe field, and entries are added by IETF Review. This is why the safe set is configured rather than compiled in",
+};
+const IANA_HTTP_METHOD_REGISTRY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA HTTP Method Registry",
+    section: None,
+    url: "https://www.iana.org/assignments/http-methods/http-methods.xhtml",
+    note: "The registry itself. Its Safe column held GET, HEAD, OPTIONS, PRI, PROPFIND, QUERY, REPORT, SEARCH and TRACE when config_example.toml's array was written",
+};
+
 impl Rule for EarlyDataHeaderSafeMethod {
     fn id(&self) -> &'static str {
         "early_data_header_safe_method"
@@ -254,42 +294,12 @@ impl Rule for EarlyDataHeaderSafeMethod {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 8470",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-4",
-                note: "Using Early Data in HTTP Clients — the MUST NOT that licenses this rule, and it covers two sets: unsafe methods, and methods whose safety is not known. It opens \"Absent other information\", an out-of-band state no message records",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8470",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-5.1",
-                note: "The Early-Data Header Field — one valid value, at most one instance, invalid or repeated instances read as a single \"1\", added by an intermediary rather than by the user agent, and forbidden in a Connection field, in a response, and in a request's trailer section",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8470",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8470.html#section-5.2",
-                note: "The 425 (Too Early) Status Code — what a server sends instead of processing a marked request it judges too risky. Nothing here reads it: whether a given resource tolerates replay is knowledge only the origin has",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.1",
-                note: "Safe Methods — the property RFC 8470 §4 names. GET, HEAD, OPTIONS and TRACE are the safe methods this document defines, which is a smaller set than the safe methods there are",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("16.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.1.1",
-                note: "Method Registry — every registration MUST carry a Safe field, and entries are added by IETF Review. This is why the safe set is configured rather than compiled in",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA HTTP Method Registry",
-                section: None,
-                url: "https://www.iana.org/assignments/http-methods/http-methods.xhtml",
-                note: "The registry itself. Its Safe column held GET, HEAD, OPTIONS, PRI, PROPFIND, QUERY, REPORT, SEARCH and TRACE when config_example.toml's array was written",
-            },
+            RFC_8470_4,
+            RFC_8470_5_1,
+            RFC_8470_5_2,
+            RFC_9110_9_2_1,
+            RFC_9110_16_1_1,
+            IANA_HTTP_METHOD_REGISTRY,
         ]
     }
 

@@ -12,6 +12,22 @@ use chrono::{DateTime, Utc};
 /// while `Expires` is in the past relative to Date).
 pub struct ExpiresAndCacheControlConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3",
+    note: "Cache-Control overrides Expires: a recipient MUST ignore Expires when max-age is present, and a shared cache MUST ignore it when s-maxage is present",
+};
+const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
+    note: "Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`",
+};
+
 impl Rule for ExpiresAndCacheControlConsistent {
     fn id(&self) -> &'static str {
         "expires_and_cache_control_consistent"
@@ -194,20 +210,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.3",
-                note: "Cache-Control overrides Expires: a recipient MUST ignore Expires when max-age is present, and a shared cache MUST ignore it when s-maxage is present",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
-                note: "Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`",
-            },
-        ]
+        &[RFC_9111_5_3, RFC_9111_4_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

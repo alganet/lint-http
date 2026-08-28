@@ -7,6 +7,40 @@ use crate::rules::Rule;
 
 pub struct ExtensionHeadersRegistered;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
+    note: "Field Names (case-insensitive, and registration is an \"ought to\"; the same paragraph makes a proxy forward what it does not recognize)",
+};
+const RFC_9110_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
+    note: "Trailer Fields (a trailer field name is a field name, so the array reaches it)",
+};
+const RFC_9110_16_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("16.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.1",
+    note: "Field Name Registry (what registration is; this rule does not consult it)",
+};
+const RFC_9110_16_3_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("16.3.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.2.1",
+    note: "Considerations for New Field Names (no \"X-\" prefix)",
+};
+const IANA_HTTP_FIELD_NAME_REGISTRY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA HTTP Field Name Registry",
+    section: None,
+    url: "https://www.iana.org/assignments/http-fields/http-fields.xhtml",
+    note: "The registry § 5.1 points at, for deciding what belongs in the array",
+};
+
 impl Rule for ExtensionHeadersRegistered {
     fn id(&self) -> &'static str {
         "extension_headers_registered"
@@ -74,36 +108,11 @@ impl Rule for ExtensionHeadersRegistered {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
-                note: "Field Names (case-insensitive, and registration is an \"ought to\"; the same paragraph makes a proxy forward what it does not recognize)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
-                note: "Trailer Fields (a trailer field name is a field name, so the array reaches it)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("16.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.1",
-                note: "Field Name Registry (what registration is; this rule does not consult it)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("16.3.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.2.1",
-                note: "Considerations for New Field Names (no \"X-\" prefix)",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA HTTP Field Name Registry",
-                section: None,
-                url: "https://www.iana.org/assignments/http-fields/http-fields.xhtml",
-                note: "The registry § 5.1 points at, for deciding what belongs in the array",
-            },
+            RFC_9110_5_1,
+            RFC_9110_6_5,
+            RFC_9110_16_3_1,
+            RFC_9110_16_3_2_1,
+            IANA_HTTP_FIELD_NAME_REGISTRY,
         ]
     }
 

@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct ServerHeaderProductValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.4",
+    note: "`Server = product *( RWS ( product / comment ) )`; the section defines the field and defers the product syntax itself to Section 10.1.5",
+};
+const RFC_9110_10_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
+    note: "`product = token [\"/\" product-version]` and `product-version = token`, defined once under `User-Agent` and shared by `Server`",
+};
+const RFC_9110_5_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
+    note: "`comment = \"(\" *( ctext / quoted-pair / comment ) \")\"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash",
+};
+
 impl Rule for ServerHeaderProductValid {
     fn id(&self) -> &'static str {
         "server_header_product_valid"
@@ -67,26 +89,7 @@ impl Rule for ServerHeaderProductValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.4",
-                note: "`Server = product *( RWS ( product / comment ) )`; the section defines the field and defers the product syntax itself to Section 10.1.5",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
-                note: "`product = token [\"/\" product-version]` and `product-version = token`, defined once under `User-Agent` and shared by `Server`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
-                note: "`comment = \"(\" *( ctext / quoted-pair / comment ) \")\"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash",
-            },
-        ]
+        &[RFC_9110_10_2_4, RFC_9110_10_1_5, RFC_9110_5_6_5]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -7,6 +7,70 @@ use crate::rules::Rule;
 
 pub struct ContentLocationAndUriConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7",
+    note: "Content-Location: the grammar, and what a value equal to or different from the target URI means. Attaches no requirement to a difference, which is why the mismatch report is an advisory",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "Field Values: singleton fields, and the US-ASCII range field values are constrained to",
+};
+const RFC_9110_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
+    note: "URI References: a `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF production is what says which forms it allows — the sentence behind reporting a fragment in this field",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The sender MUST NOT behind the fragment finding: unlike Referer's, this field's section names no component, so a fragment is a protocol element matching no ABNF rule and nothing more",
+};
+const RFC_3986_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.3",
+    note: "Absolute URI: the form without a fragment identifier — the other half of the alternation, saying the same thing about its half",
+};
+const RFC_3986_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-5.2",
+    note: "Relative Resolution: the transform, merge and remove_dot_segments routines used to convert a partial-URI to absolute form before comparing it",
+};
+const RFC_3986_6_2_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1",
+    note: "Case Normalization: scheme and host fold case, the remaining components do not, and the hexadecimal of a percent-triplet that stays encoded is folded to upper case",
+};
+const RFC_3986_6_2_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.2",
+    note: "Percent-Encoding Normalization: a triplet standing for an unreserved character is decoded on both sides before comparison, so `/a~b` and `/a%7Eb` are one path. Nothing else is decoded — a delimiter would move the component boundaries (§2.4)",
+};
+const RFC_3986_6_2_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3",
+    note: "Path Segment Normalization: dot-segments are removed from both sides before comparison, after the decoding above — §2.3 names the period among the octets a normalizer decodes, so `%2E%2E` is a dot segment. §6.2.3's scheme-based normalization is NOT applied, so a default port written out and one left off read as different authorities",
+};
+
 impl Rule for ContentLocationAndUriConsistent {
     fn id(&self) -> &'static str {
         "content_location_and_uri_consistent"
@@ -273,66 +337,16 @@ impl Rule for ContentLocationAndUriConsistent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.7",
-                note: "Content-Location: the grammar, and what a value equal to or different from the target URI means. Attaches no requirement to a difference, which is why the mismatch report is an advisory",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "Field Values: singleton fields, and the US-ASCII range field values are constrained to",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
-                note: "URI References: a `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF production is what says which forms it allows — the sentence behind reporting a fragment in this field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The sender MUST NOT behind the fragment finding: unlike Referer's, this field's section names no component, so a fragment is a protocol element matching no ABNF rule and nothing more",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.3",
-                note: "Absolute URI: the form without a fragment identifier — the other half of the alternation, saying the same thing about its half",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-5.2",
-                note: "Relative Resolution: the transform, merge and remove_dot_segments routines used to convert a partial-URI to absolute form before comparing it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1",
-                note: "Case Normalization: scheme and host fold case, the remaining components do not, and the hexadecimal of a percent-triplet that stays encoded is folded to upper case",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.2",
-                note: "Percent-Encoding Normalization: a triplet standing for an unreserved character is decoded on both sides before comparison, so `/a~b` and `/a%7Eb` are one path. Nothing else is decoded — a delimiter would move the component boundaries (§2.4)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3",
-                note: "Path Segment Normalization: dot-segments are removed from both sides before comparison, after the decoding above — §2.3 names the period among the octets a normalizer decodes, so `%2E%2E` is a dot segment. §6.2.3's scheme-based normalization is NOT applied, so a default port written out and one left off read as different authorities",
-            },
+            RFC_9110_8_7,
+            RFC_9110_5_3,
+            RFC_9110_5_5,
+            RFC_9110_4_1,
+            RFC_9110_2_2,
+            RFC_3986_4_3,
+            RFC_3986_5_2,
+            RFC_3986_6_2_2_1,
+            RFC_3986_6_2_2_2,
+            RFC_3986_6_2_2_3,
         ]
     }
 

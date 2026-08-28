@@ -363,6 +363,58 @@ fn check_alt_value(member: &str) -> Option<String> {
     None
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7838_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
+    note: "The Alt-Svc HTTP Header Field: the field's grammar, the `clear` keyword, the three percent-encoding constraints on a protocol-id, and the prose requiring a colon and a port inside the alt-authority",
+};
+const RFC_7838_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
+    note: "Caching Alt-Svc Header Field Values: `persist = \"1\"` is the whole syntax of that parameter, and clients ignore any other value",
+};
+const RFC_7838_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-1.1",
+    note: "Notational Conventions: the field's terminals — `OWS`, `port`, `quoted-string`, `token`, `uri-host` — and the `#rule` extension are imported from RFC 7230, whose §3.2.3, §2.7, §3.2.6 and §7 are carried unchanged by RFC 9110 §5.6.3, §4.1, §5.6.4, §5.6.2 and §5.6.1",
+};
+const RFC_7838_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("8"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-8",
+    note: "Internationalization Considerations: an internationalized domain name in this field is written as A-labels",
+};
+const RFC_7838_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-2",
+    note: "Alternative Services Concepts: an alternative service is an ALPN protocol name, an RFC 3986 host and an RFC 3986 port, and the protocol name implies the transport the port is registered in",
+};
+const RFC_9110_5_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6",
+    note: "Common Rules for Defining Field Values: `token`, `quoted-string`, `OWS` and the `#rule` list construct this field's grammar is built from, and the sender's MUST NOT against empty list elements",
+};
+const RFC_3986_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2",
+    note: "Authority: `host` and `port`, the two productions the alt-authority's content is made of, and `pct-encoded` in §2.1",
+};
+const RFC_6335_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6335",
+    section: Some("6"),
+    url: "https://www.rfc-editor.org/rfc/rfc6335.html#section-6",
+    note: "Port Number Ranges: the sixteen-bit namespace that bounds the port, and the reserved edge values that are not thereby invalid",
+};
+
 impl Rule for AltSvcHeaderSyntax {
     fn id(&self) -> &'static str {
         "alt_svc_header_syntax"
@@ -485,54 +537,14 @@ impl Rule for AltSvcHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
-                note: "The Alt-Svc HTTP Header Field: the field's grammar, the `clear` keyword, the three percent-encoding constraints on a protocol-id, and the prose requiring a colon and a port inside the alt-authority",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
-                note: "Caching Alt-Svc Header Field Values: `persist = \"1\"` is the whole syntax of that parameter, and clients ignore any other value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-1.1",
-                note: "Notational Conventions: the field's terminals — `OWS`, `port`, `quoted-string`, `token`, `uri-host` — and the `#rule` extension are imported from RFC 7230, whose §3.2.3, §2.7, §3.2.6 and §7 are carried unchanged by RFC 9110 §5.6.3, §4.1, §5.6.4, §5.6.2 and §5.6.1",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("8"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-8",
-                note: "Internationalization Considerations: an internationalized domain name in this field is written as A-labels",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-2",
-                note: "Alternative Services Concepts: an alternative service is an ALPN protocol name, an RFC 3986 host and an RFC 3986 port, and the protocol name implies the transport the port is registered in",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6",
-                note: "Common Rules for Defining Field Values: `token`, `quoted-string`, `OWS` and the `#rule` list construct this field's grammar is built from, and the sender's MUST NOT against empty list elements",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2",
-                note: "Authority: `host` and `port`, the two productions the alt-authority's content is made of, and `pct-encoded` in §2.1",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6335",
-                section: Some("6"),
-                url: "https://www.rfc-editor.org/rfc/rfc6335.html#section-6",
-                note: "Port Number Ranges: the sixteen-bit namespace that bounds the port, and the reserved edge values that are not thereby invalid",
-            },
+            RFC_7838_3,
+            RFC_7838_3_1,
+            RFC_7838_1_1,
+            RFC_7838_8,
+            RFC_7838_2,
+            RFC_9110_5_6,
+            RFC_3986_3_2,
+            RFC_6335_6,
         ]
     }
 

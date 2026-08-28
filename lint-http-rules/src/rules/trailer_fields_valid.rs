@@ -22,6 +22,52 @@ use crate::rules::Rule;
 /// cite(RFC 9110 § 6.5.1): "A trailer section is only possible when supported by the version of HTTP in use and enabled by an explicit framing mechanism."
 pub struct TrailerFieldsValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
+    note: "Trailer fields: what a trailer section is, and why what it carries cannot unmake a routing or processing choice already made from the header section",
+};
+const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
+    note: "The MUST NOT behind the first finding, and it is deny-by-default: a trailer field is permitted only where the field's own definition says so. This rule reports the subset it can name; a field it does not recognise is not thereby approved",
+};
+const RFC_9110_6_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2",
+    note: "The `Trailer` field, whose SHOULD asks a sender to indicate which fields might appear — the sentence behind the undeclared-field finding, which said §6.5 in the finding text",
+};
+const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+    note: "`Connection`: naming a field as a connection-option makes its value control information for this connection, and every intermediary removes it from the trailer section before forwarding",
+};
+const RFC_9110_11_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.3",
+    note: "`Authentication-Info` may be sent as a trailer field when the authentication scheme allows it — a field §6.5.1's authentication category would forbid, permitted by name in its own definition. §11.7.3 says the same of `Proxy-Authentication-Info`. Neither is reported",
+};
+const RFC_9110_16_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("16.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.2",
+    note: "The registry's advice to authors of new fields, and the sentence that makes §6.5.1 deny-by-default: a field is not allowable in trailers unless its definition says it is",
+};
+const RFC_9112_7_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2",
+    note: "The chunked transfer coding's trailer section — HTTP/1.1's framing mechanism for the section this rule reads, and the reason the framing precondition in §6.5.1 needs no check here",
+};
+
 impl Rule for TrailerFieldsValid {
     fn id(&self) -> &'static str {
         "trailer_fields_valid"
@@ -78,48 +124,13 @@ impl Rule for TrailerFieldsValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
-                note: "Trailer fields: what a trailer section is, and why what it carries cannot unmake a routing or processing choice already made from the header section",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
-                note: "The MUST NOT behind the first finding, and it is deny-by-default: a trailer field is permitted only where the field's own definition says so. This rule reports the subset it can name; a field it does not recognise is not thereby approved",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2",
-                note: "The `Trailer` field, whose SHOULD asks a sender to indicate which fields might appear — the sentence behind the undeclared-field finding, which said §6.5 in the finding text",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "`Connection`: naming a field as a connection-option makes its value control information for this connection, and every intermediary removes it from the trailer section before forwarding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.3",
-                note: "`Authentication-Info` may be sent as a trailer field when the authentication scheme allows it — a field §6.5.1's authentication category would forbid, permitted by name in its own definition. §11.7.3 says the same of `Proxy-Authentication-Info`. Neither is reported",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("16.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.3.2",
-                note: "The registry's advice to authors of new fields, and the sentence that makes §6.5.1 deny-by-default: a field is not allowable in trailers unless its definition says it is",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2",
-                note: "The chunked transfer coding's trailer section — HTTP/1.1's framing mechanism for the section this rule reads, and the reason the framing precondition in §6.5.1 needs no check here",
-            },
+            RFC_9110_6_5,
+            RFC_9110_6_5_1,
+            RFC_9110_6_6_2,
+            RFC_9110_7_6_1,
+            RFC_9110_11_6_3,
+            RFC_9110_16_3_2,
+            RFC_9112_7_1_2,
         ]
     }
 

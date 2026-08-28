@@ -99,6 +99,40 @@ fn read_prefer(headers: &hyper::HeaderMap) -> PreferSection {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7240_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
+    note: "`Preference-Applied` — the field's definition, its grammar, and the sentence saying it is the `Prefer` grammar without parameters",
+};
+const RFC_7240_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
+    note: "`Prefer` — the multi-line equivalence, the first-instance rule, the case rules for names and values, and the equivalence of an empty value with no value",
+};
+const RFC_7240_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-1.1",
+    note: "Where `token`, `word`, `OWS`, `BWS` and the `#rule` extension come from. The named source is RFC 7230, which RFC 9110 obsoletes; `word` is the one name RFC 9110 did not keep, though both halves of it survive as `token` and `quoted-string`",
+};
+const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
+    note: "The `#rule` extension: §5.6.1.1 forbids the sender an empty list element, §5.6.1.2 prints the values a `1#` production rejects for having no non-empty member",
+};
+const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
+    note: "`BWS`: a recipient must remove it before interpreting the element, and a sender must not have written it — both directions are read at the `=` in `applied-pref`",
+};
+
 impl Rule for PreferenceAppliedHeaderValid {
     fn id(&self) -> &'static str {
         "preference_applied_header_valid"
@@ -277,36 +311,11 @@ impl Rule for PreferenceAppliedHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
-                note: "`Preference-Applied` — the field's definition, its grammar, and the sentence saying it is the `Prefer` grammar without parameters",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
-                note: "`Prefer` — the multi-line equivalence, the first-instance rule, the case rules for names and values, and the equivalence of an empty value with no value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-1.1",
-                note: "Where `token`, `word`, `OWS`, `BWS` and the `#rule` extension come from. The named source is RFC 7230, which RFC 9110 obsoletes; `word` is the one name RFC 9110 did not keep, though both halves of it survive as `token` and `quoted-string`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
-                note: "The `#rule` extension: §5.6.1.1 forbids the sender an empty list element, §5.6.1.2 prints the values a `1#` production rejects for having no non-empty member",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-                note: "`BWS`: a recipient must remove it before interpreting the element, and a sender must not have written it — both directions are read at the `=` in `applied-pref`",
-            },
+            RFC_7240_3,
+            RFC_7240_2,
+            RFC_7240_1_1,
+            RFC_9110_5_6_1,
+            RFC_9110_5_6_3,
         ]
     }
 

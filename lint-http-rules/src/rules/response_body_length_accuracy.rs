@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct ResponseBodyLengthAccuracy;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+    note: "Message body length, in precedence order — this rule is item 6, and items 1, 2 and 3 are why most responses are exempt rather than checked",
+};
+const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+    note: "Content-Length: the field, its grammar, the MUSTs that make a HEAD or 304 response's value describe a body it did not send, and the MUST NOT against forwarding a value known to be incorrect — this rule's reason to exist",
+};
+const RFC_9112_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
+    note: "Content-Length as framing, and the MUST NOT against sending it beside Transfer-Encoding — another rule's finding",
+};
+const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+    note: "HEAD — servers SHOULD answer it with the fields they would have sent for GET, which is what made the exemption the common case rather than a corner",
+};
+
 impl Rule for ResponseBodyLengthAccuracy {
     fn id(&self) -> &'static str {
         "response_body_length_accuracy"
@@ -169,32 +197,7 @@ impl Rule for ResponseBodyLengthAccuracy {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "Message body length, in precedence order — this rule is item 6, and items 1, 2 and 3 are why most responses are exempt rather than checked",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "Content-Length: the field, its grammar, the MUSTs that make a HEAD or 304 response's value describe a body it did not send, and the MUST NOT against forwarding a value known to be incorrect — this rule's reason to exist",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-                note: "Content-Length as framing, and the MUST NOT against sending it beside Transfer-Encoding — another rule's finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-                note: "HEAD — servers SHOULD answer it with the fields they would have sent for GET, which is what made the exemption the common case rather than a corner",
-            },
-        ]
+        &[RFC_9112_6_3, RFC_9110_8_6, RFC_9112_6_2, RFC_9110_9_3_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -24,6 +24,16 @@ use crate::rules::Rule;
 /// the entry as fresh until `max-age` expired.
 pub struct SMaxAgeEnforced;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_2_2_10: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.10"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.10",
+    note: "`s-maxage` — applies only to shared caches and overrides `max-age`/`Expires` for those caches",
+};
+
 impl Rule for SMaxAgeEnforced {
     fn id(&self) -> &'static str {
         "s_max_age_enforced"
@@ -120,14 +130,7 @@ impl Rule for SMaxAgeEnforced {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.2.2.10"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.10",
-                note: "`s-maxage` — applies only to shared caches and overrides `max-age`/`Expires` for those caches",
-            },
-        ]
+        &[RFC_9111_5_2_2_10]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

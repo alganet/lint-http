@@ -7,6 +7,40 @@ use crate::rules::Rule;
 
 pub struct RangeHeaderSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_14_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.1",
+    note: "Range Specifiers: `ranges-specifier = range-unit \"=\" range-set`, and the grammar under it is generic — each range unit says which of `int-range`, `suffix-range` and `other-range` its specifiers may use. A ranges-specifier is invalid when it holds a range-spec \"that is invalid or undefined for the indicated range-unit\", which is the sentence every check here rests on and the one that bounds them to the unit the rule knows",
+};
+const RFC_9110_14_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2",
+    note: "Byte Ranges: the two forms the `bytes` unit defines, both `1*DIGIT`, with `other-range` withdrawn for this unit. It also requires recipients to anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows — so positions are compared as digits and no ceiling is imposed — and it defines satisfiability, which is a question about the representation and not about the field",
+};
+const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
+    note: "`Range`: the field is a `ranges-specifier` on a GET request. A server MUST ignore one received with a method for which range handling is not defined, an origin server MUST ignore one whose range unit it does not understand, and a server that supports range requests MAY ignore or reject an invalid one — which is what a finding here costs. The ascending-order requirement is a SHOULD carrying an exception about the client's own needs, which a request does not record",
+};
+const RFC_9110_14_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1",
+    note: "Range Units: `range-unit = token`, case-insensitive, an open registry, \"intended to be extensible\" — which is why a unit other than `bytes` is not a finding",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "Sender Requirements for the list construct: OWS on either side of each comma, and a sender MUST NOT generate empty list elements. Recipients are told the opposite in §5.6.1.2 — parse and ignore them — so the shared list reader, which drops them, cannot answer this rule's question",
+};
+
 impl Rule for RangeHeaderSyntax {
     fn id(&self) -> &'static str {
         "range_header_syntax"
@@ -141,36 +175,11 @@ impl Rule for RangeHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.1",
-                note: "Range Specifiers: `ranges-specifier = range-unit \"=\" range-set`, and the grammar under it is generic — each range unit says which of `int-range`, `suffix-range` and `other-range` its specifiers may use. A ranges-specifier is invalid when it holds a range-spec \"that is invalid or undefined for the indicated range-unit\", which is the sentence every check here rests on and the one that bounds them to the unit the rule knows",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2",
-                note: "Byte Ranges: the two forms the `bytes` unit defines, both `1*DIGIT`, with `other-range` withdrawn for this unit. It also requires recipients to anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows — so positions are compared as digits and no ceiling is imposed — and it defines satisfiability, which is a question about the representation and not about the field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
-                note: "`Range`: the field is a `ranges-specifier` on a GET request. A server MUST ignore one received with a method for which range handling is not defined, an origin server MUST ignore one whose range unit it does not understand, and a server that supports range requests MAY ignore or reject an invalid one — which is what a finding here costs. The ascending-order requirement is a SHOULD carrying an exception about the client's own needs, which a request does not record",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1",
-                note: "Range Units: `range-unit = token`, case-insensitive, an open registry, \"intended to be extensible\" — which is why a unit other than `bytes` is not a finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "Sender Requirements for the list construct: OWS on either side of each comma, and a sender MUST NOT generate empty list elements. Recipients are told the opposite in §5.6.1.2 — parse and ignore them — so the shared list reader, which drops them, cannot answer this rule's question",
-            },
+            RFC_9110_14_1_1,
+            RFC_9110_14_1_2,
+            RFC_9110_14_2,
+            RFC_9110_14_1,
+            RFC_9110_5_6_1_1,
         ]
     }
 

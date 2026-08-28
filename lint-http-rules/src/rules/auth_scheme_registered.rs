@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct AuthSchemeRegistered;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_11_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.1",
+    note: "Authentication Scheme — `auth-scheme = token`, and where new schemes are registered",
+};
+const RFC_9110_16_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("16.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.4.1",
+    note: "Authentication Scheme Registry",
+};
+const IANA_HTTP_AUTHENTICATION_SCHEMES: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA HTTP Authentication Schemes",
+    section: None,
+    url: "https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml",
+    note: "IANA HTTP Authentication Scheme Registry",
+};
+
 impl Rule for AuthSchemeRegistered {
     fn id(&self) -> &'static str {
         "auth_scheme_registered"
@@ -142,24 +164,9 @@ impl Rule for AuthSchemeRegistered {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.1",
-                note: "Authentication Scheme — `auth-scheme = token`, and where new schemes are registered",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("16.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.4.1",
-                note: "Authentication Scheme Registry",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA HTTP Authentication Schemes",
-                section: None,
-                url: "https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml",
-                note: "IANA HTTP Authentication Scheme Registry",
-            },
+            RFC_9110_11_1,
+            RFC_9110_16_4_1,
+            IANA_HTTP_AUTHENTICATION_SCHEMES,
         ]
     }
 

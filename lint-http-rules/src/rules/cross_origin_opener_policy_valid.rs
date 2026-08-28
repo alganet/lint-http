@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct CrossOriginOpenerPolicyValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const MDN_CROSS_ORIGIN_OPENER_POLICY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Cross-Origin-Opener-Policy",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy",
+    note: "Cross-Origin-Opener-Policy",
+};
+const HTML_7_1_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML",
+    section: Some("7.1.3.1"),
+    url: "https://html.spec.whatwg.org/multipage/browsers.html#the-coop-headers",
+    note: "The `Cross-Origin-Opener-Policy` header is parsed as a single structured-field item (token); `same-origin-plus-COEP` is derived from `same-origin` + a compatible COEP, never set directly",
+};
+const HTML: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML",
+    section: None,
+    url: "https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies",
+    note: "“Cross-origin opener policies” — the possible opener policy values and their meanings",
+};
+
 impl Rule for CrossOriginOpenerPolicyValid {
     fn id(&self) -> &'static str {
         "cross_origin_opener_policy_valid"
@@ -98,26 +120,7 @@ impl Rule for CrossOriginOpenerPolicyValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "MDN Cross-Origin-Opener-Policy",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy",
-                note: "Cross-Origin-Opener-Policy",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML",
-                section: Some("7.1.3.1"),
-                url: "https://html.spec.whatwg.org/multipage/browsers.html#the-coop-headers",
-                note: "The `Cross-Origin-Opener-Policy` header is parsed as a single structured-field item (token); `same-origin-plus-COEP` is derived from `same-origin` + a compatible COEP, never set directly",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML",
-                section: None,
-                url: "https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies",
-                note: "“Cross-origin opener policies” — the possible opener policy values and their meanings",
-            },
-        ]
+        &[MDN_CROSS_ORIGIN_OPENER_POLICY, HTML_7_1_3_1, HTML]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

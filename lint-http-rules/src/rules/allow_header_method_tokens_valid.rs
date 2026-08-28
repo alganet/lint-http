@@ -152,6 +152,46 @@ impl AllowHeaderMethodTokensValid {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
+    note: "The field itself: its grammar, what the set of methods means, and the sentence that gives an empty field value a meaning rather than making it a defect",
+};
+const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("A"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
+    note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not, and where `method = token` is quotable",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "The sender's half of the list construct — the empty-member finding. The recipient's half (§5.6.1.2, parse and ignore them) is a different party's requirement, which is why the lenient list reader is not used here",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "`token = 1*tchar`, transcribed once in `helpers::token::is_tchar`, and the delimiter set that makes splitting this field on every comma exact",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "A field value excludes the whitespace around it, so a value that is only whitespace is the empty value — and `obs-text` is an octet field content admits, which is why the value is read as octets rather than through a UTF-8 decode",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The sentence that makes a value outside its own grammar a violation, and the reason both halves of the exchange are measured: it addresses whoever generated the element",
+};
+
 impl Rule for AllowHeaderMethodTokensValid {
     fn id(&self) -> &'static str {
         "allow_header_method_tokens_valid"
@@ -235,42 +275,12 @@ impl Rule for AllowHeaderMethodTokensValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
-                note: "The field itself: its grammar, what the set of methods means, and the sentence that gives an empty field value a meaning rather than making it a defect",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("A"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
-                note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not, and where `method = token` is quotable",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "The sender's half of the list construct — the empty-member finding. The recipient's half (§5.6.1.2, parse and ignore them) is a different party's requirement, which is why the lenient list reader is not used here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "`token = 1*tchar`, transcribed once in `helpers::token::is_tchar`, and the delimiter set that makes splitting this field on every comma exact",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "A field value excludes the whitespace around it, so a value that is only whitespace is the empty value — and `obs-text` is an octet field content admits, which is why the value is read as octets rather than through a UTF-8 decode",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The sentence that makes a value outside its own grammar a violation, and the reason both halves of the exchange are measured: it addresses whoever generated the element",
-            },
+            RFC_9110_10_2_1,
+            RFC_9110_A,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_5,
+            RFC_9110_2_2,
         ]
     }
 

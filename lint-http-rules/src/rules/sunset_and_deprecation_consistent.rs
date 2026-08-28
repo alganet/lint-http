@@ -8,6 +8,34 @@ use chrono::TimeZone;
 
 pub struct SunsetAndDeprecationConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_8594_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8594",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
+    note: "`Sunset` header semantics (HTTP-date)",
+};
+const RFC_9745_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9745",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
+    note: "`Deprecation` is a Structured Field Date (`@<seconds>`)",
+};
+const RFC_9745_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9745",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-4",
+    note: "Sunset MUST NOT be earlier than Deprecation",
+};
+const RFC_9651_3_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("3.3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7",
+    note: "Structured Field `Date` item syntax",
+};
+
 impl Rule for SunsetAndDeprecationConsistent {
     fn id(&self) -> &'static str {
         "sunset_and_deprecation_consistent"
@@ -126,32 +154,7 @@ impl Rule for SunsetAndDeprecationConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 8594",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
-                note: "`Sunset` header semantics (HTTP-date)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9745",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-2.1",
-                note: "`Deprecation` is a Structured Field Date (`@<seconds>`)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9745",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9745.html#section-4",
-                note: "Sunset MUST NOT be earlier than Deprecation",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("3.3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7",
-                note: "Structured Field `Date` item syntax",
-            },
-        ]
+        &[RFC_8594_3, RFC_9745_2_1, RFC_9745_4, RFC_9651_3_3_7]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

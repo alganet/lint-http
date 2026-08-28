@@ -35,6 +35,22 @@ use crate::rules::Rule;
 /// could not possibly be revalidated.
 pub struct NoCacheRevalidation;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_2_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.4",
+    note: "`no-cache`",
+};
+const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
+    note: "Validation (the conditional request that satisfies no-cache)",
+};
+
 impl Rule for NoCacheRevalidation {
     fn id(&self) -> &'static str {
         "no_cache_revalidation"
@@ -103,20 +119,7 @@ impl Rule for NoCacheRevalidation {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.2.2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.4",
-                note: "`no-cache`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-                note: "Validation (the conditional request that satisfies no-cache)",
-            },
-        ]
+        &[RFC_9111_5_2_2_4, RFC_9111_4_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -31,6 +31,40 @@ fn sends_authority_as_control_data(tx: &crate::http_transaction::HttpTransaction
     crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri).is_some()
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
+    note: "Host and :authority — the grammar, the MUST, and the pseudo-header the MUST excepts. The SHOULD to send Host first is not checked: the capture does not preserve field order.",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order — a sender MUST NOT repeat a field name unless the field is a comma-separated list, and Host is not one",
+};
+const RFC_9112_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+    note: "Request Target — Host is required in all HTTP/1.1 requests, its value excludes userinfo, and it is empty when the target URI has no authority",
+};
+const RFC_3986_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2",
+    note: "Host — an IP literal is distinguished by its square brackets; every other host is a registered name",
+};
+const RFC_3986_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3",
+    note: "Port — `port = *DIGIT` bounds nothing, so a port outside the TCP range is not a syntax finding",
+};
+
 impl Rule for HostHeader {
     fn id(&self) -> &'static str {
         "host_header"
@@ -165,36 +199,11 @@ impl Rule for HostHeader {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
-                note: "Host and :authority — the grammar, the MUST, and the pseudo-header the MUST excepts. The SHOULD to send Host first is not checked: the capture does not preserve field order.",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order — a sender MUST NOT repeat a field name unless the field is a comma-separated list, and Host is not one",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
-                note: "Request Target — Host is required in all HTTP/1.1 requests, its value excludes userinfo, and it is empty when the target URI has no authority",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2",
-                note: "Host — an IP literal is distinguished by its square brackets; every other host is a registered name",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3",
-                note: "Port — `port = *DIGIT` bounds nothing, so a port outside the TCP range is not a syntax finding",
-            },
+            RFC_9110_7_2,
+            RFC_9110_5_3,
+            RFC_9112_3_2,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
         ]
     }
 

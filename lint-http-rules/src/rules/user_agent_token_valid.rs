@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct UserAgentTokenValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
+    note: "`User-Agent = product *( RWS ( product / comment ) )`, a request context field; `product = token [\"/\" product-version]` is defined here once and `Server` shares it. The section's further requirements — no advertising or nonessential information in a product identifier, no needlessly fine-grained detail — are about intent and are not decidable from a field value",
+};
+const RFC_9110_5_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
+    note: "`comment = \"(\" *( ctext / quoted-pair / comment ) \")\"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash",
+};
+
 impl Rule for UserAgentTokenValid {
     fn id(&self) -> &'static str {
         "user_agent_token_valid"
@@ -87,20 +103,7 @@ impl Rule for UserAgentTokenValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
-                note: "`User-Agent = product *( RWS ( product / comment ) )`, a request context field; `product = token [\"/\" product-version]` is defined here once and `Server` shares it. The section's further requirements — no advertising or nonessential information in a product identifier, no needlessly fine-grained detail — are about intent and are not decidable from a field value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
-                note: "`comment = \"(\" *( ctext / quoted-pair / comment ) \")\"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash",
-            },
-        ]
+        &[RFC_9110_10_1_5, RFC_9110_5_6_5]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

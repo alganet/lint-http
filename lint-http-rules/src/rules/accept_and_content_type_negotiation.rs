@@ -7,6 +7,47 @@ use crate::rules::Rule;
 
 pub struct AcceptAndContentTypeNegotiation;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_12_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.1",
+    note: "Absence: what a missing negotiation field means, and — the reason this rule is advisory — the origin server's explicit choice between sending 406 and disregarding the header entirely",
+};
+const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
+    note: "Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, the instruction to find `q` wherever it sits, and the media-range parameters this rule does not compare",
+};
+const RFC_9110_12_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
+    note: "Quality Values: `qvalue`, the meaning of a zero weight, and the default weight of 1 that a member with no readable `q` keeps",
+};
+const RFC_9110_12_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.1",
+    note: "Proactive negotiation: that a user agent cannot rely on its preferences being honoured, which is the same point as §12.4.1's from the client's side",
+};
+const RFC_9110_15_5_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7",
+    note:
+        "406 (Not Acceptable): the status this rule suggests, and the one response it never reports",
+};
+const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+    note: "Content-Type: that recipients differ over which member of a duplicated field they act on, which is why a response with two Content-Type lines is not judged",
+};
+
 impl Rule for AcceptAndContentTypeNegotiation {
     fn id(&self) -> &'static str {
         "accept_and_content_type_negotiation"
@@ -246,42 +287,12 @@ impl Rule for AcceptAndContentTypeNegotiation {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.1",
-                note: "Absence: what a missing negotiation field means, and — the reason this rule is advisory — the origin server's explicit choice between sending 406 and disregarding the header entirely",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
-                note: "Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, the instruction to find `q` wherever it sits, and the media-range parameters this rule does not compare",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-                note: "Quality Values: `qvalue`, the meaning of a zero weight, and the default weight of 1 that a member with no readable `q` keeps",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.1",
-                note: "Proactive negotiation: that a user agent cannot rely on its preferences being honoured, which is the same point as §12.4.1's from the client's side",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.5.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.7",
-                note: "406 (Not Acceptable): the status this rule suggests, and the one response it never reports",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Content-Type: that recipients differ over which member of a duplicated field they act on, which is why a response with two Content-Type lines is not judged",
-            },
+            RFC_9110_12_4_1,
+            RFC_9110_12_5_1,
+            RFC_9110_12_4_2,
+            RFC_9110_12_1,
+            RFC_9110_15_5_7,
+            RFC_9110_8_3,
         ]
     }
 

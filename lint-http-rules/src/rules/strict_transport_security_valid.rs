@@ -7,6 +7,40 @@ use crate::rules::Rule;
 
 pub struct StrictTransportSecurityValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6797_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6797",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1",
+    note: "Strict-Transport-Security header",
+};
+const RFC_6797_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6797",
+    section: Some("6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.1",
+    note: "The max-age Directive",
+};
+const RFC_6797_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6797",
+    section: Some("6.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2",
+    note: "The includeSubDomains Directive",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "Tokens — `token` syntax for directive names",
+};
+const RFC_9110_5_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
+    note: "Quoted Strings — `quoted-string` syntax for directive values",
+};
+
 impl Rule for StrictTransportSecurityValid {
     fn id(&self) -> &'static str {
         "strict_transport_security_valid"
@@ -175,36 +209,11 @@ impl Rule for StrictTransportSecurityValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 6797",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1",
-                note: "Strict-Transport-Security header",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6797",
-                section: Some("6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.1",
-                note: "The max-age Directive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6797",
-                section: Some("6.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2",
-                note: "The includeSubDomains Directive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "Tokens — `token` syntax for directive names",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
-                note: "Quoted Strings — `quoted-string` syntax for directive values",
-            },
+            RFC_6797_6_1,
+            RFC_6797_6_1_1,
+            RFC_6797_6_1_2,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
         ]
     }
 

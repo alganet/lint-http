@@ -8,6 +8,34 @@ use crate::rules::Rule;
 /// Validate Date, Last-Modified, If-Modified-Since and Sunset header consistency and formats.
 pub struct DateAndTimeHeadersConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_6_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
+    note: "`Date` header (parsed as HTTP-date for comparison)",
+};
+const RFC_9110_8_8_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
+    note: "`Last-Modified` header",
+};
+const RFC_9110_13_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
+    note: "`If-Modified-Since` (conditional requests)",
+};
+const RFC_8594_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8594",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
+    note: "`Sunset` header semantics",
+};
+
 impl Rule for DateAndTimeHeadersConsistent {
     fn id(&self) -> &'static str {
         "date_and_time_headers_consistent"
@@ -205,32 +233,7 @@ impl Rule for DateAndTimeHeadersConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.1",
-                note: "`Date` header (parsed as HTTP-date for comparison)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
-                note: "`Last-Modified` header",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
-                note: "`If-Modified-Since` (conditional requests)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8594",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8594.html#section-3",
-                note: "`Sunset` header semantics",
-            },
-        ]
+        &[RFC_9110_6_6_1, RFC_9110_8_8_2, RFC_9110_13_1_3, RFC_8594_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

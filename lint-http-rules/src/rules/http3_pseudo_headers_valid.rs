@@ -7,6 +7,51 @@ use crate::rules::Rule;
 
 pub struct Http3PseudoHeadersValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9114_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3",
+    note: "HTTP Control Data",
+};
+const RFC_9114_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
+    note: "Request Pseudo-Header Fields — the exactly-one MUST for `:method`, \
+           `:scheme` and `:path`, the `:authority`-or-Host requirement for schemes \
+           with a mandatory authority component, and the MUST NOT on the deprecated \
+           userinfo subcomponent for http and https URIs",
+};
+const RFC_3986_3_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.1",
+    note: "User Information — the sentence asking an application not to render what \
+           follows the first colon of a userinfo, which is why both findings here \
+           withhold the password half",
+};
+const RFC_9114_4_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.2",
+    note: "Response Pseudo-Header Fields",
+};
+const RFC_9114_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4",
+    note: "The CONNECT Method",
+};
+const RFC_9110_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
+    note: "Determining the Target Resource (asterisk-form request target)",
+};
+
 impl Rule for Http3PseudoHeadersValid {
     fn id(&self) -> &'static str {
         "http3_pseudo_headers_valid"
@@ -203,47 +248,12 @@ impl Rule for Http3PseudoHeadersValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3",
-                note: "HTTP Control Data",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
-                note: "Request Pseudo-Header Fields — the exactly-one MUST for `:method`, \
-                       `:scheme` and `:path`, the `:authority`-or-Host requirement for schemes \
-                       with a mandatory authority component, and the MUST NOT on the deprecated \
-                       userinfo subcomponent for http and https URIs",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.1",
-                note: "User Information — the sentence asking an application not to render what \
-                       follows the first colon of a userinfo, which is why both findings here \
-                       withhold the password half",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.2",
-                note: "Response Pseudo-Header Fields",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4",
-                note: "The CONNECT Method",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1",
-                note: "Determining the Target Resource (asterisk-form request target)",
-            },
+            RFC_9114_4_3,
+            RFC_9114_4_3_1,
+            RFC_3986_3_2_1,
+            RFC_9114_4_3_2,
+            RFC_9114_4_4,
+            RFC_9110_7_1,
         ]
     }
 

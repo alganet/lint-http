@@ -54,6 +54,34 @@ fn location_has_a_referent(status: u16) -> bool {
     (300..=399).contains(&status)
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
+    note: "`Location = URI-reference`; the value's referent is defined for 201 (Created) and for 3xx (Redirection) responses, and for no other status",
+};
+const RFC_9110_15_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
+    note: "201 Created: the primary resource created is identified by a Location field or, if none is received, by the target URI — a description, not a request for the field",
+};
+const RFC_9110_15_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
+    note: "Redirection 3xx: a provided Location may be followed automatically even where the user agent does not understand the specific status code",
+};
+const RFC_9110_15: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
+    note: "An unrecognized status code is equivalent to the x00 of its class, which is what makes 3xx a class here rather than a list of six codes",
+};
+
 impl Rule for RedirectStatusAndLocationValid {
     fn id(&self) -> &'static str {
         "redirect_status_and_location_valid"
@@ -120,32 +148,7 @@ impl Rule for RedirectStatusAndLocationValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
-                note: "`Location = URI-reference`; the value's referent is defined for 201 (Created) and for 3xx (Redirection) responses, and for no other status",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
-                note: "201 Created: the primary resource created is identified by a Location field or, if none is received, by the target URI — a description, not a request for the field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
-                note: "Redirection 3xx: a provided Location may be followed automatically even where the user agent does not understand the specific status code",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15",
-                note: "An unrecognized status code is equivalent to the x00 of its class, which is what makes 3xx a class here rather than a list of six codes",
-            },
-        ]
+        &[RFC_9110_10_2_2, RFC_9110_15_3_2, RFC_9110_15_4, RFC_9110_15]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

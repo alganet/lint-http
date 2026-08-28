@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct OriginIsolatedHeaderValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const HTML_7_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML",
+    section: Some("7.1.2"),
+    url: "https://html.spec.whatwg.org/multipage/browsers.html#origin-keyed-agent-clusters",
+    note: "`Origin-Agent-Cluster` — a structured-header boolean; only the `?1` true value requests an origin-keyed agent cluster",
+};
+const RFC_9651_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3",
+    note: "Structured Headers boolean values (§3–§4)",
+};
+
 impl Rule for OriginIsolatedHeaderValid {
     fn id(&self) -> &'static str {
         "origin_isolated_header_valid"
@@ -87,20 +103,7 @@ impl Rule for OriginIsolatedHeaderValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "HTML",
-                section: Some("7.1.2"),
-                url: "https://html.spec.whatwg.org/multipage/browsers.html#origin-keyed-agent-clusters",
-                note: "`Origin-Agent-Cluster` — a structured-header boolean; only the `?1` true value requests an origin-keyed agent cluster",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3",
-                note: "Structured Headers boolean values (§3–§4)",
-            },
-        ]
+        &[HTML_7_1_2, RFC_9651_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

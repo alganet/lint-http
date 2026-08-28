@@ -7,6 +7,58 @@ use crate::rules::Rule;
 
 pub struct HttpVersionSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-2.3",
+    note: "The production, the sentence saying it is case-sensitive, and the sentence saying only an HTTP/1.x message carries it in a start-line",
+};
+const RFC_9110_2_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.5",
+    note: "What the two digits mean, and the `0` used for a major version that defines no minor versions",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The MUST NOT that makes a value matching no production a finding; RFC 9112 §1.1 is the bridge to it",
+};
+const RFC_9112_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3",
+    note: "The request-line, which ends with the protocol version",
+};
+const RFC_9112_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-4",
+    note: "The status-line, which begins with it",
+};
+const RFC_9113_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
+    note: "HTTP/2 carries no version indicator; its implicit protocol version is `2.0`",
+};
+const RFC_9114_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
+    note: "HTTP/3 has nowhere to carry the identifier the request line holds; its implicit protocol version is `3.0`",
+};
+const RFC_5234_B_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5234",
+    section: Some("B.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc5234.html#appendix-B.1",
+    note: "`DIGIT = %x30-39` — the alphabet the two positions admit",
+};
+
 impl Rule for HttpVersionSyntax {
     fn id(&self) -> &'static str {
         "http_version_syntax"
@@ -54,54 +106,14 @@ impl Rule for HttpVersionSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-2.3",
-                note: "The production, the sentence saying it is case-sensitive, and the sentence saying only an HTTP/1.x message carries it in a start-line",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.5",
-                note: "What the two digits mean, and the `0` used for a major version that defines no minor versions",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The MUST NOT that makes a value matching no production a finding; RFC 9112 §1.1 is the bridge to it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3",
-                note: "The request-line, which ends with the protocol version",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-4",
-                note: "The status-line, which begins with it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
-                note: "HTTP/2 carries no version indicator; its implicit protocol version is `2.0`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
-                note: "HTTP/3 has nowhere to carry the identifier the request line holds; its implicit protocol version is `3.0`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5234",
-                section: Some("B.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc5234.html#appendix-B.1",
-                note: "`DIGIT = %x30-39` — the alphabet the two positions admit",
-            },
+            RFC_9112_2_3,
+            RFC_9110_2_5,
+            RFC_9110_2_2,
+            RFC_9112_3,
+            RFC_9112_4,
+            RFC_9113_8_3_1,
+            RFC_9114_4_3_1,
+            RFC_5234_B_1,
         ]
     }
 

@@ -88,6 +88,58 @@ fn vary_nominates_prefer(response_headers: &hyper::HeaderMap) -> bool {
     crate::helpers::headers::vary_nomination(response_headers).nominates("prefer")
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7240_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
+    note: "The `Vary` MUST this rule enforces, its `Vary: *` alternative, the case rule for comparing preference token names, and the statement that servers are allowed to ignore stated preferences — which is why a missing `Preference-Applied` is not a finding",
+};
+const RFC_7240_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
+    note: "`Preference-Applied` — a MAY, with its grammar, and the sentence narrowing its use to the case where a client could not otherwise tell that a preference was applied. The field's presence is this rule's evidence, not its requirement",
+};
+const RFC_7240_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-4",
+    note: "What each of the four defined preferences does to the response, which is what makes it one that \"might result in a variance to a cache's handling of a response entity\": §4.1 and §4.3 (a 202 in place of the result), §4.2 (a representation or a minimal answer), §4.4 (a 4xx in place of processing)",
+};
+const RFC_7240_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-5.1",
+    note: "The \"HTTP Preferences\" registry keeps a preference's effect in its own registration, which is why a name RFC 7240 does not define is left unjudged rather than assumed to vary the entity",
+};
+const RFC_9110_12_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
+    note: "`Vary = #( \"*\" / field-name )` — a list field, read across its lines, whose members are field names and so compared case-insensitively",
+};
+const RFC_9110_9_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.3",
+    note: "Which methods have caching semantics. With §9.3.3's condition on POST responses, this is why the gate is GET and HEAD — the methods where one exchange shows a cache would hold the response under the target URI alone",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "The method token is case-sensitive, so the gate compares the octets as written rather than folding an unrecognized method into GET",
+};
+const RFC_9111_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
+    note: "What the `Vary` this rule asks for buys: without it a stored response is matched on the target URI alone, and the request field that selected it is not part of the key",
+};
+
 impl Rule for PreferHeaderAndPreferenceApplied {
     fn id(&self) -> &'static str {
         "prefer_header_and_preference_applied"
@@ -208,54 +260,14 @@ impl Rule for PreferHeaderAndPreferenceApplied {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
-                note: "The `Vary` MUST this rule enforces, its `Vary: *` alternative, the case rule for comparing preference token names, and the statement that servers are allowed to ignore stated preferences — which is why a missing `Preference-Applied` is not a finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-3",
-                note: "`Preference-Applied` — a MAY, with its grammar, and the sentence narrowing its use to the case where a client could not otherwise tell that a preference was applied. The field's presence is this rule's evidence, not its requirement",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-4",
-                note: "What each of the four defined preferences does to the response, which is what makes it one that \"might result in a variance to a cache's handling of a response entity\": §4.1 and §4.3 (a 202 in place of the result), §4.2 (a representation or a minimal answer), §4.4 (a 4xx in place of processing)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-5.1",
-                note: "The \"HTTP Preferences\" registry keeps a preference's effect in its own registration, which is why a name RFC 7240 does not define is left unjudged rather than assumed to vary the entity",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
-                note: "`Vary = #( \"*\" / field-name )` — a list field, read across its lines, whose members are field names and so compared case-insensitively",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.3",
-                note: "Which methods have caching semantics. With §9.3.3's condition on POST responses, this is why the gate is GET and HEAD — the methods where one exchange shows a cache would hold the response under the target URI alone",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "The method token is case-sensitive, so the gate compares the octets as written rather than folding an unrecognized method into GET",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
-                note: "What the `Vary` this rule asks for buys: without it a stored response is matched on the target URI alone, and the request field that selected it is not part of the key",
-            },
+            RFC_7240_2,
+            RFC_7240_3,
+            RFC_7240_4,
+            RFC_7240_5_1,
+            RFC_9110_12_5_5,
+            RFC_9110_9_2_3,
+            RFC_9110_9_1,
+            RFC_9111_4_1,
         ]
     }
 

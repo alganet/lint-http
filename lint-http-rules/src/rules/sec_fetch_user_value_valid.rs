@@ -10,6 +10,16 @@ use crate::rules::Rule;
 /// fields or non-ASCII values are flagged as violations.
 pub struct SecFetchUserValueValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const FETCH_METADATA_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch Metadata",
+    section: Some("2.4"),
+    url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header",
+    note: "Fetch Metadata (W3C) — `Sec-Fetch-User` header (boolean, serialized as `?1`)",
+};
+
 impl Rule for SecFetchUserValueValid {
     fn id(&self) -> &'static str {
         "sec_fetch_user_value_valid"
@@ -88,12 +98,7 @@ impl Rule for SecFetchUserValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "Fetch Metadata",
-            section: Some("2.4"),
-            url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-user-header",
-            note: "Fetch Metadata (W3C) — `Sec-Fetch-User` header (boolean, serialized as `?1`)",
-        }]
+        &[FETCH_METADATA_2_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

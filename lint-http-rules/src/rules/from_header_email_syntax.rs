@@ -10,6 +10,89 @@ use crate::rules::Rule;
 
 pub struct FromHeaderEmailSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.2",
+    note: "`From = mailbox` — one address, imported by reference from RFC 5322 §3.4; the section's three other requirements are about parties and intents a capture does not state",
+};
+const RFC_9110_10_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
+    note: "Request context fields — the sentence behind the scope, since there is no response half of this field",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "A sender MUST NOT write a second field line for a field whose value is not a comma-separated list",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "Singleton fields, and the `OWS` a parser must exclude before evaluating a field value",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The MUST NOT that makes a value outside the field's ABNF a finding",
+};
+const RFC_5322_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5322",
+    section: Some("3.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4",
+    note: "`mailbox = name-addr / addr-spec`, and `mailbox-list` beside it — the production this field does *not* import",
+};
+const RFC_5322_3_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5322",
+    section: Some("3.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4.1",
+    note: "`addr-spec = local-part \"@\" domain`, `domain-literal`, and the sentence handing a `dot-atom` domain to the host-name documents",
+};
+const RFC_5322_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5322",
+    section: Some("3.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.2",
+    note: "`CFWS` — folding whitespace and nested parenthesised comments, admitted around nearly every token of a mailbox",
+};
+const RFC_5322_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5322",
+    section: Some("3.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.3",
+    note: "`atext`, `atom` and `dot-atom-text` — the `1*atext` floors either side of every dot",
+};
+const RFC_5322_3_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5322",
+    section: Some("3.2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.4",
+    note:
+        "`quoted-string` and `qtext`, the alternative a local-part or a display-name word may take",
+};
+const RFC_5322_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5322",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-4",
+    note: "Obsolete syntax: MUST NOT be generated, MUST be accepted by a receiver — this rule reports on the generator",
+};
+const RFC_1035_2_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 1035",
+    section: Some("2.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.1",
+    note: "Preferred name syntax for the `dot-atom` form of a domain — advisory, and the one finding here that is reported as advice",
+};
+const RFC_1123_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 1123",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc1123.html",
+    note: "Relaxes RFC 1035's first-character rule to a letter or a digit",
+};
+
 impl Rule for FromHeaderEmailSyntax {
     fn id(&self) -> &'static str {
         "from_header_email_syntax"
@@ -186,89 +269,19 @@ impl Rule for FromHeaderEmailSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.2",
-                note: "`From = mailbox` — one address, imported by reference from RFC 5322 §3.4; the section's three other requirements are about parties and intents a capture does not state",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
-                note: "Request context fields — the sentence behind the scope, since there is no response half of this field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "A sender MUST NOT write a second field line for a field whose value is not a comma-separated list",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "Singleton fields, and the `OWS` a parser must exclude before evaluating a field value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The MUST NOT that makes a value outside the field's ABNF a finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5322",
-                section: Some("3.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4",
-                note: "`mailbox = name-addr / addr-spec`, and `mailbox-list` beside it — the production this field does *not* import",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5322",
-                section: Some("3.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4.1",
-                note: "`addr-spec = local-part \"@\" domain`, `domain-literal`, and the sentence handing a `dot-atom` domain to the host-name documents",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5322",
-                section: Some("3.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.2",
-                note: "`CFWS` — folding whitespace and nested parenthesised comments, admitted around nearly every token of a mailbox",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5322",
-                section: Some("3.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.3",
-                note: "`atext`, `atom` and `dot-atom-text` — the `1*atext` floors either side of every dot",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5322",
-                section: Some("3.2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.4",
-                note: "`quoted-string` and `qtext`, the alternative a local-part or a display-name word may take",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5322",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-4",
-                note: "Obsolete syntax: MUST NOT be generated, MUST be accepted by a receiver — this rule reports on the generator",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 1035",
-                section: Some("2.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.1",
-                note: "Preferred name syntax for the `dot-atom` form of a domain — advisory, and the one finding here that is reported as advice",
-            },
-            // The URL carries no `#section-2.1`, and that is not an omission:
-            // RFC 1123's HTML rendering anchors its top-level sections only, so
-            // the fragment the other twelve rows spell would resolve to nothing.
-            // The section number is still stated in `section`, which is what a
-            // reader needs; a link that scrolls nowhere is worse than none.
-            crate::rules::SpecRef {
-                spec: "RFC 1123",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc1123.html",
-                note: "Relaxes RFC 1035's first-character rule to a letter or a digit",
-            },
+            RFC_9110_10_1_2,
+            RFC_9110_10_1,
+            RFC_9110_5_3,
+            RFC_9110_5_5,
+            RFC_9110_2_2,
+            RFC_5322_3_4,
+            RFC_5322_3_4_1,
+            RFC_5322_3_2_2,
+            RFC_5322_3_2_3,
+            RFC_5322_3_2_4,
+            RFC_5322_4,
+            RFC_1035_2_3_1,
+            RFC_1123_2_1,
         ]
     }
 

@@ -43,6 +43,35 @@ const MA: &str = "ma";
 /// not a spec limit — hence uncited (recorded in the audit ledger, §4.1).
 const MAX_REASONABLE_MA: u64 = 365 * 24 * 3600;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9114_3_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("3.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1",
+    note: "HTTP Alternative Services — advertising HTTP/3 via Alt-Svc using the \"h3\" ALPN token",
+};
+const RFC_7838_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
+    note: "Alt-Svc — the field's grammar, the `parameter` production, and the requirement that a recipient ignore a parameter name it does not know",
+};
+const RFC_7838_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7838",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
+    note:
+        "Caching Alt-Svc Header Field Values — what the `ma` parameter's delta-seconds value means",
+};
+const RFC_9111_1_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("1.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
+    note: "delta-seconds — the `1*DIGIT` production `ma` carries, and what a cache does with a value too large to represent",
+};
+
 impl Rule for AltSvcH3AdvertisementValid {
     fn id(&self) -> &'static str {
         "alt_svc_h3_advertisement_valid"
@@ -166,32 +195,7 @@ impl Rule for AltSvcH3AdvertisementValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("3.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1",
-                note: "HTTP Alternative Services — advertising HTTP/3 via Alt-Svc using the \"h3\" ALPN token",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
-                note: "Alt-Svc — the field's grammar, the `parameter` production, and the requirement that a recipient ignore a parameter name it does not know",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7838",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1",
-                note: "Caching Alt-Svc Header Field Values — what the `ma` parameter's delta-seconds value means",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("1.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
-                note: "delta-seconds — the `1*DIGIT` production `ma` carries, and what a cache does with a value too large to represent",
-            },
-        ]
+        &[RFC_9114_3_1_1, RFC_7838_3, RFC_7838_3_1, RFC_9111_1_2_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
