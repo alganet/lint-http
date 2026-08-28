@@ -667,3 +667,164 @@ async fn defective_frames_produce_live_findings() -> anyhow::Result<()> {
     let _ = tokio::fs::remove_file(&captures_path).await;
     Ok(())
 }
+
+/// Extension negotiation passes through end to end: the client's offer
+/// reaches the origin, the origin's acceptance reaches the client inside the
+/// 101, an RSV1 frame (what a permessage-deflate origin sends) survives the
+/// relay — and the RSV rule, enabled, stands down because the handshake it
+/// can now see accepted an extension.
+#[tokio::test]
+async fn extension_negotiation_flows_end_to_end() -> anyhow::Result<()> {
+    // A raw origin that requires the offer, accepts it in the 101, then sends
+    // one RSV1 "compressed" text frame (no real deflate needed — the relay
+    // never reads payloads) and reads until EOF.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let origin_addr = listener.local_addr()?;
+    tokio::spawn(async move {
+        if let Ok((mut sock, _)) = listener.accept().await {
+            let mut buf = [0u8; 4096];
+            let mut req = Vec::new();
+            loop {
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                if n == 0 {
+                    return;
+                }
+                req.extend_from_slice(&buf[..n]);
+                if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let req_str = String::from_utf8_lossy(&req).to_string();
+            assert!(
+                req_str.to_ascii_lowercase().contains("permessage-deflate"),
+                "the client's extension offer must reach the origin: {req_str}"
+            );
+            let key = req_str
+                .lines()
+                .find_map(|l| {
+                    l.to_ascii_lowercase()
+                        .starts_with("sec-websocket-key:")
+                        .then(|| l.split(':').nth(1).unwrap().trim().to_string())
+                })
+                .unwrap_or_default();
+            let accept = {
+                use base64::Engine;
+                use sha1::{Digest, Sha1};
+                let mut h = Sha1::new();
+                h.update(key.as_bytes());
+                h.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+                base64::engine::general_purpose::STANDARD.encode(h.finalize())
+            };
+            let mut reply = format!(
+                "HTTP/1.1 101 Switching Protocols\r\n\
+                 Upgrade: websocket\r\n\
+                 Connection: Upgrade\r\n\
+                 Sec-WebSocket-Accept: {accept}\r\n\
+                 Sec-WebSocket-Extensions: permessage-deflate\r\n\r\n"
+            )
+            .into_bytes();
+            // RSV1 set, text, unmasked (server side), 2 bytes.
+            reply.extend([0xC1, 0x02, 0xAB, 0xCD]);
+            let _ = sock.write_all(&reply).await;
+            while sock.read(&mut buf).await.unwrap_or(0) > 0 {}
+        }
+    });
+
+    let cfg = Config {
+        lint: lint_http_core::test_helpers::make_test_config_with_enabled_rules(&[
+            "websocket_frame_rsv_bits",
+        ]),
+        ..Default::default()
+    };
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let mut tcp = tokio::net::TcpStream::connect(proxy_addr).await?;
+    let ws_key = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        uuid::Uuid::new_v4().as_bytes(),
+    );
+    tcp.write_all(
+        format!(
+            "GET http://{origin}/ws HTTP/1.1\r\n\
+             Host: {origin}\r\n\
+             Connection: Upgrade\r\n\
+             Upgrade: websocket\r\n\
+             Sec-WebSocket-Version: 13\r\n\
+             Sec-WebSocket-Key: {ws_key}\r\n\
+             Sec-WebSocket-Extensions: permessage-deflate\r\n\r\n",
+            origin = origin_addr,
+        )
+        .as_bytes(),
+    )
+    .await?;
+
+    // The 101 reaching the client carries the origin's acceptance, and the
+    // RSV1 frame follows it through the relay.
+    let mut buf = Vec::new();
+    let mut tmp = [0u8; 4096];
+    let frame_bytes = loop {
+        let n = tcp.read(&mut tmp).await?;
+        anyhow::ensure!(n > 0, "proxy closed before delivering the frame");
+        buf.extend_from_slice(&tmp[..n]);
+        if let Some(head_end) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+            let body = &buf[head_end + 4..];
+            if body.len() >= 4 {
+                break body.to_vec();
+            }
+        }
+    };
+    let head = String::from_utf8_lossy(&buf).to_ascii_lowercase();
+    assert!(head.contains("101"));
+    assert!(
+        head.contains("sec-websocket-extensions: permessage-deflate"),
+        "the origin's acceptance must reach the client: {head}"
+    );
+    assert_eq!(&frame_bytes[..4], &[0xC1, 0x02, 0xAB, 0xCD][..]);
+    drop(tcp);
+
+    // The session records the acceptance and the RSV1 frame — and the enabled
+    // RSV rule stands down, because the handshake licensed the bit.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let session = loop {
+        let content = tokio::fs::read_to_string(&captures_path)
+            .await
+            .unwrap_or_default();
+        let session = content.lines().find_map(|l| {
+            serde_json::from_str::<serde_json::Value>(l)
+                .ok()
+                .filter(|v| v["type"] == "websocket_session")
+        });
+        if session.is_some() || std::time::Instant::now() > deadline {
+            break session;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    .expect("a websocket session in the capture");
+
+    assert!(
+        session["extensions"]
+            .to_string()
+            .contains("permessage-deflate"),
+        "the session records what the 101 accepted: {}",
+        session["extensions"]
+    );
+    let rsv_frame = session["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["rsv"].as_u64() == Some(0b100))
+        .expect("the RSV1 frame is recorded");
+    assert_eq!(rsv_frame["direction"].as_str(), Some("server"));
+    let violations = session["violations"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert!(
+        violations.is_empty(),
+        "an accepted extension stands the RSV finding down: {violations:?}"
+    );
+
+    handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    Ok(())
+}

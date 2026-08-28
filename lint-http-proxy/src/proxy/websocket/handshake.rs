@@ -22,8 +22,8 @@ use crate::proxy::exchange::{
 use crate::proxy::hop_by_hop::format_http_version;
 use crate::proxy::{boxed_full, BoxError, ResponseBody, Shared};
 
+use super::accepted_extensions;
 use super::relay::relay_websocket;
-use super::{accepted_extensions, without_extension_negotiation};
 
 /// Everything the transport front half hands the WebSocket upgrade path.
 pub(in crate::proxy) struct WsUpgradeRequest {
@@ -87,15 +87,13 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
     // Build the upstream handshake request. Preserve hop-by-hop headers: the
     // WebSocket upgrade depends on `Connection`/`Upgrade` reaching the origin
     // (the request-side analog of the 101 carve-out in
-    // `filter_response_headers`). The one field removed is the extension
-    // negotiation, which stops at the relay — the frames of an accepted
-    // extension would be unreadable in the middle, and a session tungstenite
-    // cannot read is a session it kills. The capture records `facts.headers`
-    // as received, offer included; see
-    // `websocket::without_extension_negotiation`.
-    let upstream_headers = without_extension_negotiation(&facts.headers);
+    // `filter_response_headers`). The extension negotiation travels with them:
+    // the relay forwards bytes without decoding frames, so the frames of an
+    // accepted extension pass through it as readily as any others, and an
+    // intermediary that can carry an extension's frames has no business
+    // silencing its negotiation.
     let upstream_req =
-        match upstream_request_builder(&facts.method, &uri, &upstream_headers, &shared, false)
+        match upstream_request_builder(&facts.method, &uri, &facts.headers, &shared, false)
             .body(Full::new(body_bytes.clone()))
         {
             Ok(r) => r,
@@ -185,13 +183,13 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
         let server_upgraded = hyper::upgrade::on(&mut upstream_resp);
 
         // Build the 101 response to send back to the client.
-        // Forward ALL headers including upgrade-related ones (Connection, Upgrade,
-        // Sec-WebSocket-Accept) — do NOT strip hop-by-hop headers for 101. The one
-        // exception is the extension negotiation, which stops at the relay:
-        // see `without_extension_negotiation`. The capture above already
-        // recorded the 101 as received.
+        // Forward ALL headers including upgrade-related ones (Connection,
+        // Upgrade, Sec-WebSocket-Accept) — do NOT strip hop-by-hop headers for
+        // 101, and let the accepted extension negotiation through with them:
+        // the transparent relay carries an extension's frames, so the client
+        // must see what the origin accepted.
         let mut resp_builder = Response::builder().status(101);
-        for (name, value) in without_extension_negotiation(&headers).iter() {
+        for (name, value) in headers.iter() {
             resp_builder = resp_builder.header(name, value);
         }
         let resp = resp_builder

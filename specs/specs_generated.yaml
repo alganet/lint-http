@@ -2264,7 +2264,7 @@ sources:
     - file: lint-http-core/src/protocol_event.rs
       line: 71
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 100
+      line: 73
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 250
   - label: lint-http-proxy/src/proxy/websocket/frame.rs
@@ -2329,12 +2329,6 @@ sources:
       line: 37
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 110
-  - label: lint-http-proxy/src/proxy/websocket/mod.rs (3)
-    section: § 9.1
-    snippet: Note that like other HTTP header fields, this header field MAY be split or combined across multiple lines.
-    cited_by:
-    - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 69
   - label: lint-http-proxy/src/proxy/websocket/observer.rs
     section: § 5.5.1
     snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
@@ -6237,7 +6231,7 @@ sources:
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/handshake.rs
-      line: 169
+      line: 167
     - file: lint-http-rules/src/rules/http3_status_code_valid.rs
       line: 83
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
