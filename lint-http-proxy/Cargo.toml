@@ -37,13 +37,11 @@ serde_json = { workspace = true }
 uuid = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
-httpdate = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 toml = { workspace = true }
 bytes = { workspace = true }
 base64 = { workspace = true }
-sha1 = { workspace = true }
 
 # TLS
 tokio-rustls = { workspace = true }
@@ -58,12 +56,15 @@ h3-quinn = { workspace = true }
 
 # Certificate generation / misc
 rcgen = { workspace = true }
-pem = { workspace = true }
 http-body-util = { workspace = true }
 futures-util = { workspace = true }
 rustls-native-certs = { workspace = true }
 
 [dev-dependencies]
+# Test-only: the WebSocket relay tests compute their own `Sec-WebSocket-Accept`
+# to check the handshake the proxy produced. The proxy's own accept value is
+# `lint-http-rules`' answer, computed where the handshake grammar lives.
+sha1 = { workspace = true }
 tokio-tungstenite = { workspace = true }
 lint-http-core = { workspace = true, features = ["test-utils"] }
 wiremock = { workspace = true }

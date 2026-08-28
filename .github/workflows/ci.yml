@@ -117,6 +117,13 @@ jobs:
         with:
           command: check advisories licenses
 
+      # A manifest may only declare what the code reads. cargo-deny checks the
+      # tree we pull; this checks that we asked for it — four declarations had
+      # drifted, two of them test-only crates compiled into the binary, and one
+      # (`pem`) that nothing in the workspace had ever called.
+      - name: cargo-machete (declared but unused dependencies)
+        uses: bnjbvr/cargo-machete@main
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest

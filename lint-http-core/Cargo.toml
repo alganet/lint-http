@@ -28,7 +28,6 @@ hyper = { workspace = true }
 bytes = { workspace = true }
 base64 = { workspace = true }
 httpdate = { workspace = true }
-tracing = { workspace = true }
 # Only async config-file IO (`tokio::fs`) + the test runtime are needed here.
 tokio = { workspace = true, features = ["fs", "macros", "rt"] }
 parking_lot = { workspace = true }

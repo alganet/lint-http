@@ -1029,7 +1029,6 @@ dependencies = [
  "serde_json",
  "tokio",
  "toml",
- "tracing",
  "uuid",
 ]
 
@@ -1047,13 +1046,11 @@ dependencies = [
  "h3-quinn",
  "http",
  "http-body-util",
- "httpdate",
  "hyper",
  "hyper-rustls",
  "hyper-util",
  "lint-http-core",
  "lint-http-rules",
- "pem 4.0.0",
  "quinn",
  "rcgen",
  "rstest",
@@ -1268,16 +1265,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pem"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d354a98a3d1251555de99e8fdd8afda05573c31b82f59063a7b0a29b5527f120"
-dependencies = [
- "base64 0.23.1",
- "serde_core",
-]
-
-[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1465,7 +1452,7 @@ version = "0.14.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "091e7a8e7d86e6feb87a27ce8e2cba29d49eff9507afeebefab7eeb2ca667fb4"
 dependencies = [
- "pem 3.0.6",
+ "pem",
  "ring",
  "rustls-pki-types",
  "time",
