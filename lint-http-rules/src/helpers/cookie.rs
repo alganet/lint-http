@@ -149,6 +149,103 @@ impl Cookie {
     }
 }
 
+/// One `cookie-av`: an attribute name, and the value it carries if any.
+///
+/// `value` distinguishes "no `=` was written" (`None`) from "an `=` with
+/// nothing after it" (`Some("")`), because the two are different defects for
+/// the flag attributes: `Secure` takes no value at all, so `Secure=` is a
+/// sender writing one.
+// cite(RFC 6265 § 4.1.1): "cookie-av         = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av"
+pub struct Attribute<'a> {
+    pub name: &'a str,
+    pub value: Option<&'a str>,
+}
+
+impl Attribute<'_> {
+    /// Whether this is the named attribute, compared case-insensitively.
+    // cite(RFC 6265 § 5.2.1): "If the attribute-name case-insensitively matches the string "Expires", the user agent MUST process the cookie-av as follows."
+    pub fn is(&self, name: &str) -> bool {
+        self.name.eq_ignore_ascii_case(name)
+    }
+
+    /// Whether a value was written after the `=`.
+    pub fn has_value(&self) -> bool {
+        self.value.is_some_and(|v| !v.is_empty())
+    }
+}
+
+/// Split one `Set-Cookie` field line into its cookie-pair and its attributes.
+///
+/// The parser below and the rule that reports attribute defects were each
+/// splitting this line themselves, on the same two characters, and neither
+/// could say what the other did with an empty segment. The pair comes back as
+/// written — judging it is the caller's job — and the attributes come back with
+/// the empty segments a stray `;` produces already dropped.
+// cite(RFC 6265 § 4.1.1): "set-cookie-string = cookie-pair *( ";" SP cookie-av )"
+pub fn split_set_cookie(line: &str) -> (&str, impl Iterator<Item = Attribute<'_>>) {
+    let mut segments = line.split(';').map(str::trim);
+    // `split` always yields at least one segment, so the pair is whatever
+    // stands before the first `;` — possibly empty, which is a defect the
+    // caller names.
+    let pair = segments.next().unwrap_or("");
+    let attributes = segments
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| match segment.split_once('=') {
+            Some((name, value)) => Attribute {
+                name: name.trim(),
+                value: Some(value.trim()),
+            },
+            None => Attribute {
+                name: segment,
+                value: None,
+            },
+        });
+    (pair, attributes)
+}
+
+/// The host the request was sent to, which a cookie with no `Domain` is bound
+/// to.
+// cite(RFC 6265 § 5.3): "Set the cookie's host-only-flag to true."
+fn default_domain(request_uri: &str) -> String {
+    let Some(idx) = request_uri.find("://") else {
+        // An unparseable request-target leaves nothing to bind to, and an empty
+        // domain matches no request later.
+        return String::new();
+    };
+    let authority = request_uri[idx + 3..].split('/').next().unwrap_or("");
+    authority
+        .split(':')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase()
+}
+
+/// The default-path of a cookie set by a request to `request_uri`.
+///
+/// The branches are § 5.1.4's numbered steps, in its order.
+// cite(RFC 6265 § 5.1.4): "The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:"
+fn default_path(request_uri: &str) -> String {
+    let Some(p) = crate::helpers::uri::extract_path_from_request_target(request_uri) else {
+        return "/".into();
+    };
+    // Step 2. Quoted here only as its tail: the step opens "If the uri-path is
+    // empty or if the first character of the uri-" and the document's line
+    // break lands inside `uri-path`, so the sentence cannot be quoted whole.
+    // cite(RFC 6265 § 5.1.4): "output %x2F ("/") and skip the remaining steps."
+    if !p.starts_with('/') {
+        return "/".into();
+    }
+    // cite(RFC 6265 § 5.1.4): "If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step."
+    if p.matches('/').count() <= 1 {
+        return "/".into();
+    }
+    // cite(RFC 6265 § 5.1.4): "Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/")."
+    match p.rfind('/') {
+        Some(0) | None => "/".into(),
+        Some(pos) => p[..pos].to_string(),
+    }
+}
+
 /// Parse a `Set-Cookie` header value into a `Cookie` struct, using the
 /// request URI and timestamp to derive default domain/path and compute
 /// expiration.  Returns `None` if the value cannot be parsed at all.
@@ -157,12 +254,11 @@ pub fn parse_set_cookie(
     request_uri: &str,
     timestamp: chrono::DateTime<chrono::Utc>,
 ) -> Option<Cookie> {
-    let parts: Vec<&str> = header_value.split(';').map(|p| p.trim()).collect();
-    if parts.is_empty() || parts[0].is_empty() {
+    let (pair, attributes) = split_set_cookie(header_value);
+    if pair.is_empty() {
         return None;
     }
 
-    let pair = parts[0];
     let mut kv = pair.splitn(2, '=');
     let name = kv.next()?.trim().to_string();
     let value = kv.next().unwrap_or("").trim().to_string();
@@ -174,14 +270,9 @@ pub fn parse_set_cookie(
     let mut expires_attr: Option<chrono::DateTime<chrono::Utc>> = None;
     let mut same_site = SameSite::Unspecified;
 
-    for attr in parts.iter().skip(1) {
-        if attr.is_empty() {
-            continue;
-        }
-        let mut av = attr.splitn(2, '=');
-        let key = av.next().unwrap().trim().to_ascii_lowercase();
-        let val_opt = av.next().map(|v| v.trim());
-        match key.as_str() {
+    for attr in attributes {
+        let val_opt = attr.value;
+        match attr.name.to_ascii_lowercase().as_str() {
             "domain" => {
                 if let Some(v) = val_opt {
                     // cookie domains ignore leading dot per modern spec
@@ -232,59 +323,12 @@ pub fn parse_set_cookie(
         }
     }
 
-    // Determine default domain from request URI (host portion)
-    let default_domain = if let Some(idx) = request_uri.find("://") {
-        let after = &request_uri[idx + 3..];
-        let hostport = after.split('/').next().unwrap_or("");
-        hostport
-            .split(':')
-            .next()
-            .unwrap_or("")
-            .to_ascii_lowercase()
-    } else {
-        // if we can't parse the URI, fall back to empty so rule later will
-        // not match anything
-        "".to_string()
-    };
-
     // No Domain attribute → host-only cookie bound to the request-host.
     // cite(RFC 6265 § 5.3): "Set the cookie's host-only-flag to true."
     let host_only = domain_attr.is_none();
-    let domain = domain_attr.unwrap_or(default_domain);
+    let domain = domain_attr.unwrap_or_else(|| default_domain(request_uri));
 
-    // The branches below are § 5.1.4's numbered steps, in its order.
-    // cite(RFC 6265 § 5.1.4): "The user agent MUST use an algorithm equivalent to the following algorithm to compute the default-path of a cookie:"
-    let default_path =
-        if let Some(p) = crate::helpers::uri::extract_path_from_request_target(request_uri) {
-            // Step 2. Quoted here only as its tail: the step opens "If the uri-path is
-            // empty or if the first character of the uri-" and the document's line
-            // break lands inside `uri-path`, so the sentence cannot be quoted whole.
-            // cite(RFC 6265 § 5.1.4): "output %x2F ("/") and skip the remaining steps."
-            if !p.starts_with('/') {
-                "/".into()
-            } else {
-                // cite(RFC 6265 § 5.1.4): "If the uri-path contains no more than one %x2F ("/") character, output %x2F ("/") and skip the remaining step."
-                let slash_count = p.matches('/').count();
-                if slash_count <= 1 {
-                    "/".into()
-                } else {
-                    // cite(RFC 6265 § 5.1.4): "Output the characters of the uri-path from the first character up to, but not including, the right-most %x2F ("/")."
-                    if let Some(pos) = p.rfind('/') {
-                        if pos == 0 {
-                            "/".into()
-                        } else {
-                            p[..pos].to_string()
-                        }
-                    } else {
-                        "/".into()
-                    }
-                }
-            }
-        } else {
-            "/".into()
-        };
-
-    let path = path_attr.unwrap_or(default_path);
+    let path = path_attr.unwrap_or_else(|| default_path(request_uri));
 
     // compute expiration time from Max-Age or Expires
     let expiration = if let Some(n) = max_age {

@@ -991,16 +991,18 @@ severity = "warn"
     /// site became a `violation()` one: say why in the commit or put it back.
     ///
     /// **Two finding sites merging into one lowers this number without losing a
-    /// citation**, and that is the only reason it has ever moved down: the
-    /// `Date` field's request and response readings were two copies of the same
-    /// two findings and now share one function, which cites what both cited.
-    /// The count of *sites* is not the count of sentences read, so when a
-    /// duplicate disappears, lower the floor and say which one.
+    /// citation**, and that is the only reason it has ever moved down. Twice so
+    /// far: the `Date` field's request and response readings were two copies of
+    /// the same two findings and now share one function, and `Secure` and
+    /// `HttpOnly` — one sentence each, the same defect, the same wording — are
+    /// now one site over both names. Each still cites what it cited; the count
+    /// of *sites* is not the count of sentences read, so when a duplicate
+    /// disappears, lower the floor and say which one.
     #[test]
     fn citation_coverage_does_not_regress() {
         /// Finding sites that name the specification sentence they enforce, out
-        /// of 579. The rest are the per-rule reading that has not happened yet.
-        const FLOOR: usize = 172;
+        /// of 578. The rest are the per-rule reading that has not happened yet.
+        const FLOOR: usize = 171;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
