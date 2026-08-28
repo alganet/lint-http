@@ -19,6 +19,26 @@ repository = "https://github.com/alganet/lint-http"
 [workspace.lints.clippy]
 cognitive_complexity = "warn"
 
+# No hand-written `unsafe` anywhere, enforced rather than merely true. A linter
+# is a poor place to reach for it: every byte here arrives from a socket and is
+# parsed against a grammar, which is exactly where a manual bounds argument is
+# worth least and costs most. Nothing has needed it, including the hand-rolled
+# WebSocket frame scanner — the closest this tree comes to a case for one.
+#
+# `deny` and not `forbid`, which was the first spelling and does not compile.
+# `linkme`'s `distributed_slice` — the mechanism the whole rule catalogue
+# self-registers through — expands to a `#[link_section]` static, which this
+# lint counts; under `forbid`, which also refuses the `#[allow]` that would
+# lift it, all 193 rules stop building.
+#
+# The one exemption is written on `pub mod rules;` in `lint-http-rules/src/lib.rs`
+# and is scoped to that subtree, because the lint fires once per registration
+# inside each `src/rules/*.rs` rather than at the two declarations they expand
+# through. `helpers`, `engine`, `queries` and `lint_protocol` stay covered, and
+# so does every other crate.
+[workspace.lints.rust]
+unsafe_code = "deny"
+
 [workspace.dependencies]
 # Internal crates
 lint-http-core = { path = "lint-http-core" }
