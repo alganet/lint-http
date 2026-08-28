@@ -18,7 +18,7 @@ Reads each WebSocket frame the relay observed and asks three groups of questions
 
 **The escape clause, and when it is in evidence.** §5.8 hands opcodes 3-7 and 11-15, and the reserved bits, to extensions negotiated in the opening handshake, and §5.4's interleaving rule has the same escape.  Each frame event now records what the `101` accepted in `Sec-WebSocket-Extensions`, so a session that accepted an extension stands those three findings down — the opcode may have been given a meaning this document does not define, and deciding which is that extension's document's business.  A capture that does not record the handshake — every one written before the field existed, and every one written by something other than this proxy — is measured exactly as before: reading its silence as *no extension* would invent evidence, and reading it as *some extension* would silence findings this rule has always made.  The reserved bits are `websocket_frame_rsv_bits`'s, on the same three-state reading.
 
-**Where these findings come from.** The relay reads frames through tokio-tungstenite, which refuses every defect above before the proxy is handed a message, and which defragments — so a relayed message reaches this rule as a single frame with FIN set.  These findings are therefore reachable through `lint`, over capture files written by something other than this proxy.
+**Where these findings come from.** The relay forwards bytes and records each frame as the wire spelled it — reserved opcodes, control frames with FIN clear, and fragmentation included — so these findings arrive live off this proxy's own relay, and equally through `lint` over any capture that recorded frames.
 
 ## Specifications
 
