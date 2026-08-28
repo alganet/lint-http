@@ -5,7 +5,7 @@
 //! HTTP/1.1 and HTTP/2 request dispatch and forwarding.
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
+use http_body_util::BodyExt;
 use hyper::{Method, Request, Response, Uri};
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -14,12 +14,10 @@ use tracing::{error, warn};
 
 use super::body::{collect_limited, CollectLimitedError};
 use super::connect::handle_connect;
-use super::exchange::{
-    exchange, record_error_transaction, upstream_request_builder, ErrorFacts, ProxiedRequest,
-};
+use super::exchange::{exchange, record_error_transaction, ErrorFacts, ProxiedRequest};
 use super::hop_by_hop::format_http_version;
 use super::tee_body;
-use super::websocket::{handle_websocket_upgrade, is_websocket_upgrade};
+use super::websocket::{handle_websocket_upgrade, is_websocket_upgrade, WsUpgradeRequest};
 use super::{boxed_full, BoxError, ResponseBody, Shared};
 
 pub(super) async fn handle_request<B>(
@@ -235,52 +233,17 @@ where
                         return Ok(error_resp(500, "request body collect error"));
                     }
                 };
-            // Preserve hop-by-hop headers for the upstream handshake: the
-            // WebSocket upgrade depends on `Connection`/`Upgrade` reaching the
-            // origin (the request-side analog of the 101 carve-out in
-            // `filter_response_headers`). The one field removed is the
-            // extension negotiation, which stops at the relay — the frames of
-            // an accepted extension would be unreadable in the middle, and a
-            // session tungstenite cannot read is a session it kills. The
-            // capture records `req_headers` as received, offer included; see
-            // `websocket::without_extension_negotiation`.
-            let upstream_headers = super::websocket::without_extension_negotiation(&facts.headers);
-            let upstream_req = match upstream_request_builder(
-                &facts.method,
-                &uri,
-                &upstream_headers,
-                &shared,
-                false,
-            )
-            .body(Full::new(body_bytes.clone()))
-            {
-                Ok(r) => r,
-                Err(e) => {
-                    error!("failed to build upstream request: {}", e);
-                    record_error_transaction(
-                        &shared,
-                        &facts,
-                        ErrorFacts {
-                            status: 500,
-                            duration_ms: started.elapsed().as_millis() as u64,
-                            req_body: Some(body_bytes.clone()),
-                            ..Default::default()
-                        },
-                    )
-                    .await;
-                    return Ok(error_resp(500, &format!("request build error: {}", e)));
-                }
-            };
             return handle_websocket_upgrade(
-                upstream_req,
-                client_on_upgrade,
-                &uri,
-                &scheme,
-                &started,
-                facts,
-                body_bytes,
-                req_trailers,
+                WsUpgradeRequest {
+                    facts,
+                    uri,
+                    fallback_scheme: scheme,
+                    body: body_bytes,
+                    trailers: req_trailers,
+                    client_on_upgrade,
+                },
                 shared,
+                started,
             )
             .await;
         }

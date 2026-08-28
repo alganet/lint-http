@@ -15,7 +15,7 @@ use super::hop_by_hop::parse_connection_tokens;
 mod handshake;
 mod relay;
 
-pub(super) use handshake::handle_websocket_upgrade;
+pub(super) use handshake::{handle_websocket_upgrade, WsUpgradeRequest};
 
 /// Check if a request is a WebSocket upgrade request.
 ///
