@@ -672,4 +672,134 @@ mod tests {
         let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
     }
+
+    /// At max_connections, the upgrade is refused before the origin is
+    /// dialed: an explicit 503, recorded through the pipeline, instead of an
+    /// uncounted relay session.
+    #[tokio::test]
+    async fn handle_websocket_upgrade_refuses_at_capacity() -> anyhow::Result<()> {
+        let cfg = StdArc::new(crate::config::Config::default());
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
+
+        // Hold every permit: the proxy is at capacity.
+        let total = shared.semaphore.available_permits();
+        let _hold = shared
+            .semaphore
+            .clone()
+            .acquire_many_owned(total as u32)
+            .await?;
+
+        let fake_on_upgrade = hyper::upgrade::on(
+            Request::builder()
+                .method("GET")
+                .uri("http://fake/")
+                .body(Full::new(Bytes::new()).boxed())
+                .unwrap(),
+        );
+        // Port 1 would refuse the dial, but capacity is checked first, so the
+        // origin is never contacted at all.
+        let uri: Uri = "http://127.0.0.1:1/ws".parse()?;
+        let started = Instant::now();
+        let resp = handle_websocket_upgrade(
+            WsUpgradeRequest {
+                facts: test_facts(&uri, hyper::HeaderMap::new()),
+                uri: uri.clone(),
+                fallback_scheme: hyper::http::uri::Scheme::HTTP,
+                body: Bytes::new(),
+                trailers: None,
+                client_on_upgrade: fake_on_upgrade,
+            },
+            shared,
+            started,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 503);
+
+        cw.flush().await?;
+        let content = tokio::fs::read_to_string(&tmp).await?;
+        let v: serde_json::Value = serde_json::from_str(content.trim())?;
+        assert_eq!(v["response"]["status"].as_u64(), Some(503));
+
+        let _ = tokio::fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
+    /// A 101 whose client-side upgrade never completes: the relay task ends
+    /// without a session record and releases its permit, so a failed upgrade
+    /// cannot leak capacity.
+    #[tokio::test]
+    async fn handle_websocket_upgrade_failed_upgrade_releases_the_permit() -> anyhow::Result<()> {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let port = listener.local_addr()?.port();
+        let server_task = tokio::spawn(async move {
+            if let Ok((socket, _)) = listener.accept().await {
+                let mut buf = [0u8; 4096];
+                let _ = socket.readable().await;
+                let _ = socket.try_read(&mut buf);
+                let resp = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n";
+                let _ = socket.try_write(resp);
+                // Hold the socket open long enough for the upgrade attempt.
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+        });
+
+        let cfg = StdArc::new(crate::config::Config::default());
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
+        let total = shared.semaphore.available_permits();
+
+        // An OnUpgrade whose request is dropped immediately: the client half
+        // of the upgrade fails after the upstream half succeeded.
+        let fake_on_upgrade = hyper::upgrade::on(
+            Request::builder()
+                .method("GET")
+                .uri("http://fake/")
+                .body(Full::new(Bytes::new()).boxed())
+                .unwrap(),
+        );
+
+        let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
+        let started = Instant::now();
+        let resp = handle_websocket_upgrade(
+            WsUpgradeRequest {
+                facts: test_facts(&uri, hyper::HeaderMap::new()),
+                uri: uri.clone(),
+                fallback_scheme: hyper::http::uri::Scheme::HTTP,
+                body: Bytes::new(),
+                trailers: None,
+                client_on_upgrade: fake_on_upgrade,
+            },
+            shared.clone(),
+            started,
+        )
+        .await?;
+        assert_eq!(resp.status().as_u16(), 101);
+
+        // The relay task fails its try_join and returns; the permit comes back.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while shared.semaphore.available_permits() != total {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the failed upgrade's permit was not released"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+
+        // The capture holds the 101 transaction and nothing else — there is
+        // no session record for a session that never started.
+        cw.flush().await?;
+        let content = tokio::fs::read_to_string(&tmp).await?;
+        let lines: Vec<_> = content.lines().filter(|l| !l.trim().is_empty()).collect();
+        assert_eq!(
+            lines.len(),
+            1,
+            "expected only the 101 transaction: {content}"
+        );
+        let v: serde_json::Value = serde_json::from_str(lines[0])?;
+        assert_eq!(v["type"].as_str(), Some("http_transaction"));
+        assert_eq!(v["response"]["status"].as_u64(), Some(101));
+
+        let _ = server_task.await;
+        let _ = tokio::fs::remove_file(&tmp).await;
+        Ok(())
+    }
 }
