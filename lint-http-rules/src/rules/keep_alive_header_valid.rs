@@ -124,7 +124,7 @@ const RFC_2068_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
 const DRAFT_THOMSON_HYBI_HTTP_TIMEOUT_03_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "draft-thomson-hybi-http-timeout-03",
     section: Some("2"),
-    url: "https://www.ietf.org/archive/id/draft-thomson-hybi-http-timeout-03.txt",
+    url: "https://datatracker.ietf.org/doc/html/draft-thomson-hybi-http-timeout-03",
     note: "The only document that ever gave `timeout` a grammar or a meaning. An \
            individual Internet-Draft, never adopted, expired 2013-01-18 — quoted as \
            the only published reading of the parameter and never as a requirement. \

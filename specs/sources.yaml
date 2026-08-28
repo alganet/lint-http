@@ -195,9 +195,11 @@ sources:
   # deployment will see, never as a requirement — RFC 2026 § 2.2 is why — and
   # the "Keep-Alive Information" registry its § 7.2 asks IANA to create was
   # never created.
+  # RfcRepo claims datatracker too, and this is the only rendition of a 2012
+  # draft that carries section anchors — the I-D archive publishes it as plain
+  # text, where `§ 2` is an address nothing can resolve.
   - label: draft-thomson-hybi-http-timeout-03
-    url: https://www.ietf.org/archive/id/draft-thomson-hybi-http-timeout-03.txt
-    type: text/plain
+    url: https://datatracker.ietf.org/doc/html/draft-thomson-hybi-http-timeout-03
 
   # ── MDN ───────────────────────────────────────────────────────────────
   #

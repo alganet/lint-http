@@ -733,8 +733,7 @@ sources:
     - file: lint-http-rules/src/rules/cookie_same_site_enforced.rs
       line: 165
 - label: draft-thomson-hybi-http-timeout-03
-  url: https://www.ietf.org/archive/id/draft-thomson-hybi-http-timeout-03.txt
-  type: text/plain
+  url: https://datatracker.ietf.org/doc/html/draft-thomson-hybi-http-timeout-03
   fragments:
   - label: keep_alive_header_valid
     section: § 2
