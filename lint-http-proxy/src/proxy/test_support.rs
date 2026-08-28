@@ -17,6 +17,15 @@ use crate::capture::CaptureWriter;
 
 use super::Shared;
 
+/// The temp-file guard the integration tests use, reached across the boundary
+/// Rust puts between a unit test and an integration test: they share no module,
+/// so the alternative to this `#[path]` is a second copy of the same guard —
+/// which is the shape this whole pass exists to remove. Test-only, so the
+/// delivered library never compiles it.
+#[path = "../../tests/common/temp_files.rs"]
+mod temp_files;
+pub(super) use temp_files::TempFiles;
+
 /// Construct a `Shared` wired to a fresh temp capture file. Returns the Shared,
 /// the temp path (so tests can read/cleanup), and a clone of the writer.
 pub(super) async fn make_shared_with_cfg(

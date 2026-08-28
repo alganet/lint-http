@@ -15,7 +15,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use lint_http::config::Config;
 
 mod common;
-use common::start_run_proxy_and_wait;
+use common::{start_run_proxy_and_wait, TempFiles};
 
 /// Read from `stream`, accumulating into a buffer, until it contains `needle`
 /// or the deadline passes. Returns everything read so far (headers included).
@@ -59,7 +59,8 @@ async fn live_stream_pushes_committed_transaction() -> anyhow::Result<()> {
     let mut cfg = Config::default();
     cfg.tls.enabled = false;
     cfg.general.live_stream_enabled = true;
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // Open the SSE stream and give the handler a moment to subscribe before any
     // transaction commits.
@@ -99,7 +100,6 @@ async fn live_stream_pushes_committed_transaction() -> anyhow::Result<()> {
     );
 
     handle.abort();
-    let _ = tokio::fs::remove_file(&cap_path).await;
     Ok(())
 }
 
@@ -108,7 +108,8 @@ async fn live_stream_disabled_returns_404() -> anyhow::Result<()> {
     // Default config leaves live_stream_enabled = false.
     let mut cfg = Config::default();
     cfg.tls.enabled = false;
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let mut stream = TcpStream::connect(addr).await?;
     stream
@@ -120,6 +121,5 @@ async fn live_stream_disabled_returns_404() -> anyhow::Result<()> {
     assert!(s.contains("404"), "expected 404 when disabled, got: {s}");
 
     handle.abort();
-    let _ = tokio::fs::remove_file(&cap_path).await;
     Ok(())
 }

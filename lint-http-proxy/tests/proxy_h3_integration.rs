@@ -17,7 +17,7 @@ use lint_http::capture::CaptureWriter;
 use lint_http::config::Config;
 
 mod common;
-use common::startup_timeout;
+use common::{startup_timeout, tls_config, TempFiles};
 
 /// Build a quinn client endpoint that trusts the CA at `ca_cert_path` and
 /// advertises ALPN `h3`.
@@ -52,24 +52,29 @@ fn build_h3_client(ca_cert_path: &std::path::Path) -> anyhow::Result<quinn::Endp
 }
 
 /// Start the proxy with TLS + h3_listen enabled, return handles and addresses.
+///
+/// Every temporary file this makes belongs to `temp`, including the CA key —
+/// which is why it is no longer returned: it was in the tuple for the teardown
+/// alone, and the teardown is the guard's now.
 #[allow(clippy::type_complexity)]
 async fn start_proxy_with_h3(
     cfg_modifier: Option<Box<dyn FnOnce(&mut Config) + Send>>,
+    temp: &mut TempFiles,
 ) -> anyhow::Result<(
     tokio::task::JoinHandle<()>,
     SocketAddr,         // TCP listen address
     SocketAddr,         // H3/QUIC listen address
     String,             // captures path
     std::path::PathBuf, // CA cert path
-    std::path::PathBuf, // CA key path
 )> {
-    let mut cfg = Config::default();
-    cfg.tls.enabled = true;
-
-    let cert_path = std::env::temp_dir().join(format!("h3_test_ca_{}.crt", uuid::Uuid::new_v4()));
-    let key_path = std::env::temp_dir().join(format!("h3_test_ca_{}.key", uuid::Uuid::new_v4()));
-    cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
-    cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
+    let mut cfg = tls_config(temp);
+    let cert_path = common::ca_cert_path(&cfg);
+    let key_path = std::path::PathBuf::from(
+        cfg.tls
+            .ca_key_path
+            .clone()
+            .expect("tls_config always names a CA key path"),
+    );
 
     // Find free ports for TCP and UDP
     // Keep the listener and hand it to the proxy below: dropping it here would
@@ -90,7 +95,7 @@ async fn start_proxy_with_h3(
         f(&mut cfg);
     }
 
-    let tmp = std::env::temp_dir().join(format!("h3_integ_{}.jsonl", uuid::Uuid::new_v4()));
+    let tmp = temp.path("h3_integ", "jsonl");
     let captures_path = tmp.to_str().unwrap().to_string();
     let cw = CaptureWriter::new(captures_path.clone(), false).await?;
 
@@ -146,14 +151,7 @@ async fn start_proxy_with_h3(
     // Brief pause so the probe connection is cleaned up server-side
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    Ok((
-        handle,
-        tcp_addr,
-        h3_addr,
-        captures_path,
-        cert_path,
-        key_path,
-    ))
+    Ok((handle, tcp_addr, h3_addr, captures_path, cert_path))
 }
 
 /// Send a single HTTP/3 GET request via quinn+h3, return status and body.
@@ -274,8 +272,9 @@ async fn h3_happy_path_forwards_request_and_captures() -> anyhow::Result<()> {
         .mount(&mock)
         .await;
 
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
-        start_proxy_with_h3(None).await?;
+    let mut temp = TempFiles::new();
+    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) =
+        start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/hello", mock.address().port());
@@ -310,16 +309,14 @@ async fn h3_happy_path_forwards_request_and_captures() -> anyhow::Result<()> {
     // Cleanup
     endpoint.close(0u32.into(), b"done");
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
 
 #[tokio::test]
 async fn h3_upstream_error_returns_502_and_records_transaction() -> anyhow::Result<()> {
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
-        start_proxy_with_h3(None).await?;
+    let mut temp = TempFiles::new();
+    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) =
+        start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     // Port 9 is the discard protocol — very unlikely to have an HTTP server
@@ -345,9 +342,6 @@ async fn h3_upstream_error_returns_502_and_records_transaction() -> anyhow::Resu
     // Cleanup
     endpoint.close(0u32.into(), b"done");
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
 
@@ -360,11 +354,14 @@ async fn h3_suppress_headers_filters_configured_headers() -> anyhow::Result<()> 
         .mount(&mock)
         .await;
 
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
-        start_proxy_with_h3(Some(Box::new(|cfg| {
+    let mut temp = TempFiles::new();
+    let (handle, _tcp_addr, h3_addr, _captures_path, cert_path) = start_proxy_with_h3(
+        Some(Box::new(|cfg| {
             cfg.tls.suppress_headers = vec!["x-secret".to_string()];
-        })))
-        .await?;
+        })),
+        &mut temp,
+    )
+    .await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/sup", mock.address().port());
@@ -387,9 +384,6 @@ async fn h3_suppress_headers_filters_configured_headers() -> anyhow::Result<()> 
     // Cleanup
     endpoint.close(0u32.into(), b"done");
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
 
@@ -408,8 +402,9 @@ async fn h3_hop_by_hop_headers_stripped_from_response() -> anyhow::Result<()> {
         .mount(&mock)
         .await;
 
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
-        start_proxy_with_h3(None).await?;
+    let mut temp = TempFiles::new();
+    let (handle, _tcp_addr, h3_addr, _captures_path, cert_path) =
+        start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/hop", mock.address().port());
@@ -434,9 +429,6 @@ async fn h3_hop_by_hop_headers_stripped_from_response() -> anyhow::Result<()> {
     // Cleanup
     endpoint.close(0u32.into(), b"done");
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
 
@@ -452,8 +444,9 @@ async fn h3_multiple_requests_on_same_connection_increment_sequence() -> anyhow:
         .mount(&mock)
         .await;
 
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
-        start_proxy_with_h3(None).await?;
+    let mut temp = TempFiles::new();
+    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) =
+        start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/seq", mock.address().port());
@@ -516,9 +509,6 @@ async fn h3_multiple_requests_on_same_connection_increment_sequence() -> anyhow:
     // Cleanup
     endpoint.close(0u32.into(), b"done");
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
 
@@ -531,11 +521,14 @@ async fn h3_large_request_body_streams_and_truncates_capture() -> anyhow::Result
         .mount(&mock)
         .await;
 
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
-        start_proxy_with_h3(Some(Box::new(|cfg| {
+    let mut temp = TempFiles::new();
+    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) = start_proxy_with_h3(
+        Some(Box::new(|cfg| {
             cfg.general.captures_max_body_bytes = 16;
-        })))
-        .await?;
+        })),
+        &mut temp,
+    )
+    .await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/upload", mock.address().port());
@@ -566,9 +559,6 @@ async fn h3_large_request_body_streams_and_truncates_capture() -> anyhow::Result
 
     endpoint.close(0u32.into(), b"done");
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
 
@@ -585,11 +575,14 @@ async fn h3_response_over_limit_streams_full_and_truncates_capture() -> anyhow::
         .mount(&mock)
         .await;
 
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
-        start_proxy_with_h3(Some(Box::new(|cfg| {
+    let mut temp = TempFiles::new();
+    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) = start_proxy_with_h3(
+        Some(Box::new(|cfg| {
             cfg.general.captures_max_body_bytes = 16;
-        })))
-        .await?;
+        })),
+        &mut temp,
+    )
+    .await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/big", mock.address().port());
@@ -630,9 +623,6 @@ async fn h3_response_over_limit_streams_full_and_truncates_capture() -> anyhow::
 
     endpoint.close(0u32.into(), b"done");
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
 
@@ -643,8 +633,9 @@ async fn h3_request_with_host_header_fallback() -> anyhow::Result<()> {
     // the scheme fallback cannot be tested this way; we verify only that the
     // authority is resolved from Host and that the request is captured with
     // the correct host value.
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path, key_path) =
-        start_proxy_with_h3(None).await?;
+    let mut temp = TempFiles::new();
+    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) =
+        start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     // Send a path-only URI with explicit Host header.  The upstream will fail
@@ -675,8 +666,5 @@ async fn h3_request_with_host_header_fallback() -> anyhow::Result<()> {
     // Cleanup
     endpoint.close(0u32.into(), b"done");
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }

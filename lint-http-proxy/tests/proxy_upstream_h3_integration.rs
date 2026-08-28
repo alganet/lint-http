@@ -25,7 +25,7 @@ use hyper_util::rt::TokioIo;
 use lint_http::config::Config;
 
 mod common;
-use common::{start_run_proxy_and_wait, startup_timeout};
+use common::{start_run_proxy_and_wait, startup_timeout, TempFiles};
 
 /// A self-signed test CA and a leaf certificate (IP SAN 127.0.0.1) signed by it.
 struct TestPki {
@@ -237,8 +237,8 @@ async fn upstream_h3_forwards_with_capture_parity_and_strips_connection_field() 
     let pki = gen_test_pki()?;
 
     // Persist the CA PEM so the proxy can load it as an extra trust root.
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_upstream_h3_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (origin_addr, captured, origin_handle) = start_h3_origin(&pki, udp_any()?)?;
@@ -249,7 +249,8 @@ async fn upstream_h3_forwards_with_capture_parity_and_strips_connection_field() 
     cfg.general.h3_upstream_authorities = vec![origin_authority.clone()];
     cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let (proxy_handle, proxy_addr, captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // `keep-alive` is a connection-specific field (RFC 9114 §4.2) that must be
     // stripped before the H3 request; `x-forward-me` is an ordinary field that
@@ -304,8 +305,6 @@ async fn upstream_h3_forwards_with_capture_parity_and_strips_connection_field() 
     // Cleanup
     proxy_handle.abort();
     origin_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -328,7 +327,9 @@ async fn upstream_h3_disabled_authority_uses_h1_path() -> anyhow::Result<()> {
     cfg.general.h3_upstream_enabled = true;
     cfg.general.h3_upstream_authorities = vec!["somewhere-else.example:443".to_string()];
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (proxy_handle, proxy_addr, captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let mock_authority = format!("127.0.0.1:{}", mock.address().port());
     let (status, _headers, body) = proxy_get(proxy_addr, &mock_authority, "/plain", &[]).await?;
@@ -344,7 +345,6 @@ async fn upstream_h3_disabled_authority_uses_h1_path() -> anyhow::Result<()> {
     );
 
     proxy_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
     Ok(())
 }
 
@@ -395,7 +395,9 @@ async fn upstream_h3_connect_failure_falls_back_to_h1() -> anyhow::Result<()> {
     // Keep the failed-connect wait short so the fall-back is prompt.
     cfg.general.h3_upstream_connect_timeout_ms = 1500;
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (proxy_handle, proxy_addr, captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let (status, _headers, body) = proxy_get(proxy_addr, &authority, "/fb", &[]).await?;
     assert_eq!(status, 200, "the H1 fall-back should succeed");
@@ -410,7 +412,6 @@ async fn upstream_h3_connect_failure_falls_back_to_h1() -> anyhow::Result<()> {
     );
 
     proxy_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
     Ok(())
 }
 
@@ -431,8 +432,8 @@ async fn upstream_h3_reaches_an_ipv6_origin() -> anyhow::Result<()> {
     };
 
     let pki = gen_test_pki_san(SanType::IpAddress(IpAddr::V6(Ipv6Addr::LOCALHOST)))?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_upstream_h3_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (origin_addr, _captured, origin_task) = start_h3_origin(&pki, udp)?;
@@ -446,7 +447,8 @@ async fn upstream_h3_reaches_an_ipv6_origin() -> anyhow::Result<()> {
     // Left as None on purpose: this asserts the *default* bind is dual-stack.
     assert!(cfg.general.h3_upstream_bind.is_none());
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let (proxy_handle, proxy_addr, captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let (status, headers, body) = proxy_get(proxy_addr, &authority, "/v6", &[]).await?;
     assert_eq!(status, 200, "the v6 origin should be reached over H3");
@@ -466,8 +468,6 @@ async fn upstream_h3_reaches_an_ipv6_origin() -> anyhow::Result<()> {
 
     proxy_handle.abort();
     origin_task.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -481,8 +481,8 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
     use tokio::io::AsyncWriteExt;
 
     let pki = gen_test_pki()?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_upstream_h3_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     // One port, both transports, both sockets already bound.
@@ -546,7 +546,8 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
     cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
     cfg.general.h3_upstream_connect_timeout_ms = 3000;
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let (proxy_handle, proxy_addr, _captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let (status, _body) = proxy_post(proxy_addr, &authority, "/x", b"payload").await?;
     assert_eq!(
@@ -565,8 +566,6 @@ async fn upstream_h3_non_idempotent_not_retried_after_midflight_failure() -> any
     proxy_handle.abort();
     h3_origin.abort();
     h1_origin.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -613,8 +612,8 @@ async fn upstream_h3_slow_origin_idempotent_get_falls_back_to_h1() -> anyhow::Re
     use tokio::io::AsyncWriteExt;
 
     let pki = gen_test_pki()?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_upstream_h3_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (udp, tcp_std) = bind_origin_pair()?;
@@ -646,7 +645,8 @@ async fn upstream_h3_slow_origin_idempotent_get_falls_back_to_h1() -> anyhow::Re
     cfg.general.h3_upstream_connect_timeout_ms = 3000;
     cfg.general.h3_upstream_response_timeout_ms = 300;
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let (proxy_handle, proxy_addr, captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let (status, _headers, body) = proxy_get(proxy_addr, &authority, "/slow", &[]).await?;
     assert_eq!(
@@ -670,8 +670,6 @@ async fn upstream_h3_slow_origin_idempotent_get_falls_back_to_h1() -> anyhow::Re
     proxy_handle.abort();
     h3_origin.abort();
     h1_origin.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -684,8 +682,8 @@ async fn upstream_h3_slow_origin_non_idempotent_post_502s() -> anyhow::Result<()
     use tokio::io::AsyncWriteExt;
 
     let pki = gen_test_pki()?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_upstream_h3_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (udp, tcp_std) = bind_origin_pair()?;
@@ -715,7 +713,8 @@ async fn upstream_h3_slow_origin_non_idempotent_post_502s() -> anyhow::Result<()
     cfg.general.h3_upstream_connect_timeout_ms = 3000;
     cfg.general.h3_upstream_response_timeout_ms = 300;
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let (proxy_handle, proxy_addr, _captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let (status, _body) = proxy_post(proxy_addr, &authority, "/x", b"payload").await?;
     assert_eq!(
@@ -733,8 +732,6 @@ async fn upstream_h3_slow_origin_non_idempotent_post_502s() -> anyhow::Result<()
     proxy_handle.abort();
     h3_origin.abort();
     h1_origin.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -780,8 +777,8 @@ async fn upstream_h3_origin_early_response_is_delivered_and_captured() -> anyhow
     // proving the body pump handles an origin-reset stream without hanging the
     // capture or mis-recording the leg.
     let pki = gen_test_pki()?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_upstream_h3_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (origin_addr, origin_handle) = start_h3_origin_early_response(&pki, udp_any()?)?;
@@ -792,7 +789,8 @@ async fn upstream_h3_origin_early_response_is_delivered_and_captured() -> anyhow
     cfg.general.h3_upstream_authorities = vec![authority.clone()];
     cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let (proxy_handle, proxy_addr, captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let big = vec![b'x'; 256 * 1024];
     let (status, _body) = proxy_post(proxy_addr, &authority, "/gate", &big).await?;
@@ -809,8 +807,6 @@ async fn upstream_h3_origin_early_response_is_delivered_and_captured() -> anyhow
 
     proxy_handle.abort();
     origin_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -825,8 +821,8 @@ async fn upstream_h3_early_response_to_large_upload_commits_without_hanging() ->
     // forever and leaking the capture. A timeout guards against the regression
     // hanging the whole suite.
     let pki = gen_test_pki()?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_upstream_h3_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_upstream_h3_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (origin_addr, origin_handle) = start_h3_origin_early_response(&pki, udp_any()?)?;
@@ -837,7 +833,8 @@ async fn upstream_h3_early_response_to_large_upload_commits_without_hanging() ->
     cfg.general.h3_upstream_authorities = vec![authority.clone()];
     cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
 
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let (proxy_handle, proxy_addr, captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // 16 MiB comfortably exceeds quinn's default per-stream receive window, so the
     // pump parks once the origin (which never reads) stops accepting bytes.
@@ -857,8 +854,6 @@ async fn upstream_h3_early_response_to_large_upload_commits_without_hanging() ->
 
     proxy_handle.abort();
     origin_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -897,8 +892,8 @@ async fn upstream_h3_discovered_via_alt_svc_is_used_on_next_request() -> anyhow:
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     let pki = gen_test_pki()?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_disc_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_disc_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     // The advertised H3 endpoint (serves "world" over H3). Its port is read back
@@ -924,7 +919,9 @@ async fn upstream_h3_discovered_via_alt_svc_is_used_on_next_request() -> anyhow:
     cfg.general.h3_upstream_enabled = true;
     // No allowlist: H3 is reached purely through Alt-Svc discovery.
     cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (proxy_handle, proxy_addr, captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // First request: H1 (wiremock), which advertises Alt-Svc.
     let (s1, _h1, b1) = proxy_get(proxy_addr, &authority, "/d", &[]).await?;
@@ -961,8 +958,6 @@ async fn upstream_h3_discovered_via_alt_svc_is_used_on_next_request() -> anyhow:
 
     proxy_handle.abort();
     e_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -977,8 +972,8 @@ async fn upstream_h3_discovered_endpoint_with_wrong_cert_is_not_used() -> anyhow
 
     // Leaf valid for "wrong.example" only.
     let pki = gen_test_pki_san(SanType::DnsName("wrong.example".try_into()?))?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_disc_badca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_disc_badca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (e_addr, e_captured, e_handle) = start_h3_origin(&pki, udp_any()?)?;
@@ -1000,7 +995,9 @@ async fn upstream_h3_discovered_endpoint_with_wrong_cert_is_not_used() -> anyhow
     cfg.general.h3_upstream_enabled = true;
     cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
     cfg.general.h3_upstream_connect_timeout_ms = 2000;
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (proxy_handle, proxy_addr, _captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // First request populates discovery; second would use H3 but the cert is
     // not valid for the origin, so it falls back to H1.
@@ -1023,8 +1020,6 @@ async fn upstream_h3_discovered_endpoint_with_wrong_cert_is_not_used() -> anyhow
 
     proxy_handle.abort();
     e_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
@@ -1108,8 +1103,8 @@ fn start_h3_origin_goaway(
 #[tokio::test]
 async fn upstream_h3_pool_reuses_one_connection_across_requests() -> anyhow::Result<()> {
     let pki = gen_test_pki()?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_pool_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_pool_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (origin_addr, conns, origin_handle) = start_h3_origin_counting(&pki, udp_any()?)?;
@@ -1119,7 +1114,9 @@ async fn upstream_h3_pool_reuses_one_connection_across_requests() -> anyhow::Res
     cfg.general.h3_upstream_enabled = true;
     cfg.general.h3_upstream_authorities = vec![authority.clone()];
     cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (proxy_handle, proxy_addr, _captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // Three sequential requests to the same origin should share one pooled
     // QUIC connection.
@@ -1137,16 +1134,14 @@ async fn upstream_h3_pool_reuses_one_connection_across_requests() -> anyhow::Res
 
     proxy_handle.abort();
     origin_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }
 
 #[tokio::test]
 async fn upstream_h3_goaway_refused_request_is_retried_on_fresh_connection() -> anyhow::Result<()> {
     let pki = gen_test_pki()?;
-    let ca_pem_path =
-        std::env::temp_dir().join(format!("lint_goaway_ca_{}.pem", uuid::Uuid::new_v4()));
+    let mut temp = TempFiles::new();
+    let ca_pem_path = temp.path("lint_goaway_ca", "pem");
     tokio::fs::write(&ca_pem_path, pki.ca_pem.as_bytes()).await?;
 
     let (origin_addr, conns, origin_handle) = start_h3_origin_goaway(&pki, udp_any()?)?;
@@ -1156,7 +1151,9 @@ async fn upstream_h3_goaway_refused_request_is_retried_on_fresh_connection() -> 
     cfg.general.h3_upstream_enabled = true;
     cfg.general.h3_upstream_authorities = vec![authority.clone()];
     cfg.general.h3_upstream_extra_ca_certs = vec![ca_pem_path.to_string_lossy().to_string()];
-    let (proxy_handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (proxy_handle, proxy_addr, _captures_path) =
+        start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // First request opens and pools a connection; the origin GOAWAYs it after
     // serving. The second request reuses the pooled connection, is refused, and
@@ -1184,7 +1181,5 @@ async fn upstream_h3_goaway_refused_request_is_retried_on_fresh_connection() -> 
 
     proxy_handle.abort();
     origin_handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&ca_pem_path).await;
     Ok(())
 }

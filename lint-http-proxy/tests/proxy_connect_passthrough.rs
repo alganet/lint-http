@@ -11,7 +11,7 @@ use tokio::time::timeout;
 use lint_http::config::Config;
 
 mod common;
-use common::start_run_proxy_and_wait;
+use common::{start_run_proxy_and_wait, tls_config, TempFiles};
 
 async fn do_connect_and_get_response(
     proxy_addr: SocketAddr,
@@ -72,16 +72,12 @@ async fn connect_passthrough_tunnels_raw_tcp() -> anyhow::Result<()> {
     });
 
     // Start proxy with passthrough for 127.0.0.1
-    let mut cfg = Config::default();
-    cfg.tls.enabled = true;
-    let cert_path = std::env::temp_dir().join(format!("test_ca_{}.crt", uuid::Uuid::new_v4()));
-    let key_path = std::env::temp_dir().join(format!("test_ca_{}.key", uuid::Uuid::new_v4()));
-    cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
-    cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
+    let mut temp = TempFiles::new();
+    let mut cfg = tls_config(&mut temp);
     // Use a literal IP in passthrough domain so the proxy connects to the toy server
     cfg.tls.passthrough_domains = vec!["127.0.0.1".into()];
 
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg.clone(), &mut temp).await?;
 
     // CONNECT and then send raw ping/pong to the toy server IP
     let mut stream = tokio::net::TcpStream::connect(addr).await?;
@@ -115,9 +111,6 @@ async fn connect_passthrough_tunnels_raw_tcp() -> anyhow::Result<()> {
     // cleanup
     handle.abort();
     let _ = handle.await;
-    let _ = tokio::fs::remove_file(cert_path).await;
-    let _ = tokio::fs::remove_file(key_path).await;
-    let _ = tokio::fs::remove_file(cap_path).await;
     let _ = server_task.await;
     Ok(())
 }
@@ -130,16 +123,12 @@ async fn connect_passthrough_upstream_unavailable() -> anyhow::Result<()> {
     drop(listener);
 
     // Start proxy with passthrough for 127.0.0.1
-    let mut cfg = Config::default();
-    cfg.tls.enabled = true;
-    let cert_path = std::env::temp_dir().join(format!("test_ca_{}.crt", uuid::Uuid::new_v4()));
-    let key_path = std::env::temp_dir().join(format!("test_ca_{}.key", uuid::Uuid::new_v4()));
-    cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
-    cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
+    let mut temp = TempFiles::new();
+    let mut cfg = tls_config(&mut temp);
     // Use a literal IP in passthrough domain so the proxy connects to the toy server
     cfg.tls.passthrough_domains = vec!["127.0.0.1".into()];
 
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg.clone(), &mut temp).await?;
 
     // CONNECT and expect it to succeed but subsequent I/O to close
     let mut stream = tokio::net::TcpStream::connect(addr).await?;
@@ -182,9 +171,6 @@ async fn connect_passthrough_upstream_unavailable() -> anyhow::Result<()> {
     // cleanup
     handle.abort();
     let _ = handle.await;
-    let _ = tokio::fs::remove_file(cert_path).await;
-    let _ = tokio::fs::remove_file(key_path).await;
-    let _ = tokio::fs::remove_file(cap_path).await;
     Ok(())
 }
 
@@ -193,7 +179,8 @@ async fn connect_without_tls_returns_405() -> anyhow::Result<()> {
     // Start proxy with TLS disabled
     let mut cfg = Config::default();
     cfg.tls.enabled = false;
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
+    let mut temp = TempFiles::new();
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg.clone(), &mut temp).await?;
 
     // CONNECT and read response
     let res = do_connect_and_get_response(addr, "example.com", 12345).await?;
@@ -202,6 +189,5 @@ async fn connect_without_tls_returns_405() -> anyhow::Result<()> {
 
     handle.abort();
     let _ = handle.await;
-    let _ = tokio::fs::remove_file(cap_path).await;
     Ok(())
 }
