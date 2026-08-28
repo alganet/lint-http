@@ -13,7 +13,7 @@ use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
 use std::sync::Arc;
 use tokio::time::Instant;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::proxy::exchange::{
     assemble_transaction, error_response, into_response, record_error_transaction,
@@ -56,6 +56,34 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
         client_on_upgrade,
     } = req;
 
+    // Refuse new upgrades at capacity, before dialing the origin. The relay
+    // session that would follow outlives this request handler, so it must hold
+    // its own permit to stay inside `max_connections` and the shutdown drain
+    // barrier — and a permit that must be held has to be acquired while the
+    // upgrade can still be refused. An explicit 503 here is the honest answer
+    // a best-effort, uncounted session was not.
+    let relay_permit = match shared.semaphore.clone().try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            warn!("websocket upgrade refused: proxy at max_connections capacity");
+            record_error_transaction(
+                &shared,
+                &facts,
+                ErrorFacts {
+                    status: 503,
+                    duration_ms: started.elapsed().as_millis() as u64,
+                    req_body: Some(body_bytes.clone()),
+                    ..Default::default()
+                },
+            )
+            .await;
+            return Ok(into_response(error_response(
+                503,
+                "websocket upgrade refused: proxy at connection capacity".to_string(),
+            )));
+        }
+    };
+
     // Build the upstream handshake request. Preserve hop-by-hop headers: the
     // WebSocket upgrade depends on `Connection`/`Upgrade` reaching the origin
     // (the request-side analog of the 101 carve-out in
@@ -93,7 +121,7 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
 
     // Connect directly to upstream with upgrade support, reusing the shared
     // outbound TLS config (loaded once at startup).
-    let (mut sender, _conn_handle) =
+    let mut sender =
         match connect_upstream_for_upgrade(&uri, &fallback_scheme, &shared.upstream.tls_config)
             .await
         {
@@ -170,18 +198,14 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
             .body(boxed_full(Bytes::new()))
             .unwrap_or_else(|_| Response::new(boxed_full(Bytes::new())));
 
-        // Spawn the background relay, holding a connection permit and a shutdown
-        // token for its lifetime: the permit counts the live session against
-        // `max_connections` (and makes the drain barrier wait for it), the token
-        // lets it close promptly on shutdown. The permit is best-effort —
-        // an already-upgraded connection can't be rejected if we're at capacity.
+        // Spawn the background relay, holding the connection permit acquired
+        // before the dial and a shutdown token for its lifetime: the permit
+        // counts the live session against `max_connections` (and makes the
+        // drain barrier wait for it), the token lets it close promptly on
+        // shutdown.
         let captures_clone = shared.captures.clone();
         let connection_id = facts.connection_id;
         let pe_pipeline = shared.protocol_event_pipeline();
-        let relay_permit = shared.semaphore.clone().try_acquire_owned().ok();
-        if relay_permit.is_none() {
-            debug!("websocket relay starting without a connection permit (at capacity)");
-        }
         let relay_shutdown = shared.shutdown.clone();
         let negotiated = accepted_extensions(&headers);
         tokio::spawn(async move {
@@ -280,10 +304,7 @@ async fn connect_upstream_for_upgrade(
     uri: &Uri,
     fallback_scheme: &hyper::http::uri::Scheme,
     tls_config: &Arc<rustls::ClientConfig>,
-) -> anyhow::Result<(
-    hyper::client::conn::http1::SendRequest<Full<Bytes>>,
-    tokio::task::JoinHandle<Result<(), hyper::Error>>,
-)> {
+) -> anyhow::Result<hyper::client::conn::http1::SendRequest<Full<Bytes>>> {
     let host = uri
         .host()
         .ok_or_else(|| anyhow::anyhow!("missing host in URI"))?;
@@ -299,16 +320,28 @@ async fn connect_upstream_for_upgrade(
         let connector = tokio_rustls::TlsConnector::from(tls_config.clone());
         let server_name = rustls::pki_types::ServerName::try_from(host.to_string())?;
         let tls_stream = connector.connect(server_name, tcp).await?;
-
-        let (sender, conn) =
-            hyper::client::conn::http1::handshake(TokioIo::new(tls_stream)).await?;
-        let handle = tokio::spawn(conn.with_upgrades());
-        Ok((sender, handle))
+        Ok(handshake_and_drive(tls_stream).await?)
     } else {
-        let (sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(tcp)).await?;
-        let handle = tokio::spawn(conn.with_upgrades());
-        Ok((sender, handle))
+        Ok(handshake_and_drive(tcp).await?)
     }
+}
+
+/// hyper HTTP/1.1 handshake over `io`, driving the connection (with upgrade
+/// support) in a background task whose end is observed: a driver error is
+/// logged with its cause rather than vanishing with a dropped JoinHandle.
+async fn handshake_and_drive<T>(
+    io: T,
+) -> hyper::Result<hyper::client::conn::http1::SendRequest<Full<Bytes>>>
+where
+    T: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
+    let (sender, conn) = hyper::client::conn::http1::handshake(TokioIo::new(io)).await?;
+    tokio::spawn(async move {
+        if let Err(e) = conn.with_upgrades().await {
+            debug!(error = %e, "websocket upstream connection driver ended with error");
+        }
+    });
+    Ok(sender)
 }
 
 #[cfg(test)]
@@ -564,7 +597,7 @@ mod tests {
         });
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
-        let (mut sender, _handle) =
+        let mut sender =
             connect_upstream_for_upgrade(&uri, &hyper::http::uri::Scheme::HTTP, &test_tls_config())
                 .await?;
 

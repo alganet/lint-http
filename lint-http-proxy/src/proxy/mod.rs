@@ -85,8 +85,10 @@ pub(super) struct Shared {
     /// per-rule config lookup. Shared by both pipelines.
     pub(super) engine: Arc<crate::engine::PreparedEngine>,
     /// Connection bound, shared with the accept loops. The detached WebSocket
-    /// relay acquires a permit from this so live sessions are counted against
-    /// `max_connections` and waited on by the shutdown drain barrier.
+    /// relay holds a permit from this for its whole life — acquired before the
+    /// upstream dial, refusing the upgrade with a 503 at capacity — so every
+    /// live session is counted against `max_connections` and waited on by the
+    /// shutdown drain barrier.
     pub(super) semaphore: Arc<Semaphore>,
     /// Graceful-shutdown signal. Handed to the detached WebSocket relay so it
     /// closes promptly on shutdown rather than only at the drain timeout.
