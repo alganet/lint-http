@@ -89,24 +89,23 @@ impl Rule for ConditionalHeadersConsistent {
                 // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak.
                 // (A weak marker is the `W/` prefix; a bare quoted-string is a strong tag and
                 // fine, and a date is left to date-validity rules.)
-                if let Ok(s) = hv.to_str() {
-                    let trimmed = s.trim();
-                    // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
-                    if trimmed.starts_with("W/") {
-                        return Some(self.cited(
-                            &RFC_9110_13_1_5,
-                            ctx.severity,
-                            "If-Range MUST not contain a weak entity-tag (W/...)".into(),
-                        ));
-                    }
-                    // If it starts with a quoted-string, it's a strong ETag and fine; if it's a date, we'll not flag here
-                    // (date validity is checked by other rules)
-                } else {
+                let Ok(s) = hv.to_str() else {
                     return Some(self.violation(
                         ctx.severity,
                         "If-Range header contains non-UTF8 value".into(),
                     ));
+                };
+                let trimmed = s.trim();
+                // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
+                if trimmed.starts_with("W/") {
+                    return Some(self.cited(
+                        &RFC_9110_13_1_5,
+                        ctx.severity,
+                        "If-Range MUST not contain a weak entity-tag (W/...)".into(),
+                    ));
                 }
+                // If it starts with a quoted-string, it's a strong ETag and fine; if it's a date, we'll not flag here
+                // (date validity is checked by other rules)
             }
 
             // Neither date conditional is a list, so a second field line is a sender

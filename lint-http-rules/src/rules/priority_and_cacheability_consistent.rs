@@ -53,13 +53,11 @@ impl Rule for PriorityAndCacheabilityConsistent {
             // first non-empty ASCII field line is taken; a Priority header that is
             // empty or non-ASCII on every line is treated as absent and skipped.
             let mut priority_val: Option<&str> = None;
-            for hv in resp.headers.get_all("priority").iter() {
-                if let Ok(s) = hv.to_str() {
-                    let s = s.trim();
-                    if !s.is_empty() {
-                        priority_val = Some(s);
-                        break;
-                    }
+            for s in crate::helpers::headers::field_lines(&resp.headers, "priority") {
+                let s = s.trim();
+                if !s.is_empty() {
+                    priority_val = Some(s);
+                    break;
                 }
             }
             let priority = priority_val?;

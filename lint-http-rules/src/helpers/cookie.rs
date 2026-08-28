@@ -383,18 +383,16 @@ pub fn build_cookie_store(
 
     for prev in history_items.iter().rev() {
         if let Some(resp) = &prev.response {
-            for hv in resp.headers.get_all("set-cookie").iter() {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(cookie) = parse_set_cookie(s, &prev.request.uri, prev.timestamp) {
-                        live_cookies.retain(|c| {
-                            !(c.name == cookie.name
-                                && c.domain == cookie.domain
-                                && c.path == cookie.path)
-                        });
+            for s in crate::helpers::headers::field_lines(&resp.headers, "set-cookie") {
+                if let Some(cookie) = parse_set_cookie(s, &prev.request.uri, prev.timestamp) {
+                    live_cookies.retain(|c| {
+                        !(c.name == cookie.name
+                            && c.domain == cookie.domain
+                            && c.path == cookie.path)
+                    });
 
-                        if !cookie.is_expired_at(prev.timestamp) {
-                            live_cookies.push(cookie);
-                        }
+                    if !cookie.is_expired_at(prev.timestamp) {
+                        live_cookies.push(cookie);
                     }
                 }
             }

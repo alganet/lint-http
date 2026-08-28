@@ -156,13 +156,12 @@ impl Rule for AcceptLanguageWeightValid {
 
             // Request
             for hv in tx.request.headers.get_all("accept-language").iter() {
-                if let Ok(val) = hv.to_str() {
-                    if let Some(v) = validate_value(val) {
-                        return Some(v);
-                    }
-                } else {
+                let Ok(val) = hv.to_str() else {
                     return Some(self.violation(ctx.severity, "Accept-Language contains an octet no part of this field's grammar admits"
                                 .into()));
+                };
+                if let Some(v) = validate_value(val) {
+                    return Some(v);
                 }
             }
 
@@ -173,13 +172,12 @@ impl Rule for AcceptLanguageWeightValid {
             // what the field would mean here.
             if let Some(resp) = &tx.response {
                 for hv in resp.headers.get_all("accept-language").iter() {
-                    if let Ok(val) = hv.to_str() {
-                        if let Some(v) = validate_value(val) {
-                            return Some(v);
-                        }
-                    } else {
+                    let Ok(val) = hv.to_str() else {
                         return Some(self.violation(ctx.severity, "Accept-Language contains an octet no part of this field's grammar admits"
                                     .into()));
+                    };
+                    if let Some(v) = validate_value(val) {
+                        return Some(v);
                     }
                 }
             }
