@@ -60,7 +60,6 @@ h3-quinn = "0.0.10"
 
 # Certificate generation / misc
 rcgen = "0.14"
-pem = "4.0"
 http-body-util = "0.1"
 tokio-tungstenite = "0.30"
 futures-util = "0.3"
