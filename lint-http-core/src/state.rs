@@ -246,9 +246,17 @@ impl StateStore {
         let ttl_chrono =
             chrono::Duration::from_std(self.ttl).unwrap_or_else(|_| chrono::Duration::seconds(0));
 
+        // One reading of the clock for the whole sweep, and it is the cutoff
+        // that matters rather than the syscall it saves. Read inside the
+        // closure, `now` advanced as the pass walked the store, so two entries
+        // with the same timestamp could be judged against different instants —
+        // the later deque held to a stricter deadline for no reason but its
+        // position in a HashMap iteration. A sweep is one moment.
+        let now = Utc::now();
+
         for deque in inner.store.values_mut() {
             deque.retain(|tx| {
-                let age = Utc::now().signed_duration_since(tx.timestamp);
+                let age = now.signed_duration_since(tx.timestamp);
                 // If timestamp is in the future (age < 0), treat as expired (remove)
                 if age < chrono::Duration::zero() {
                     return false;

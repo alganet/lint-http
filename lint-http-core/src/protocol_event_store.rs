@@ -10,7 +10,7 @@
 //! [`ProtocolEvent`] instead of `HttpTransaction`.
 
 use crate::protocol_event::ProtocolEvent;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -87,18 +87,26 @@ impl ProtocolEventStore {
         let ttl_chrono =
             chrono::Duration::from_std(self.ttl).unwrap_or_else(|_| chrono::Duration::seconds(0));
 
-        Self::cleanup_map(&self.by_connection, ttl_chrono);
-        Self::cleanup_map(&self.by_session, ttl_chrono);
+        // One reading of the clock for both maps, because they index the same
+        // events. Each `cleanup_map` used to read its own, so an event sitting
+        // exactly on the TTL boundary could be dropped from `by_connection` and
+        // kept in `by_session` — the two views of one connection disagreeing
+        // about what the store holds, for no reason but the microseconds
+        // between two lock acquisitions.
+        let now = Utc::now();
+        Self::cleanup_map(&self.by_connection, ttl_chrono, now);
+        Self::cleanup_map(&self.by_session, ttl_chrono, now);
     }
 
     fn cleanup_map(
         map: &Arc<RwLock<HashMap<Uuid, VecDeque<ProtocolEvent>>>>,
         ttl: chrono::Duration,
+        now: DateTime<Utc>,
     ) {
         let mut store = map.write();
         for deque in store.values_mut() {
             deque.retain(|evt| {
-                let age = Utc::now().signed_duration_since(evt.timestamp);
+                let age = now.signed_duration_since(evt.timestamp);
                 if age < chrono::Duration::zero() {
                     return false;
                 }
