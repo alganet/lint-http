@@ -44,14 +44,11 @@ impl Rule for CookieDomainValid {
             let resp = tx.response.as_ref()?;
 
             for hv in resp.headers.get_all("set-cookie").iter() {
-                let s = match hv.to_str() {
-                    Ok(v) => v,
-                    Err(_) => {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Set-Cookie header value is not valid UTF-8".into(),
-                        ))
-                    }
+                let Ok(s) = hv.to_str() else {
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Set-Cookie header value is not valid UTF-8".into(),
+                    ));
                 };
 
                 // split into cookie-pair and attributes

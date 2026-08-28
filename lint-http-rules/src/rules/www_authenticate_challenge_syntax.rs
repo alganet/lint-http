@@ -45,25 +45,22 @@ impl Rule for WwwAuthenticateChallengeSyntax {
         let finding = || -> Option<Violation> {
             // Only check response headers; ignore non-UTF8 header values
             if let Some(resp) = &tx.response {
-                for hv in resp.headers.get_all("www-authenticate").iter() {
-                    if let Ok(s) = hv.to_str() {
-                        // Group members into assembled challenges using the helper so we can
-                        // test the grouping logic independently and exercise more branches.
-                        // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
-                        let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
-                            Ok(c) => c,
-                            Err(msg) => {
-                                return Some(self.cited(&RFC_9110_11_6_1, ctx.severity, msg));
-                            }
-                        };
+                for s in crate::helpers::headers::field_lines(&resp.headers, "www-authenticate") {
+                    // Group members into assembled challenges using the helper so we can
+                    // test the grouping logic independently and exercise more branches.
+                    // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
+                    let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
+                        Ok(c) => c,
+                        Err(msg) => {
+                            return Some(self.cited(&RFC_9110_11_6_1, ctx.severity, msg));
+                        }
+                    };
 
-                        // Now validate each assembled challenge using helper to make it unit-testable
-                        for challenge in challenges.iter() {
-                            if let Err(msg) =
-                                crate::helpers::auth::validate_challenge_syntax(challenge)
-                            {
-                                return Some(self.violation(ctx.severity, msg));
-                            }
+                    // Now validate each assembled challenge using helper to make it unit-testable
+                    for challenge in challenges.iter() {
+                        if let Err(msg) = crate::helpers::auth::validate_challenge_syntax(challenge)
+                        {
+                            return Some(self.violation(ctx.severity, msg));
                         }
                     }
                 }

@@ -91,15 +91,14 @@ impl Rule for ContentEncodingAndTypeConsistent {
             {
                 let mut seen = std::collections::HashSet::new();
                 for hv in tx.request.headers.get_all("content-encoding").iter() {
-                    if let Ok(val) = hv.to_str() {
-                        if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
-                            return Some(v);
-                        }
-                    } else {
+                    let Ok(val) = hv.to_str() else {
                         return Some(self.violation(
                             ctx.severity,
                             "Content-Encoding header value is not valid UTF-8".into(),
                         ));
+                    };
+                    if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
+                        return Some(v);
                     }
                 }
             }
@@ -137,15 +136,14 @@ impl Rule for ContentEncodingAndTypeConsistent {
 
                 let mut seen = std::collections::HashSet::new();
                 for hv in resp.headers.get_all("content-encoding").iter() {
-                    if let Ok(val) = hv.to_str() {
-                        if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
-                            return Some(v);
-                        }
-                    } else {
+                    let Ok(val) = hv.to_str() else {
                         return Some(self.violation(
                             ctx.severity,
                             "Content-Encoding header value is not valid UTF-8".into(),
                         ));
+                    };
+                    if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
+                        return Some(v);
                     }
                 }
             }

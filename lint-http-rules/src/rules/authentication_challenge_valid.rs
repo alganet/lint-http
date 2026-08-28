@@ -47,53 +47,51 @@ impl Rule for AuthenticationChallengeValid {
             // Map of normalized_realm -> set of auth-schemes that advertise it
             let mut realms: HashMap<String, HashSet<String>> = HashMap::new();
 
-            for hv in resp.headers.get_all("www-authenticate").iter() {
-                if let Ok(s) = hv.to_str() {
-                    // split assembled challenges
-                    let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
-                        Ok(c) => c,
-                        Err(_) => continue,
-                    };
+            for s in crate::helpers::headers::field_lines(&resp.headers, "www-authenticate") {
+                // split assembled challenges
+                let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
+                    Ok(c) => c,
+                    Err(_) => continue,
+                };
 
-                    for ch in challenges.iter() {
-                        let ch = ch.trim();
-                        if ch.is_empty() {
-                            continue;
-                        }
-                        // extract scheme (first token before whitespace)
-                        let mut parts = ch.splitn(2, char::is_whitespace);
-                        let scheme = parts.next().unwrap_or("").trim().to_ascii_lowercase();
+                for ch in challenges.iter() {
+                    let ch = ch.trim();
+                    if ch.is_empty() {
+                        continue;
+                    }
+                    // extract scheme (first token before whitespace)
+                    let mut parts = ch.splitn(2, char::is_whitespace);
+                    let scheme = parts.next().unwrap_or("").trim().to_ascii_lowercase();
 
-                        let mut realm_opt: Option<String> = None;
-                        if let Some(rest) = parts.next() {
-                            let rest = rest.trim();
-                            if rest.contains('=') {
-                                if let Ok(params) = crate::helpers::auth::parse_auth_params(rest) {
-                                    if let Some(r) = params.get("realm") {
-                                        // Normalize quoted and unquoted realm to the same
-                                        // string before comparing: a sender must quote it, but
-                                        // recipients accept both forms, so `realm="a"` and
-                                        // `realm=a` denote the same protection space. (quoted-
-                                        // string unescaping is helper-owned.)
-                                        // cite(RFC 9110 § 11.5): "Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time."
-                                        if r.starts_with('"') {
-                                            if let Ok(unq) =
-                                                crate::helpers::headers::unescape_quoted_string(r)
-                                            {
-                                                realm_opt = Some(unq);
-                                            }
-                                        } else {
-                                            realm_opt = Some(r.trim().to_string());
+                    let mut realm_opt: Option<String> = None;
+                    if let Some(rest) = parts.next() {
+                        let rest = rest.trim();
+                        if rest.contains('=') {
+                            if let Ok(params) = crate::helpers::auth::parse_auth_params(rest) {
+                                if let Some(r) = params.get("realm") {
+                                    // Normalize quoted and unquoted realm to the same
+                                    // string before comparing: a sender must quote it, but
+                                    // recipients accept both forms, so `realm="a"` and
+                                    // `realm=a` denote the same protection space. (quoted-
+                                    // string unescaping is helper-owned.)
+                                    // cite(RFC 9110 § 11.5): "Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time."
+                                    if r.starts_with('"') {
+                                        if let Ok(unq) =
+                                            crate::helpers::headers::unescape_quoted_string(r)
+                                        {
+                                            realm_opt = Some(unq);
                                         }
+                                    } else {
+                                        realm_opt = Some(r.trim().to_string());
                                     }
                                 }
                             }
                         }
+                    }
 
-                        if let Some(realm) = realm_opt {
-                            let entry = realms.entry(realm).or_default();
-                            entry.insert(scheme);
-                        }
+                    if let Some(realm) = realm_opt {
+                        let entry = realms.entry(realm).or_default();
+                        entry.insert(scheme);
                     }
                 }
             }

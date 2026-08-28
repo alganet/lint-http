@@ -53,14 +53,10 @@ impl Rule for EtagSyntax {
             let mut count = 0usize;
             for hv in resp.headers.get_all("etag").iter() {
                 count += 1;
-                let s = match hv.to_str() {
-                    Ok(s) => s,
-                    Err(_) => {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "ETag header value is not valid UTF-8".into(),
-                        ))
-                    }
+                let Ok(s) = hv.to_str() else {
+                    return Some(
+                        self.violation(ctx.severity, "ETag header value is not valid UTF-8".into()),
+                    );
                 };
 
                 let t = s.trim();

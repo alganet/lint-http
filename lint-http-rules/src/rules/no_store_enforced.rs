@@ -115,23 +115,21 @@ impl Rule for NoStoreEnforced {
             // helper to check If-None-Match header members against bad etags.  RFC
             // dictates that multiple header fields are concatenated with commas, and
             // HeaderMap.get_all() returns all values in order.
-            for hv in tx.request.headers.get_all("if-none-match").iter() {
-                if let Ok(s) = hv.to_str() {
-                    for member in crate::helpers::headers::list_members(s) {
-                        let normalized = crate::helpers::headers::normalize_etag(member);
-                        // A validator echoed back from a no-store response is proof the client
-                        // stored the thing it was told not to store.
-                        // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                        if no_store_etags.contains(&normalized) {
-                            return Some(self.cited(
-                                &RFC_9111_5_2_2_5,
-                                ctx.severity,
-                                format!(
-                                    "Conditional request uses ETag '{}' from a no-store response",
-                                    member
-                                ),
-                            ));
-                        }
+            for s in crate::helpers::headers::field_lines(&tx.request.headers, "if-none-match") {
+                for member in crate::helpers::headers::list_members(s) {
+                    let normalized = crate::helpers::headers::normalize_etag(member);
+                    // A validator echoed back from a no-store response is proof the client
+                    // stored the thing it was told not to store.
+                    // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
+                    if no_store_etags.contains(&normalized) {
+                        return Some(self.cited(
+                            &RFC_9111_5_2_2_5,
+                            ctx.severity,
+                            format!(
+                                "Conditional request uses ETag '{}' from a no-store response",
+                                member
+                            ),
+                        ));
                     }
                 }
             }
@@ -140,26 +138,28 @@ impl Rule for NoStoreEnforced {
             // syntax is a single HTTP-date per field.  To avoid reparsing the same
             // candidate over and over we parse it once before iterating through the
             // historical values.
-            for hv in tx.request.headers.get_all("if-modified-since").iter() {
-                if let Ok(s) = hv.to_str() {
-                    let candidate = s.trim();
-                    let candidate_dt =
-                        crate::http_date::parse_http_date_to_datetime(candidate).ok();
+            for s in crate::helpers::headers::field_lines(&tx.request.headers, "if-modified-since")
+            {
+                let candidate = s.trim();
+                let candidate_dt = crate::http_date::parse_http_date_to_datetime(candidate).ok();
 
-                    // A Last-Modified validator echoed back from a no-store response is the same
-                    // evidence of forbidden storage as the ETag case above.
-                    // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
-                    if no_store_lastmod.contains_key(candidate)
-                        || (candidate_dt.is_some()
-                            && no_store_lastmod
-                                .values()
-                                .any(|lm_dt| lm_dt == &candidate_dt.unwrap()))
-                    {
-                        return Some(self.cited(&RFC_9111_5_2_2_5, ctx.severity, format!(
-                                "Conditional request uses Last-Modified '{}' from a no-store response",
-                                candidate
-                            )));
-                    }
+                // A Last-Modified validator echoed back from a no-store response is the same
+                // evidence of forbidden storage as the ETag case above.
+                // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."
+                if no_store_lastmod.contains_key(candidate)
+                    || (candidate_dt.is_some()
+                        && no_store_lastmod
+                            .values()
+                            .any(|lm_dt| lm_dt == &candidate_dt.unwrap()))
+                {
+                    return Some(self.cited(
+                        &RFC_9111_5_2_2_5,
+                        ctx.severity,
+                        format!(
+                            "Conditional request uses Last-Modified '{}' from a no-store response",
+                            candidate
+                        ),
+                    ));
                 }
             }
 

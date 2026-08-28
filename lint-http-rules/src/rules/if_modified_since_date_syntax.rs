@@ -39,14 +39,11 @@ impl Rule for IfModifiedSinceDateSyntax {
         let finding = || -> Option<Violation> {
             // Only applies to requests
             for hv in tx.request.headers.get_all("if-modified-since").iter() {
-                let s = match hv.to_str() {
-                    Ok(s) => s,
-                    Err(_) => {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "If-Modified-Since header contains non-UTF8 value".into(),
-                        ))
-                    }
+                let Ok(s) = hv.to_str() else {
+                    return Some(self.violation(
+                        ctx.severity,
+                        "If-Modified-Since header contains non-UTF8 value".into(),
+                    ));
                 };
 
                 // `OWS` here too, so this branch and the one below agree about what

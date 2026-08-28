@@ -69,7 +69,23 @@ impl QuoteScan {
     }
 }
 
-pub(crate) fn split_commas_outside_quotes(s: &str) -> Vec<&str> {
+/// Split at every `delimiter` that is at the top level: outside a
+/// quoted-string, and outside an Inner List.
+///
+/// **The parenthesis depth is the reason this is not the splitter in
+/// [`crate::helpers::headers`].** That one reads an HTTP `#rule`, where the
+/// only thing that can hide a comma is a quoted-string; here an Inner List can
+/// hold delimiters too, and the `\` that escapes inside an HTTP
+/// `quoted-string` is not an escape in a Structured Fields String either —
+/// [`QuoteScan`] owns that difference. Two grammars, two walks, and each says
+/// which grammar it is walking.
+///
+/// The comma and the semicolon were separate copies of the walk below,
+/// identical but for the byte compared — the shape that lets a fix to one be a
+/// silent non-fix in the other. [`split_spaces_outside_quotes`] stays its own
+/// function: it collapses runs of its delimiter and has its own rule for a
+/// value ending in one, so it is not this function with a different byte.
+fn split_top_level(s: &str, delimiter: u8) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut start = 0usize;
     let mut paren_depth = 0i32;
@@ -81,7 +97,7 @@ pub(crate) fn split_commas_outside_quotes(s: &str) -> Vec<&str> {
         match b {
             b'(' => paren_depth += 1,
             b')' if paren_depth > 0 => paren_depth -= 1,
-            b',' if paren_depth == 0 => {
+            _ if b == delimiter && paren_depth == 0 => {
                 parts.push(s[start..i].trim());
                 start = i + 1;
             }
@@ -92,27 +108,15 @@ pub(crate) fn split_commas_outside_quotes(s: &str) -> Vec<&str> {
     parts
 }
 
+/// The members of a Structured Fields List or Dictionary.
+// cite(RFC 9651 § 4.2.1): "Given an ASCII string as input_string, return an array of (item_or_inner_list, parameters) tuples."
+pub(crate) fn split_commas_outside_quotes(s: &str) -> Vec<&str> {
+    split_top_level(s, b',')
+}
+
+/// The parameters hanging off a Structured Fields Item or Inner List.
 pub(crate) fn split_semicolons_outside_quotes(s: &str) -> Vec<&str> {
-    let mut parts = Vec::new();
-    let mut start = 0usize;
-    let mut paren_depth = 0i32;
-    let mut scan = QuoteScan::default();
-    for (i, &b) in s.as_bytes().iter().enumerate() {
-        if !scan.outside(b as char) {
-            continue;
-        }
-        match b {
-            b'(' => paren_depth += 1,
-            b')' if paren_depth > 0 => paren_depth -= 1,
-            b';' if paren_depth == 0 => {
-                parts.push(s[start..i].trim());
-                start = i + 1;
-            }
-            _ => {}
-        }
-    }
-    parts.push(s[start..].trim());
-    parts
+    split_top_level(s, b';')
 }
 
 pub(crate) fn split_spaces_outside_quotes(s: &str) -> Vec<&str> {

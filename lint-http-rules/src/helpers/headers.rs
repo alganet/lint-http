@@ -490,19 +490,15 @@ pub fn inm_matches_known(inm: &str, known: &str) -> bool {
 ///
 /// See [`cache_validation_chain`] for an example consumer.
 pub fn extract_validators_from_response(headers: &HeaderMap) -> (Option<String>, Option<String>) {
-    let etag = headers
-        .get("etag")
-        .and_then(|hv| hv.to_str().ok())
-        .map(str::trim)
-        .map(ToString::to_string);
+    (
+        validator(headers, "etag"),
+        validator(headers, "last-modified"),
+    )
+}
 
-    let last_modified = headers
-        .get("last-modified")
-        .and_then(|hv| hv.to_str().ok())
-        .map(str::trim)
-        .map(ToString::to_string);
-
-    (etag, last_modified)
+/// One validator field, trimmed, if the response carries a readable one.
+fn validator(headers: &HeaderMap, name: &str) -> Option<String> {
+    get_header_str(headers, name).map(|value| value.trim().to_string())
 }
 
 /// Extract **strong** validators from a response's headers.
@@ -515,21 +511,12 @@ pub fn extract_validators_from_response(headers: &HeaderMap) -> (Option<String>,
 pub fn extract_strong_validators_from_response(
     headers: &HeaderMap,
 ) -> (Option<String>, Option<String>) {
-    // ETag: pick first header, ensure UTF-8 and strong
-    let etag = headers
-        .get("etag")
-        .and_then(|hv| hv.to_str().ok())
-        .map(str::trim)
-        .filter(|s| !s.starts_with("W/"))
-        .map(ToString::to_string);
-
-    let last_modified = headers
-        .get("last-modified")
-        .and_then(|hv| hv.to_str().ok())
-        .map(str::trim)
-        .map(ToString::to_string);
-
-    (etag, last_modified)
+    // Exactly the pair above with the weak ETags dropped, which is what the
+    // paragraphs on both functions say the difference is. `Last-Modified` is
+    // not filtered here: whether a timestamp is a strong validator depends on
+    // the origin's clock resolution, not on anything visible in the field.
+    let (etag, last_modified) = extract_validators_from_response(headers);
+    (etag.filter(|etag| !etag.starts_with("W/")), last_modified)
 }
 
 /// Every member of a `#element` list, `OWS`-trimmed, with the empty ones dropped.

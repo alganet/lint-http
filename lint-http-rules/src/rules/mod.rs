@@ -171,6 +171,54 @@ impl std::fmt::Display for SpecRef {
     }
 }
 
+/// The three bodies [`Rule`] and [`ProtocolRule`] provide identically.
+///
+/// The two traits describe different subjects — a transaction and a protocol
+/// event — but they build findings the same way, because a `Violation` names
+/// the rule by its id whichever trait produced it. That was written down twice,
+/// with a comment on the second copy saying it was the same as the first; a
+/// reader who has to be told two functions agree is reading one function too
+/// many.
+fn resolve_shared_table(cfg: &crate::config::Config, id: &str) -> anyhow::Result<ResolvedRule> {
+    validate_rule_table(cfg, id)?;
+    Ok(ResolvedRule {
+        severity: get_rule_severity_required(cfg, id)?,
+        state: Box::new(()),
+    })
+}
+
+/// Build a finding attributed to `id`.
+fn finding_of(id: &str, severity: crate::lint::Severity, message: String) -> Violation {
+    Violation {
+        rule: id.into(),
+        severity,
+        message,
+        cite: None,
+    }
+}
+
+/// Build a finding attributed to `id`, carrying the sentence it enforces.
+///
+/// `declared` is the rule's own reference list, and the assertion is the whole
+/// reason this takes it: a finding may only cite a reference its rule declares.
+fn cited_finding_of(
+    id: &str,
+    declared: &[SpecRef],
+    spec: &SpecRef,
+    severity: crate::lint::Severity,
+    message: String,
+) -> Violation {
+    debug_assert!(
+        declared.contains(spec),
+        "{}: a finding may only cite a spec the rule declares",
+        id
+    );
+    Violation {
+        cite: Some(spec.citation()),
+        ..finding_of(id, severity, message)
+    }
+}
+
 pub trait Rule: Send + Sync {
     fn id(&self) -> &'static str;
 
@@ -186,11 +234,7 @@ pub trait Rule: Send + Sync {
     /// forward); a rule with a custom config section overrides this to parse
     /// it into its own `state`.
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<ResolvedRule> {
-        validate_rule_table(cfg, self.id())?;
-        Ok(ResolvedRule {
-            severity: get_rule_severity_required(cfg, self.id())?,
-            state: Box::new(()),
-        })
+        resolve_shared_table(cfg, self.id())
     }
 
     /// The scope where the rule should be executed. Default is `Both`;
@@ -229,12 +273,7 @@ pub trait Rule: Send + Sync {
     /// which is why `structured_headers_valid`'s private finding
     /// builder is named for its failure rather than for what it returns.
     fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity,
-            message,
-            cite: None,
-        }
+        finding_of(self.id(), severity, message)
     }
 
     /// Build one of this rule's findings, carrying the specification text it
@@ -248,15 +287,7 @@ pub trait Rule: Send + Sync {
     /// citation is worse than none. The `// cite` comment beside the call is
     /// the reviewer's oracle that the right one was named.
     fn cited(&self, spec: &SpecRef, severity: crate::lint::Severity, message: String) -> Violation {
-        debug_assert!(
-            self.specifications().contains(spec),
-            "{}: a finding may only cite a spec the rule declares",
-            self.id()
-        );
-        Violation {
-            cite: Some(spec.citation()),
-            ..self.violation(severity, message)
-        }
+        cited_finding_of(self.id(), self.specifications(), spec, severity, message)
     }
 
     /// Every finding this rule has about the transaction; empty means clean.
@@ -480,23 +511,14 @@ pub trait ProtocolRule: Send + Sync {
     /// Resolve this rule's configuration once, when the engine is built. See
     /// [`Rule::prepare`] for the contract.
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<ResolvedRule> {
-        validate_rule_table(cfg, self.id())?;
-        Ok(ResolvedRule {
-            severity: get_rule_severity_required(cfg, self.id())?,
-            state: Box::new(()),
-        })
+        resolve_shared_table(cfg, self.id())
     }
 
     /// Build one of this rule's findings. See [`Rule::violation`] for the
     /// contract; the body is the same because `Violation.rule` is the id
     /// whichever trait the rule implements.
     fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        Violation {
-            rule: self.id().into(),
-            severity,
-            message,
-            cite: None,
-        }
+        finding_of(self.id(), severity, message)
     }
 
     /// Build one of this rule's findings, carrying the specification text it
@@ -510,15 +532,7 @@ pub trait ProtocolRule: Send + Sync {
     /// citation is worse than none. The `// cite` comment beside the call is
     /// the reviewer's oracle that the right one was named.
     fn cited(&self, spec: &SpecRef, severity: crate::lint::Severity, message: String) -> Violation {
-        debug_assert!(
-            self.specifications().contains(spec),
-            "{}: a finding may only cite a spec the rule declares",
-            self.id()
-        );
-        Violation {
-            cite: Some(spec.citation()),
-            ..self.violation(severity, message)
-        }
+        cited_finding_of(self.id(), self.specifications(), spec, severity, message)
     }
 
     /// Every finding this rule has about the event; empty means clean. See

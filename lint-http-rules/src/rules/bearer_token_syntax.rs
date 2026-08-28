@@ -42,14 +42,11 @@ impl Rule for BearerTokenSyntax {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             for hv in tx.request.headers.get_all("authorization").iter() {
-                let s = match hv.to_str() {
-                    Ok(s) => s,
-                    Err(_) => {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Authorization header contains non-UTF8 value".into(),
-                        ))
-                    }
+                let Ok(s) = hv.to_str() else {
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Authorization header contains non-UTF8 value".into(),
+                    ));
                 };
 
                 // Split scheme and credentials. Auth-scheme names match case-insensitively.
