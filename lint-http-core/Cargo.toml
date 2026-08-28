@@ -7,6 +7,7 @@ name = "lint-http-core"
 description = "Core data types, state, and config for lint-http — usable without the proxy"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true

@@ -101,6 +101,22 @@ jobs:
       - name: Check formatting of rule files
         run: rustfmt --edition 2021 --check lint-http-rules/src/rules/*.rs
 
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to the exact `rust-version` in the workspace manifest. The other
+      # jobs build on stable, which cannot notice that a newly used API raised
+      # the real floor above the declared one — this job is the only thing that
+      # makes the number in Cargo.toml a fact.
+      - name: Install the declared minimum toolchain
+        uses: dtolnay/rust-toolchain@1.94
+
+      - name: Build on the declared minimum
+        run: cargo check --workspace --all-targets --all-features
+
   supply-chain:
     name: Supply chain
     runs-on: ubuntu-latest

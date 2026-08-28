@@ -7,6 +7,7 @@ name = "lint-http-rules"
 description = "The lint-http rule catalogue and lint dispatch engine, depending only on lint-http-core"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true

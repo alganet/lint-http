@@ -9,6 +9,12 @@ members = ["lint-http-core", "lint-http-rules", "lint-http-proxy", "xtask"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
+# The oldest Rust this supports, and a decision rather than an artifact: it is
+# roughly current stable minus three releases, which is a support window, not
+# the accidental floor a bisect would have found. `cargo` refuses to build on
+# anything older, and the `msrv` CI job builds on exactly this to keep the
+# number honest — a claim no one compiles is a claim that drifts.
+rust-version = "1.94"
 authors = ["Alexandre Gomes Gaigalas <alganet@gmail.com>"]
 license = "ISC"
 repository = "https://github.com/alganet/lint-http"
