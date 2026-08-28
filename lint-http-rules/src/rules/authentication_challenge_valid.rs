@@ -22,96 +22,112 @@ impl Rule for AuthenticationChallengeValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Only check response headers; ignore non-UTF8 header values
-            if let Some(resp) = &tx.response {
-                use std::collections::{HashMap, HashSet};
+        let mut out = Vec::new();
 
-                // Map of normalized_realm -> set of auth-schemes that advertise it
-                let mut realms: HashMap<String, HashSet<String>> = HashMap::new();
+        // Only check response headers; ignore non-UTF8 header values
+        if let Some(resp) = &tx.response {
+            use std::collections::{HashMap, HashSet};
 
-                for hv in resp.headers.get_all("www-authenticate").iter() {
-                    if let Ok(s) = hv.to_str() {
-                        // split assembled challenges
-                        let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
-                            Ok(c) => c,
-                            Err(_) => continue,
-                        };
+            // Map of normalized_realm -> set of auth-schemes that advertise it
+            let mut realms: HashMap<String, HashSet<String>> = HashMap::new();
 
-                        for ch in challenges.iter() {
-                            let ch = ch.trim();
-                            if ch.is_empty() {
-                                continue;
-                            }
-                            // extract scheme (first token before whitespace)
-                            let mut parts = ch.splitn(2, char::is_whitespace);
-                            let scheme = parts.next().unwrap_or("").trim().to_ascii_lowercase();
+            for hv in resp.headers.get_all("www-authenticate").iter() {
+                if let Ok(s) = hv.to_str() {
+                    // split assembled challenges
+                    let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
+                        Ok(c) => c,
+                        Err(_) => continue,
+                    };
 
-                            let mut realm_opt: Option<String> = None;
-                            if let Some(rest) = parts.next() {
-                                let rest = rest.trim();
-                                if rest.contains('=') {
-                                    if let Ok(params) =
-                                        crate::helpers::auth::parse_auth_params(rest)
-                                    {
-                                        if let Some(r) = params.get("realm") {
-                                            // Normalize quoted and unquoted realm to the same
-                                            // string before comparing: a sender must quote it, but
-                                            // recipients accept both forms, so `realm="a"` and
-                                            // `realm=a` denote the same protection space. (quoted-
-                                            // string unescaping is helper-owned.)
-                                            // cite(RFC 9110 § 11.5): "Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time."
-                                            if r.starts_with('"') {
-                                                if let Ok(unq) =
-                                                    crate::helpers::headers::unescape_quoted_string(
-                                                        r,
-                                                    )
-                                                {
-                                                    realm_opt = Some(unq);
-                                                }
-                                            } else {
-                                                realm_opt = Some(r.trim().to_string());
+                    for ch in challenges.iter() {
+                        let ch = ch.trim();
+                        if ch.is_empty() {
+                            continue;
+                        }
+                        // extract scheme (first token before whitespace)
+                        let mut parts = ch.splitn(2, char::is_whitespace);
+                        let scheme = parts.next().unwrap_or("").trim().to_ascii_lowercase();
+
+                        let mut realm_opt: Option<String> = None;
+                        if let Some(rest) = parts.next() {
+                            let rest = rest.trim();
+                            if rest.contains('=') {
+                                if let Ok(params) = crate::helpers::auth::parse_auth_params(rest) {
+                                    if let Some(r) = params.get("realm") {
+                                        // Normalize quoted and unquoted realm to the same
+                                        // string before comparing: a sender must quote it, but
+                                        // recipients accept both forms, so `realm="a"` and
+                                        // `realm=a` denote the same protection space. (quoted-
+                                        // string unescaping is helper-owned.)
+                                        // cite(RFC 9110 § 11.5): "Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time."
+                                        if r.starts_with('"') {
+                                            if let Ok(unq) =
+                                                crate::helpers::headers::unescape_quoted_string(r)
+                                            {
+                                                realm_opt = Some(unq);
                                             }
+                                        } else {
+                                            realm_opt = Some(r.trim().to_string());
                                         }
                                     }
                                 }
                             }
-
-                            if let Some(realm) = realm_opt {
-                                let entry = realms.entry(realm).or_default();
-                                entry.insert(scheme);
-                            }
                         }
-                    }
-                }
 
-                // Flag any realm advertised by more than one distinct auth-scheme. The
-                // heuristic reading: a realm names a protection space, and §11.5 casts each
-                // space as having "its own authentication scheme", so one realm spanning
-                // several schemes is an ambiguous configuration (not spec-forbidden — hence a
-                // heuristic). The converse is explicitly permitted, which is why the check
-                // counts schemes-per-realm and not realms-per-scheme.
-                // cite(RFC 9110 § 11.5): "These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database."
-                // cite(RFC 9110 § 11.5): "Note that a response can have multiple challenges with the same auth-scheme but with different realms."
-                for (realm, schemes) in realms.iter() {
-                    if schemes.len() > 1 {
-                        let mut schemes_vec: Vec<String> = schemes.iter().cloned().collect();
-                        schemes_vec.sort();
-                        let msg = format!(
-                            "WWW-Authenticate realm \"{}\" is advertised by multiple auth-schemes: {}",
-                            realm,
-                            schemes_vec.join(", ")
-                        );
-                        return Some(self.violation(ctx.severity, msg));
+                        if let Some(realm) = realm_opt {
+                            let entry = realms.entry(realm).or_default();
+                            entry.insert(scheme);
+                        }
                     }
                 }
             }
 
-            None
-        };
-        Vec::from_iter(finding())
+            // Flag any realm advertised by more than one distinct auth-scheme. The
+            // heuristic reading: a realm names a protection space, and §11.5 casts each
+            // space as having "its own authentication scheme", so one realm spanning
+            // several schemes is an ambiguous configuration (not spec-forbidden — hence a
+            // heuristic). The converse is explicitly permitted, which is why the check
+            // counts schemes-per-realm and not realms-per-scheme.
+            // cite(RFC 9110 § 11.5): "These realms allow the protected resources on a server to be partitioned into a set of protection spaces, each with its own authentication scheme and/or authorization database."
+            // cite(RFC 9110 § 11.5): "Note that a response can have multiple challenges with the same auth-scheme but with different realms."
+            // One finding per realm, because a realm *is* the unit this rule
+            // judges: § 11.5 partitions a server's resources into protection
+            // spaces and each realm names one of them, so two ambiguous realms
+            // are two ambiguous protection spaces and each is configured
+            // somewhere of its own. Returning at the first reported one and
+            // hid the rest.
+            //
+            // The schemes of a single realm stay in one message: that is the
+            // one ambiguity, and it is the several schemes together that make
+            // it.
+            //
+            // Sorted, because the realms come out of a HashMap and a finding
+            // that changes order between runs is a finding nothing can be
+            // asserted about.
+            let mut ambiguous: Vec<(&String, Vec<String>)> = realms
+                .iter()
+                .filter(|(_, schemes)| schemes.len() > 1)
+                .map(|(realm, schemes)| {
+                    let mut schemes_vec: Vec<String> = schemes.iter().cloned().collect();
+                    schemes_vec.sort();
+                    (realm, schemes_vec)
+                })
+                .collect();
+            ambiguous.sort_by(|(a, _), (b, _)| a.as_str().cmp(b.as_str()));
+
+            for (realm, schemes) in ambiguous {
+                out.push(self.violation(
+                    ctx.severity,
+                    format!(
+                        "WWW-Authenticate realm \"{}\" is advertised by multiple auth-schemes: {}",
+                        realm,
+                        schemes.join(", ")
+                    ),
+                ));
+            }
+        }
+
+        out
     }
 
     fn description(&self) -> &'static str {
@@ -197,6 +213,43 @@ mod tests {
         assert!(v.is_some());
         let vv = v.unwrap();
         assert!(vv.message.contains("realm \"a\""));
+    }
+
+    /// A realm names one protection space, so two ambiguous realms are two
+    /// ambiguous spaces and each is configured somewhere of its own. The first
+    /// used to be the whole answer. Ordered by realm, because the realms are
+    /// gathered in a HashMap.
+    #[test]
+    fn each_ambiguous_realm_is_its_own_finding() {
+        let rule = AuthenticationChallengeValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let tx = make_resp(
+            "Basic realm=\"admin\", NewAuth realm=\"admin\", \
+             Basic realm=\"users\", NewAuth realm=\"users\"",
+        );
+        let all = crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(
+            all[0].message.contains("realm \"admin\""),
+            "{}",
+            all[0].message
+        );
+        assert!(
+            all[1].message.contains("realm \"users\""),
+            "{}",
+            all[1].message
+        );
+        // The schemes of one realm stay in one message: that is the one ambiguity.
+        assert!(
+            all[0].message.contains("basic, newauth"),
+            "{}",
+            all[0].message
+        );
     }
 
     #[test]
