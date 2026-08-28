@@ -4803,7 +4803,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 190
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 85
+      line: 82
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 126
     - file: lint-http-rules/src/rules/patch_partial_update.rs
@@ -4825,7 +4825,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 47
     - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 79
+      line: 76
   - label: accept_patch_header_valid (7)
     section: § 9.3.7
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
@@ -4833,7 +4833,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 289
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 127
+      line: 133
   - label: accept_ranges_and_206_consistent
     section: § 14
     snippet: Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability.
@@ -7565,7 +7565,7 @@ sources:
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 143
+      line: 149
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 93
   - label: options_method_capabilities (2)
@@ -7573,7 +7573,7 @@ sources:
     snippet: The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 134
+      line: 140
   - label: options_method_capabilities (3)
     section: § 9.3.7
     snippet: A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.
@@ -7581,7 +7581,7 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 65
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 99
+      line: 104
   - label: options_method_capabilities (4)
     section: § 9.3.7
     snippet: A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.
@@ -7589,19 +7589,19 @@ sources:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 42
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 144
+      line: 150
   - label: options_method_capabilities (5)
     section: § 9.3.7
     snippet: If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 128
+      line: 134
   - label: options_method_capabilities (6)
     section: § 9.3.7
     snippet: The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary.
     cited_by:
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
-      line: 84
+      line: 81
   - label: patch_method_content_type_match
     section: § 12.3
     snippet: When content negotiation preferences are sent in a server's response, the listed preferences are called "request content negotiation" because they intend to influence selection of an appropriate content for subsequent requests to that resource.
@@ -8715,7 +8715,7 @@ sources:
     snippet: A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.
     cited_by:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 101
+      line: 105
   - label: trace_method_echo (4)
     section: § 9.3.8
     snippet: A client MUST NOT send content in a TRACE request.
@@ -8723,7 +8723,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 61
     - file: lint-http-rules/src/rules/trace_method_echo.rs
-      line: 88
+      line: 93
   - label: trace_method_echo (5)
     section: § 9.3.8
     snippet: For example, it would be foolish for a user agent to send stored user credentials (Section 11) or cookies [COOKIE] in a TRACE request.

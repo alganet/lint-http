@@ -73,97 +73,101 @@ impl Rule for OptionsMethodCapabilities {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Two sentences meet at this gate and both are load-bearing: the first
-            // is why the rule looks at OPTIONS at all, the second is why the
-            // comparison is exact. `options` is not the OPTIONS method, and a method
-            // this specification does not define has no capability-advertising
-            // semantics for a response to be measured against.
-            // cite(RFC 9110 § 9.3.7): "The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary."
-            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-            if tx.request.method != "OPTIONS" {
-                return None;
-            }
+        // Two sentences meet at this gate and both are load-bearing: the first
+        // is why the rule looks at OPTIONS at all, the second is why the
+        // comparison is exact. `options` is not the OPTIONS method, and a method
+        // this specification does not define has no capability-advertising
+        // semantics for a response to be measured against.
+        // cite(RFC 9110 § 9.3.7): "The OPTIONS method requests information about the communication options available for the target resource, at either the origin server or an intervening intermediary."
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+        if tx.request.method != "OPTIONS" {
+            return Vec::new();
+        }
 
-            // Content, not framing: the shared measurement reads § 6.4's octet
-            // stream, so a chunked OPTIONS whose only chunk is the terminator
-            // carries none, and an OPTIONS carrying an HTTP/2 DATA frame — which
-            // declares no framing field at all — does.
-            //
-            // Absence is the finding here and nothing else is. The sentence asks for
-            // a *valid* field, and a value that is empty or is not a media type is
-            // `content_type_valid`'s — confirmed by running it, not by
-            // reading it.
-            // cite(RFC 9110 § 9.3.7): "A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type."
-            if let Some(evidence) = crate::helpers::headers::content_evidence(
-                &tx.request.headers,
-                tx.request.body_length,
-            ) {
-                if !tx.request.headers.contains_key("content-type") {
-                    return Some(self.violation(ctx.severity, format!(
+        // Two requirements, one on each message, and a single exchange can
+        // break both: § 9.3.7 asks the client to label content it sends and
+        // asks the server to advertise something back. Returning at the
+        // request's finding hid the response's, and the `?` below discarded
+        // the request's outright whenever no response was captured — the
+        // request had already broken its sentence by then.
+        let mut out = Vec::new();
+
+        // Content, not framing: the shared measurement reads § 6.4's octet
+        // stream, so a chunked OPTIONS whose only chunk is the terminator
+        // carries none, and an OPTIONS carrying an HTTP/2 DATA frame — which
+        // declares no framing field at all — does.
+        //
+        // Absence is the finding here and nothing else is. The sentence asks for
+        // a *valid* field, and a value that is empty or is not a media type is
+        // `content_type_valid`'s — confirmed by running it, not by
+        // reading it.
+        // cite(RFC 9110 § 9.3.7): "A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type."
+        if let Some(evidence) =
+            crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)
+        {
+            if !tx.request.headers.contains_key("content-type") {
+                out.push(self.violation(ctx.severity, format!(
                             "OPTIONS request carries content ({evidence}) with no Content-Type header field; RFC 9110 § 9.3.7 says a client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type"
                         )));
-                }
             }
+        }
 
-            let resp = tx.response.as_ref()?;
+        let Some(resp) = tx.response.as_ref() else {
+            return out;
+        };
 
-            // An asterisk target names no resource, and the SHOULD below asks for
-            // headers "applicable to the target resource". There is nothing for such
-            // a response to advertise: `Allow` lists the methods of a target
-            // resource this request does not have.
-            //
-            // This reaches the asterisk over HTTP/1.1 only, and the limit is in the
-            // capture rather than here: `proxy/http3.rs` records
-            // `req.uri().to_string()` of a URI the h3 crate rebuilds from `:scheme`,
-            // `:authority` and `:path`, so a `:path` of `*` is recorded as
-            // `https://example.com*` — a string that does not even reparse to the
-            // same target (the authority swallows the asterisk). Widening the
-            // comparison would be guessing; recovering the form needs the capture to
-            // keep it. Stated in `description()` because it costs an operator a
-            // finding.
-            // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
-            // cite(RFC 9110 § 9.3.7): "If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource."
-            if tx.request.uri == "*" {
-                return None;
-            }
+        // An asterisk target names no resource, and the SHOULD below asks for
+        // headers "applicable to the target resource". There is nothing for such
+        // a response to advertise: `Allow` lists the methods of a target
+        // resource this request does not have.
+        //
+        // This reaches the asterisk over HTTP/1.1 only, and the limit is in the
+        // capture rather than here: `proxy/http3.rs` records
+        // `req.uri().to_string()` of a URI the h3 crate rebuilds from `:scheme`,
+        // `:authority` and `:path`, so a `:path` of `*` is recorded as
+        // `https://example.com*` — a string that does not even reparse to the
+        // same target (the authority swallows the asterisk). Widening the
+        // comparison would be guessing; recovering the form needs the capture to
+        // keep it. Stated in `description()` because it costs an operator a
+        // finding.
+        // cite(RFC 9110 § 9.3.7): "An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource."
+        // cite(RFC 9110 § 9.3.7): "If the request target is not an asterisk, the OPTIONS request applies to the options that are available when communicating with the target resource."
+        if tx.request.uri == "*" {
+            return out;
+        }
 
-            // "Successful" is the name of the 2xx class, so that is the range.
-            // cite(RFC 9110 § 15.3): "The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted."
-            if !(200..300).contains(&resp.status) {
-                return None;
-            }
+        // "Successful" is the name of the 2xx class, so that is the range.
+        // cite(RFC 9110 § 15.3): "The 2xx (Successful) class of status code indicates that the client's request was successfully received, understood, and accepted."
+        if !(200..300).contains(&resp.status) {
+            return out;
+        }
 
-            // The SHOULD is about the class, not about `Allow`: asking for that
-            // field by name would report a server exercising § 10.2.1's MAY, and the
-            // one response where `Allow` is required is a 405, which is not 2xx and
-            // is `status_405_allow_valid`'s.
-            // cite(RFC 9110 § 10.2.1): "An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response."
-            // cite(RFC 9110 § 9.3.7): "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification."
-            if !ADVERTISED_CAPABILITIES
-                .iter()
-                .any(|(lowercase, _, in_trailers)| {
-                    resp.headers.contains_key(*lowercase)
-                        || (*in_trailers
-                            && resp
-                                .trailers
-                                .as_ref()
-                                .is_some_and(|t| t.contains_key(*lowercase)))
-                })
-            {
-                let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
-                return Some(self.violation(ctx.severity, format!(
+        // The SHOULD is about the class, not about `Allow`: asking for that
+        // field by name would report a server exercising § 10.2.1's MAY, and the
+        // one response where `Allow` is required is a 405, which is not 2xx and
+        // is `status_405_allow_valid`'s.
+        // cite(RFC 9110 § 10.2.1): "An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response."
+        // cite(RFC 9110 § 9.3.7): "A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification."
+        if !ADVERTISED_CAPABILITIES
+            .iter()
+            .any(|(lowercase, _, in_trailers)| {
+                resp.headers.contains_key(*lowercase)
+                    || (*in_trailers
+                        && resp
+                            .trailers
+                            .as_ref()
+                            .is_some_and(|t| t.contains_key(*lowercase)))
+            })
+        {
+            let named: Vec<&str> = ADVERTISED_CAPABILITIES.iter().map(|(_, n, _)| *n).collect();
+            out.push(self.violation(ctx.severity, format!(
                         "Successful OPTIONS response ({}) carries none of {}; RFC 9110 § 9.3.7 says a server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource",
                         resp.status,
                         named.join(", ")
                     )));
-            }
+        }
 
-            None
-        };
-        Vec::from_iter(finding())
+        out
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -292,6 +296,64 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    fn run_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
+        let rule = OptionsMethodCapabilities;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        crate::test_helpers::run_rule_all(
+            &rule,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+    }
+
+    /// § 9.3.7 asks the client to label the content it sends and asks the
+    /// server to advertise something back. One exchange can break both, and
+    /// each is its own finding.
+    #[test]
+    fn an_unlabelled_request_and_a_silent_response_are_two_findings() {
+        let tx = make_tx(
+            "OPTIONS",
+            "/r",
+            &[("host", "example.com"), ("content-length", "4")],
+            Some(4),
+            Some((200, &[][..])),
+        );
+        let all = run_all(&tx);
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(
+            all[0].message.contains("no Content-Type"),
+            "{}",
+            all[0].message
+        );
+        assert!(
+            all[1].message.contains("carries none of"),
+            "{}",
+            all[1].message
+        );
+    }
+
+    /// The request had already broken its sentence when it was sent, so the
+    /// finding does not depend on a response arriving — which is what reading
+    /// the response with `?` used to make it do.
+    #[test]
+    fn an_unlabelled_request_is_reported_without_a_response() {
+        let tx = make_tx(
+            "OPTIONS",
+            "/r",
+            &[("host", "example.com"), ("content-length", "4")],
+            Some(4),
+            None,
+        );
+        let all = run_all(&tx);
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert!(
+            all[0].message.contains("no Content-Type"),
+            "{}",
+            all[0].message
+        );
     }
 
     fn run(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {

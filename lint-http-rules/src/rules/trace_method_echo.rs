@@ -69,52 +69,58 @@ impl Rule for TraceMethodEcho {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Matched exactly, never case-folded: `trace` is not the TRACE method,
-            // and § 9.3.8 says nothing about it. A method this specification does
-            // not define has no loop-back semantics for content to be measured
-            // against.
-            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
-            if tx.request.method != "TRACE" {
-                return None;
-            }
+        // Matched exactly, never case-folded: `trace` is not the TRACE method,
+        // and § 9.3.8 says nothing about it. A method this specification does
+        // not define has no loop-back semantics for content to be measured
+        // against.
+        // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+        if tx.request.method != "TRACE" {
+            return Vec::new();
+        }
 
-            // Content, not framing: the shared measurement reads § 6.4's octet
-            // stream, so a chunked TRACE whose only chunk is the terminator carries
-            // nothing to report, and a TRACE carrying an HTTP/2 DATA frame — which
-            // declares no framing field at all — does.
-            // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
-            if let Some(evidence) = crate::helpers::headers::content_evidence(
-                &tx.request.headers,
-                tx.request.body_length,
-            ) {
-                return Some(self.violation(ctx.severity, format!(
+        // Two requirements, and one request can break both. § 9.3.8 states
+        // them as two sentences addressed to the same client: one about
+        // sending content, one about the fields sent beside it. A TRACE
+        // carrying a body *and* an Authorization header disobeys both, and
+        // returning at the content said only half of it — the fix for the
+        // half reported would have revealed the other.
+        let mut out = Vec::new();
+
+        // Content, not framing: the shared measurement reads § 6.4's octet
+        // stream, so a chunked TRACE whose only chunk is the terminator carries
+        // nothing to report, and a TRACE carrying an HTTP/2 DATA frame — which
+        // declares no framing field at all — does.
+        // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
+        if let Some(evidence) =
+            crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)
+        {
+            out.push(self.violation(ctx.severity, format!(
                         "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"
                     )));
-            }
+        }
 
-            // The response is a loop-back of this request, so a field is disclosed
-            // by having been sent — which is why the finding is about the request
-            // and does not wait for the response to arrive.
-            // cite(RFC 9110 § 9.3.8): "A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response."
-            let present: Vec<&str> = SENSITIVE_FIELDS
-                .iter()
-                .filter(|(lowercase, _)| carries_a_value(&tx.request.headers, lowercase))
-                .map(|(_, name)| *name)
-                .collect();
+        // The response is a loop-back of this request, so a field is disclosed
+        // by having been sent — which is why the finding is about the request
+        // and does not wait for the response to arrive.
+        // cite(RFC 9110 § 9.3.8): "A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response."
+        let present: Vec<&str> = SENSITIVE_FIELDS
+            .iter()
+            .filter(|(lowercase, _)| carries_a_value(&tx.request.headers, lowercase))
+            .map(|(_, name)| *name)
+            .collect();
 
-            if !present.is_empty() {
-                return Some(self.violation(ctx.severity, format!(
+        // One finding for the whole set, not one per field: the sentence is
+        // about the request the client generated, and every named field is
+        // disclosed by the same loop-back. Naming them together is what an
+        // operator acts on — this request must not have been sent as it was.
+        if !present.is_empty() {
+            out.push(self.violation(ctx.severity, format!(
                         "TRACE request carries {}; RFC 9110 § 9.3.8 says a client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response, and names credentials and cookies as its example",
                         present.join(", ")
                     )));
-            }
+        }
 
-            None
-        };
-        Vec::from_iter(finding())
+        out
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -211,6 +217,63 @@ mod tests {
         tx.request.headers = crate::test_helpers::make_headers_from_pairs(&headers);
         tx.request.body_length = body_length;
         tx
+    }
+
+    fn check_all(tx: &crate::http_transaction::HttpTransaction) -> Vec<Violation> {
+        let rule = TraceMethodEcho;
+        crate::test_helpers::run_rule_all(
+            &rule,
+            tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// § 9.3.8's two sentences are two findings, and one request can break
+    /// both: this one carries a body *and* the credentials the section names as
+    /// its example of what the loop-back would disclose. Reporting the content
+    /// alone left the disclosure to be discovered by fixing the body.
+    #[test]
+    fn content_and_a_disclosed_field_are_two_findings() {
+        let all = check_all(&make_tx(
+            "TRACE",
+            vec![
+                ("content-length", "4"),
+                ("authorization", "Basic dXNlcjpwYXNz"),
+            ],
+            Some(4),
+        ));
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(
+            all[0].message.contains("MUST NOT send content"),
+            "{}",
+            all[0].message
+        );
+        assert!(
+            all[1].message.contains("Authorization"),
+            "{}",
+            all[1].message
+        );
+    }
+
+    /// The disclosure finding stays one however many fields it names: the
+    /// sentence is about the request the client generated, and all three travel
+    /// back in the same loop-back.
+    #[test]
+    fn every_disclosed_field_is_named_in_one_finding() {
+        let all = check_all(&make_tx(
+            "TRACE",
+            vec![
+                ("authorization", "Basic dXNlcjpwYXNz"),
+                ("proxy-authorization", "Basic dXNlcjpwYXNz"),
+                ("cookie", "session=8f1c2b"),
+            ],
+            Some(0),
+        ));
+        assert_eq!(all.len(), 1, "{all:?}");
+        for named in ["Authorization", "Proxy-Authorization", "Cookie"] {
+            assert!(all[0].message.contains(named), "{}", all[0].message);
+        }
     }
 
     fn check(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {
