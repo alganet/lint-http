@@ -168,7 +168,9 @@ sources:
     snippet: The `X-Frame-Options` HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 125
+      line: 107
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 224
   - label: refresh_header_syntax
     section: § 7.8
     snippet: It takes the same value and works largely the same.
@@ -402,19 +404,27 @@ sources:
     snippet: The frame-ancestors directive restricts the URLs which can embed the resource using frame, iframe, object, or embed.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 124
+      line: 51
+    - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
+      line: 223
   - label: content_security_policy_and_frame_options_consistent (2)
     section: § 6.4.2.2
     snippet: the frame-ancestors directive overrides the ``X-Frame-Options`` header.
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_and_frame_options_consistent.rs
-      line: 123
+      line: 222
   - label: content_security_policy_valid
     section: § 2.3
     snippet: directive-name = 1*( ALPHA / DIGIT / "-" )
     cited_by:
     - file: lint-http-rules/src/rules/content_security_policy_valid.rs
-      line: 96
+      line: 67
+  - label: content_security_policy_valid (2)
+    section: § 2.3
+    snippet: hash-algorithm = "sha256" / "sha384" / "sha512"
+    cited_by:
+    - file: lint-http-rules/src/rules/content_security_policy_valid.rs
+      line: 36
 - label: Clear-Site-Data
   url: https://www.w3.org/TR/clear-site-data/
   type: text/html
@@ -671,7 +681,7 @@ sources:
     snippet: Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 366
+      line: 387
   - label: permissions_policy_directives_valid (2)
     section: § 5.2
     snippet: Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps.
@@ -679,19 +689,19 @@ sources:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
       line: 117
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 350
+      line: 309
   - label: permissions_policy_directives_valid (3)
     section: § 5.2
     snippet: The Member Names must be Tokens.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 463
+      line: 494
   - label: permissions_policy_directives_valid (4)
     section: § 5.2
     snippet: 'The Member Values represent allowlists, and must be one of:'
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 349
+      line: 308
   - label: permissions_policy_directives_valid (5)
     section: § 6.1
     snippet: The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client.
@@ -1077,13 +1087,13 @@ sources:
     snippet: All digest-algorithm values are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 139
+      line: 312
   - label: digest_header_syntax (2)
     section: § 4.1.1
     snippet: digest-algorithm = token
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 138
+      line: 311
 - label: RFC 3986
   url: https://www.rfc-editor.org/rfc/rfc3986.html
   fragments:
@@ -3020,7 +3030,7 @@ sources:
     - file: lint-http-rules/src/rules/content_md5_vs_digest_preference.rs
       line: 71
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 513
+      line: 127
 - label: RFC 7234
   url: https://www.rfc-editor.org/rfc/rfc7234.html
   fragments:
@@ -6151,7 +6161,7 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
     cited_by:
     - file: lint-http-proxy/src/proxy/exchange.rs
-      line: 386
+      line: 436
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
     section: § 11.7.1
     snippet: Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain.
@@ -10674,39 +10684,37 @@ sources:
     snippet: This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 295
-    - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 321
+      line: 115
   - label: digest_header_syntax (2)
     section: § 2
     snippet: 'It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:'
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 164
+      line: 74
   - label: digest_header_syntax (3)
     section: § 2
     snippet: key conveys the hashing algorithm (see Section 5) used to compute the digest;
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 184
+      line: 353
   - label: digest_header_syntax (4)
     section: § 2
     snippet: value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 196
+      line: 365
   - label: digest_header_syntax (5)
     section: § 4
     snippet: 'Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:'
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 227
+      line: 78
   - label: digest_header_syntax (6)
     section: § 4
     snippet: value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive.
     cited_by:
     - file: lint-http-rules/src/rules/digest_header_syntax.rs
-      line: 251
+      line: 424
 - label: RFC 9651
   url: https://www.rfc-editor.org/rfc/rfc9651.html
   fragments:
@@ -10875,7 +10883,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 481
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 224
+      line: 250
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 343
   - label: lint-http-rules/src/helpers/structured_fields.rs (26)
@@ -10931,7 +10939,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 619
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 418
+      line: 461
   - label: lint-http-rules/src/helpers/structured_fields.rs (34)
     section: § 4.2.3.3
     snippet: If the first character of input_string is not lcalpha or "*", fail parsing.
@@ -10939,7 +10947,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 225
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 394
+      line: 435
   - label: lint-http-rules/src/helpers/structured_fields.rs (35)
     section: § 4.2.3.3
     snippet: If the first character of input_string is not one of lcalpha, DIGIT, "_", "-", ".", or "*", return output_string.
@@ -11091,9 +11099,9 @@ sources:
     snippet: Member keys cannot contain uppercase characters.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 351
+      line: 370
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 464
+      line: 495
   - label: permissions_policy_directives_valid (3)
     section: § 4.2
     snippet: If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed.
@@ -11119,7 +11127,7 @@ sources:
     snippet: Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 262
+      line: 284
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 289
   - label: priority_header_syntax

@@ -26,7 +26,7 @@ use crate::state::ClientIdentifier;
 
 use super::hop_by_hop::{format_http_version, is_hop_by_hop_header, parse_connection_tokens};
 use super::tee_body::{self, CapturedBody};
-use super::upstream_h3::H3Failure;
+use super::upstream_h3::{H3Failure, H3Route, H3UpstreamClient};
 use super::{boxed_full, BoxError, ClientBody, ResponseBody, Shared};
 
 /// The request-side facts every transaction record needs: computed once by the
@@ -150,82 +150,7 @@ pub(super) async fn exchange(
             }
         };
 
-    // Choose the upstream transport at this single seam: HTTP/3 when the origin
-    // authority is on the H3 allowlist (capability-driven, opt-in) and not
-    // currently negative-cached, else the hyper H1/H2 client. Both branches
-    // yield a `Response<ResponseBody>` so the tee/commit machinery below is
-    // identical; the H3 branch stamps the response version as HTTP/3, which is
-    // what lands in `tx.response.version` (a fall-back records its real version).
-    let h3_target = uri.authority().and_then(|a| {
-        let authority = a.as_str();
-        let h3 = shared.upstream.h3.as_ref()?;
-        if h3.is_suppressed(authority) {
-            debug!(%authority, "h3 upstream suppressed by negative cache; using H1/H2");
-            return None;
-        }
-        h3.route_for(authority)
-            .map(|route| (h3, authority.to_string(), route))
-    });
-    if h3_target.is_none() {
-        if let Some(a) = uri.authority() {
-            // Only interesting when H3 is configured at all; otherwise this is
-            // the ordinary H1/H2 path and not worth a line per request.
-            if shared.upstream.h3.is_some() {
-                debug!(authority = %a, "no h3 route for origin; using H1/H2");
-            }
-        }
-    }
-    let resp: Result<hyper::Response<ResponseBody>, String> = if let Some((h3, authority, route)) =
-        h3_target
-    {
-        debug!(%authority, "forwarding upstream over HTTP/3");
-        match h3.forward(upstream_req, &route, shared).await {
-            Ok(r) => {
-                h3.record_success(&authority);
-                Ok(r)
-            }
-            Err(H3Failure::Retryable {
-                error,
-                request,
-                pre_request,
-            }) => {
-                // A connect/handshake failure marks the origin as not currently
-                // reachable over H3. Fall back to H1/H2 when it is safe: always
-                // for a pre-request failure (nothing reached the origin), else
-                // only for an idempotent method (RFC 9110 §9.2.2) — a header-sent
-                // failure of a non-idempotent method must not be blindly retried.
-                if pre_request {
-                    h3.record_failure(&authority);
-                }
-                if pre_request || facts.method.is_idempotent() {
-                    warn!(%authority, error = %error, "h3 upstream unavailable; falling back to H1/H2");
-                    forward_via_hyper(shared, *request).await
-                } else {
-                    Err(format!(
-                        "h3 upstream error (non-idempotent, not retried): {error}"
-                    ))
-                }
-            }
-            Err(H3Failure::Consumed { error }) => {
-                // Request bytes were in flight with no response; the streaming
-                // body cannot be replayed, so surface the failure as-is.
-                Err(format!("h3 upstream error: {error}"))
-            }
-            Err(H3Failure::ResponseTimeout { error, replay }) => match replay {
-                // A slow (not unreachable) origin: the request was fully sent but
-                // no head came in time. Retry an idempotent bodyless request on
-                // H1/H2; do *not* negative-cache — the origin is healthy, just
-                // slow, and suppressing H3 would punish it. Anything else 502s.
-                Some(request) => {
-                    warn!(%authority, error = %error, "h3 upstream response-head timeout; retrying idempotent request via H1/H2");
-                    forward_via_hyper(shared, *request).await
-                }
-                None => Err(format!("h3 upstream response timed out: {error}")),
-            },
-        }
-    } else {
-        forward_via_hyper(shared, upstream_req).await
-    };
+    let resp = forward_upstream(shared, &uri, upstream_req, &facts).await;
     let resp = match resp {
         Ok(r) => r,
         Err(e) => {
@@ -263,7 +188,140 @@ pub(super) async fn exchange(
     // (already sent upstream) and the response body (just read by the client) —
     // so each `body_length` reflects the real total and each captured body is a
     // bounded prefix.
-    let shared = shared.clone();
+    spawn_commit(
+        shared.clone(),
+        facts,
+        started,
+        ResponseFacts {
+            status,
+            version: resp_ver,
+            headers: upstream_headers,
+            // Filled in from the tee once the body has finished streaming.
+            body_length: None,
+            trailers: None,
+        },
+        body_done,
+        done_rx,
+    );
+
+    ProxiedResponse {
+        status,
+        headers: out_headers,
+        body: resp_body,
+    }
+}
+
+/// Forward `req` to the origin, over HTTP/3 where that origin is routable and
+/// currently believed reachable, else over the hyper H1/H2 client.
+///
+/// Both arms yield the same `Response<ResponseBody>`, which is what lets the
+/// tee/commit machinery in [`exchange`] be written once.
+async fn forward_upstream(
+    shared: &Arc<Shared>,
+    uri: &Uri,
+    req: Request<ClientBody>,
+    facts: &RequestFacts,
+) -> Result<hyper::Response<ResponseBody>, String> {
+    let Some((h3, authority, route)) = h3_route(shared, uri) else {
+        return forward_via_hyper(shared, req).await;
+    };
+
+    debug!(%authority, "forwarding upstream over HTTP/3");
+    match h3.forward(req, &route, shared).await {
+        Ok(response) => {
+            h3.record_success(&authority);
+            Ok(response)
+        }
+        Err(failure) => recover_from_h3(shared, h3, &authority, facts, failure).await,
+    }
+}
+
+/// The H3 route for this origin, when there is one to use.
+///
+/// `None` covers three different situations — no H3 client configured, the
+/// origin not on the allowlist, and the origin negative-cached after a recent
+/// failure — and only the last two are worth a log line, since the first is the
+/// ordinary H1/H2 path.
+fn h3_route<'a>(
+    shared: &'a Arc<Shared>,
+    uri: &Uri,
+) -> Option<(&'a H3UpstreamClient, String, H3Route)> {
+    let h3 = shared.upstream.h3.as_ref()?;
+    let authority = uri.authority()?.as_str();
+
+    if h3.is_suppressed(authority) {
+        debug!(%authority, "h3 upstream suppressed by negative cache; using H1/H2");
+        return None;
+    }
+    let Some(route) = h3.route_for(authority) else {
+        debug!(%authority, "no h3 route for origin; using H1/H2");
+        return None;
+    };
+    Some((h3, authority.to_string(), route))
+}
+
+/// Decide what an H3 upstream failure becomes: a retry over H1/H2, or an error.
+///
+/// The three failure shapes differ in what reached the origin, and that is what
+/// decides. Nothing reached it (`pre_request`): retry any method, and mark the
+/// origin unreachable. The header section reached it: retry only an idempotent
+/// method (RFC 9110 §9.2.2) — a non-idempotent request must not be blindly
+/// replayed. The request was fully sent and the origin merely slow: retry when
+/// the request can be replayed, and do *not* negative-cache, since the origin is
+/// healthy and suppressing H3 would punish it for being slow.
+async fn recover_from_h3(
+    shared: &Arc<Shared>,
+    h3: &H3UpstreamClient,
+    authority: &str,
+    facts: &RequestFacts,
+    failure: H3Failure,
+) -> Result<hyper::Response<ResponseBody>, String> {
+    match failure {
+        H3Failure::Retryable {
+            error,
+            request,
+            pre_request,
+        } => {
+            if pre_request {
+                h3.record_failure(authority);
+            }
+            if !pre_request && !facts.method.is_idempotent() {
+                return Err(format!(
+                    "h3 upstream error (non-idempotent, not retried): {error}"
+                ));
+            }
+            warn!(%authority, error = %error, "h3 upstream unavailable; falling back to H1/H2");
+            forward_via_hyper(shared, *request).await
+        }
+        // Request bytes were in flight with no response; the streaming body
+        // cannot be replayed, so surface the failure as-is.
+        H3Failure::Consumed { error } => Err(format!("h3 upstream error: {error}")),
+        H3Failure::ResponseTimeout {
+            error,
+            replay: Some(request),
+        } => {
+            warn!(%authority, error = %error, "h3 upstream response-head timeout; retrying idempotent request via H1/H2");
+            forward_via_hyper(shared, *request).await
+        }
+        H3Failure::ResponseTimeout {
+            error,
+            replay: None,
+        } => Err(format!("h3 upstream response timed out: {error}")),
+    }
+}
+
+/// Commit the transaction once both body halves have finished streaming — the
+/// request body (already sent upstream) and the response body (just read by the
+/// client) — so each `body_length` is the real total and each captured body is a
+/// bounded prefix.
+fn spawn_commit(
+    shared: Arc<Shared>,
+    facts: RequestFacts,
+    started: Instant,
+    response: ResponseFacts,
+    body_done: oneshot::Receiver<CapturedBody>,
+    done_rx: oneshot::Receiver<CapturedBody>,
+) {
     tokio::spawn(async move {
         let (req_cap, resp_cap) = tokio::join!(body_done, done_rx);
         let (Ok(req_cap), Ok(resp_cap)) = (req_cap, resp_cap) else {
@@ -279,11 +337,9 @@ pub(super) async fn exchange(
         let mut tx = assemble_transaction(
             &facts,
             ResponseFacts {
-                status,
-                version: resp_ver,
-                headers: upstream_headers,
                 body_length: Some(resp_cap.total),
                 trailers: resp_cap.trailers,
+                ..response
             },
             started.elapsed().as_millis() as u64,
         );
@@ -296,12 +352,6 @@ pub(super) async fn exchange(
 
         shared.pipeline().commit(tx).await;
     });
-
-    ProxiedResponse {
-        status,
-        headers: out_headers,
-        body: resp_body,
-    }
 }
 
 /// Send `req` through the hyper H1/H2 client, boxing its response body into the

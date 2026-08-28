@@ -43,6 +43,395 @@ const RFC_7231_APPENDIX_B: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Where `Content-MD5` was removed from HTTP — RFC 9530 does not mention the field at all",
 };
 
+/// Which side of the exchange a field is read on.
+#[derive(Clone, Copy)]
+enum Side {
+    Request,
+    Response,
+}
+
+impl std::fmt::Display for Side {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Side::Request => "request",
+            Side::Response => "response",
+        })
+    }
+}
+
+/// The four grammars the fields in [`FIELDS`] follow.
+#[derive(Clone, Copy)]
+enum Syntax {
+    /// RFC 3230's `Digest`: `alg=base64`, and the algorithm is an ordinary
+    /// case-insensitive token rather than a structured-field key.
+    LegacyDigest,
+    /// RFC 3230's `Want-Digest`: a list of algorithm tokens.
+    LegacyWantDigest,
+    /// RFC 9530's `Content-Digest` / `Repr-Digest`: a Dictionary of
+    /// algorithm key to Byte Sequence. The two fields differ only in *what* is
+    /// hashed — message content versus representation data — not in syntax, so
+    /// one reading serves both.
+    // cite(RFC 9530 § 2): "It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:"
+    StructuredDigest,
+    /// RFC 9530's `Want-Content-Digest` / `Want-Repr-Digest`: a Dictionary of
+    /// algorithm key to weight.
+    // cite(RFC 9530 § 4): "Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:"
+    WantPreference,
+    /// No grammar at all: the field's presence is the whole finding, so
+    /// whatever it says is read and not judged.
+    Anything,
+}
+
+impl Syntax {
+    /// What is wrong with this field value, if anything.
+    fn defect(self, value: &str) -> Option<String> {
+        match self {
+            Syntax::LegacyDigest => legacy_digest_defect(value),
+            Syntax::LegacyWantDigest => token_list(
+                value,
+                "Want-Digest header contains empty member",
+                "Want-Digest algorithm contains invalid character: '{}'",
+            )
+            .err(),
+            Syntax::StructuredDigest => structured_digest_defect(value),
+            Syntax::WantPreference => want_preference_defect(value),
+            Syntax::Anything => None,
+        }
+    }
+}
+
+/// One field this rule reads.
+struct Field {
+    /// The field name as a lookup key.
+    name: &'static str,
+    /// The field name as a finding spells it.
+    display: &'static str,
+    side: Side,
+    syntax: Syntax,
+    /// What a defect finding names as its authority, in parentheses.
+    reference: &'static str,
+    /// Set for a field that no longer exists: the finding a well-formed value
+    /// still earns.
+    // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
+    obsolete: Option<&'static str>,
+}
+
+const OBSOLETE_DIGEST: &str =
+    "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest";
+const OBSOLETE_WANT_DIGEST: &str =
+    "Want-Digest header is obsoleted by RFC 9530; prefer Want-Content-Digest or Want-Repr-Digest";
+/// Content-MD5 is obsolete, but RFC 9530 is not what obsoleted it — that
+/// document never mentions the field. It was removed from HTTP by RFC 7231,
+/// years earlier, and the sentence in the citation below is the whole
+/// provenance. RFC 9530 is named only as what to use instead.
+// cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
+const OBSOLETE_CONTENT_MD5: &str =
+    "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead";
+
+/// Every field this rule reads, in the order it reads them — which is the order
+/// findings are reported in, so it is the order the rule's tests pin.
+const FIELDS: &[Field] = &[
+    Field {
+        name: "digest",
+        display: "Digest",
+        side: Side::Request,
+        syntax: Syntax::LegacyDigest,
+        reference: "obsoleted by RFC 9530",
+        obsolete: Some(OBSOLETE_DIGEST),
+    },
+    Field {
+        name: "want-digest",
+        display: "Want-Digest",
+        side: Side::Request,
+        syntax: Syntax::LegacyWantDigest,
+        reference: "obsoleted by RFC 9530",
+        obsolete: Some(OBSOLETE_WANT_DIGEST),
+    },
+    Field {
+        name: "digest",
+        display: "Digest",
+        side: Side::Response,
+        syntax: Syntax::LegacyDigest,
+        reference: "obsoleted by RFC 9530",
+        obsolete: Some(OBSOLETE_DIGEST),
+    },
+    Field {
+        name: "content-digest",
+        display: "Content-Digest",
+        side: Side::Request,
+        syntax: Syntax::StructuredDigest,
+        reference: "RFC 9530 §2",
+        obsolete: None,
+    },
+    Field {
+        name: "repr-digest",
+        display: "Repr-Digest",
+        side: Side::Request,
+        syntax: Syntax::StructuredDigest,
+        reference: "RFC 9530 §3",
+        obsolete: None,
+    },
+    Field {
+        name: "want-content-digest",
+        display: "Want-Content-Digest",
+        side: Side::Request,
+        syntax: Syntax::WantPreference,
+        reference: "RFC 9530 §4",
+        obsolete: None,
+    },
+    Field {
+        name: "want-repr-digest",
+        display: "Want-Repr-Digest",
+        side: Side::Request,
+        syntax: Syntax::WantPreference,
+        reference: "RFC 9530 §4",
+        obsolete: None,
+    },
+    Field {
+        name: "content-digest",
+        display: "Content-Digest",
+        side: Side::Response,
+        syntax: Syntax::StructuredDigest,
+        reference: "RFC 9530 §2",
+        obsolete: None,
+    },
+    Field {
+        name: "repr-digest",
+        display: "Repr-Digest",
+        side: Side::Response,
+        syntax: Syntax::StructuredDigest,
+        reference: "RFC 9530 §3",
+        obsolete: None,
+    },
+    Field {
+        name: "want-content-digest",
+        display: "Want-Content-Digest",
+        side: Side::Response,
+        syntax: Syntax::WantPreference,
+        reference: "RFC 9530 §4",
+        obsolete: None,
+    },
+    Field {
+        name: "want-repr-digest",
+        display: "Want-Repr-Digest",
+        side: Side::Response,
+        syntax: Syntax::WantPreference,
+        reference: "RFC 9530 §4",
+        obsolete: None,
+    },
+    // Content-MD5 has no syntax to be wrong: its presence is the finding, so
+    // the reading below accepts anything the value says.
+    Field {
+        name: "content-md5",
+        display: "Content-MD5",
+        side: Side::Request,
+        syntax: Syntax::Anything,
+        reference: "removed by RFC 7231",
+        obsolete: Some(OBSOLETE_CONTENT_MD5),
+    },
+    Field {
+        name: "content-md5",
+        display: "Content-MD5",
+        side: Side::Response,
+        syntax: Syntax::Anything,
+        reference: "removed by RFC 7231",
+        obsolete: Some(OBSOLETE_CONTENT_MD5),
+    },
+];
+
+/// Split a comma-separated list of `key=value` members.
+///
+/// Splitting on a bare comma is safe for every field routed through here: the
+/// Dictionary values are Byte Sequences and Integers, neither of which can
+/// contain a comma, and the legacy `Digest` value is base64, which has no comma
+/// in its alphabet either. A quote-aware split would find nothing extra.
+/// (Dictionary *parameters*, which could complicate this, are not defined for
+/// any of these fields.)
+fn key_value_members(
+    value: &str,
+    empty_member: &str,
+    missing_eq: &str,
+    empty_algorithm: &str,
+) -> Result<Vec<(String, String)>, String> {
+    let mut members = Vec::new();
+    for member in value.split(',') {
+        let member = member.trim();
+        if member.is_empty() {
+            return Err(empty_member.to_string());
+        }
+        let Some(eq) = member.find('=') else {
+            return Err(missing_eq.replace("{}", member));
+        };
+        let algorithm = member[..eq].trim();
+        if algorithm.is_empty() {
+            return Err(empty_algorithm.replace("{}", member));
+        }
+        members.push((algorithm.to_string(), member[eq + 1..].trim().to_string()));
+    }
+    Ok(members)
+}
+
+/// Split a comma-separated list of bare tokens.
+fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> Result<Vec<String>, String> {
+    let mut members = Vec::new();
+    for member in value.split(',') {
+        let member = member.trim();
+        if member.is_empty() {
+            return Err(empty_member.to_string());
+        }
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(member) {
+            return Err(invalid_token.replace("{}", &c.to_string()));
+        }
+        members.push(member.to_string());
+    }
+    Ok(members)
+}
+
+/// The RFC 3230 shape: an ordinary token and bare base64, with no `:`
+/// delimiters and no structured field anywhere in it.
+fn legacy_digest_defect(value: &str) -> Option<String> {
+    let members = match key_value_members(
+        value,
+        "Digest header contains empty member",
+        "Digest member '{}' missing '=' separator",
+        "Digest member '{}' has empty algorithm",
+    ) {
+        Err(defect) => return Some(defect),
+        Ok(members) => members,
+    };
+
+    for (algorithm, encoded) in members {
+        if encoded.is_empty() {
+            return Some(format!("Digest member '{}' has empty value", algorithm));
+        }
+
+        // The algorithm is a token. RFC 3230 also makes it case-insensitive,
+        // which is why no lowercase rule is applied on this legacy path — the
+        // opposite of the structured fields below.
+        // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
+        // cite(RFC 3230 § 4.1.1): "All digest-algorithm values are case-insensitive."
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(&algorithm) {
+            return Some(format!(
+                "Digest algorithm contains invalid character: '{}'",
+                c
+            ));
+        }
+
+        if base64::engine::general_purpose::STANDARD
+            .decode(&encoded)
+            .is_err()
+        {
+            return Some(format!(
+                "Digest value for algorithm '{}' is not valid base64",
+                algorithm
+            ));
+        }
+    }
+    None
+}
+
+/// The RFC 9530 shape: a Dictionary key and a Byte Sequence.
+fn structured_digest_defect(value: &str) -> Option<String> {
+    let members = match key_value_members(
+        value,
+        "Digest field contains empty member",
+        "Digest member '{}' missing '=' separator",
+        "Digest member '{}' has empty algorithm",
+    ) {
+        Err(defect) => return Some(defect),
+        Ok(members) => members,
+    };
+
+    for (algorithm, encoded) in members {
+        // These are Dictionary *keys*, not RFC 3230 tokens: an SF key may not
+        // contain uppercase. The distinction matters most on exactly the path a
+        // deployment is likely to take — RFC 3230's `digest-algorithm = token`
+        // is case-insensitive and its registry spells the algorithms `SHA-256`,
+        // `MD5`, so carrying that spelling across to Content-Digest produces a
+        // field no structured-field parser will accept. The `key` grammar
+        // itself is owned by the structured-fields helper.
+        // cite(RFC 9530 § 2): "key conveys the hashing algorithm (see Section 5) used to compute the digest;"
+        if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
+            return Some(format!(
+                "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
+                algorithm,
+                algorithm.to_ascii_lowercase()
+            ));
+        }
+
+        // The `:`-delimited base64 form, whose grammar the structured-fields
+        // helper owns (hand-rolling it here was a second transcription of the
+        // same rule).
+        // cite(RFC 9530 § 2): "value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation."
+        if !crate::helpers::structured_fields::is_byte_sequence(&encoded) {
+            return Some(format!(
+                "Digest member '{}={}' value must be a byte sequence like ':b64:'",
+                algorithm, encoded
+            ));
+        }
+
+        // Two deliberate strictnesses beyond the grammar, neither of which the
+        // spec states, so neither is cited. (1) `::` is a well-formed Byte
+        // Sequence carrying zero bytes, but a digest of nothing identifies no
+        // content, so it is reported. (2) the decode below demands canonical
+        // padding, while a structured-field parser synthesizes padding when it
+        // is missing — so an unpadded-but-decodable value is reported here and
+        // accepted there.
+        let inner = &encoded[1..encoded.len() - 1];
+        if inner.is_empty() {
+            return Some(format!(
+                "Digest member '{}' has empty byte sequence",
+                algorithm
+            ));
+        }
+        if base64::engine::general_purpose::STANDARD
+            .decode(inner)
+            .is_err()
+        {
+            return Some(format!(
+                "Digest value for algorithm '{}' is not valid base64",
+                algorithm
+            ));
+        }
+    }
+    None
+}
+
+/// The RFC 9530 preference shape: a Dictionary key and a weight.
+fn want_preference_defect(value: &str) -> Option<String> {
+    let members = match key_value_members(
+        value,
+        "Want-* header contains empty member",
+        "Want member '{}' missing '=' separator",
+        "Want member '{}' has empty algorithm",
+    ) {
+        Err(defect) => return Some(defect),
+        Ok(members) => members,
+    };
+
+    for (algorithm, weight) in members {
+        // Same Dictionary-key rule as the digest fields above.
+        if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
+            return Some(format!(
+                "Want-* algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
+                algorithm,
+                algorithm.to_ascii_lowercase()
+            ));
+        }
+
+        // The bound is the spec's own, not a chosen tolerance, and the type is
+        // Integer, so no decimal point.
+        // cite(RFC 9530 § 4): "value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive."
+        let Ok(n) = weight.parse::<i64>() else {
+            return Some(format!("Want-* weight '{}' is not an integer", weight));
+        };
+        if !(0..=10).contains(&n) {
+            return Some(format!("Want-* weight '{}' out of range 0..=10", weight));
+        }
+    }
+    None
+}
+
 impl Rule for DigestHeaderSyntax {
     fn id(&self) -> &'static str {
         "digest_header_syntax"
@@ -60,478 +449,44 @@ impl Rule for DigestHeaderSyntax {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
+        //
+        // Eleven fields, one loop. Each was written out as its own block —
+        // read the lines, report the unreadable one, validate, report the
+        // defect — and the eleven copies differed only in the field's name, the
+        // side it is read on, and which of four syntaxes it follows. Those are
+        // the three columns of [`FIELDS`].
         let finding = || -> Option<Violation> {
-            // Shared parser for comma-separated key=value members
-            let parse_key_value_members = |value: &str,
-                                           empty_member_msg: &str,
-                                           missing_eq_fmt: &str,
-                                           empty_alg_fmt: &str|
-             -> Result<Vec<(String, String)>, String> {
-                let mut members = Vec::new();
-                // Splitting on a bare comma is safe for every field routed through here:
-                // the Dictionary values are Byte Sequences and Integers, neither of which
-                // can contain a comma, and the legacy `Digest` value is base64, which has
-                // no comma in its alphabet either. A quote-aware split would find nothing
-                // extra. (Dictionary *parameters*, which could complicate this, are not
-                // defined for any of these fields.)
-                for member in value.split(',') {
-                    let m = member.trim();
-                    if m.is_empty() {
-                        return Err(empty_member_msg.to_string());
-                    }
-                    match m.find('=') {
-                        None => return Err(missing_eq_fmt.replace("{}", m)),
-                        Some(eq) => {
-                            let alg = m[..eq].trim();
-                            let val = m[eq + 1..].trim();
-                            if alg.is_empty() {
-                                return Err(empty_alg_fmt.replace("{}", m));
-                            }
-                            members.push((alg.to_string(), val.to_string()));
-                        }
-                    }
-                }
-                Ok(members)
-            };
-
-            // Shared parser for comma-separated token-only members (e.g., Want-Digest)
-            let parse_token_list = |value: &str,
-                                    empty_member_msg: &str,
-                                    invalid_token_fmt: &str|
-             -> Result<Vec<String>, String> {
-                let mut members = Vec::new();
-                for member in value.split(',') {
-                    let m = member.trim();
-                    if m.is_empty() {
-                        return Err(empty_member_msg.to_string());
-                    }
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(m) {
-                        return Err(invalid_token_fmt.replace("{}", &c.to_string()));
-                    }
-                    members.push(m.to_string());
-                }
-                Ok(members)
-            };
-
-            // Helper to validate legacy `Digest` header member value (alg=base64).
-            // This is the RFC 3230 shape, not a structured field: the algorithm is an
-            // ordinary token and the value is bare base64 with no `:` delimiters.
-            let validate_legacy_digest = |value: &str| -> Option<String> {
-                let members = match parse_key_value_members(
-                    value,
-                    "Digest header contains empty member",
-                    "Digest member '{}' missing '=' separator",
-                    "Digest member '{}' has empty algorithm",
-                ) {
-                    Err(e) => return Some(e),
-                    Ok(m) => m,
+            for field in FIELDS {
+                let headers = match field.side {
+                    Side::Request => &tx.request.headers,
+                    Side::Response => match tx.response.as_ref() {
+                        Some(resp) => &resp.headers,
+                        None => continue,
+                    },
                 };
 
-                for (alg, val) in members {
-                    if val.is_empty() {
-                        return Some(format!("Digest member '{}' has empty value", alg));
-                    }
-
-                    // Algorithm must be a token. RFC 3230 also makes it case-insensitive,
-                    // which is why no lowercase rule is applied on this legacy path — the
-                    // opposite of the structured fields below.
-                    // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
-                    // cite(RFC 3230 § 4.1.1): "All digest-algorithm values are case-insensitive."
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(&alg) {
-                        return Some(format!(
-                            "Digest algorithm contains invalid character: '{}'",
-                            c
+                for line in headers.get_all(field.name).iter() {
+                    let Ok(value) = line.to_str() else {
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("{} header value is not valid UTF-8", field.display),
                         ));
-                    }
+                    };
 
-                    // Value must be valid base64
-                    let decoded = base64::engine::general_purpose::STANDARD.decode(&val);
-                    if decoded.is_err() {
-                        return Some(format!(
-                            "Digest value for algorithm '{}' is not valid base64",
-                            alg
-                        ));
-                    }
-                }
-                None
-            };
-
-            // Helper to validate new RFC 9530 fields (Content-Digest / Repr-Digest).
-            // Both are Dictionaries of algorithm-key to digest-value, which is what the
-            // member loop below checks; the two fields differ only in *what* is hashed
-            // (message content vs representation data), not in syntax, so one validator
-            // serves both.
-            // cite(RFC 9530 § 2): "It is a Dictionary (see Section 3.2 of [STRUCTURED-FIELDS]), where each:"
-            let validate_structured_digest = |value: &str| -> Option<String> {
-                let members = match parse_key_value_members(
-                    value,
-                    "Digest field contains empty member",
-                    "Digest member '{}' missing '=' separator",
-                    "Digest member '{}' has empty algorithm",
-                ) {
-                    Err(e) => return Some(e),
-                    Ok(m) => m,
-                };
-
-                for (alg, val) in members {
-                    // These are Dictionary *keys*, not RFC 3230 tokens: an SF key may not
-                    // contain uppercase. The distinction matters most on exactly the path a
-                    // deployment is likely to take — RFC 3230's `digest-algorithm = token`
-                    // is case-insensitive and its registry spells the algorithms `SHA-256`,
-                    // `MD5`, so carrying that spelling across to Content-Digest produces a
-                    // field no structured-field parser will accept. The `key` grammar
-                    // itself is owned by the structured-fields helper.
-                    // cite(RFC 9530 § 2): "key conveys the hashing algorithm (see Section 5) used to compute the digest;"
-                    if !crate::helpers::structured_fields::is_valid_sf_key(&alg) {
-                        return Some(format!(
-                            "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
-                            alg,
-                            alg.to_ascii_lowercase()
-                        ));
-                    }
-
-                    // Value must be a Byte Sequence — the `:`-delimited base64 form, whose
-                    // grammar the structured-fields helper owns (hand-rolling it here was a
-                    // second transcription of the same rule).
-                    // cite(RFC 9530 § 2): "value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation."
-                    if !crate::helpers::structured_fields::is_byte_sequence(&val) {
-                        return Some(format!(
-                            "Digest member '{}={}' value must be a byte sequence like ':b64:'",
-                            alg, val
-                        ));
-                    }
-                    let inner = &val[1..val.len() - 1];
-                    // Two deliberate strictnesses beyond the grammar, neither of which the
-                    // spec states, so neither is cited. (1) `::` is a well-formed Byte
-                    // Sequence carrying zero bytes, but a digest of nothing identifies no
-                    // content, so it is reported. (2) the decode below demands canonical
-                    // padding, while a structured-field parser synthesizes padding when it
-                    // is missing — so an unpadded-but-decodable value is reported here and
-                    // accepted there.
-                    if inner.is_empty() {
-                        return Some(format!("Digest member '{}' has empty byte sequence", alg));
-                    }
-                    let decoded = base64::engine::general_purpose::STANDARD.decode(inner);
-                    if decoded.is_err() {
-                        return Some(format!(
-                            "Digest value for algorithm '{}' is not valid base64",
-                            alg
-                        ));
-                    }
-                }
-                None
-            };
-
-            // Helper to validate Want-Content-Digest / Want-Repr-Digest dictionaries.
-            // Syntax: alg=weight[, alg2=weight]
-            // cite(RFC 9530 § 4): "Want-Content-Digest and Want-Repr-Digest are of type Dictionary where each:"
-            let validate_want_field = |value: &str| -> Option<String> {
-                let members = match parse_key_value_members(
-                    value,
-                    "Want-* header contains empty member",
-                    "Want member '{}' missing '=' separator",
-                    "Want member '{}' has empty algorithm",
-                ) {
-                    Err(e) => return Some(e),
-                    Ok(m) => m,
-                };
-
-                for (alg, val) in members {
-                    // Same Dictionary-key rule as the digest fields above.
-                    if !crate::helpers::structured_fields::is_valid_sf_key(&alg) {
-                        return Some(format!(
-                            "Want-* algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
-                            alg,
-                            alg.to_ascii_lowercase()
-                        ));
-                    }
-
-                    // Weight must be integer 0..=10 — the bound is the spec's own, not a
-                    // chosen tolerance, and the type is Integer (so no decimal point).
-                    // cite(RFC 9530 § 4): "value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive."
-                    match val.parse::<i64>() {
-                        Ok(n) => {
-                            if !(0..=10).contains(&n) {
-                                return Some(format!(
-                                    "Want-* weight '{}' out of range 0..=10",
-                                    val
-                                ));
-                            }
-                        }
-                        Err(_) => {
-                            return Some(format!("Want-* weight '{}' is not an integer", val))
-                        }
-                    }
-                }
-                None
-            };
-
-            // Helper to validate legacy Want-Digest header (comma-separated token list)
-            let validate_want_digest = |value: &str| -> Option<String> {
-                parse_token_list(
-                    value,
-                    "Want-Digest header contains empty member",
-                    "Want-Digest algorithm contains invalid character: '{}'",
-                )
-                .err()
-            };
-
-            // Check deprecated legacy headers and validate them (requests)
-            if let Some(hv) = tx.request.headers.get_all("digest").iter().next() {
-                if let Ok(s) = hv.to_str() {
-                    // First validate legacy syntax
-                    if let Some(msg) = validate_legacy_digest(s) {
+                    if let Some(defect) = field.syntax.defect(value) {
                         return Some(self.violation(
                             ctx.severity,
                             format!(
-                                "Invalid Digest header in request: {} (obsoleted by RFC 9530)",
-                                msg
+                                "Invalid {} header in {}: {} ({})",
+                                field.display, field.side, defect, field.reference
                             ),
                         ));
                     }
 
-                    // If syntax ok, report obsolescence — the field itself is gone, not
-                    // merely discouraged.
-                    // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
-                    return Some(self.violation(ctx.severity, "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest".into()));
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Digest header value is not valid UTF-8".into(),
-                    ));
-                }
-            }
-
-            // Check deprecated legacy Want-Digest header in requests
-            if let Some(hv) = tx.request.headers.get_all("want-digest").iter().next() {
-                if let Ok(s) = hv.to_str() {
-                    // Validate token list
-                    if let Some(msg) = validate_want_digest(s) {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!(
-                                "Invalid Want-Digest header in request: {} (obsoleted by RFC 9530)",
-                                msg
-                            ),
-                        ));
-                    }
-
-                    // If syntax ok, report obsolescence — the field itself is gone, not
-                    // merely discouraged.
-                    // cite(RFC 9530): "This document obsoletes RFC 3230 and the Digest and Want-Digest HTTP fields."
-                    return Some(self.violation(ctx.severity, "Want-Digest header is obsoleted by RFC 9530; prefer Want-Content-Digest or Want-Repr-Digest".into()));
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Want-Digest header value is not valid UTF-8".into(),
-                    ));
-                }
-            }
-
-            // Responses: check deprecated legacy 'Digest' header
-            if let Some(resp) = &tx.response {
-                if let Some(hv) = resp.headers.get_all("digest").iter().next() {
-                    if let Ok(s) = hv.to_str() {
-                        if let Some(msg) = validate_legacy_digest(s) {
-                            return Some(self.violation(
-                                ctx.severity,
-                                format!(
-                                    "Invalid Digest header in response: {} (obsoleted by RFC 9530)",
-                                    msg
-                                ),
-                            ));
-                        }
-
-                        return Some(self.violation(ctx.severity, "Digest header is obsoleted by RFC 9530; prefer Content-Digest or Repr-Digest".into()));
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Digest header value is not valid UTF-8".into(),
-                        ));
-                    }
-                }
-            }
-
-            // Validate new RFC 9530 integrity fields in requests
-            for hv in tx.request.headers.get_all("content-digest").iter() {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(msg) = validate_structured_digest(s) {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!(
-                                "Invalid Content-Digest header in request: {} (RFC 9530 §2)",
-                                msg
-                            ),
-                        ));
-                    }
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Content-Digest header value is not valid UTF-8".into(),
-                    ));
-                }
-            }
-
-            for hv in tx.request.headers.get_all("repr-digest").iter() {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(msg) = validate_structured_digest(s) {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!(
-                                "Invalid Repr-Digest header in request: {} (RFC 9530 §3)",
-                                msg
-                            ),
-                        ));
-                    }
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Repr-Digest header value is not valid UTF-8".into(),
-                    ));
-                }
-            }
-
-            // Validate integrity preference fields (Want-Content-Digest / Want-Repr-Digest)
-            for hv in tx.request.headers.get_all("want-content-digest").iter() {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(msg) = validate_want_field(s) {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!(
-                                "Invalid Want-Content-Digest header in request: {} (RFC 9530 §4)",
-                                msg
-                            ),
-                        ));
-                    }
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Want-Content-Digest header value is not valid UTF-8".into(),
-                    ));
-                }
-            }
-
-            for hv in tx.request.headers.get_all("want-repr-digest").iter() {
-                if let Ok(s) = hv.to_str() {
-                    if let Some(msg) = validate_want_field(s) {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!(
-                                "Invalid Want-Repr-Digest header in request: {} (RFC 9530 §4)",
-                                msg
-                            ),
-                        ));
-                    }
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Want-Repr-Digest header value is not valid UTF-8".into(),
-                    ));
-                }
-            }
-
-            // Validate new RFC 9530 integrity fields in responses
-            if let Some(resp) = &tx.response {
-                for hv in resp.headers.get_all("content-digest").iter() {
-                    if let Ok(s) = hv.to_str() {
-                        if let Some(msg) = validate_structured_digest(s) {
-                            return Some(self.violation(
-                                ctx.severity,
-                                format!(
-                                    "Invalid Content-Digest header in response: {} (RFC 9530 §2)",
-                                    msg
-                                ),
-                            ));
-                        }
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Content-Digest header value is not valid UTF-8".into(),
-                        ));
-                    }
-                }
-
-                for hv in resp.headers.get_all("repr-digest").iter() {
-                    if let Ok(s) = hv.to_str() {
-                        if let Some(msg) = validate_structured_digest(s) {
-                            return Some(self.violation(
-                                ctx.severity,
-                                format!(
-                                    "Invalid Repr-Digest header in response: {} (RFC 9530 §3)",
-                                    msg
-                                ),
-                            ));
-                        }
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Repr-Digest header value is not valid UTF-8".into(),
-                        ));
-                    }
-                }
-
-                for hv in resp.headers.get_all("want-content-digest").iter() {
-                    if let Ok(s) = hv.to_str() {
-                        if let Some(msg) = validate_want_field(s) {
-                            return Some(self.violation(ctx.severity, format!(
-                                    "Invalid Want-Content-Digest header in response: {} (RFC 9530 §4)",
-                                    msg
-                                )));
-                        }
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Want-Content-Digest header value is not valid UTF-8".into(),
-                        ));
-                    }
-                }
-
-                for hv in resp.headers.get_all("want-repr-digest").iter() {
-                    if let Ok(s) = hv.to_str() {
-                        if let Some(msg) = validate_want_field(s) {
-                            return Some(self.violation(
-                                ctx.severity,
-                                format!(
-                                    "Invalid Want-Repr-Digest header in response: {} (RFC 9530 §4)",
-                                    msg
-                                ),
-                            ));
-                        }
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Want-Repr-Digest header value is not valid UTF-8".into(),
-                        ));
-                    }
-                }
-            }
-
-            // Content-MD5 is obsolete, but RFC 9530 is not what obsoleted it — that
-            // document never mentions the field. It was removed from HTTP by RFC 7231,
-            // years earlier, and the sentence below is the whole provenance. RFC 9530 is
-            // named only as what to use instead.
-            // cite(RFC 7231): "The Content-MD5 header field has been removed because it was inconsistently implemented with respect to partial responses."
-            if let Some(hv) = tx.request.headers.get_all("content-md5").iter().next() {
-                if hv.to_str().is_ok() {
-                    return Some(self.violation(ctx.severity, "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead"
-                                .into()));
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Content-MD5 header value is not valid UTF-8".into(),
-                    ));
-                }
-            }
-
-            if let Some(resp) = &tx.response {
-                if let Some(hv) = resp.headers.get_all("content-md5").iter().next() {
-                    if hv.to_str().is_ok() {
-                        return Some(self.violation(ctx.severity, "Content-MD5 was removed from HTTP by RFC 7231; use Content-Digest (RFC 9530) instead".into()));
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Content-MD5 header value is not valid UTF-8".into(),
-                        ));
+                    // A well-formed obsolete field is still a finding: the field
+                    // itself is gone, not merely discouraged.
+                    if let Some(obsolete) = field.obsolete {
+                        return Some(self.violation(ctx.severity, obsolete.into()));
                     }
                 }
             }

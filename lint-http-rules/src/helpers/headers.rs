@@ -2658,84 +2658,99 @@ mod tests {
         );
     }
 
+    /// Each row is a weight and whether the `qvalue` production admits it. A
+    /// table rather than a run of `assert!` lines, so a failure names the value.
     #[test]
     fn test_valid_qvalue() {
-        assert!(valid_qvalue("1"));
-        assert!(valid_qvalue("1.0"));
-        assert!(valid_qvalue("1.00"));
-        assert!(valid_qvalue("1.000"));
-        assert!(valid_qvalue("0"));
-        assert!(valid_qvalue("0.5"));
-        assert!(valid_qvalue("0.123"));
-        assert!(valid_qvalue("0.000"));
-        // `0*3DIGIT` and `0*3("0")` are satisfied by no digits at all, so a
-        // point with nothing after it conforms. The enumeration this replaced
-        // reported both as malformed.
-        assert!(valid_qvalue("0."));
-        assert!(valid_qvalue("1."));
-        assert!(!valid_qvalue("1.0000"));
-        assert!(!valid_qvalue("0.1234"));
-        // Only zeroes may follow a leading 1: the weight is capped at 1.
-        assert!(!valid_qvalue("1.1"));
-        assert!(!valid_qvalue("1.001"));
-        assert!(!valid_qvalue("abc"));
-        assert!(!valid_qvalue(""));
-        assert!(!valid_qvalue("2"));
-        assert!(!valid_qvalue("-1"));
-        assert!(!valid_qvalue("0.5.5"));
-        assert!(!valid_qvalue("00"));
-        assert!(!valid_qvalue("0.a"));
+        const CASES: &[(&str, bool)] = &[
+            ("1", true),
+            ("1.0", true),
+            ("1.00", true),
+            ("1.000", true),
+            ("0", true),
+            ("0.5", true),
+            ("0.123", true),
+            ("0.000", true),
+            // `0*3DIGIT` and `0*3("0")` are satisfied by no digits at all, so a
+            // point with nothing after it conforms. The enumeration this replaced
+            // reported both as malformed.
+            ("0.", true),
+            ("1.", true),
+            ("1.0000", false),
+            ("0.1234", false),
+            // Only zeroes may follow a leading 1: the weight is capped at 1.
+            ("1.1", false),
+            ("1.001", false),
+            ("abc", false),
+            ("", false),
+            ("2", false),
+            ("-1", false),
+            ("0.5.5", false),
+            ("00", false),
+            ("0.a", false),
+        ];
+
+        for (value, is_qvalue) in CASES {
+            assert_eq!(valid_qvalue(value), *is_qvalue, "for {value:?}");
+        }
     }
 
+    /// Each row is a value and whether it is a serialized origin. The list is
+    /// a table rather than thirty `assert!` lines so that a failure names the
+    /// value that failed, and so the reasons — grouped below — stay attached to
+    /// the values they explain.
     #[test]
     fn test_is_valid_serialized_origin() {
-        assert!(is_valid_serialized_origin("https://example.com"));
-        assert!(is_valid_serialized_origin("http://example.com:8080"));
-        assert!(is_valid_serialized_origin("https://localhost"));
-        assert!(is_valid_serialized_origin("https://[::1]:8080"));
-        assert!(is_valid_serialized_origin("https://[::1]"));
+        const CASES: &[(&str, bool)] = &[
+            ("https://example.com", true),
+            ("http://example.com:8080", true),
+            ("https://localhost", true),
+            ("https://[::1]:8080", true),
+            ("https://[::1]", true),
+            // Port range & formatting.
+            ("http://example.com:1", true),
+            ("http://example.com:65535", true),
+            ("http://example.com:080", true), // leading zero allowed -> 80
+            // `0` is a 16-bit unsigned integer and RFC 6335 §6 calls it a value
+            // *inside* the namespace, reserved rather than invalid. This asserted
+            // the opposite until the port reading was shared with the two rules
+            // that had already audited the bound.
+            ("http://example.com:0", true),
+            ("http://example.com:65536", false), // out of range
+            ("http://example.com:999999999999", false), // too large
+            // The grammar has no path component, and a browser compares the value
+            // byte-for-byte against a serialized origin, which never carries one.
+            ("https://example.com/", false),
+            ("https://example.com/path", false),
+            ("https://example.com:8080/", false),
+            ("https://[::1]/path", false),
+            // § 3.2 ends the authority at three characters and the slash is one of
+            // them. The other two were accepted here until the terminator sentence
+            // stopped being enumerated by hand — and only in the shape below,
+            // because a port or a bracketed literal put the trailing junk in front
+            // of a reader that was already strict about it.
+            ("https://example.com?x=1", false),
+            ("https://example.com#frag", false),
+            ("https://example.com?", false),
+            ("https://example.com#", false),
+            ("https://example.com:8080?x=1", false),
+            ("https://[::1]#frag", false),
+            ("example.com", false),
+            ("https:///foo", false),
+            ("https://", false),
+            ("http://host:notaport", false),
+            ("https://user@example.com", false),
+            ("https://[::1", false),
+            ("", false),
+        ];
 
-        // Port range & formatting checks
-        assert!(is_valid_serialized_origin("http://example.com:1"));
-        assert!(is_valid_serialized_origin("http://example.com:65535"));
-        assert!(is_valid_serialized_origin("http://example.com:080")); // leading zero allowed -> 80
-                                                                       // `0` is a 16-bit unsigned integer and RFC 6335 §6 calls it a value
-                                                                       // *inside* the namespace, reserved rather than invalid. This asserted
-                                                                       // the opposite until the port reading was shared with the two rules
-                                                                       // that had already audited the bound.
-        assert!(is_valid_serialized_origin("http://example.com:0"));
-
-        assert!(!is_valid_serialized_origin("http://example.com:65536")); // out of range
-        assert!(!is_valid_serialized_origin(
-            "http://example.com:999999999999"
-        )); // too large
-
-        // The grammar has no path component, and a browser compares the value
-        // byte-for-byte against a serialized origin, which never carries one.
-        assert!(!is_valid_serialized_origin("https://example.com/"));
-        assert!(!is_valid_serialized_origin("https://example.com/path"));
-        assert!(!is_valid_serialized_origin("https://example.com:8080/"));
-        assert!(!is_valid_serialized_origin("https://[::1]/path"));
-
-        // § 3.2 ends the authority at three characters and the slash is one of
-        // them. The other two were accepted here until the terminator sentence
-        // stopped being enumerated by hand — and only in the shape below,
-        // because a port or a bracketed literal put the trailing junk in front
-        // of a reader that was already strict about it.
-        assert!(!is_valid_serialized_origin("https://example.com?x=1"));
-        assert!(!is_valid_serialized_origin("https://example.com#frag"));
-        assert!(!is_valid_serialized_origin("https://example.com?"));
-        assert!(!is_valid_serialized_origin("https://example.com#"));
-        assert!(!is_valid_serialized_origin("https://example.com:8080?x=1"));
-        assert!(!is_valid_serialized_origin("https://[::1]#frag"));
-
-        assert!(!is_valid_serialized_origin("example.com"));
-        assert!(!is_valid_serialized_origin("https:///foo"));
-        assert!(!is_valid_serialized_origin("https://"));
-        assert!(!is_valid_serialized_origin("http://host:notaport"));
-        assert!(!is_valid_serialized_origin("https://user@example.com"));
-        assert!(!is_valid_serialized_origin("https://[::1"));
-        assert!(!is_valid_serialized_origin(""));
+        for (value, is_origin) in CASES {
+            assert_eq!(
+                is_valid_serialized_origin(value),
+                *is_origin,
+                "for {value:?}"
+            );
+        }
     }
 
     /// **The authority's contents, which this predicate measured nothing of.**

@@ -236,30 +236,15 @@ async fn run_proxy_inner(
     // Load the platform trust store once; the forwarding client and the
     // WebSocket-upgrade path share it.
     let upstream = upstream::Upstream::new(&cfg)?;
-
-    let ca = if cfg.tls.enabled {
-        let cert_path = cfg.tls.ca_cert_path.as_deref().unwrap_or("ca.crt");
-        let key_path = cfg.tls.ca_key_path.as_deref().unwrap_or("ca.key");
-        Some(
-            CertificateAuthority::load_or_generate(
-                std::path::Path::new(cert_path),
-                std::path::Path::new(key_path),
-            )
-            .await?,
-        )
-    } else {
-        None
-    };
+    let ca = load_ca(&cfg).await?;
 
     let ttl = cfg.general.ttl_seconds;
-    let max_history = cfg.general.max_history;
-    let state = Arc::new(crate::state::StateStore::new(ttl, max_history));
+    let state = Arc::new(crate::state::StateStore::new(ttl, cfg.general.max_history));
     let protocol_event_store = Arc::new(crate::protocol_event_store::ProtocolEventStore::new(
         ttl,
         cfg.general.max_protocol_event_history,
     ));
 
-    // Seed state from captures file if enabled
     seed_state_from_captures(&cfg, &state).await;
 
     // Connection bound and drain budget. Read before `cfg` moves into `Shared`.
@@ -267,48 +252,13 @@ async fn run_proxy_inner(
     let shutdown_timeout = Duration::from_secs(cfg.general.shutdown_timeout_seconds);
     let semaphore = Arc::new(Semaphore::new(max_connections));
 
-    // Spawn background cleanup task, cancellable so shutdown can join it.
-    let state_cleanup = state.clone();
-    let pe_store_cleanup = protocol_event_store.clone();
-    let cleanup_shutdown = shutdown.clone();
-    let cleanup_handle = tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(60));
-        loop {
-            tokio::select! {
-                _ = interval.tick() => {
-                    state_cleanup.cleanup_expired();
-                    pe_store_cleanup.cleanup_expired();
-                }
-                _ = cleanup_shutdown.cancelled() => break,
-            }
-        }
-    });
+    let cleanup_handle = spawn_expiry_sweep(state.clone(), protocol_event_store.clone(), &shutdown);
 
-    // Pre-compute QUIC transport parameters and endpoint if HTTP/3 is
-    // configured, so the values can be stored on `Shared` and emitted as
-    // protocol events when connections are established.
-    let (h3_endpoint, quic_transport_params) = if let Some(ref h3_listen) = cfg.general.h3_listen {
-        let h3_addr: SocketAddr = h3_listen.parse()?;
-        let h3_ca = ca
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("h3_listen requires TLS to be enabled"))?
-            .clone();
-        let server_name = cfg
-            .general
-            .h3_server_name
-            .clone()
-            .unwrap_or_else(|| "localhost".to_string());
-        let h3_bind = match listen_h3 {
-            Some(socket) => H3Bind::Bound(socket),
-            None => H3Bind::Addr(h3_addr),
-        };
-        let (endpoint, params) = init_h3_endpoint(h3_bind, &server_name, &h3_ca)?;
-        (Some(endpoint), Some(params))
-    } else {
-        (None, None)
-    };
+    // QUIC parameters are computed before `Shared` because they are stored on
+    // it, to be emitted as protocol events when connections are established.
+    let (h3_endpoint, quic_transport_params) = prepare_h3(&cfg, listen_h3, ca.as_ref())?;
 
-    // Precompute the enabled rule set once; cfg is immutable from here on.
+    // Enabled rule set precomputed once; cfg is immutable from here on.
     let engine = Arc::new(crate::engine::PreparedEngine::new(&cfg)?);
 
     let shared = Arc::new(Shared {
@@ -324,59 +274,161 @@ async fn run_proxy_inner(
         shutdown: shutdown.clone(),
     });
 
-    // Periodically evict idle pooled H3 *upstream* connections. Only spawned when
-    // the H3 upstream client exists; cancelled on shutdown.
-    let pool_sweep_handle = shared.upstream.h3.is_some().then(|| {
-        let shared_sweep = shared.clone();
-        let sweep_shutdown = shutdown.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(30));
-            loop {
-                tokio::select! {
-                    _ = interval.tick() => {
-                        if let Some(h3) = shared_sweep.upstream.h3.as_ref() {
-                            h3.sweep_idle();
-                        }
-                    }
-                    _ = sweep_shutdown.cancelled() => break,
-                }
-            }
-        })
-    });
+    let pool_sweep_handle = spawn_h3_pool_sweep(&shared, &shutdown);
 
-    // Start HTTP/3 (QUIC) accept loop if an endpoint was created. It shares the
-    // same connection semaphore as TCP, so `max_connections` bounds both
-    // transports and the drain barrier below waits for live H3 connections too.
+    // The H3 accept loop shares the connection semaphore with TCP, so
+    // `max_connections` bounds both transports and the drain below waits for
+    // live H3 connections too.
     let h3_handle = h3_endpoint.map(|endpoint| {
-        let shared_h3 = shared.clone();
-        let shutdown_h3 = shutdown.clone();
-        let semaphore_h3 = semaphore.clone();
-        tokio::spawn(async move {
-            run_h3_accept_loop(endpoint, shared_h3, shutdown_h3, semaphore_h3).await;
-        })
+        let shared = shared.clone();
+        let shutdown = shutdown.clone();
+        let semaphore = semaphore.clone();
+        tokio::spawn(async move { run_h3_accept_loop(endpoint, shared, shutdown, semaphore).await })
     });
 
-    // Use a manual TcpListener accept loop to preserve the remote address and
-    // avoid relying on the removed `make_service_fn` helper in hyper v1.
+    // A manual accept loop preserves the remote address, which hyper v1 gives
+    // no other way to reach.
     let listener = listen_tcp.into_listener().await?;
     // Read the address back off the socket rather than echoing the request: with
     // `:0` the requested port is 0 and the bound one is what a client needs.
+    //
+    // Bound before it is logged: a tracing field expression is evaluated only
+    // when the level is enabled, so inlining this call would skip both it and
+    // its error propagation whenever INFO is off.
     let listen = listener.local_addr()?;
     info!(%listen, "listening");
+    accept_until_shutdown(listener, &shared, &semaphore, &shutdown, accept_limit).await?;
 
-    let executor = TokioExecutor::new();
-    let server_builder = AutoConnBuilder::new(executor);
+    // Graceful shutdown: stop accepting (done), cancel handlers, then drain.
+    shutdown.cancel();
+    drain_connections(&semaphore, max_connections, shutdown_timeout).await;
 
-    // Accept loop, bounded by the connection semaphore and interruptible by
-    // shutdown. Each accepted connection holds an owned permit for its lifetime,
-    // so the semaphore doubles as the drain barrier below.
-    let mut remaining = accept_limit;
-    loop {
-        if let Some(0) = remaining {
-            break;
+    let _ = cleanup_handle.await;
+    for handle in [h3_handle, pool_sweep_handle].into_iter().flatten() {
+        let _ = handle.await;
+    }
+
+    // Flush, fsync, and join the capture writer last, after all handlers that
+    // could write to it have drained, so no capture line is lost or truncated.
+    if let Err(e) = shared.captures.shutdown().await {
+        warn!(error = %e, "failed to shut down capture writer");
+    }
+
+    Ok(())
+}
+
+/// Load or generate the CA the TLS interception path signs with, when TLS is
+/// enabled at all.
+async fn load_ca(cfg: &Config) -> anyhow::Result<Option<Arc<CertificateAuthority>>> {
+    if !cfg.tls.enabled {
+        return Ok(None);
+    }
+    let cert_path = cfg.tls.ca_cert_path.as_deref().unwrap_or("ca.crt");
+    let key_path = cfg.tls.ca_key_path.as_deref().unwrap_or("ca.key");
+    Ok(Some(
+        CertificateAuthority::load_or_generate(
+            std::path::Path::new(cert_path),
+            std::path::Path::new(key_path),
+        )
+        .await?,
+    ))
+}
+
+/// Build the QUIC endpoint and its transport parameters, when HTTP/3 is
+/// configured. Both are `None` together, and `h3_listen` without TLS is a
+/// configuration error rather than a silent downgrade: the endpoint has no
+/// certificate to present.
+fn prepare_h3(
+    cfg: &Config,
+    listen_h3: Option<std::net::UdpSocket>,
+    ca: Option<&Arc<CertificateAuthority>>,
+) -> anyhow::Result<(
+    Option<quinn::Endpoint>,
+    Option<crate::protocol_event::QuicTransportParameters>,
+)> {
+    let Some(h3_listen) = cfg.general.h3_listen.as_ref() else {
+        return Ok((None, None));
+    };
+    let ca = ca
+        .ok_or_else(|| anyhow::anyhow!("h3_listen requires TLS to be enabled"))?
+        .clone();
+    let server_name = cfg
+        .general
+        .h3_server_name
+        .clone()
+        .unwrap_or_else(|| "localhost".to_string());
+    let bind = match listen_h3 {
+        Some(socket) => H3Bind::Bound(socket),
+        None => H3Bind::Addr(h3_listen.parse()?),
+    };
+    let (endpoint, params) = init_h3_endpoint(bind, &server_name, &ca)?;
+    Ok((Some(endpoint), Some(params)))
+}
+
+/// Spawn the periodic eviction of expired transactions and protocol events,
+/// cancellable so shutdown can join it.
+fn spawn_expiry_sweep(
+    state: Arc<crate::state::StateStore>,
+    protocol_events: Arc<crate::protocol_event_store::ProtocolEventStore>,
+    shutdown: &CancellationToken,
+) -> tokio::task::JoinHandle<()> {
+    let shutdown = shutdown.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    state.cleanup_expired();
+                    protocol_events.cleanup_expired();
+                }
+                _ = shutdown.cancelled() => break,
+            }
         }
+    })
+}
 
-        // Reserve a slot first, so we never accept beyond `max_connections`.
+/// Spawn the periodic eviction of idle pooled H3 *upstream* connections. Only
+/// spawned when the H3 upstream client exists.
+fn spawn_h3_pool_sweep(
+    shared: &Arc<Shared>,
+    shutdown: &CancellationToken,
+) -> Option<tokio::task::JoinHandle<()>> {
+    shared.upstream.h3.as_ref()?;
+    let shared = shared.clone();
+    let shutdown = shutdown.clone();
+    Some(tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(30));
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    if let Some(h3) = shared.upstream.h3.as_ref() {
+                        h3.sweep_idle();
+                    }
+                }
+                _ = shutdown.cancelled() => break,
+            }
+        }
+    }))
+}
+
+/// Accept connections until shutdown is cancelled, or until `accept_limit`
+/// connections have been accepted (which is how the tests bound a run).
+///
+/// The loop is bounded by the connection semaphore: a permit is reserved
+/// *before* accepting, so the count can never exceed `max_connections`, and
+/// each accepted connection holds an owned permit for its lifetime — which is
+/// what makes the semaphore double as the drain barrier.
+async fn accept_until_shutdown(
+    listener: tokio::net::TcpListener,
+    shared: &Arc<Shared>,
+    semaphore: &Arc<Semaphore>,
+    shutdown: &CancellationToken,
+    accept_limit: Option<usize>,
+) -> anyhow::Result<()> {
+    let server_builder = AutoConnBuilder::new(TokioExecutor::new());
+    let mut remaining = accept_limit;
+
+    while remaining != Some(0) {
         let permit = tokio::select! {
             biased;
             _ = shutdown.cancelled() => break,
@@ -396,20 +448,25 @@ async fn run_proxy_inner(
         }
 
         let shared = shared.clone();
-        let builder_clone = server_builder.clone();
-        let shutdown_conn = shutdown.clone();
+        let builder = server_builder.clone();
+        let shutdown = shutdown.clone();
         tokio::spawn(async move {
             // Released when this task ends; the drain waits on all permits.
             let _permit = permit;
-            serve_connection(stream, remote_addr, shared, builder_clone, shutdown_conn).await;
+            serve_connection(stream, remote_addr, shared, builder, shutdown).await;
         });
     }
 
-    // Graceful shutdown: stop accepting (done), cancel handlers, then drain.
-    shutdown.cancel();
+    Ok(())
+}
 
-    // Wait until every connection task has released its permit (acquiring the
-    // full set proves the count is back to zero), bounded by the timeout.
+/// Wait until every connection task has released its permit — acquiring the
+/// full set proves the count is back to zero — bounded by the timeout.
+async fn drain_connections(
+    semaphore: &Arc<Semaphore>,
+    max_connections: usize,
+    shutdown_timeout: Duration,
+) {
     let drain = semaphore.acquire_many(max_connections.min(u32::MAX as usize) as u32);
     if timeout(shutdown_timeout, drain).await.is_err() {
         warn!(
@@ -417,22 +474,6 @@ async fn run_proxy_inner(
             "shutdown drain timed out; some connections did not finish"
         );
     }
-
-    let _ = cleanup_handle.await;
-    if let Some(handle) = h3_handle {
-        let _ = handle.await;
-    }
-    if let Some(handle) = pool_sweep_handle {
-        let _ = handle.await;
-    }
-
-    // Flush, fsync, and join the capture writer last, after all handlers that
-    // could write to it have drained, so no capture line is lost or truncated.
-    if let Err(e) = shared.captures.shutdown().await {
-        warn!(error = %e, "failed to shut down capture writer");
-    }
-
-    Ok(())
 }
 
 /// Seed in-memory state from the captures file when `captures_seed` is enabled.
