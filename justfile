@@ -30,6 +30,11 @@ fmt-check:
 lint:
     cargo lint
 
+# The docs build with no warnings — dead intra-doc links included. The comments
+# here are the design record, so this checks the artifact they render into.
+doc:
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features
+
 # Workspace tests with all features.
 test:
     cargo test --workspace --all-features
@@ -63,7 +68,7 @@ supply-chain:
     cargo deny check advisories licenses
 
 # Everything CI rejects a PR for, cheapest checks first so failures surface early.
-check: fmt-check citations lint test
+check: fmt-check citations lint doc test
 
 # Enable the versioned pre-commit hook (points core.hooksPath at .githooks).
 install-hooks:
