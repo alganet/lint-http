@@ -15,6 +15,34 @@ use crate::rules::Rule;
 /// - `If-Modified-Since` is only meaningful for GET/HEAD requests (flag presence on other methods)
 pub struct ConditionalHeadersConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_13_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
+    note: "Preconditions",
+};
+const RFC_9110_13_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
+    note: "If-Range: no If-Range without Range; no weak entity-tag in If-Range",
+};
+const RFC_9110_13_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2",
+    note: "Evaluation of Preconditions (precedence rules)",
+};
+const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
+    note: "Range (the header If-Range depends on)",
+};
+
 impl Rule for ConditionalHeadersConsistent {
     fn id(&self) -> &'static str {
         "conditional_headers_consistent"
@@ -125,32 +153,7 @@ impl Rule for ConditionalHeadersConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
-                note: "Preconditions",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
-                note: "If-Range: no If-Range without Range; no weak entity-tag in If-Range",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2",
-                note: "Evaluation of Preconditions (precedence rules)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
-                note: "Range (the header If-Range depends on)",
-            },
-        ]
+        &[RFC_9110_13_1, RFC_9110_13_1_5, RFC_9110_13_2, RFC_9110_14_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

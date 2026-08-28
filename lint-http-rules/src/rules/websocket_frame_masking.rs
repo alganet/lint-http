@@ -19,6 +19,38 @@ use crate::rules::ProtocolRule;
 
 pub struct WebsocketFrameMasking;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6455_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1",
+    note: "Overview — both masking MUSTs, the reason the client's exists, and the two \
+           recipient MUSTs that say what a conforming peer does about a breach",
+};
+const RFC_6455_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
+    note: "Base Framing Protocol — the MASK bit itself: what it means, and that a \
+           masking key is present exactly when it is set",
+};
+const RFC_6455_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.3",
+    note: "Client-to-Server Masking — the key's own requirements, which a capture \
+           holding no key cannot measure",
+};
+const RFC_6455_10_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("10.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-10.3",
+    note: "Attacks On Infrastructure (Masking) — why the client's MUST is there, and \
+           why an intercepting proxy is the party it protects",
+};
+
 impl ProtocolRule for WebsocketFrameMasking {
     fn id(&self) -> &'static str {
         "websocket_frame_masking"
@@ -96,36 +128,7 @@ impl ProtocolRule for WebsocketFrameMasking {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.1",
-                note: "Overview — both masking MUSTs, the reason the client's exists, and the two \
-                       recipient MUSTs that say what a conforming peer does about a breach",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.2",
-                note: "Base Framing Protocol — the MASK bit itself: what it means, and that a \
-                       masking key is present exactly when it is set",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-5.3",
-                note: "Client-to-Server Masking — the key's own requirements, which a capture \
-                       holding no key cannot measure",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("10.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-10.3",
-                note: "Attacks On Infrastructure (Masking) — why the client's MUST is there, and \
-                       why an intercepting proxy is the party it protects",
-            },
-        ]
+        &[RFC_6455_5_1, RFC_6455_5_2, RFC_6455_5_3, RFC_6455_10_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

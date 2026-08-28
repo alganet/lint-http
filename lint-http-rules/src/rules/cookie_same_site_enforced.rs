@@ -16,6 +16,22 @@ use crate::rules::Rule;
 /// check is skipped to avoid spurious warnings.
 pub struct CookieSameSiteEnforced;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const DRAFT_IETF_HTTPBIS_RFC6265BIS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "draft-ietf-httpbis-rfc6265bis",
+    section: None,
+    url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
+    note: "`SameSite` cookie semantics. No section: a draft renumbers between revisions — this one cited §5.3.4, where `SameSite` has not lived for some time",
+};
+const FETCH: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: None,
+    url: "https://fetch.spec.whatwg.org/#sec-fetch-site",
+    note: "Fetch `Sec-Fetch-Site` (cross-site detection) and `Sec-Fetch-Mode` (the `navigate` mode gating the Lax carve-out)",
+};
+
 impl Rule for CookieSameSiteEnforced {
     fn id(&self) -> &'static str {
         "cookie_same_site_enforced"
@@ -173,20 +189,7 @@ impl Rule for CookieSameSiteEnforced {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "draft-ietf-httpbis-rfc6265bis",
-                section: None,
-                url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
-                note: "`SameSite` cookie semantics. No section: a draft renumbers between revisions — this one cited §5.3.4, where `SameSite` has not lived for some time",
-            },
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: None,
-                url: "https://fetch.spec.whatwg.org/#sec-fetch-site",
-                note: "Fetch `Sec-Fetch-Site` (cross-site detection) and `Sec-Fetch-Mode` (the `navigate` mode gating the Lax carve-out)",
-            },
-        ]
+        &[DRAFT_IETF_HTTPBIS_RFC6265BIS, FETCH]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

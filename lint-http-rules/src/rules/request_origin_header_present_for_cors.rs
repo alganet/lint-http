@@ -7,6 +7,29 @@ use crate::rules::Rule;
 
 pub struct RequestOriginHeaderPresentForCors;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6454_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6454",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
+    note:
+        "Origin header field syntax the value is validated against (`serialized-origin` / `null`)",
+};
+const FETCH_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("3.2"),
+    url: "https://fetch.spec.whatwg.org/#origin-header",
+    note: "Origin header — used for CORS fetches and any request whose method is neither GET nor HEAD (where both inline cites resolve)",
+};
+const MDN_ORIGIN: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Origin",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin",
+    note: "Origin",
+};
+
 impl Rule for RequestOriginHeaderPresentForCors {
     fn id(&self) -> &'static str {
         "request_origin_header_present_for_cors"
@@ -96,26 +119,7 @@ impl Rule for RequestOriginHeaderPresentForCors {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6454",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
-                note: "Origin header field syntax the value is validated against (`serialized-origin` / `null`)",
-            },
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: Some("3.2"),
-                url: "https://fetch.spec.whatwg.org/#origin-header",
-                note: "Origin header — used for CORS fetches and any request whose method is neither GET nor HEAD (where both inline cites resolve)",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Origin",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Origin",
-                note: "Origin",
-            },
-        ]
+        &[RFC_6454_7_1, FETCH_3_2, MDN_ORIGIN]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

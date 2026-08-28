@@ -130,6 +130,71 @@ impl HostAndAuthorityConsistent {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9113_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
+    note: "HTTP/2's half: the client's MUST NOT, the server's SHOULD-treat-as-malformed, and the two sentences that define the comparison over *normalized* values — which is why a default or empty port is not a difference on this version",
+};
+const RFC_9114_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
+    note: "HTTP/3's half: both fields present MUST contain the same value and MUST NOT be empty, with no normalization named anywhere in the document — the sentence that makes one pair of values conforming over HTTP/2 and malformed here",
+};
+const RFC_9110_4_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.3",
+    note: "What scheme-based normalization involves for an \"http\" or \"https\" URI — the default port, the case of the host, the percent-encoded unreserved character, and the sentence that keeps every other component case-sensitive",
+};
+const RFC_3986_6_2_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1",
+    note: "Case normalization — including the hexadecimal digits of a percent-encoding triplet, which is why a triplet that stays encoded is still put in one form",
+};
+const RFC_3986_6_2_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.2",
+    note:
+        "Percent-encoding normalization — decode any triplet standing for an unreserved character",
+};
+const RFC_3986_6_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.3",
+    note: "Scheme-based normalization, and the sentence that keeps an empty delimiter where no scheme licenses removing it — which is why nothing is elided from an authority-form target",
+};
+const RFC_9110_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
+    note: "The default port for an \"http\" URI is 80 — one of the two numbers scheme-based normalization needs, and the reason the scheme is read from the recorded target rather than assumed",
+};
+const RFC_9110_4_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
+    note: "The default port for an \"https\" URI is 443",
+};
+const RFC_9110_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
+    note: "Which versions carry the two fields at once: in HTTP/2 and HTTP/3 the `Host` field is supplanted by `:authority`, which is why the rule is gated to those two",
+};
+const RFC_9112_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2",
+    note: "Why HTTP/1.1 is not measured: an absolute-form target beside a `Host` is answered by having the recipient ignore the field, not by calling the sender wrong",
+};
+
 impl Rule for HostAndAuthorityConsistent {
     fn id(&self) -> &'static str {
         "host_and_authority_consistent"
@@ -347,66 +412,16 @@ impl Rule for HostAndAuthorityConsistent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
-                note: "HTTP/2's half: the client's MUST NOT, the server's SHOULD-treat-as-malformed, and the two sentences that define the comparison over *normalized* values — which is why a default or empty port is not a difference on this version",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
-                note: "HTTP/3's half: both fields present MUST contain the same value and MUST NOT be empty, with no normalization named anywhere in the document — the sentence that makes one pair of values conforming over HTTP/2 and malformed here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("4.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.3",
-                note: "What scheme-based normalization involves for an \"http\" or \"https\" URI — the default port, the case of the host, the percent-encoded unreserved character, and the sentence that keeps every other component case-sensitive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1",
-                note: "Case normalization — including the hexadecimal digits of a percent-encoding triplet, which is why a triplet that stays encoded is still put in one form",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.2",
-                note: "Percent-encoding normalization — decode any triplet standing for an unreserved character",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.3",
-                note: "Scheme-based normalization, and the sentence that keeps an empty delimiter where no scheme licenses removing it — which is why nothing is elided from an authority-form target",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("4.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
-                note: "The default port for an \"http\" URI is 80 — one of the two numbers scheme-based normalization needs, and the reason the scheme is read from the recorded target rather than assumed",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("4.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
-                note: "The default port for an \"https\" URI is 443",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
-                note: "Which versions carry the two fields at once: in HTTP/2 and HTTP/3 the `Host` field is supplanted by `:authority`, which is why the rule is gated to those two",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.2",
-                note: "Why HTTP/1.1 is not measured: an absolute-form target beside a `Host` is answered by having the recipient ignore the field, not by calling the sender wrong",
-            },
+            RFC_9113_8_3_1,
+            RFC_9114_4_3_1,
+            RFC_9110_4_2_3,
+            RFC_3986_6_2_2_1,
+            RFC_3986_6_2_2_2,
+            RFC_3986_6_2_3,
+            RFC_9110_4_2_1,
+            RFC_9110_4_2_2,
+            RFC_9110_7_2,
+            RFC_9112_3_2_2,
         ]
     }
 

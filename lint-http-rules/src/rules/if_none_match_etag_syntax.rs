@@ -10,6 +10,22 @@ use crate::rules::Rule;
 /// entity-tag grammar itself is RFC 9110 §8.8.3, owned by `validate_entity_tag`.
 pub struct IfNoneMatchEtagSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
+    note: "ETag header field",
+};
+const RFC_9110_13_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
+    note: "If-None-Match",
+};
+
 impl Rule for IfNoneMatchEtagSyntax {
     fn id(&self) -> &'static str {
         "if_none_match_etag_syntax"
@@ -114,20 +130,7 @@ impl Rule for IfNoneMatchEtagSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
-                note: "ETag header field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
-                note: "If-None-Match",
-            },
-        ]
+        &[RFC_9110_8_8_3, RFC_9110_13_1_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

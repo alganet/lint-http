@@ -29,6 +29,22 @@ use crate::rules::Rule;
 /// regardless of whether the request is conditional or unconditional.
 pub struct ImmutableCacheNeverStale;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_8246_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8246",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-2",
+    note: "The Immutable Cache-Control Extension — the directive definition and its SHOULD NOT-revalidate-while-fresh behavior",
+};
+const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
+    note: "Freshness — Calculating Freshness Lifetime (§4.2.1) and Calculating Age (§4.2.3)",
+};
+
 impl Rule for ImmutableCacheNeverStale {
     fn id(&self) -> &'static str {
         "immutable_cache_never_stale"
@@ -129,20 +145,7 @@ impl Rule for ImmutableCacheNeverStale {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 8246",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-2",
-                note: "The Immutable Cache-Control Extension — the directive definition and its SHOULD NOT-revalidate-while-fresh behavior",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
-                note: "Freshness — Calculating Freshness Lifetime (§4.2.1) and Calculating Age (§4.2.3)",
-            },
-        ]
+        &[RFC_8246_2, RFC_9111_4_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

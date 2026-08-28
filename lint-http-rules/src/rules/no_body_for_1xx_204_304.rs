@@ -18,6 +18,70 @@ impl NoBodyFor1xx204304 {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
+    note: "Informational 1xx — \"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers\"",
+};
+const RFC_9110_15_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5",
+    note: "204 (No Content) — the same sentence, written again for this status",
+};
+const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
+    note: "304 (Not Modified) — the same sentence a third time. It forbids content and trailers, and says nothing against the two header fields that describe the 200 that was not sent",
+};
+const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+    note: "Content-Length — a MUST NOT on 1xx and 204 at any value, and a MAY on a 304 to a conditional GET. That MAY's own MUST NOT (the value must equal the unsent 200's content length) is undecidable from one exchange and is left unenforced",
+};
+const RFC_9110_6_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1",
+    note: "Content Semantics — the summary this rule is named after. It is about content, not about header fields; taking it for a rule about fields is what put the 304 in front of two prohibitions that exempt it",
+};
+const RFC_9110_15_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.6",
+    note: "205 (Reset Content) — bodiless by a MUST NOT of its own, but with ordinary framing, so it is not reported by this rule and has none of its own",
+};
+const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+    note: "Message body length, item 1 — these responses end at the first empty line \"regardless of the header fields present\", which is why a field's presence is its own defect rather than evidence of a body",
+};
+const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+    note: "Transfer-Encoding — a MUST NOT on 1xx and 204, and a MAY on a 304 to a GET. HTTP/1.1's document, so the check does not run on later versions",
+};
+const RFC_9113_8_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
+    note: "HTTP/2 — Transfer-Encoding is connection-specific and must not appear at all, whatever the status. No rule reports it yet",
+};
+const RFC_9114_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1",
+    note: "HTTP/3 — transfer codings are not defined and the field must not be used; no_connection_specific_fields reports it. The same section repeats the trailers half for interim responses",
+};
+
 impl Rule for NoBodyFor1xx204304 {
     fn id(&self) -> &'static str {
         "no_body_for_1xx_204_304"
@@ -214,66 +278,16 @@ impl Rule for NoBodyFor1xx204304 {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
-                note: "Informational 1xx — \"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers\"",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5",
-                note: "204 (No Content) — the same sentence, written again for this status",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
-                note: "304 (Not Modified) — the same sentence a third time. It forbids content and trailers, and says nothing against the two header fields that describe the 200 that was not sent",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "Content-Length — a MUST NOT on 1xx and 204 at any value, and a MAY on a 304 to a conditional GET. That MAY's own MUST NOT (the value must equal the unsent 200's content length) is undecidable from one exchange and is left unenforced",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1",
-                note: "Content Semantics — the summary this rule is named after. It is about content, not about header fields; taking it for a rule about fields is what put the 304 in front of two prohibitions that exempt it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.6",
-                note: "205 (Reset Content) — bodiless by a MUST NOT of its own, but with ordinary framing, so it is not reported by this rule and has none of its own",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "Message body length, item 1 — these responses end at the first empty line \"regardless of the header fields present\", which is why a field's presence is its own defect rather than evidence of a body",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
-                note: "Transfer-Encoding — a MUST NOT on 1xx and 204, and a MAY on a 304 to a GET. HTTP/1.1's document, so the check does not run on later versions",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
-                note: "HTTP/2 — Transfer-Encoding is connection-specific and must not appear at all, whatever the status. No rule reports it yet",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1",
-                note: "HTTP/3 — transfer codings are not defined and the field must not be used; no_connection_specific_fields reports it. The same section repeats the trailers half for interim responses",
-            },
+            RFC_9110_15_2,
+            RFC_9110_15_3_5,
+            RFC_9110_15_4_5,
+            RFC_9110_8_6,
+            RFC_9110_6_4_1,
+            RFC_9110_15_3_6,
+            RFC_9112_6_3,
+            RFC_9112_6_1,
+            RFC_9113_8_2_2,
+            RFC_9114_4_1,
         ]
     }
 

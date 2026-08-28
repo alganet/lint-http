@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct WwwAuthenticateChallengeSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_11_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
+    note: "WWW-Authenticate",
+};
+const RFC_9110_11_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.3",
+    note: "Challenge and Response — `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]` (RFC 7235, which defined this, is obsoleted by RFC 9110; `token68` itself is defined in §11.2)",
+};
+
 impl Rule for WwwAuthenticateChallengeSyntax {
     fn id(&self) -> &'static str {
         "www_authenticate_challenge_syntax"
@@ -62,20 +78,7 @@ impl Rule for WwwAuthenticateChallengeSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
-                note: "WWW-Authenticate",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.3",
-                note: "Challenge and Response — `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]` (RFC 7235, which defined this, is obsoleted by RFC 9110; `token68` itself is defined in §11.2)",
-            },
-        ]
+        &[RFC_9110_11_6_1, RFC_9110_11_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

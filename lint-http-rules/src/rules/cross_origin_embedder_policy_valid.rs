@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct CrossOriginEmbedderPolicyValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const MDN_CROSS_ORIGIN_EMBEDDER_POLICY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Cross-Origin-Embedder-Policy",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy",
+    note: "Cross-Origin-Embedder-Policy",
+};
+const HTML_7_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML",
+    section: Some("7.1.4"),
+    url: "https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-embedder-policy",
+    note: "The `Cross-Origin-Embedder-Policy` header — its value is one of the three embedder policy strings `unsafe-none`, `require-corp`, `credentialless`",
+};
+
 impl Rule for CrossOriginEmbedderPolicyValid {
     fn id(&self) -> &'static str {
         "cross_origin_embedder_policy_valid"
@@ -94,20 +110,7 @@ impl Rule for CrossOriginEmbedderPolicyValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "MDN Cross-Origin-Embedder-Policy",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy",
-                note: "Cross-Origin-Embedder-Policy",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML",
-                section: Some("7.1.4"),
-                url: "https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-embedder-policy",
-                note: "The `Cross-Origin-Embedder-Policy` header — its value is one of the three embedder policy strings `unsafe-none`, `require-corp`, `credentialless`",
-            },
-        ]
+        &[MDN_CROSS_ORIGIN_EMBEDDER_POLICY, HTML_7_1_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

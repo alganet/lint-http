@@ -50,6 +50,52 @@ impl Status405AllowValid {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_5_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6",
+    note: "The status code and its MUST — including the clause after \"containing\", which asks the field to hold the methods the target resource supports and so contradicts a list naming the method this response refuses",
+};
+const RFC_9110_10_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
+    note: "The field: the same MUST worded with the MAY that licenses silence on every other response, the sentence giving an empty value a meaning in this exact response, and the set of allowed methods being the origin server's at the time of each request",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "The method token is case-sensitive, which is why the request's method is matched against the members exactly; also the 405-versus-501 division and the sentence leaving each resource to decide which methods it allows",
+};
+const RFC_9110_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.7",
+    note: "Why a requirement addressed to an origin server is measured against whatever answered: every one of them applies to a gateway's outbound communication",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "A field value excludes the whitespace around it, which is why a value that is only whitespace is the empty value and answers the requirement — and why the value is read as octets rather than through a UTF-8 decode, since `obs-text` is an octet field content admits",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "The delimiter set that makes splitting this field on every comma exact: a `method` is a `token`, which admits no comma, and the field embeds no `quoted-string` for one to hide inside",
+};
+const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
+    note: "Why an `Allow` in the trailer section does not answer this requirement — a trailer field needs its own definition's permission, and the field's definition gives none",
+};
+
 impl Rule for Status405AllowValid {
     fn id(&self) -> &'static str {
         "status_405_allow_valid"
@@ -177,48 +223,13 @@ impl Rule for Status405AllowValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.5.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.6",
-                note: "The status code and its MUST — including the clause after \"containing\", which asks the field to hold the methods the target resource supports and so contradicts a list naming the method this response refuses",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
-                note: "The field: the same MUST worded with the MAY that licenses silence on every other response, the sentence giving an empty value a meaning in this exact response, and the set of allowed methods being the origin server's at the time of each request",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "The method token is case-sensitive, which is why the request's method is matched against the members exactly; also the 405-versus-501 division and the sentence leaving each resource to decide which methods it allows",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.7",
-                note: "Why a requirement addressed to an origin server is measured against whatever answered: every one of them applies to a gateway's outbound communication",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "A field value excludes the whitespace around it, which is why a value that is only whitespace is the empty value and answers the requirement — and why the value is read as octets rather than through a UTF-8 decode, since `obs-text` is an octet field content admits",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "The delimiter set that makes splitting this field on every comma exact: a `method` is a `token`, which admits no comma, and the field embeds no `quoted-string` for one to hide inside",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
-                note: "Why an `Allow` in the trailer section does not answer this requirement — a trailer field needs its own definition's permission, and the field's definition gives none",
-            },
+            RFC_9110_15_5_6,
+            RFC_9110_10_2_1,
+            RFC_9110_9_1,
+            RFC_9110_3_7,
+            RFC_9110_5_5,
+            RFC_9110_5_6_2,
+            RFC_9110_6_5_1,
         ]
     }
 

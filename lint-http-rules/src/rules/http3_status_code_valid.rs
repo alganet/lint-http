@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct Http3StatusCodeValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9114_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
+    note: "HTTP Upgrade",
+};
+const RFC_9114_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1",
+    note: "HTTP Message Framing, where interim and final responses are described. This note said HTTP Message Exchanges, which is not a section RFC 9114 has",
+};
+const RFC_9110_15_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
+    note: "Informational 1xx — where 101 is defined, and where the rule 101 breaks is written. Its sentence forbidding content and trailers on a 1xx is version-independent and is enforced by no_body_for_1xx_204_304, not here",
+};
+const RFC_9220: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9220",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc9220.html",
+    note: "Bootstrapping WebSockets with HTTP/3",
+};
+
 impl Rule for Http3StatusCodeValid {
     fn id(&self) -> &'static str {
         "http3_status_code_valid"
@@ -87,32 +115,7 @@ impl Rule for Http3StatusCodeValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
-                note: "HTTP Upgrade",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.1",
-                note: "HTTP Message Framing, where interim and final responses are described. This note said HTTP Message Exchanges, which is not a section RFC 9114 has",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2",
-                note: "Informational 1xx — where 101 is defined, and where the rule 101 breaks is written. Its sentence forbidding content and trailers on a 1xx is version-independent and is enforced by no_body_for_1xx_204_304, not here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9220",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc9220.html",
-                note: "Bootstrapping WebSockets with HTTP/3",
-            },
-        ]
+        &[RFC_9114_4_5, RFC_9114_4_1, RFC_9110_15_2, RFC_9220]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

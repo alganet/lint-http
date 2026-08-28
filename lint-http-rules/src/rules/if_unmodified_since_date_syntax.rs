@@ -9,6 +9,16 @@ use crate::rules::Rule;
 /// generate it as an IMF-fixdate (§5.6.7). This checks the sender's obligation.
 pub struct IfUnmodifiedSinceDateSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_13_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.4",
+    note: "If-Unmodified-Since header",
+};
+
 impl Rule for IfUnmodifiedSinceDateSyntax {
     fn id(&self) -> &'static str {
         "if_unmodified_since_date_syntax"
@@ -84,12 +94,7 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("13.1.4"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.4",
-            note: "If-Unmodified-Since header",
-        }]
+        &[RFC_9110_13_1_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

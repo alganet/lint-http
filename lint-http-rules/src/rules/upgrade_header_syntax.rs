@@ -169,6 +169,62 @@ impl UpgradeHeaderSyntax {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
+    note: "Upgrade — the field's own section, where `protocol`, `protocol-name` and \
+           `protocol-version` are printed, both directions are licensed to carry the \
+           field, and the registry is named as advice",
+};
+const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("A"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
+    note: "The collected grammar, where the list construct is expanded for a sender — \
+           the form that shows both that the whole value may be empty and that a \
+           member may not",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "Field Values — that a value is in the format its field's grammar defines, \
+           which is what makes a malformed member a finding at all, and that the \
+           value's own ends carry no whitespace",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "The sender's half of the list construct: the empty member is its MUST NOT, \
+           and the `#element` expansion is why an empty value is not",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "`token` and `tchar`: what both halves of a protocol are made of, and the \
+           delimiters they exclude",
+};
+const RFC_9110_16_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("16.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.7",
+    note: "The Upgrade Token Registry — First Come First Served, which is why no \
+           protocol name is compared against a list here",
+};
+const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+    note: "Several `Upgrade` lines in one field section are one field value, so the \
+           members are counted after the lines are joined",
+};
+
 impl Rule for UpgradeHeaderSyntax {
     fn id(&self) -> &'static str {
         "upgrade_header_syntax"
@@ -221,58 +277,13 @@ impl Rule for UpgradeHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
-                note: "Upgrade — the field's own section, where `protocol`, `protocol-name` and \
-                       `protocol-version` are printed, both directions are licensed to carry the \
-                       field, and the registry is named as advice",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("A"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
-                note: "The collected grammar, where the list construct is expanded for a sender — \
-                       the form that shows both that the whole value may be empty and that a \
-                       member may not",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "Field Values — that a value is in the format its field's grammar defines, \
-                       which is what makes a malformed member a finding at all, and that the \
-                       value's own ends carry no whitespace",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "The sender's half of the list construct: the empty member is its MUST NOT, \
-                       and the `#element` expansion is why an empty value is not",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "`token` and `tchar`: what both halves of a protocol are made of, and the \
-                       delimiters they exclude",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("16.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.7",
-                note: "The Upgrade Token Registry — First Come First Served, which is why no \
-                       protocol name is compared against a list here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
-                note: "Several `Upgrade` lines in one field section are one field value, so the \
-                       members are counted after the lines are joined",
-            },
+            RFC_9110_7_8,
+            RFC_9110_A,
+            RFC_9110_5_5,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
+            RFC_9110_16_7,
+            RFC_9110_5_2,
         ]
     }
 

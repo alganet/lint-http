@@ -90,6 +90,42 @@ impl SecWebsocketVersionAdvertised {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6455_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
+    note: "Collected ABNF — `Sec-WebSocket-Version-Server = 1#version`, the `version` \
+           production under it, the suffix convention that makes this field the \
+           response's, and the note that the notation is RFC 2616's",
+};
+const RFC_2616_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2616",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-2.1",
+    note: "Augmented BNF — the `#rule` §4.3 imports: null elements are allowed (RFC \
+           9110 §5.6.1.1 forbids them) and `1#` requires one that is not. Obsolete \
+           and correct: the current document is what sends the reader here",
+};
+const RFC_6455_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.4",
+    note: "Supporting Multiple Versions — the conditional MUST whose antecedent is the \
+           server's own state, and the worked example printing one advertisement as \
+           one field line and as two",
+};
+const RFC_6455_11_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("11.3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.3.5",
+    note: "The field's registration — when a server sends it, and that it holds the \
+           versions the server supports, which is what a list holding the requested \
+           one contradicts",
+};
+
 impl Rule for SecWebsocketVersionAdvertised {
     fn id(&self) -> &'static str {
         "sec_websocket_version_advertised"
@@ -149,41 +185,7 @@ impl Rule for SecWebsocketVersionAdvertised {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
-                note: "Collected ABNF — `Sec-WebSocket-Version-Server = 1#version`, the `version` \
-                       production under it, the suffix convention that makes this field the \
-                       response's, and the note that the notation is RFC 2616's",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2616",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-2.1",
-                note: "Augmented BNF — the `#rule` §4.3 imports: null elements are allowed (RFC \
-                       9110 §5.6.1.1 forbids them) and `1#` requires one that is not. Obsolete \
-                       and correct: the current document is what sends the reader here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.4",
-                note:
-                    "Supporting Multiple Versions — the conditional MUST whose antecedent is the \
-                       server's own state, and the worked example printing one advertisement as \
-                       one field line and as two",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("11.3.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-11.3.5",
-                note: "The field's registration — when a server sends it, and that it holds the \
-                       versions the server supports, which is what a list holding the requested \
-                       one contradicts",
-            },
-        ]
+        &[RFC_6455_4_3, RFC_2616_2_1, RFC_6455_4_4, RFC_6455_11_3_5]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

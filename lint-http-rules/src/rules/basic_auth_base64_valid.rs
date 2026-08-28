@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct BasicAuthBase64Valid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7617_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7617",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7617.html#section-2",
+    note: "The Basic authentication scheme and the `user-pass` encoding (Base64)",
+};
+const RFC_4648_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 4648",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc4648.html#section-4",
+    note: "Base64 encoding used for `token68`",
+};
+
 impl Rule for BasicAuthBase64Valid {
     fn id(&self) -> &'static str {
         "basic_auth_base64_valid"
@@ -73,20 +89,7 @@ impl Rule for BasicAuthBase64Valid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 7617",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7617.html#section-2",
-                note: "The Basic authentication scheme and the `user-pass` encoding (Base64)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 4648",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc4648.html#section-4",
-                note: "Base64 encoding used for `token68`",
-            },
-        ]
+        &[RFC_7617_2, RFC_4648_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

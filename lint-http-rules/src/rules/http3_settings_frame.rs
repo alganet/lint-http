@@ -33,6 +33,28 @@ const RESERVED_SETTING_IDS: &[u64] = &[
     0x05, // Reserved (SETTINGS_MAX_FRAME_SIZE in HTTP/2)
 ];
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9114_7_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("7.2.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4",
+    note: "SETTINGS",
+};
+const RFC_9114_7_2_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("7.2.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4.1",
+    note: "Defined SETTINGS Parameters",
+};
+const RFC_9114_11_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("11.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-11.2.2",
+    note: "Settings Parameters (Table 3: the Reserved rows)",
+};
+
 impl ProtocolRule for Http3SettingsFrame {
     fn id(&self) -> &'static str {
         "http3_settings_frame"
@@ -138,26 +160,7 @@ impl ProtocolRule for Http3SettingsFrame {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("7.2.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4",
-                note: "SETTINGS",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("7.2.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.4.1",
-                note: "Defined SETTINGS Parameters",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("11.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-11.2.2",
-                note: "Settings Parameters (Table 3: the Reserved rows)",
-            },
-        ]
+        &[RFC_9114_7_2_4, RFC_9114_7_2_4_1, RFC_9114_11_2_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

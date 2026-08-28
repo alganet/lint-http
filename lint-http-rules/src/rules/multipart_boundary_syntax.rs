@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct MultipartBoundarySyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_2046_5_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2046",
+    section: Some("5.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
+    note: "Multipart common syntax: the required `boundary` parameter, the `boundary`/`bchars`/`bcharsnospace` grammar, the 1-to-70-character limit and the ban on a trailing space, and the warning that a boundary often has to be quoted",
+};
+const RFC_9110_8_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.3",
+    note: "Multipart Types: where HTTP adopts RFC 2046 §5.1.1 and makes the boundary part of the media type value. It also says HTTP framing does not use the boundary as a length indicator, so nothing here is a framing check",
+};
+const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
+    note: "Parameters: the `parameters`/`parameter`/`parameter-value` grammar this walks, case-insensitive parameter names, and the equivalence of the quoted and unquoted forms",
+};
+const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+    note: "Media Type: the case-insensitivity of `type`, which is what scopes this rule to `multipart`",
+};
+
 impl Rule for MultipartBoundarySyntax {
     fn id(&self) -> &'static str {
         "multipart_boundary_syntax"
@@ -82,30 +110,10 @@ impl Rule for MultipartBoundarySyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 2046",
-                section: Some("5.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
-                note: "Multipart common syntax: the required `boundary` parameter, the `boundary`/`bchars`/`bcharsnospace` grammar, the 1-to-70-character limit and the ban on a trailing space, and the warning that a boundary often has to be quoted",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.3",
-                note: "Multipart Types: where HTTP adopts RFC 2046 §5.1.1 and makes the boundary part of the media type value. It also says HTTP framing does not use the boundary as a length indicator, so nothing here is a framing check",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-                note: "Parameters: the `parameters`/`parameter`/`parameter-value` grammar this walks, case-insensitive parameter names, and the equivalence of the quoted and unquoted forms",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-                note: "Media Type: the case-insensitivity of `type`, which is what scopes this rule to `multipart`",
-            },
+            RFC_2046_5_1_1,
+            RFC_9110_8_3_3,
+            RFC_9110_5_6_6,
+            RFC_9110_8_3_1,
         ]
     }
 

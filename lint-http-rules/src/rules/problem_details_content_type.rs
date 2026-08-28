@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct ProblemDetailsContentType;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9457_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9457",
+    section: Some("1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-1",
+    note: "Which status codes problem details suit, and the two sentences saying an application-specific format is often the better answer — between them the reason this rule's finding is advice and not a defect",
+};
+const RFC_9457_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9457",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-3",
+    note: "The problem details JSON object, and the media type that identifies it: `application/problem+json`",
+};
+const RFC_9457_B: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9457",
+    section: Some("B"),
+    url: "https://www.rfc-editor.org/rfc/rfc9457.html#appendix-B",
+    note: "The equivalent XML format and its media type, `application/problem+xml` — the second value this rule accepts is defined in an appendix, not in the body of the document",
+};
+const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+    note: "The field this rule reads: that it is a singleton and what recipients do when it is sent twice (the reason a duplicated field line is declined), and, in §8.3.1, that its type and subtype tokens are case-insensitive",
+};
+
 impl Rule for ProblemDetailsContentType {
     fn id(&self) -> &'static str {
         "problem_details_content_type"
@@ -111,32 +139,7 @@ impl Rule for ProblemDetailsContentType {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9457",
-                section: Some("1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-1",
-                note: "Which status codes problem details suit, and the two sentences saying an application-specific format is often the better answer — between them the reason this rule's finding is advice and not a defect",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9457",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-3",
-                note: "The problem details JSON object, and the media type that identifies it: `application/problem+json`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9457",
-                section: Some("B"),
-                url: "https://www.rfc-editor.org/rfc/rfc9457.html#appendix-B",
-                note: "The equivalent XML format and its media type, `application/problem+xml` — the second value this rule accepts is defined in an appendix, not in the body of the document",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "The field this rule reads: that it is a singleton and what recipients do when it is sent twice (the reason a duplicated field line is declined), and, in §8.3.1, that its type and subtype tokens are case-insensitive",
-            },
-        ]
+        &[RFC_9457_1, RFC_9457_3, RFC_9457_B, RFC_9110_8_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

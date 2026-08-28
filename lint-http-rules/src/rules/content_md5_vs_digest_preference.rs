@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct ContentMd5VsDigestPreference;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9530_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9530",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
+    note: "`Content-Digest`, the field to keep — defined for both requests and responses, which is why both are checked. Note it does not mention `Content-MD5`, so it is not what retired it",
+};
+const RFC_7231_APPENDIX_B: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7231",
+    section: Some("Appendix B"),
+    url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
+    note: "Where `Content-MD5` was removed from HTTP, and the reason: inconsistent implementation with respect to partial responses",
+};
+const RFC_2616_14_15: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2616",
+    section: Some("14.15"),
+    url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-14.15",
+    note: "`Content-MD5`, where it was defined — and from where RFC 7231 removed it. This reference said RFC 7231 §3.3.2, a section that does not exist in RFC 7231",
+};
+
 impl Rule for ContentMd5VsDigestPreference {
     fn id(&self) -> &'static str {
         "content_md5_vs_digest_preference"
@@ -78,26 +100,7 @@ impl Rule for ContentMd5VsDigestPreference {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9530",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
-                note: "`Content-Digest`, the field to keep — defined for both requests and responses, which is why both are checked. Note it does not mention `Content-MD5`, so it is not what retired it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7231",
-                section: Some("Appendix B"),
-                url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
-                note: "Where `Content-MD5` was removed from HTTP, and the reason: inconsistent implementation with respect to partial responses",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2616",
-                section: Some("14.15"),
-                url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-14.15",
-                note: "`Content-MD5`, where it was defined — and from where RFC 7231 removed it. This reference said RFC 7231 §3.3.2, a section that does not exist in RFC 7231",
-            },
-        ]
+        &[RFC_9530_2, RFC_7231_APPENDIX_B, RFC_2616_14_15]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

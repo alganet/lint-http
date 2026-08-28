@@ -56,6 +56,23 @@ fn parse_x_content_type_options_config(
     })
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const FETCH_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("3.6"),
+    url: "https://fetch.spec.whatwg.org/#x-content-type-options-header",
+    note: "`X-Content-Type-Options`: the conformance value ABNF (`\"nosniff\" ; case-insensitive`) and the determine-nosniff algorithm",
+};
+const MDN_X_CONTENT_TYPE_OPTIONS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN X-Content-Type-Options",
+    section: None,
+    url:
+        "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options",
+    note: "Web Docs: X-Content-Type-Options",
+};
+
 impl Rule for XContentTypeOptionsPresent {
     fn id(&self) -> &'static str {
         "x_content_type_options_present"
@@ -150,20 +167,7 @@ impl Rule for XContentTypeOptionsPresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: Some("3.6"),
-                url: "https://fetch.spec.whatwg.org/#x-content-type-options-header",
-                note: "`X-Content-Type-Options`: the conformance value ABNF (`\"nosniff\" ; case-insensitive`) and the determine-nosniff algorithm",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN X-Content-Type-Options",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options",
-                note: "Web Docs: X-Content-Type-Options",
-            },
-        ]
+        &[FETCH_3_6, MDN_X_CONTENT_TYPE_OPTIONS]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

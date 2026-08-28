@@ -16,6 +16,16 @@ use crate::rules::Rule;
 /// RFC 9110 §5.6 machinery, applied here as a well-formedness check for a deprecated field.
 pub struct PragmaTokenValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.4",
+    note: "Pragma",
+};
+
 impl Rule for PragmaTokenValid {
     fn id(&self) -> &'static str {
         "pragma_token_valid"
@@ -95,12 +105,7 @@ impl Rule for PragmaTokenValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9111",
-            section: Some("5.4"),
-            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.4",
-            note: "Pragma",
-        }]
+        &[RFC_9111_5_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

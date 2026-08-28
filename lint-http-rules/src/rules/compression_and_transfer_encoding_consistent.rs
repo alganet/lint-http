@@ -7,6 +7,46 @@ use crate::rules::Rule;
 
 pub struct CompressionAndTransferEncodingConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
+    note: "Content-Encoding — a property of the representation, and the MUST that makes it a trustworthy record of what was applied. Also contemplates a coding applied a second time, which is why this rule is advisory",
+};
+const RFC_9110_8_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
+    note: "`content-coding = token` — no parameters, which is why this field's members are split naively",
+};
+const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+    note: "Transfer-Encoding — a property of the message, not the representation. The mirror of §8.4's sentence, and the whole basis of the distinction this rule watches",
+};
+const RFC_9112_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2",
+    note: "The compression transfer codings, defined by the same algorithm as the content coding of the same name",
+};
+const RFC_9112_7_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.3",
+    note: "Transfer and content coding names may only overlap where the transformation is identical — so a shared name is unambiguous, and coding twice is coherent rather than malformed",
+};
+const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+    note: "The `transfer-coding` grammar, including the quoted-string a parameter may carry — why that field's split is quote-aware",
+};
+
 impl Rule for CompressionAndTransferEncodingConsistent {
     fn id(&self) -> &'static str {
         "compression_and_transfer_encoding_consistent"
@@ -180,42 +220,12 @@ impl Rule for CompressionAndTransferEncodingConsistent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
-                note: "Content-Encoding — a property of the representation, and the MUST that makes it a trustworthy record of what was applied. Also contemplates a coding applied a second time, which is why this rule is advisory",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
-                note: "`content-coding = token` — no parameters, which is why this field's members are split naively",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
-                note: "Transfer-Encoding — a property of the message, not the representation. The mirror of §8.4's sentence, and the whole basis of the distinction this rule watches",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2",
-                note: "The compression transfer codings, defined by the same algorithm as the content coding of the same name",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.3",
-                note: "Transfer and content coding names may only overlap where the transformation is identical — so a shared name is unambiguous, and coding twice is coherent rather than malformed",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
-                note: "The `transfer-coding` grammar, including the quoted-string a parameter may carry — why that field's split is quote-aware",
-            },
+            RFC_9110_8_4,
+            RFC_9110_8_4_1,
+            RFC_9112_6_1,
+            RFC_9112_7_2,
+            RFC_9112_7_3,
+            RFC_9110_10_1_4,
         ]
     }
 

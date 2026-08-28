@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct ContentTypePresent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+    note: "Content-Type — the SHOULD, the exception that excuses a sender who does not know the type, the recipient's two fallbacks, and what sniffing costs",
+};
+const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+    note: "Message body length — item 1 for the statuses and HEAD responses that carry no content, item 2 for CONNECT tunnels, item 8 for why a missing Content-Length is not evidence of a body",
+};
+const RFC_9110_15_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.6",
+    note: "205 Reset Content — bodiless by its own MUST NOT, and absent from §6.3's list",
+};
+const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+    note: "HEAD — no content is sent, so this rule's condition is never met; the same-header-fields SHOULD is another rule's subject",
+};
+
 impl Rule for ContentTypePresent {
     fn id(&self) -> &'static str {
         "content_type_present"
@@ -130,32 +158,7 @@ impl Rule for ContentTypePresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Content-Type — the SHOULD, the exception that excuses a sender who does not know the type, the recipient's two fallbacks, and what sniffing costs",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "Message body length — item 1 for the statuses and HEAD responses that carry no content, item 2 for CONNECT tunnels, item 8 for why a missing Content-Length is not evidence of a body",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.6",
-                note: "205 Reset Content — bodiless by its own MUST NOT, and absent from §6.3's list",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-                note: "HEAD — no content is sent, so this rule's condition is never met; the same-header-fields SHOULD is another rule's subject",
-            },
-        ]
+        &[RFC_9110_8_3, RFC_9112_6_3, RFC_9110_15_3_6, RFC_9110_9_3_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

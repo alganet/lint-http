@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct CookieDomainValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6265_5_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3",
+    note: "`Domain` attribute processing — an empty value is undefined (UA ignores it) and a leading dot is stripped; the domain-value *format* is §4.1.1 / RFC 1035",
+};
+const RFC_1035: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 1035",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc1035.html",
+    note: "Domain name label rules (length, allowed characters)",
+};
+
 impl Rule for CookieDomainValid {
     fn id(&self) -> &'static str {
         "cookie_domain_valid"
@@ -88,20 +104,7 @@ impl Rule for CookieDomainValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("5.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3",
-                note: "`Domain` attribute processing — an empty value is undefined (UA ignores it) and a leading dot is stripped; the domain-value *format* is §4.1.1 / RFC 1035",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 1035",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc1035.html",
-                note: "Domain name label rules (length, allowed characters)",
-            },
-        ]
+        &[RFC_6265_5_2_3, RFC_1035]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

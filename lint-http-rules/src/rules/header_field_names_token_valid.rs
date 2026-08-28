@@ -7,6 +7,40 @@ use crate::rules::Rule;
 
 pub struct HeaderFieldNamesTokenValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
+    note: "Field Names (field-name = token)",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "Tokens (the tchar set the production expands to)",
+};
+const RFC_9110_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
+    note: "Trailer Fields",
+};
+const RFC_9113_8_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.1",
+    note: "Field Validity (HTTP/2 recipients validate names against §5.1)",
+};
+const RFC_9114_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
+    note: "HTTP Fields (HTTP/3 defers field-name properties to §5.1)",
+};
+
 impl Rule for HeaderFieldNamesTokenValid {
     fn id(&self) -> &'static str {
         "header_field_names_token_valid"
@@ -50,36 +84,11 @@ impl Rule for HeaderFieldNamesTokenValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
-                note: "Field Names (field-name = token)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "Tokens (the tchar set the production expands to)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5",
-                note: "Trailer Fields",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.1",
-                note: "Field Validity (HTTP/2 recipients validate names against §5.1)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
-                note: "HTTP Fields (HTTP/3 defers field-name properties to §5.1)",
-            },
+            RFC_9110_5_1,
+            RFC_9110_5_6_2,
+            RFC_9110_6_5,
+            RFC_9113_8_2_1,
+            RFC_9114_4_2,
         ]
     }
 

@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct DigestAuthValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7616_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7616",
+    section: Some("3.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
+    note: "The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the \"MUST be used by all implementations\" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced here in both directions",
+};
+const RFC_2617_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2617",
+    section: Some("3.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc2617.html#section-3.2.2",
+    note: "The obsolete document whose qop-less credential shape is why cnonce and nc are demanded only beside a qop: its own conditional (\"MUST be specified if a qop directive is sent\") is the observable line, and deployed servers still verify the older shape",
+};
+
 impl Rule for DigestAuthValid {
     fn id(&self) -> &'static str {
         "digest_auth_valid"
@@ -208,20 +224,7 @@ impl Rule for DigestAuthValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 7616",
-                section: Some("3.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4",
-                note: "The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the \"MUST be used by all implementations\" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced here in both directions",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2617",
-                section: Some("3.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc2617.html#section-3.2.2",
-                note: "The obsolete document whose qop-less credential shape is why cnonce and nc are demanded only beside a qop: its own conditional (\"MUST be specified if a qop directive is sent\") is the observable line, and deployed servers still verify the older shape",
-            },
-        ]
+        &[RFC_7616_3_4, RFC_2617_3_2_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

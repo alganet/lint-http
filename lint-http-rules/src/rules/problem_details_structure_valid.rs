@@ -46,6 +46,34 @@ impl ProblemDetailsStructureValid {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9457_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9457",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-3",
+    note: "The problem details JSON object and the media type that identifies it; §3.1 and §3.1.1 are where every member is made optional and `type` is given a value for its own absence",
+};
+const RFC_9457_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9457",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-4.2.1",
+    note: "`about:blank`, the registered problem type for a problem with no semantics beyond the status code — and the sentence saying an object carrying no explicit `type` implicitly uses it, which is why an empty object is conforming",
+};
+const RFC_9110_8_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.1",
+    note: "Representation data is in the format its metadata names — the sentence that makes a mismatch between the content and the `Content-Type` a contradiction rather than a preference; §8.3 adds what the recipient does with the indicated media type, and §8.4 that a content coding has to be undone first",
+};
+const RFC_8259_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8259",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8259.html#section-2",
+    note: "What a JSON text is — the measure for content that is empty or does not parse; §8.1 adds the UTF-8 requirement the parser also enforces",
+};
+
 impl Rule for ProblemDetailsStructureValid {
     fn id(&self) -> &'static str {
         "problem_details_structure_valid"
@@ -205,32 +233,7 @@ impl Rule for ProblemDetailsStructureValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9457",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-3",
-                note: "The problem details JSON object and the media type that identifies it; §3.1 and §3.1.1 are where every member is made optional and `type` is given a value for its own absence",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9457",
-                section: Some("4.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9457.html#section-4.2.1",
-                note: "`about:blank`, the registered problem type for a problem with no semantics beyond the status code — and the sentence saying an object carrying no explicit `type` implicitly uses it, which is why an empty object is conforming",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.1",
-                note: "Representation data is in the format its metadata names — the sentence that makes a mismatch between the content and the `Content-Type` a contradiction rather than a preference; §8.3 adds what the recipient does with the indicated media type, and §8.4 that a content coding has to be undone first",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8259",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8259.html#section-2",
-                note: "What a JSON text is — the measure for content that is empty or does not parse; §8.1 adds the UTF-8 requirement the parser also enforces",
-            },
-        ]
+        &[RFC_9457_3, RFC_9457_4_2_1, RFC_9110_8_1, RFC_8259_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

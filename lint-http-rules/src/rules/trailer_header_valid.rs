@@ -125,6 +125,52 @@ impl TrailerHeaderValid {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_6_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2",
+    note: "The `Trailer` field itself: what its value means, and the SHOULD that asks a sender to write one",
+};
+const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("A"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
+    note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "The sender's half of the list construct. The recipient's half (§5.6.1.2, ignore empty elements) is a different party's requirement and is why the shared list reader is not used here",
+};
+const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+    note: "Several `Trailer` lines in one field section are one field value, so the members are counted after the lines are joined",
+};
+const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+    note: "`Connection` and hop-by-hop semantics; the sentence that removes connection-options from a trailer section is the MUST behind the nomination finding. This said RFC 7230 §6.1 — the right section of an obsoleted document, with the two notes swapped between them",
+};
+const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
+    note: "Limitations on use of trailers. Applied here only to `Trailer` naming itself; the general question is `trailer_fields_valid`'s",
+};
+const RFC_9112_7_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2",
+    note: "The chunked transfer coding's trailer section — HTTP/1.1's framing mechanism for the section this field announces. This said RFC 7230 §4.1.2",
+};
+
 impl Rule for TrailerHeaderValid {
     fn id(&self) -> &'static str {
         "trailer_header_valid"
@@ -168,48 +214,13 @@ impl Rule for TrailerHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.6.2",
-                note: "The `Trailer` field itself: what its value means, and the SHOULD that asks a sender to write one",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("A"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
-                note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "The sender's half of the list construct. The recipient's half (§5.6.1.2, ignore empty elements) is a different party's requirement and is why the shared list reader is not used here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
-                note: "Several `Trailer` lines in one field section are one field value, so the members are counted after the lines are joined",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "`Connection` and hop-by-hop semantics; the sentence that removes connection-options from a trailer section is the MUST behind the nomination finding. This said RFC 7230 §6.1 — the right section of an obsoleted document, with the two notes swapped between them",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
-                note: "Limitations on use of trailers. Applied here only to `Trailer` naming itself; the general question is `trailer_fields_valid`'s",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1.2",
-                note: "The chunked transfer coding's trailer section — HTTP/1.1's framing mechanism for the section this field announces. This said RFC 7230 §4.1.2",
-            },
+            RFC_9110_6_6_2,
+            RFC_9110_A,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_2,
+            RFC_9110_7_6_1,
+            RFC_9110_6_5_1,
+            RFC_9112_7_1_2,
         ]
     }
 

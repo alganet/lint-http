@@ -65,6 +65,104 @@ fn parse_keep_alive_config(
 
 pub struct KeepAliveHeaderValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_2068_19_7_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2068",
+    section: Some("19.7.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-19.7.1.1",
+    note: "The `Keep-Alive` grammar, the sentence saying HTTP/1.1 defines no \
+           parameters for it, and the field's one requirement on a sender — the \
+           matching connection token. Obsoleted, and still the document RFC 9110 \
+           §7.6.1 names for this field, so this is where the productions are read \
+           from. The reference here used to be RFC 7230 §6.7, which is `Upgrade`",
+};
+const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+    note: "The current specification's own pointer: `Keep-Alive` appears in the list \
+           of fields an intermediary should remove before forwarding, annotated \
+           *Section 19.7.1 of [RFC2068]*. It is also what makes the field \
+           connection-specific, and therefore hop-by-hop",
+};
+const RFC_2068_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2068",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-2.1",
+    note: "The two notation rules that make this field's list read differently from a \
+           field RFC 9110 defines: `#rule` permits null elements, and `implied *LWS` \
+           permits whitespace between a token and a delimiter — which is what makes \
+           `timeout = 30` conforming rather than a `BWS` defect",
+};
+const RFC_2068_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2068",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-2.2",
+    note: "`token`, `tspecials`, `LWS` and `quoted-string`. This document's `token` \
+           admits exactly the characters RFC 9110 §5.6.2's `tchar` does — the \
+           seventeen `tspecials` are RFC 9110's delimiters and both alphabets stop at \
+           US-ASCII — so the shared helper is the same production under another name",
+};
+const RFC_2068_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2068",
+    section: Some("3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-3.7",
+    note: "`value = token | quoted-string`, the right-hand half of `keepalive-param`. \
+           The rule name is defined once for the document and `keepalive-param` uses \
+           it, which is why a parameter value may be quoted at all",
+};
+const RFC_2068_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2068",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-4.2",
+    note: "This document's statement of the rule that makes repeated field lines one \
+           list — the same requirement RFC 9110 §5.2 states, which is what the shared \
+           line-joining helper cites",
+};
+const DRAFT_THOMSON_HYBI_HTTP_TIMEOUT_03_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "draft-thomson-hybi-http-timeout-03",
+    section: Some("2"),
+    url: "https://www.ietf.org/archive/id/draft-thomson-hybi-http-timeout-03.txt",
+    note: "The only document that ever gave `timeout` a grammar or a meaning. An \
+           individual Internet-Draft, never adopted, expired 2013-01-18 — quoted as \
+           the only published reading of the parameter and never as a requirement. \
+           Its §2.2.1 deprecates `max`; its §7.2 asks IANA for a registry that was \
+           never created, which is why this rule carries no list of parameter names",
+};
+const RFC_9111_1_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("1.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
+    note: "`delta-seconds = 1*DIGIT`, the production the draft's `timeout` value is. \
+           `1*DIGIT` is what a leading `+` fails, and a standard-library integer \
+           parser accepts",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The sender MUST NOT behind every grammar finding here: a value that derives \
+           from none of the productions is a protocol element matching no ABNF rule",
+};
+const RFC_2616_19_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2616",
+    section: Some("19.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-19.6.2",
+    note: "Where the grammar stopped being restated: RFC 2616 kept the compatibility \
+           discussion and sent the reader back to RFC 2068 for the field itself. The \
+           same shape as RFC 9111 §5.5 and `Warning`",
+};
+const IANA_HTTP_FIELD_NAME_REGISTRY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA HTTP Field Name Registry",
+    section: None,
+    url: "https://www.iana.org/assignments/http-fields/http-fields.xhtml",
+    note: "`Keep-Alive` is registered `permanent`, with RFC 2068 as its only \
+           reference — not `obsoleted`, unlike `Warning`. Corroboration for reading \
+           an obsoleted document, not an authority this rule enforces",
+};
+
 impl Rule for KeepAliveHeaderValid {
     fn id(&self) -> &'static str {
         "keep_alive_header_valid"
@@ -210,101 +308,17 @@ impl Rule for KeepAliveHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 2068",
-                section: Some("19.7.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-19.7.1.1",
-                note: "The `Keep-Alive` grammar, the sentence saying HTTP/1.1 defines no \
-                       parameters for it, and the field's one requirement on a sender — the \
-                       matching connection token. Obsoleted, and still the document RFC 9110 \
-                       §7.6.1 names for this field, so this is where the productions are read \
-                       from. The reference here used to be RFC 7230 §6.7, which is `Upgrade`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "The current specification's own pointer: `Keep-Alive` appears in the list \
-                       of fields an intermediary should remove before forwarding, annotated \
-                       *Section 19.7.1 of [RFC2068]*. It is also what makes the field \
-                       connection-specific, and therefore hop-by-hop",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2068",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-2.1",
-                note: "The two notation rules that make this field's list read differently from a \
-                       field RFC 9110 defines: `#rule` permits null elements, and `implied *LWS` \
-                       permits whitespace between a token and a delimiter — which is what makes \
-                       `timeout = 30` conforming rather than a `BWS` defect",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2068",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-2.2",
-                note: "`token`, `tspecials`, `LWS` and `quoted-string`. This document's `token` \
-                       admits exactly the characters RFC 9110 §5.6.2's `tchar` does — the \
-                       seventeen `tspecials` are RFC 9110's delimiters and both alphabets stop at \
-                       US-ASCII — so the shared helper is the same production under another name",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2068",
-                section: Some("3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-3.7",
-                note: "`value = token | quoted-string`, the right-hand half of `keepalive-param`. \
-                       The rule name is defined once for the document and `keepalive-param` uses \
-                       it, which is why a parameter value may be quoted at all",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2068",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc2068.html#section-4.2",
-                note: "This document's statement of the rule that makes repeated field lines one \
-                       list — the same requirement RFC 9110 §5.2 states, which is what the shared \
-                       line-joining helper cites",
-            },
-            crate::rules::SpecRef {
-                spec: "draft-thomson-hybi-http-timeout-03",
-                section: Some("2"),
-                url: "https://www.ietf.org/archive/id/draft-thomson-hybi-http-timeout-03.txt",
-                note: "The only document that ever gave `timeout` a grammar or a meaning. An \
-                       individual Internet-Draft, never adopted, expired 2013-01-18 — quoted as \
-                       the only published reading of the parameter and never as a requirement. \
-                       Its §2.2.1 deprecates `max`; its §7.2 asks IANA for a registry that was \
-                       never created, which is why this rule carries no list of parameter names",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("1.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
-                note: "`delta-seconds = 1*DIGIT`, the production the draft's `timeout` value is. \
-                       `1*DIGIT` is what a leading `+` fails, and a standard-library integer \
-                       parser accepts",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note:
-                    "The sender MUST NOT behind every grammar finding here: a value that derives \
-                       from none of the productions is a protocol element matching no ABNF rule",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2616",
-                section: Some("19.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc2616.html#section-19.6.2",
-                note: "Where the grammar stopped being restated: RFC 2616 kept the compatibility \
-                       discussion and sent the reader back to RFC 2068 for the field itself. The \
-                       same shape as RFC 9111 §5.5 and `Warning`",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA HTTP Field Name Registry",
-                section: None,
-                url: "https://www.iana.org/assignments/http-fields/http-fields.xhtml",
-                note: "`Keep-Alive` is registered `permanent`, with RFC 2068 as its only \
-                       reference — not `obsoleted`, unlike `Warning`. Corroboration for reading \
-                       an obsoleted document, not an authority this rule enforces",
-            },
+            RFC_2068_19_7_1_1,
+            RFC_9110_7_6_1,
+            RFC_2068_2_1,
+            RFC_2068_2_2,
+            RFC_2068_3_7,
+            RFC_2068_4_2,
+            DRAFT_THOMSON_HYBI_HTTP_TIMEOUT_03_2,
+            RFC_9111_1_2_2,
+            RFC_9110_2_2,
+            RFC_2616_19_6_2,
+            IANA_HTTP_FIELD_NAME_REGISTRY,
         ]
     }
 

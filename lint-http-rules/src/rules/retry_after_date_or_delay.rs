@@ -7,6 +7,16 @@ use crate::rules::Rule;
 
 pub struct RetryAfterDateOrDelay;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3",
+    note: "Retry-After header",
+};
+
 impl Rule for RetryAfterDateOrDelay {
     fn id(&self) -> &'static str {
         "retry_after_date_or_delay"
@@ -87,12 +97,7 @@ impl Rule for RetryAfterDateOrDelay {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("10.2.3"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3",
-            note: "Retry-After header",
-        }]
+        &[RFC_9110_10_2_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

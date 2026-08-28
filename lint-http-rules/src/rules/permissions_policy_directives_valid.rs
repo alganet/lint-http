@@ -8,6 +8,28 @@ use crate::rules::Rule;
 
 pub struct PermissionsPolicyDirectivesValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const PERMISSIONS_POLICY: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Permissions Policy",
+    section: None,
+    url: "https://w3c.github.io/webappsec-permissions-policy/#structured-header-serialization",
+    note: "§5.2 Structured header serialization — the production this rule enforces. Not §5.1, which is the HTML attribute and has a different feature-identifier grammar. No section number: an editor's draft renumbers",
+};
+const RFC_9651_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.2",
+    note: "Dictionaries — member keys cannot contain uppercase, unknown members MUST be ignored, and members may be split across field lines",
+};
+const RFC_9651_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
+    note: "Parsing — a failure discards the entire field value, which is why a malformed member name is not a local problem",
+};
+
 impl Rule for PermissionsPolicyDirectivesValid {
     fn id(&self) -> &'static str {
         "permissions_policy_directives_valid"
@@ -120,26 +142,7 @@ impl Rule for PermissionsPolicyDirectivesValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "Permissions Policy",
-                section: None,
-                url: "https://w3c.github.io/webappsec-permissions-policy/#structured-header-serialization",
-                note: "§5.2 Structured header serialization — the production this rule enforces. Not §5.1, which is the HTML attribute and has a different feature-identifier grammar. No section number: an editor's draft renumbers",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.2",
-                note: "Dictionaries — member keys cannot contain uppercase, unknown members MUST be ignored, and members may be split across field lines",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
-                note: "Parsing — a failure discards the entire field value, which is why a malformed member name is not a local problem",
-            },
-        ]
+        &[PERMISSIONS_POLICY, RFC_9651_3_2, RFC_9651_4_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

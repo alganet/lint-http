@@ -12,6 +12,190 @@ use crate::rules::Rule;
 
 pub struct LinkHeaderValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_8288_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3",
+    note: "The serialisation: `Link = #link-value`, the angle-bracketed \
+           `URI-Reference`, and `link-param = token BWS [ \"=\" BWS ( token / \
+           quoted-string ) ]` — whose optional group is what makes a valueless \
+           parameter conforming. Also the sentence equating the token and \
+           quoted-string forms, which is why a value is judged after unquoting",
+};
+const RFC_8288_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.1",
+    note: "The link target: one IRI converted to a `URI-Reference` and written inside \
+           angle brackets. The conversion is why an octet no URI admits is a finding \
+           rather than an encoding question",
+};
+const RFC_8288_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.3",
+    note: "`rel` MUST be present and MUST NOT appear more than once; its value is \
+           `relation-type *( 1*SP relation-type )`; `relation-type = reg-rel-type / \
+           ext-rel-type` with `ext-rel-type = URI`, required to be absolute. The \
+           section that makes a URI-shaped relation type conforming and a capital \
+           letter in a registered one not",
+};
+const RFC_8288_3_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("3.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.1",
+    note: "The four serialisation-defined attributes this document bounds to one \
+           occurrence — `media`, `title`, `title*`, `type` — each in its own MUST \
+           NOT. `hreflang` is the one it deliberately leaves unbounded, saying that \
+           repeating it means several languages are available. Also the per-attribute \
+           value ABNFs: `Language-Tag` for `hreflang`, `type-name \"/\" \
+           subtype-name` for `type`, and `media-query-list` for `media` — the first \
+           two measured here, the third declined for the reasons the description \
+           gives",
+};
+const RFC_8288_2_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("2.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-2.1.1",
+    note: "Registered relation type names conform to `reg-rel-type` and are compared \
+           case-insensitively — the sentence behind folding case when asking whether \
+           a relation type is `preload`",
+};
+const RFC_8288_2_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("2.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-2.1.2",
+    note: "Extension relation types are URIs that uniquely identify the relation, \
+           compared as strings. Why a value matching no registered spelling is \
+           measured as a URI rather than reported",
+};
+const RFC_8288_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-2.2",
+    note: "Target attribute names are compared case-insensitively — the MUST behind \
+           recognising `rel`, `as` and the bounded four whatever case they were \
+           written in. Its `SHOULD NOT include \"%\", \"'\", or \"*\"` is advice \
+           about portability across serialisations and is not enforced here: §3.4.1 \
+           of this same document defines `title*`",
+};
+const RFC_8288_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-1.1",
+    note: "Which document's notation governs: the `#rule`, `token`, `quoted-string`, \
+           `BWS`, `OWS` and `LOALPHA` are imported rather than redefined, so the \
+           shared helpers that transcribe them are the right readers here. Its \
+           second list imports the value productions by name — `URI` and \
+           `URI-Reference` from RFC 3986, `type-name` and `subtype-name` from \
+           RFC 6838, `Language-Tag` from RFC 5646, and `media-query-list` from the \
+           2012 CSS3 Media Queries Recommendation, which is why a `media` value is \
+           the one this rule does not measure",
+};
+const RFC_8288_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8288",
+    section: Some("1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-1.2",
+    note: "The bridge to a modal: this document states no requirement of its own that \
+           a value match its ABNF, it adopts the core specification's conformance \
+           section — which is RFC 9110 §2.2 in the document now in force",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The sender MUST NOT behind every grammar finding here: a member deriving \
+           from none of §3's productions is a protocol element matching no ABNF rule",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "The list construct: `#` sets no minimum, so an empty `Link:` declares no \
+           link rather than declaring one badly — and a sender MUST NOT write an \
+           empty element between two real ones",
+};
+const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
+    note: "`BWS` is admitted beside the `=` for historical reasons and a sender MUST \
+           NOT generate it — the half of the production that makes the recipient's \
+           trim required and the sender's whitespace a finding",
+};
+const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+    note: "Repeated `Link` field lines are one list. RFC 8288 §3.5 shows the same \
+           thing from the other side, printing a two-member field value and the two \
+           field lines it is equivalent to",
+};
+const RFC_3986_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3",
+    note: "`URI` — the production `ext-rel-type` is, and the reason a relation type \
+           with a scheme is read as one instead of being measured against `tchar`. \
+           `URI-Reference` (§4.1) is the target's",
+};
+const RFC_5646_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5646",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
+    note: "Syntax: `Language-Tag`, the whole of §3.4.1's ABNF for an `hreflang` \
+           value. What is enforced is the catalogue's shared conservative floor — \
+           subtag shape, from this section's prose — not the full grammar and not \
+           the registry",
+};
+const RFC_6838_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6838",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2",
+    note: "Naming Requirements: `restricted-name`, the production behind both \
+           halves of a `type` value. It opens on a letter or digit and closes at \
+           127 characters, and §3.4.1's ABNF for the value ends at the \
+           subtype-name, so there is no parameters group and no wildcard here",
+};
+const HTML_SEMANTICS_4_2_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Semantics",
+    section: Some("4.2.4.4"),
+    url: "https://html.spec.whatwg.org/multipage/semantics.html#processing-link-headers",
+    note: "*Processing `Link` headers* — the algorithm that reads this field out of a \
+           **response** and, for `rel=preload`, returns early when `as` does not \
+           exist. The only published sentence pairing the two, and the reason that \
+           finding is worded as a member being discarded rather than as a MUST",
+};
+const HTML_LINKS_4_6_8_20: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Links",
+    section: Some("4.6.8.20"),
+    url: "https://html.spec.whatwg.org/multipage/links.html#link-type-preload",
+    note: "Where the `preload` keyword itself is defined, and where it says the \
+           resource is fetched *according to the preload destination given by the \
+           `as` attribute*. The old reference here named a retired W3C Preload \
+           specification in its note while pointing at this page",
+};
+const HTML_LINKS_4_6_8_20_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Links",
+    section: Some("4.6.8.20"),
+    url: "https://html.spec.whatwg.org/multipage/links.html#preload-destination",
+    note: "*Preload destination* — the six strings the header path admits — and \
+           *translate a preload destination*, which returns null for anything else \
+           before Fetch's own translation is consulted. The reason the table here \
+           holds six values and not Fetch's twenty",
+};
+const RFC_8297_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8297",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8297.html#section-2",
+    note: "Early Hints. Named because a check here used to be gated on the 103 status \
+           and rest on this document: it states nothing about a `Link` member's \
+           content, and its modals are addressed to the client",
+};
+
 impl Rule for LinkHeaderValid {
     fn id(&self) -> &'static str {
         "link_header_valid"
@@ -170,187 +354,26 @@ impl Rule for LinkHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3",
-                note: "The serialisation: `Link = #link-value`, the angle-bracketed \
-                       `URI-Reference`, and `link-param = token BWS [ \"=\" BWS ( token / \
-                       quoted-string ) ]` — whose optional group is what makes a valueless \
-                       parameter conforming. Also the sentence equating the token and \
-                       quoted-string forms, which is why a value is judged after unquoting",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.1",
-                note: "The link target: one IRI converted to a `URI-Reference` and written inside \
-                       angle brackets. The conversion is why an octet no URI admits is a finding \
-                       rather than an encoding question",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.3",
-                note: "`rel` MUST be present and MUST NOT appear more than once; its value is \
-                       `relation-type *( 1*SP relation-type )`; `relation-type = reg-rel-type / \
-                       ext-rel-type` with `ext-rel-type = URI`, required to be absolute. The \
-                       section that makes a URI-shaped relation type conforming and a capital \
-                       letter in a registered one not",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("3.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-3.4.1",
-                note: "The four serialisation-defined attributes this document bounds to one \
-                       occurrence — `media`, `title`, `title*`, `type` — each in its own MUST \
-                       NOT. `hreflang` is the one it deliberately leaves unbounded, saying that \
-                       repeating it means several languages are available. Also the per-attribute \
-                       value ABNFs: `Language-Tag` for `hreflang`, `type-name \"/\" \
-                       subtype-name` for `type`, and `media-query-list` for `media` — the first \
-                       two measured here, the third declined for the reasons the description \
-                       gives",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("2.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-2.1.1",
-                note: "Registered relation type names conform to `reg-rel-type` and are compared \
-                       case-insensitively — the sentence behind folding case when asking whether \
-                       a relation type is `preload`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("2.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-2.1.2",
-                note: "Extension relation types are URIs that uniquely identify the relation, \
-                       compared as strings. Why a value matching no registered spelling is \
-                       measured as a URI rather than reported",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-2.2",
-                note: "Target attribute names are compared case-insensitively — the MUST behind \
-                       recognising `rel`, `as` and the bounded four whatever case they were \
-                       written in. Its `SHOULD NOT include \"%\", \"'\", or \"*\"` is advice \
-                       about portability across serialisations and is not enforced here: §3.4.1 \
-                       of this same document defines `title*`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-1.1",
-                note: "Which document's notation governs: the `#rule`, `token`, `quoted-string`, \
-                       `BWS`, `OWS` and `LOALPHA` are imported rather than redefined, so the \
-                       shared helpers that transcribe them are the right readers here. Its \
-                       second list imports the value productions by name — `URI` and \
-                       `URI-Reference` from RFC 3986, `type-name` and `subtype-name` from \
-                       RFC 6838, `Language-Tag` from RFC 5646, and `media-query-list` from the \
-                       2012 CSS3 Media Queries Recommendation, which is why a `media` value is \
-                       the one this rule does not measure",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8288",
-                section: Some("1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8288.html#section-1.2",
-                note: "The bridge to a modal: this document states no requirement of its own that \
-                       a value match its ABNF, it adopts the core specification's conformance \
-                       section — which is RFC 9110 §2.2 in the document now in force",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The sender MUST NOT behind every grammar finding here: a member deriving \
-                       from none of §3's productions is a protocol element matching no ABNF rule",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "The list construct: `#` sets no minimum, so an empty `Link:` declares no \
-                       link rather than declaring one badly — and a sender MUST NOT write an \
-                       empty element between two real ones",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-                note: "`BWS` is admitted beside the `=` for historical reasons and a sender MUST \
-                       NOT generate it — the half of the production that makes the recipient's \
-                       trim required and the sender's whitespace a finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
-                note: "Repeated `Link` field lines are one list. RFC 8288 §3.5 shows the same \
-                       thing from the other side, printing a two-member field value and the two \
-                       field lines it is equivalent to",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3",
-                note: "`URI` — the production `ext-rel-type` is, and the reason a relation type \
-                       with a scheme is read as one instead of being measured against `tchar`. \
-                       `URI-Reference` (§4.1) is the target's",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5646",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
-                note: "Syntax: `Language-Tag`, the whole of §3.4.1's ABNF for an `hreflang` \
-                       value. What is enforced is the catalogue's shared conservative floor — \
-                       subtag shape, from this section's prose — not the full grammar and not \
-                       the registry",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6838",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2",
-                note: "Naming Requirements: `restricted-name`, the production behind both \
-                       halves of a `type` value. It opens on a letter or digit and closes at \
-                       127 characters, and §3.4.1's ABNF for the value ends at the \
-                       subtype-name, so there is no parameters group and no wildcard here",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML Semantics",
-                section: Some("4.2.4.4"),
-                url:
-                    "https://html.spec.whatwg.org/multipage/semantics.html#processing-link-headers",
-                note: "*Processing `Link` headers* — the algorithm that reads this field out of a \
-                       **response** and, for `rel=preload`, returns early when `as` does not \
-                       exist. The only published sentence pairing the two, and the reason that \
-                       finding is worded as a member being discarded rather than as a MUST",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML Links",
-                section: Some("4.6.8.20"),
-                url: "https://html.spec.whatwg.org/multipage/links.html#link-type-preload",
-                note: "Where the `preload` keyword itself is defined, and where it says the \
-                       resource is fetched *according to the preload destination given by the \
-                       `as` attribute*. The old reference here named a retired W3C Preload \
-                       specification in its note while pointing at this page",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML Links",
-                section: Some("4.6.8.20"),
-                url: "https://html.spec.whatwg.org/multipage/links.html#preload-destination",
-                note: "*Preload destination* — the six strings the header path admits — and \
-                       *translate a preload destination*, which returns null for anything else \
-                       before Fetch's own translation is consulted. The reason the table here \
-                       holds six values and not Fetch's twenty",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8297",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8297.html#section-2",
-                note: "Early Hints. Named because a check here used to be gated on the 103 status \
-                       and rest on this document: it states nothing about a `Link` member's \
-                       content, and its modals are addressed to the client",
-            },
+            RFC_8288_3,
+            RFC_8288_3_1,
+            RFC_8288_3_3,
+            RFC_8288_3_4_1,
+            RFC_8288_2_1_1,
+            RFC_8288_2_1_2,
+            RFC_8288_2_2,
+            RFC_8288_1_1,
+            RFC_8288_1_2,
+            RFC_9110_2_2,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_3,
+            RFC_9110_5_2,
+            RFC_3986_3,
+            RFC_5646_2_1,
+            RFC_6838_4_2,
+            HTML_SEMANTICS_4_2_4_4,
+            HTML_LINKS_4_6_8_20,
+            HTML_LINKS_4_6_8_20_2,
+            RFC_8297_2,
         ]
     }
 

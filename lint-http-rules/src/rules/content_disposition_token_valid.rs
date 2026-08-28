@@ -7,6 +7,40 @@ use crate::rules::Rule;
 
 pub struct ContentDispositionTokenValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6266_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6266",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4.1",
+    note: "Grammar: a mandatory `disposition-type` followed by optional `;`-separated parameters, with `disp-ext-type = token`. Whitespace around the separators is implied rather than written",
+};
+const RFC_6266_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6266",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4.2",
+    note: "Disposition Type: an unknown type is conforming and has defined handling (treat as `attachment`), which is why this rule validates the value's shape and not its membership in any list",
+};
+const RFC_6266_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6266",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4",
+    note: "Defines Content-Disposition as a *response* header field — the request half of this rule is a deliberate extension beyond the document, since upload APIs do send one",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "`token = 1*tchar` — where the production actually lives now. RFC 6266 §4.1 imports `token` from the obsolete RFC 2616; the character set is unchanged",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order: a sender MUST NOT emit multiple field lines for a field whose definition has no comma-separated-list alternative",
+};
+
 impl Rule for ContentDispositionTokenValid {
     fn id(&self) -> &'static str {
         "content_disposition_token_valid"
@@ -185,36 +219,11 @@ impl Rule for ContentDispositionTokenValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 6266",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4.1",
-                note: "Grammar: a mandatory `disposition-type` followed by optional `;`-separated parameters, with `disp-ext-type = token`. Whitespace around the separators is implied rather than written",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6266",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4.2",
-                note: "Disposition Type: an unknown type is conforming and has defined handling (treat as `attachment`), which is why this rule validates the value's shape and not its membership in any list",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6266",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4",
-                note: "Defines Content-Disposition as a *response* header field — the request half of this rule is a deliberate extension beyond the document, since upload APIs do send one",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "`token = 1*tchar` — where the production actually lives now. RFC 6266 §4.1 imports `token` from the obsolete RFC 2616; the character set is unchanged",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order: a sender MUST NOT emit multiple field lines for a field whose definition has no comma-separated-list alternative",
-            },
+            RFC_6266_4_1,
+            RFC_6266_4_2,
+            RFC_6266_4,
+            RFC_9110_5_6_2,
+            RFC_9110_5_3,
         ]
     }
 

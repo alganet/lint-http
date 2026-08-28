@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct XXssProtectionValueValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const MDN_X_XSS_PROTECTION: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN X-XSS-Protection",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection",
+    note: "X-XSS-Protection",
+};
+const OWASP_SECURE_HEADERS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "OWASP Secure Headers",
+    section: None,
+    url: "https://owasp.org/www-project-secure-headers/",
+    note: "OWASP guidance",
+};
+
 impl Rule for XXssProtectionValueValid {
     fn id(&self) -> &'static str {
         "x_xss_protection_value_valid"
@@ -95,20 +111,7 @@ impl Rule for XXssProtectionValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "MDN X-XSS-Protection",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection",
-                note: "X-XSS-Protection",
-            },
-            crate::rules::SpecRef {
-                spec: "OWASP Secure Headers",
-                section: None,
-                url: "https://owasp.org/www-project-secure-headers/",
-                note: "OWASP guidance",
-            },
-        ]
+        &[MDN_X_XSS_PROTECTION, OWASP_SECURE_HEADERS]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

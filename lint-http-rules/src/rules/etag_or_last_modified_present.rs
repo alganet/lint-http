@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct EtagOrLastModifiedPresent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_8_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2.1",
+    note: "Generation: an origin server SHOULD send Last-Modified",
+};
+const RFC_9110_8_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3.1",
+    note: "Generation: an origin server SHOULD send an ETag",
+};
+
 impl Rule for EtagOrLastModifiedPresent {
     fn id(&self) -> &'static str {
         "etag_or_last_modified_present"
@@ -61,20 +77,7 @@ impl Rule for EtagOrLastModifiedPresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2.1",
-                note: "Generation: an origin server SHOULD send Last-Modified",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3.1",
-                note: "Generation: an origin server SHOULD send an ETag",
-            },
-        ]
+        &[RFC_9110_8_8_2_1, RFC_9110_8_8_3_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

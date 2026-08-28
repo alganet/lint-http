@@ -20,6 +20,28 @@ use crate::rules::Rule;
 /// misses.
 pub struct CookieDomainMatching;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6265_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4",
+    note: "The Cookie header (which cookies are sent)",
+};
+const RFC_6265_5_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.1.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3",
+    note: "Domain matching",
+};
+const RFC_6265_5_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4",
+    note: "Path matching",
+};
+
 impl Rule for CookieDomainMatching {
     fn id(&self) -> &'static str {
         "cookie_domain_matching"
@@ -135,26 +157,7 @@ impl Rule for CookieDomainMatching {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("5.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4",
-                note: "The Cookie header (which cookies are sent)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("5.1.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3",
-                note: "Domain matching",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6265",
-                section: Some("5.1.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4",
-                note: "Path matching",
-            },
-        ]
+        &[RFC_6265_5_4, RFC_6265_5_1_3, RFC_6265_5_1_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -18,6 +18,22 @@ use crate::rules::ProtocolRule;
 
 pub struct Http3MaxPushId;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9114_7_2_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("7.2.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7",
+    note: "`MAX_PUSH_ID` frame",
+};
+const RFC_9114_8_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("8.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-8.1",
+    note: "HTTP/3 error codes (`H3_ID_ERROR`)",
+};
+
 impl ProtocolRule for Http3MaxPushId {
     fn id(&self) -> &'static str {
         "http3_max_push_id"
@@ -104,20 +120,7 @@ impl ProtocolRule for Http3MaxPushId {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("7.2.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-7.2.7",
-                note: "`MAX_PUSH_ID` frame",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("8.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-8.1",
-                note: "HTTP/3 error codes (`H3_ID_ERROR`)",
-            },
-        ]
+        &[RFC_9114_7_2_7, RFC_9114_8_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

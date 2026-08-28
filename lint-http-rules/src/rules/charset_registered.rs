@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct CharsetRegistered;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
+    note: "Charset: what the parameter means, that names are matched case-insensitively, and the \"ought to be registered\" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies",
+};
+const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
+    note: "Parameters: case-insensitive names, and `parameter-value = ( token / quoted-string )` — the fork this rule takes on the value",
+};
+const RFC_2978_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2978",
+    section: Some("2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc2978.html#section-2.3",
+    note: "`mime-charset`, the production a charset name actually follows. It and `token` are incomparable — `{`/`}` on one side, `*`/`.`/`|` on the other — so checking `token` is stricter in one direction and looser in the other, and neither direction changes a verdict",
+};
+const IANA_CHARACTER_SETS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA Character Sets",
+    section: None,
+    url: "https://www.iana.org/assignments/character-sets/character-sets.xhtml",
+    note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
+};
+
 impl Rule for CharsetRegistered {
     fn id(&self) -> &'static str {
         "charset_registered"
@@ -224,30 +252,10 @@ impl Rule for CharsetRegistered {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
-                note: "Charset: what the parameter means, that names are matched case-insensitively, and the \"ought to be registered\" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-                note: "Parameters: case-insensitive names, and `parameter-value = ( token / quoted-string )` — the fork this rule takes on the value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 2978",
-                section: Some("2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc2978.html#section-2.3",
-                note: "`mime-charset`, the production a charset name actually follows. It and `token` are incomparable — `{`/`}` on one side, `*`/`.`/`|` on the other — so checking `token` is stricter in one direction and looser in the other, and neither direction changes a verdict",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA Character Sets",
-                section: None,
-                url: "https://www.iana.org/assignments/character-sets/character-sets.xhtml",
-                note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
-            },
+            RFC_9110_8_3_2,
+            RFC_9110_5_6_6,
+            RFC_2978_2_3,
+            IANA_CHARACTER_SETS,
         ]
     }
 

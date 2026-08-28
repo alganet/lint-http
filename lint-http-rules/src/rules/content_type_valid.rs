@@ -7,6 +7,40 @@ use crate::rules::Rule;
 
 pub struct ContentTypeValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+    note: "Content-Type: `Content-Type = media-type`, and the paragraph naming duplicated field lines as an error whose recipient handling differs between implementations",
+};
+const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
+    note: "Media Type: `media-type = type \"/\" subtype parameters`, both halves `token`, both case-insensitive",
+};
+const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
+    note: "Parameters: the `name=value` grammar, and the bracketing that makes a trailing `;` conforming. Its prohibition on whitespace around `=` is NOT enforced here",
+};
+const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
+    note: "Accept: where `*` belongs — `media-range`, which names a set of media types. Cited to explain why a wildcard is reported in Content-Type, which carries a `media-type`",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
+};
+
 impl Rule for ContentTypeValid {
     fn id(&self) -> &'static str {
         "content_type_valid"
@@ -115,36 +149,11 @@ impl Rule for ContentTypeValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Content-Type: `Content-Type = media-type`, and the paragraph naming duplicated field lines as an error whose recipient handling differs between implementations",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-                note: "Media Type: `media-type = type \"/\" subtype parameters`, both halves `token`, both case-insensitive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-                note: "Parameters: the `name=value` grammar, and the bracketing that makes a trailing `;` conforming. Its prohibition on whitespace around `=` is NOT enforced here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
-                note: "Accept: where `*` belongs — `media-range`, which names a set of media types. Cited to explain why a wildcard is reported in Content-Type, which carries a `media-type`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
-            },
+            RFC_9110_8_3,
+            RFC_9110_8_3_1,
+            RFC_9110_5_6_6,
+            RFC_9110_12_5_1,
+            RFC_9110_5_3,
         ]
     }
 

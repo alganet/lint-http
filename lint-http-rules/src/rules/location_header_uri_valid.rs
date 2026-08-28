@@ -8,6 +8,46 @@ use crate::rules::Rule;
 
 pub struct LocationHeaderUriValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
+    note: "Location: the field definition, `Location = URI-reference`, and the Note explaining why the field cannot be a list — the comma list separator is valid data inside a URI-reference",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "Conformance: a sender MUST NOT generate a protocol element that does not match its ABNF. This is what makes a malformed `Location` value a violation, since §10.2.2 itself forbids nothing",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order: a sender MUST NOT generate multiple field lines for a field with no comma-separated-list alternative. `Location` has none, so two lines are reported",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "Field Values: singleton fields, the care a comma needs in a field carrying a URI-reference, and the MUST to exclude leading and trailing whitespace before evaluating a field value",
+};
+const RFC_3986_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2",
+    note: "Characters: the limited set a URI is composed from — `unreserved`, `gen-delims`, `sub-delims` — and the `pct-encoded` triplet every other octet must be written as",
+};
+const RFC_3986_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.1",
+    note: "`URI-reference = URI / relative-ref`. §4.4 is why an empty value is one of them, and so why the empty-value finding here is advisory",
+};
+
 impl Rule for LocationHeaderUriValid {
     fn id(&self) -> &'static str {
         "location_header_uri_valid"
@@ -167,42 +207,12 @@ impl Rule for LocationHeaderUriValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
-                note: "Location: the field definition, `Location = URI-reference`, and the Note explaining why the field cannot be a list — the comma list separator is valid data inside a URI-reference",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "Conformance: a sender MUST NOT generate a protocol element that does not match its ABNF. This is what makes a malformed `Location` value a violation, since §10.2.2 itself forbids nothing",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order: a sender MUST NOT generate multiple field lines for a field with no comma-separated-list alternative. `Location` has none, so two lines are reported",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "Field Values: singleton fields, the care a comma needs in a field carrying a URI-reference, and the MUST to exclude leading and trailing whitespace before evaluating a field value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2",
-                note: "Characters: the limited set a URI is composed from — `unreserved`, `gen-delims`, `sub-delims` — and the `pct-encoded` triplet every other octet must be written as",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.1",
-                note: "`URI-reference = URI / relative-ref`. §4.4 is why an empty value is one of them, and so why the empty-value finding here is advisory",
-            },
+            RFC_9110_10_2_2,
+            RFC_9110_2_2,
+            RFC_9110_5_3,
+            RFC_9110_5_5,
+            RFC_3986_2,
+            RFC_3986_4_1,
         ]
     }
 

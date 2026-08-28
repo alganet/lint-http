@@ -19,6 +19,53 @@ pub struct ExpectHeaderValid;
 /// cite(RFC 9110 § 10.1.1): "The Expect field value is case-insensitive."
 const HUNDRED_CONTINUE: &str = "100-continue";
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1",
+    note: "Expect: the field's grammar, the one expectation this specification defines, and the four client requirements — of which the MUST NOT on a request without content and the SHOULD after a 417 are the two a captured message can measure",
+};
+const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("A"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
+    note: "Collected ABNF for senders: `Expect` with its list construct expanded, which is where the whole value being optional is written out",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "List sender requirements — the MUST NOT behind the empty-element finding",
+};
+const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
+    note:
+        "`parameters`, the production this rule's transcribed grammar used to end one term short of",
+};
+const RFC_9110_15_5_18: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.18"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.18",
+    note: "417 Expectation Failed — what the status the repeat check reads means",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "Requirements Notation — where the sentence that makes an element the ABNF does not generate a violation lives, rather than §2.4 Error Handling",
+};
+const RFC_9110_B_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("B.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.3",
+    note: "Changes from RFC 7231: the list-based grammar for `Expect` was restored, and an expectation's parameters may be empty — two sentences that decide how this rule reads the field",
+};
+
 impl Rule for ExpectHeaderValid {
     fn id(&self) -> &'static str {
         "expect_header_valid"
@@ -188,48 +235,13 @@ impl Rule for ExpectHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1",
-                note: "Expect: the field's grammar, the one expectation this specification defines, and the four client requirements — of which the MUST NOT on a request without content and the SHOULD after a 417 are the two a captured message can measure",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("A"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
-                note: "Collected ABNF for senders: `Expect` with its list construct expanded, which is where the whole value being optional is written out",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "List sender requirements — the MUST NOT behind the empty-element finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-                note: "`parameters`, the production this rule's transcribed grammar used to end one term short of",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.5.18"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.18",
-                note: "417 Expectation Failed — what the status the repeat check reads means",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "Requirements Notation — where the sentence that makes an element the ABNF does not generate a violation lives, rather than §2.4 Error Handling",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("B.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.3",
-                note: "Changes from RFC 7231: the list-based grammar for `Expect` was restored, and an expectation's parameters may be empty — two sentences that decide how this rule reads the field",
-            },
+            RFC_9110_10_1_1,
+            RFC_9110_A,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_6,
+            RFC_9110_15_5_18,
+            RFC_9110_2_2,
+            RFC_9110_B_3,
         ]
     }
 

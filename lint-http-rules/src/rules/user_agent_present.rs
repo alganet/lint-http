@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct UserAgentPresent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
+    note: "`A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.` The exception is a fact about the sender's configuration rather than about the request, so a conforming suppression and a plain omission are the same absence here and both are reported",
+};
+const RFC_9110_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.5",
+    note: "a user agent is any client program that initiates a request — browsers, spiders, command-line tools, appliances, firmware update scripts — so the requirement is not a browser requirement",
+};
+const RFC_9110_17_13: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("17.13"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-17.13",
+    note: "why a client is configured not to send the field: a `User-Agent` might carry enough information to identify a specific device, usually combined with other characteristics, and reducing that fingerprint is a deliberate choice this rule cannot see",
+};
+
 impl Rule for UserAgentPresent {
     fn id(&self) -> &'static str {
         "user_agent_present"
@@ -71,26 +93,7 @@ impl Rule for UserAgentPresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
-                note: "`A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.` The exception is a fact about the sender's configuration rather than about the request, so a conforming suppression and a plain omission are the same absence here and both are reported",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("3.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-3.5",
-                note: "a user agent is any client program that initiates a request — browsers, spiders, command-line tools, appliances, firmware update scripts — so the requirement is not a browser requirement",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("17.13"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-17.13",
-                note: "why a client is configured not to send the field: a `User-Agent` might carry enough information to identify a specific device, usually combined with other characteristics, and reducing that fingerprint is a deliberate choice this rule cannot see",
-            },
-        ]
+        &[RFC_9110_10_1_5, RFC_9110_3_5, RFC_9110_17_13]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

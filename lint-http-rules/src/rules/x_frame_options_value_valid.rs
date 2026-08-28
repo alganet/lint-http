@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct XFrameOptionsValueValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const HTML_SPECULATIVE_LOADING_7_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Speculative Loading",
+    section: Some("7.7"),
+    url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header",
+    note: "Governing definition: conformance ABNF `\"DENY\" / \"SAMEORIGIN\"`, case-insensitive processing, `ALLOW-FROM` not to be implemented",
+};
+const RFC_7034_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7034",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1",
+    note: "Historical definition (including the dropped `ALLOW-FROM` variant); superseded by the HTML Standard",
+};
+
 impl Rule for XFrameOptionsValueValid {
     fn id(&self) -> &'static str {
         "x_frame_options_value_valid"
@@ -97,20 +113,7 @@ impl Rule for XFrameOptionsValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "HTML Speculative Loading",
-                section: Some("7.7"),
-                url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header",
-                note: "Governing definition: conformance ABNF `\"DENY\" / \"SAMEORIGIN\"`, case-insensitive processing, `ALLOW-FROM` not to be implemented",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7034",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1",
-                note: "Historical definition (including the dropped `ALLOW-FROM` variant); superseded by the HTML Standard",
-            },
-        ]
+        &[HTML_SPECULATIVE_LOADING_7_7, RFC_7034_2_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

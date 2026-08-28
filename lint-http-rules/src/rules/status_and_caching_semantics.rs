@@ -10,6 +10,22 @@ use crate::rules::Rule;
 /// Default-cacheable status codes are: 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501.
 pub struct StatusAndCachingSemantics;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
+    note: "Storing Responses in Caches (the freshness signals a cache requires: Expires, max-age, s-maxage, or a heuristically cacheable status)",
+};
+const RFC_9110_15_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1",
+    note: "Overview of Status Codes (which status codes are defined as heuristically cacheable)",
+};
+
 impl Rule for StatusAndCachingSemantics {
     fn id(&self) -> &'static str {
         "status_and_caching_semantics"
@@ -103,20 +119,7 @@ impl Rule for StatusAndCachingSemantics {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3",
-                note: "Storing Responses in Caches (the freshness signals a cache requires: Expires, max-age, s-maxage, or a heuristically cacheable status)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.1",
-                note: "Overview of Status Codes (which status codes are defined as heuristically cacheable)",
-            },
-        ]
+        &[RFC_9111_3, RFC_9110_15_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

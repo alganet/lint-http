@@ -34,6 +34,52 @@ impl Status200Vs204BodyConsistent {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1",
+    note: "200 (OK) — the whole basis of this rule, and both of its sentences matter: a 200 is expected to contain content \"unless the message framing explicitly indicates that the content has zero length\" (the reported state is that exception, not a breach), and the 204 advice is an \"ought to\" conditioned on the request preferring no content, which is not observable. The same paragraph excludes CONNECT",
+};
+const RFC_9110_15_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5",
+    note: "204 (No Content) — the alternative the advice names: success, no content, and terminated by the end of the header section",
+};
+const RFC_9110_6_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1",
+    note: "Content Semantics — which responses have no content (HEAD, 2xx to CONNECT, 1xx, 204, 304) and, for every other response, that its content \"might be of zero length\": a zero-length 200 is contemplated by the specification",
+};
+const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+    note: "HEAD — \"the server MUST NOT send content in the response\", so an empty response to HEAD says nothing about what the server intended",
+};
+const RFC_9110_9_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+    note: "CONNECT — a 2xx switches the connection to tunnel mode immediately after the header section; 204 is not an alternative there",
+};
+const RFC_9110_9_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
+    note: "OPTIONS — \"The response content, if any\", so a successful OPTIONS carrying none is anticipated by the method's definition. It is reported like any other 200: the sentence describing the method is not the sentence this rule enforces",
+};
+const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
+    note: "Message body length — a Transfer-Encoding overrides a Content-Length, so the declared length is read only in its absence; the captured content length is still consulted",
+};
+
 impl Rule for Status200Vs204BodyConsistent {
     fn id(&self) -> &'static str {
         "status_200_vs_204_body_consistent"
@@ -147,48 +193,13 @@ impl Rule for Status200Vs204BodyConsistent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.1",
-                note: "200 (OK) — the whole basis of this rule, and both of its sentences matter: a 200 is expected to contain content \"unless the message framing explicitly indicates that the content has zero length\" (the reported state is that exception, not a breach), and the 204 advice is an \"ought to\" conditioned on the request preferring no content, which is not observable. The same paragraph excludes CONNECT",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.5",
-                note: "204 (No Content) — the alternative the advice names: success, no content, and terminated by the end of the header section",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1",
-                note: "Content Semantics — which responses have no content (HEAD, 2xx to CONNECT, 1xx, 204, 304) and, for every other response, that its content \"might be of zero length\": a zero-length 200 is contemplated by the specification",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-                note: "HEAD — \"the server MUST NOT send content in the response\", so an empty response to HEAD says nothing about what the server intended",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
-                note: "CONNECT — a 2xx switches the connection to tunnel mode immediately after the header section; 204 is not an alternative there",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
-                note: "OPTIONS — \"The response content, if any\", so a successful OPTIONS carrying none is anticipated by the method's definition. It is reported like any other 200: the sentence describing the method is not the sentence this rule enforces",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-                note: "Message body length — a Transfer-Encoding overrides a Content-Length, so the declared length is read only in its absence; the captured content length is still consulted",
-            },
+            RFC_9110_15_3_1,
+            RFC_9110_15_3_5,
+            RFC_9110_6_4_1,
+            RFC_9110_9_3_2,
+            RFC_9110_9_3_6,
+            RFC_9110_9_3_7,
+            RFC_9112_6_3,
         ]
     }
 

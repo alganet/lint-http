@@ -27,6 +27,29 @@ use crate::rules::Rule;
 /// available for correlation, depending on query configuration.
 pub struct Oauth2CodeFlow;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6749_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6749",
+    section: Some("4.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.1",
+    note:
+        "Authorization Request — response_type MUST be \"code\"; the state parameter is RECOMMENDED",
+};
+const RFC_6749_4_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6749",
+    section: Some("4.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.2",
+    note: "Authorization Response — the callback carries the code, and echoes the exact state if the request had one",
+};
+const RFC_6749_10_12: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6749",
+    section: Some("10.12"),
+    url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-10.12",
+    note: "Cross-Site Request Forgery — the client MUST implement CSRF protection for its redirection URI and SHOULD use the state parameter for it (the rule's real basis)",
+};
+
 impl Rule for Oauth2CodeFlow {
     fn id(&self) -> &'static str {
         "oauth2_code_flow"
@@ -142,26 +165,7 @@ impl Rule for Oauth2CodeFlow {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6749",
-                section: Some("4.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.1",
-                note: "Authorization Request — response_type MUST be \"code\"; the state parameter is RECOMMENDED",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6749",
-                section: Some("4.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-4.1.2",
-                note: "Authorization Response — the callback carries the code, and echoes the exact state if the request had one",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6749",
-                section: Some("10.12"),
-                url: "https://www.rfc-editor.org/rfc/rfc6749.html#section-10.12",
-                note: "Cross-Site Request Forgery — the client MUST implement CSRF protection for its redirection URI and SHOULD use the state parameter for it (the rule's real basis)",
-            },
-        ]
+        &[RFC_6749_4_1_1, RFC_6749_4_1_2, RFC_6749_10_12]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

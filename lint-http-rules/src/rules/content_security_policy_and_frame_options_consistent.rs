@@ -7,6 +7,29 @@ use crate::rules::Rule;
 
 pub struct ContentSecurityPolicyAndFrameOptionsConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const CSP3_6_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "CSP3",
+    section: Some("6.4.2"),
+    url: "https://www.w3.org/TR/CSP3/#directive-frame-ancestors",
+    note: "`frame-ancestors` directive. Note: when present and enforceable, `frame-ancestors` overrides `X-Frame-Options` (see §6.4.2.2)",
+};
+const HTML_SPECULATIVE_LOADING: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Speculative Loading",
+    section: None,
+    url:
+        "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header",
+    note: "HTML Living Standard — `X-Frame-Options` header and its relation to `frame-ancestors`",
+};
+const MDN_X_FRAME_OPTIONS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN X-Frame-Options",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options",
+    note: "`X-Frame-Options` — legacy header with values `DENY`, `SAMEORIGIN`, and the obsolete `ALLOW-FROM`. Note: `ALLOW-FROM` is deprecated and not supported by most modern browsers — prefer using CSP's `frame-ancestors` for origin-specific framing policies",
+};
+
 impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
     fn id(&self) -> &'static str {
         "content_security_policy_and_frame_options_consistent"
@@ -205,26 +228,7 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "CSP3",
-                section: Some("6.4.2"),
-                url: "https://www.w3.org/TR/CSP3/#directive-frame-ancestors",
-                note: "`frame-ancestors` directive. Note: when present and enforceable, `frame-ancestors` overrides `X-Frame-Options` (see §6.4.2.2)",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML Speculative Loading",
-                section: None,
-                url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header",
-                note: "HTML Living Standard — `X-Frame-Options` header and its relation to `frame-ancestors`",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN X-Frame-Options",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options",
-                note: "`X-Frame-Options` — legacy header with values `DENY`, `SAMEORIGIN`, and the obsolete `ALLOW-FROM`. Note: `ALLOW-FROM` is deprecated and not supported by most modern browsers — prefer using CSP's `frame-ancestors` for origin-specific framing policies",
-            },
-        ]
+        &[CSP3_6_4_2, HTML_SPECULATIVE_LOADING, MDN_X_FRAME_OPTIONS]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

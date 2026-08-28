@@ -76,6 +76,76 @@ fn is_well_known_segment(segment: &str) -> bool {
             && crate::helpers::uri::decode_unreserved(segment) == WELL_KNOWN_SEGMENT)
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_8615_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8615",
+    section: Some("1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-1",
+    note: "Introduction — the prefix this memo reserves, trailing slash included; that other schemes carry well-known URIs only where their definitions allow it; and the origin's control over its own URI space",
+};
+const RFC_8615_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8615",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-2",
+    note: "Notational Conventions — the BCP 14 keywords apply when, and only when, they appear in all capitals, which is why §3's lowercase \"should not expect a resource\" is declined",
+};
+const RFC_8615_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8615",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-3",
+    note: "Well-Known URIs — the definition and its scheme proviso, the `segment-nz` MUST on a registered name, the MAY for additional path components, and the sentence saying a `.well-known` elsewhere in the path is not one",
+};
+const RFC_8615_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8615",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-3.1",
+    note: "Registering Well-Known URIs — the registry, and that a widely deployed name may be registered by a third party, which is why an unregistered name is not a finding",
+};
+const RFC_8615_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8615",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-5.1",
+    note: "The Well-Known URI Registry — Specification Required, on the advice of experts",
+};
+const RFC_8615_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8615",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-5.2",
+    note: "The URI Schemes Registry — the \"Well-Known URI Support\" column that tracks which schemes carry well-known URIs",
+};
+const RFC_3986_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.3",
+    note: "Path — `segment-nz = 1*pchar`, what a `pchar` is, and where the path component ends",
+};
+const RFC_3986_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.3",
+    note: "Unreserved Characters — the production, and the equivalence that makes `%2Ewell-known` and `.well-known` the same segment",
+};
+const RFC_3986_6_2_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1",
+    note: "Case Normalization — the components other than scheme and host are case-sensitive, so the prefix is matched as written",
+};
+const RFC_3986_6_2_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("6.2.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3",
+    note: "Path Segment Normalization — dot segments are removed before the path's hierarchy is read, and *after* the `unreserved` octets are decoded, so an encoded `%2E%2E` is the dot segment it stands for",
+};
+const RFC_9112_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
+    note: "Request Target — the four forms, two of which carry no path component",
+};
+
 impl Rule for WellKnownUriSyntax {
     fn id(&self) -> &'static str {
         "well_known_uri_syntax"
@@ -287,72 +357,17 @@ impl Rule for WellKnownUriSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 8615",
-                section: Some("1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-1",
-                note: "Introduction — the prefix this memo reserves, trailing slash included; that other schemes carry well-known URIs only where their definitions allow it; and the origin's control over its own URI space",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8615",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-2",
-                note: "Notational Conventions — the BCP 14 keywords apply when, and only when, they appear in all capitals, which is why §3's lowercase \"should not expect a resource\" is declined",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8615",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-3",
-                note: "Well-Known URIs — the definition and its scheme proviso, the `segment-nz` MUST on a registered name, the MAY for additional path components, and the sentence saying a `.well-known` elsewhere in the path is not one",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8615",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-3.1",
-                note: "Registering Well-Known URIs — the registry, and that a widely deployed name may be registered by a third party, which is why an unregistered name is not a finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8615",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-5.1",
-                note: "The Well-Known URI Registry — Specification Required, on the advice of experts",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8615",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8615.html#section-5.2",
-                note: "The URI Schemes Registry — the \"Well-Known URI Support\" column that tracks which schemes carry well-known URIs",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.3",
-                note: "Path — `segment-nz = 1*pchar`, what a `pchar` is, and where the path component ends",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.3",
-                note: "Unreserved Characters — the production, and the equivalence that makes `%2Ewell-known` and `.well-known` the same segment",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.1",
-                note: "Case Normalization — the components other than scheme and host are case-sensitive, so the prefix is matched as written",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("6.2.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-6.2.2.3",
-                note: "Path Segment Normalization — dot segments are removed before the path's hierarchy is read, and *after* the `unreserved` octets are decoded, so an encoded `%2E%2E` is the dot segment it stands for",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
-                note: "Request Target — the four forms, two of which carry no path component",
-            },
+            RFC_8615_1,
+            RFC_8615_2,
+            RFC_8615_3,
+            RFC_8615_3_1,
+            RFC_8615_5_1,
+            RFC_8615_5_2,
+            RFC_3986_3_3,
+            RFC_3986_2_3,
+            RFC_3986_6_2_2_1,
+            RFC_3986_6_2_2_3,
+            RFC_9112_3_2,
         ]
     }
 

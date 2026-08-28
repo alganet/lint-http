@@ -92,6 +92,46 @@ impl PriorityHeaderSyntax {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9218_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9218",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4",
+    note: "Priority Parameters — the Dictionary encoding, and the MUST to ignore an unknown parameter, an out-of-range value or a value of unexpected type rather than treat it as an error",
+};
+const RFC_9218_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9218",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.1",
+    note: "Urgency — an Integer between 0 and 7 inclusive, defaulting to 3",
+};
+const RFC_9218_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9218",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.2",
+    note: "Incremental — a Boolean, defaulting to false",
+};
+const RFC_9218_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9218",
+    section: Some("8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-8",
+    note: "Why an ignored parameter costs different things in a request and in a response: only in a request does omission imply the default",
+};
+const RFC_9218_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9218",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.3.1",
+    note: "The \"HTTP Priority\" registry — open, and holding only u and i, which is why an unrecognised key is not a finding",
+};
+const RFC_9651_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9651",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
+    note: "Structured Fields parsing — the MUST to join field lines, and the discard rule that makes one malformed parameter cost the whole field",
+};
+
 impl Rule for PriorityHeaderSyntax {
     fn id(&self) -> &'static str {
         "priority_header_syntax"
@@ -133,42 +173,12 @@ impl Rule for PriorityHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9218",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4",
-                note: "Priority Parameters — the Dictionary encoding, and the MUST to ignore an unknown parameter, an out-of-range value or a value of unexpected type rather than treat it as an error",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9218",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.1",
-                note: "Urgency — an Integer between 0 and 7 inclusive, defaulting to 3",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9218",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.2",
-                note: "Incremental — a Boolean, defaulting to false",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9218",
-                section: Some("8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-8",
-                note: "Why an ignored parameter costs different things in a request and in a response: only in a request does omission imply the default",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9218",
-                section: Some("4.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9218.html#section-4.3.1",
-                note: "The \"HTTP Priority\" registry — open, and holding only u and i, which is why an unrecognised key is not a finding",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9651",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-4.2",
-                note: "Structured Fields parsing — the MUST to join field lines, and the discard rule that makes one malformed parameter cost the whole field",
-            },
+            RFC_9218_4,
+            RFC_9218_4_1,
+            RFC_9218_4_2,
+            RFC_9218_8,
+            RFC_9218_4_3_1,
+            RFC_9651_4_2,
         ]
     }
 

@@ -11,6 +11,16 @@ use crate::rules::Rule;
 /// structured-field token carries no case folding; token syntax is validated.
 pub struct SecFetchSiteValueValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const FETCH_METADATA_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+spec: "Fetch Metadata",
+section: Some("2.3"),
+url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-site-header",
+note: "Fetch Metadata (W3C) — `Sec-Fetch-Site`: an sf-token whose valid values are the four initiator/target relationships",
+        };
+
 impl Rule for SecFetchSiteValueValid {
     fn id(&self) -> &'static str {
         "sec_fetch_site_value_valid"
@@ -101,12 +111,7 @@ impl Rule for SecFetchSiteValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "Fetch Metadata",
-            section: Some("2.3"),
-            url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-site-header",
-            note: "Fetch Metadata (W3C) — `Sec-Fetch-Site`: an sf-token whose valid values are the four initiator/target relationships",
-        }]
+        &[FETCH_METADATA_2_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

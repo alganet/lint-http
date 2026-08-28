@@ -17,6 +17,16 @@ use crate::rules::Rule;
 /// a shared cache has handed off a private response to another client.
 pub struct PrivateCacheVisibility;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_2_2_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7",
+    note: "`private` — a shared cache MUST NOT store an unqualified-private response",
+};
+
 impl Rule for PrivateCacheVisibility {
     fn id(&self) -> &'static str {
         "private_cache_visibility"
@@ -152,12 +162,7 @@ impl Rule for PrivateCacheVisibility {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9111",
-            section: Some("5.2.2.7"),
-            url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.7",
-            note: "`private` — a shared cache MUST NOT store an unqualified-private response",
-        }]
+        &[RFC_9111_5_2_2_7]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

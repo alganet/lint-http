@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct AcceptEncodingPresent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_12_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
+    note: "Accept-Encoding — the grammar, and the two sentences this rule had backwards: absence means every coding is acceptable, while an empty value means none is wanted",
+};
+const RFC_9110_9_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+    note: "CONNECT — a tunnel rather than a representation, so nothing comes back for a content coding to apply to",
+};
+const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
+    note: "Why a field value of `,` lists no codings and reads as empty",
+};
+
 impl Rule for AcceptEncodingPresent {
     fn id(&self) -> &'static str {
         "accept_encoding_present"
@@ -107,26 +129,7 @@ impl Rule for AcceptEncodingPresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
-                note: "Accept-Encoding — the grammar, and the two sentences this rule had backwards: absence means every coding is acceptable, while an empty value means none is wanted",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
-                note: "CONNECT — a tunnel rather than a representation, so nothing comes back for a content coding to apply to",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
-                note: "Why a field value of `,` lists no codings and reads as empty",
-            },
-        ]
+        &[RFC_9110_12_5_3, RFC_9110_9_3_6, RFC_9110_5_6_1_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

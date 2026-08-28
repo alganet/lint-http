@@ -46,6 +46,40 @@ use crate::rules::Rule;
 /// combined however the request is phrased (§15.3.7.3).
 pub struct RangeRequestAndCaching;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1",
+    note: "The requirement, and it is a MUST: send the stored response's entity tags, using `If-Match`, `If-None-Match` **or** `If-Range`. The `Last-Modified` bullets are a SHOULD that excludes subranges and a MAY that covers them",
+};
+const RFC_9110_13_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
+    note: "`If-Range` precondition to `Range` requests, its exact-match comparison, and the MUST NOT against putting a date there while holding an entity tag. RFC 7233 §3.2 defined the field; RFC 9110 obsoleted RFC 7233, and this reference had not moved",
+};
+const RFC_9110_15_3_7_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.7.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.3",
+    note: "Partial responses combine only when they share the same strong validator — the client-side premise, and the reason a weak tag is skipped",
+};
+const RFC_9111_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("3.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3.4",
+    note: "Combining partial content requires a shared strong validator",
+};
+const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
+    note: "GET is the only method for which range handling is defined, which is what bounds this rule to GET",
+};
+
 impl Rule for RangeRequestAndCaching {
     fn id(&self) -> &'static str {
         "range_request_and_caching"
@@ -216,36 +250,11 @@ impl Rule for RangeRequestAndCaching {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3.1",
-                note: "The requirement, and it is a MUST: send the stored response's entity tags, using `If-Match`, `If-None-Match` **or** `If-Range`. The `Last-Modified` bullets are a SHOULD that excludes subranges and a MAY that covers them",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
-                note: "`If-Range` precondition to `Range` requests, its exact-match comparison, and the MUST NOT against putting a date there while holding an entity tag. RFC 7233 §3.2 defined the field; RFC 9110 obsoleted RFC 7233, and this reference had not moved",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.7.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.3",
-                note: "Partial responses combine only when they share the same strong validator — the client-side premise, and the reason a weak tag is skipped",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("3.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-3.4",
-                note: "Combining partial content requires a shared strong validator",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
-                note: "GET is the only method for which range handling is defined, which is what bounds this rule to GET",
-            },
+            RFC_9111_4_3_1,
+            RFC_9110_13_1_5,
+            RFC_9110_15_3_7_3,
+            RFC_9111_3_4,
+            RFC_9110_14_2,
         ]
     }
 

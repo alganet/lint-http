@@ -9,6 +9,35 @@ use crate::rules::Rule;
 
 pub struct ContentDispositionParameterValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6266_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6266",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4",
+    note:
+        "Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes)",
+};
+const RFC_8187_3_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8187",
+    section: Some("3.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc8187.html#section-3.2.1",
+    note: "`ext-value` syntax used for `filename*` (obsoletes RFC 5987, which this reference named; the production is unchanged)",
+};
+const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
+    note: "`token`, which an unquoted parameter value must match (this reference named RFC 2616, long obsolete — the production is alive and well here)",
+};
+const RFC_9110_5_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
+    note: "`quoted-string`, the other permitted parameter-value form",
+};
+
 impl Rule for ContentDispositionParameterValid {
     fn id(&self) -> &'static str {
         "content_disposition_parameter_valid"
@@ -248,32 +277,7 @@ impl Rule for ContentDispositionParameterValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6266",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4",
-                note: "Use of `Content-Disposition` in HTTP (parameters, `filename`, `filename*`, `size` notes)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8187",
-                section: Some("3.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc8187.html#section-3.2.1",
-                note: "`ext-value` syntax used for `filename*` (obsoletes RFC 5987, which this reference named; the production is unchanged)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-                note: "`token`, which an unquoted parameter value must match (this reference named RFC 2616, long obsolete — the production is alive and well here)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
-                note: "`quoted-string`, the other permitted parameter-value form",
-            },
-        ]
+        &[RFC_6266_4, RFC_8187_3_2_1, RFC_9110_5_6_2, RFC_9110_5_6_4]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -14,6 +14,46 @@ use crate::rules::Rule;
 ///   matches the validator SHOULD be `304 Not Modified` rather than a `200`.
 pub struct ConditionalRequestHandling;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_13_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
+    note: "Preconditions",
+};
+const RFC_9110_13_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
+    note: "If-None-Match: GET/HEAD with a false condition MUST get 304",
+};
+const RFC_9110_13_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.1.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
+    note: "If-Modified-Since: a false condition SHOULD get 304",
+};
+const RFC_9110_13_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("13.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2",
+    note: "Evaluation of Preconditions (precedence rules)",
+};
+const RFC_9110_8_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
+    note: "ETag header field",
+};
+const RFC_9110_8_8_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
+    note: "Last-Modified header field",
+};
+
 impl Rule for ConditionalRequestHandling {
     fn id(&self) -> &'static str {
         "conditional_request_handling"
@@ -157,42 +197,12 @@ impl Rule for ConditionalRequestHandling {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1",
-                note: "Preconditions",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.2",
-                note: "If-None-Match: GET/HEAD with a false condition MUST get 304",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.1.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.3",
-                note: "If-Modified-Since: a false condition SHOULD get 304",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("13.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2",
-                note: "Evaluation of Preconditions (precedence rules)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
-                note: "ETag header field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.2",
-                note: "Last-Modified header field",
-            },
+            RFC_9110_13_1,
+            RFC_9110_13_1_2,
+            RFC_9110_13_1_3,
+            RFC_9110_13_2,
+            RFC_9110_8_8_3,
+            RFC_9110_8_8_2,
         ]
     }
 

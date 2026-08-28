@@ -7,6 +7,16 @@ use crate::rules::Rule;
 
 pub struct LastModifiedRfc1123Syntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_5_6_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
+    note: "Date/Time Formats",
+};
+
 impl Rule for LastModifiedRfc1123Syntax {
     fn id(&self) -> &'static str {
         "last_modified_rfc1123_syntax"
@@ -75,12 +85,7 @@ impl Rule for LastModifiedRfc1123Syntax {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("5.6.7"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
-            note: "Date/Time Formats",
-        }]
+        &[RFC_9110_5_6_7]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

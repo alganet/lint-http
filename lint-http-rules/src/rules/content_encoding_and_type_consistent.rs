@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct ContentEncodingAndTypeConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
+    note: "`Content-Encoding = #content-coding` — the list the member checks walk. Note it does not forbid repeating a coding, so the duplicate check is this rule's judgement",
+};
+const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
+    note: "Why a 304 should not carry Content-Encoding: a sender SHOULD NOT include representation metadata beyond the listed fields. (This reference previously pointed at §8.3, which is Content-Type, not message-body rules.) The 1xx and 204 cases have no such sentence and are inferred",
+};
+
 impl Rule for ContentEncodingAndTypeConsistent {
     fn id(&self) -> &'static str {
         "content_encoding_and_type_consistent"
@@ -144,20 +160,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
-                note: "`Content-Encoding = #content-coding` — the list the member checks walk. Note it does not forbid repeating a coding, so the duplicate check is this rule's judgement",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5",
-                note: "Why a 304 should not carry Content-Encoding: a sender SHOULD NOT include representation metadata beyond the listed fields. (This reference previously pointed at §8.3, which is Content-Type, not message-body rules.) The 1xx and 204 cases have no such sentence and are inferred",
-            },
-        ]
+        &[RFC_9110_8_4, RFC_9110_15_4_5]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

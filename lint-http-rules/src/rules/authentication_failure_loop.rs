@@ -9,6 +9,16 @@ use crate::rules::Rule;
 /// which indicates an authentication failure loop.
 pub struct AuthenticationFailureLoop;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+spec: "RFC 9110",
+section: Some("15.5.2"),
+url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
+note: "401 Unauthorized — the status code this rule counts, and the SHOULD for a repeated challenge",
+        };
+
 impl Rule for AuthenticationFailureLoop {
     fn id(&self) -> &'static str {
         "authentication_failure_loop"
@@ -74,12 +84,7 @@ impl Rule for AuthenticationFailureLoop {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "RFC 9110",
-            section: Some("15.5.2"),
-            url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
-            note: "401 Unauthorized — the status code this rule counts, and the SHOULD for a repeated challenge",
-        }]
+        &[RFC_9110_15_5_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

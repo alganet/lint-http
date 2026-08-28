@@ -14,6 +14,28 @@ use crate::rules::Rule;
 /// `no-cache` with `max-age=0` is a legal, common combination and is intentionally NOT flagged.
 pub struct CachingDirectiveInteraction;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2",
+    note: "Response directives: public (§5.2.2.9), private (§5.2.2.7), no-store (§5.2.2.5), max-age/s-maxage",
+};
+const RFC_9111_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1",
+    note: "Conflicting directives are resolved by the most restrictive; multiple values for a directive → first or stale",
+};
+const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
+    note: "List (`#rule`) syntax: a sender MUST NOT generate empty list elements",
+};
+
 impl Rule for CachingDirectiveInteraction {
     fn id(&self) -> &'static str {
         "caching_directive_interaction"
@@ -169,26 +191,7 @@ impl Rule for CachingDirectiveInteraction {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2",
-                note: "Response directives: public (§5.2.2.9), private (§5.2.2.7), no-store (§5.2.2.5), max-age/s-maxage",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.1",
-                note: "Conflicting directives are resolved by the most restrictive; multiple values for a directive → first or stale",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
-                note: "List (`#rule`) syntax: a sender MUST NOT generate empty list elements",
-            },
-        ]
+        &[RFC_9111_5_2_2, RFC_9111_4_2_1, RFC_9110_5_6_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

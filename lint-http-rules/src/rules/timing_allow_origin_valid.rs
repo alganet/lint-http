@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct TimingAllowOriginValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RESOURCE_TIMING_3_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Resource Timing",
+    section: Some("3.5.2"),
+    url: "https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin",
+    note: "`Timing-Allow-Origin` response header and its ABNF",
+};
+const FETCH_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("3.2"),
+    url: "https://fetch.spec.whatwg.org/#origin-header",
+    note: "`origin-or-null` and `serialized-origin`, the productions the grammar's members resolve to (`null` is case-sensitive)",
+};
+const RFC_6454_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6454",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
+    note: "Historical serialized-origin shape (`scheme \"://\" host [ \":\" port ]`) the conservative validator implements; Fetch supplants the serialization",
+};
+
 impl Rule for TimingAllowOriginValid {
     fn id(&self) -> &'static str {
         "timing_allow_origin_valid"
@@ -120,26 +142,7 @@ impl Rule for TimingAllowOriginValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "Resource Timing",
-                section: Some("3.5.2"),
-                url: "https://www.w3.org/TR/resource-timing/#sec-timing-allow-origin",
-                note: "`Timing-Allow-Origin` response header and its ABNF",
-            },
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: Some("3.2"),
-                url: "https://fetch.spec.whatwg.org/#origin-header",
-                note: "`origin-or-null` and `serialized-origin`, the productions the grammar's members resolve to (`null` is case-sensitive)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6454",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1",
-                note: "Historical serialized-origin shape (`scheme \"://\" host [ \":\" port ]`) the conservative validator implements; Fetch supplants the serialization",
-            },
-        ]
+        &[RESOURCE_TIMING_3_5_2, FETCH_3_2, RFC_6454_7_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

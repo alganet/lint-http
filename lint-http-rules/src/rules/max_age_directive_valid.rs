@@ -30,6 +30,22 @@ use crate::rules::Rule;
 /// lifetime of a cached response.
 pub struct MaxAgeDirectiveValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
+    note: "Freshness — fresh/stale definitions, and reuse without contacting the origin as an efficiency opportunity (age itself is calculated per §4.2.3)",
+};
+const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
+    note: "Validation — a cache that cannot serve a stored response can use a conditional request to revalidate it",
+};
+
 impl Rule for MaxAgeDirectiveValid {
     fn id(&self) -> &'static str {
         "max_age_directive_valid"
@@ -153,20 +169,7 @@ impl Rule for MaxAgeDirectiveValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
-                note: "Freshness — fresh/stale definitions, and reuse without contacting the origin as an efficiency opportunity (age itself is calculated per §4.2.3)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-                note: "Validation — a cache that cannot serve a stored response can use a conditional request to revalidate it",
-            },
-        ]
+        &[RFC_9111_4_2, RFC_9111_4_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -41,6 +41,76 @@ fn redacted_userinfo(value: &str) -> Option<String> {
     Some(value.replacen(authority, &redacted, 1))
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.3",
+    note: "Referer — the field's grammar, the fragment and userinfo MUST NOT, the unsecured-request MUST NOT, and the two declined conditionals",
+};
+const RFC_9110_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
+    note: "URI References — `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF is what says which forms it allows",
+};
+const RFC_9110_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
+    note: "http URI Scheme — a TCP connection and no more, and the MUST NOT against an empty host identifier",
+};
+const RFC_9110_4_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
+    note: "https URI Scheme — what \"secured\" means for a resource named by one, and the MUST NOT against an empty host identifier",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "Field Order — the MUST NOT against a second field line for a field with no list alternative",
+};
+const RFC_9110_17_9: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("17.9"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-17.9",
+    note: "Disclosure of Sensitive Information in URIs — why §10.1.3 limits the field",
+};
+const RFC_3986_3_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.1",
+    note: "User Information — the production, its `@` delimiter, the deprecated `user:password` form, and the request not to render what follows the first colon",
+};
+const RFC_3986_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.2",
+    note: "Relative Reference — `relative-part`, and why a first path segment holding a colon is not one",
+};
+const RFC_3986_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.3",
+    note: "Absolute URI — the form without a fragment identifier",
+};
+const RFC_3986_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("4.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.4",
+    note: "Same-Document Reference — what an empty value is",
+};
+const RFC_3986_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
+    note: "Percent-Encoding — the triplet the `%` obliges",
+};
+
 impl Rule for RefererUriValid {
     fn id(&self) -> &'static str {
         "referer_uri_valid"
@@ -351,72 +421,17 @@ impl Rule for RefererUriValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.3",
-                note: "Referer — the field's grammar, the fragment and userinfo MUST NOT, the unsecured-request MUST NOT, and the two declined conditionals",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
-                note: "URI References — `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF is what says which forms it allows",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("4.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
-                note: "http URI Scheme — a TCP connection and no more, and the MUST NOT against an empty host identifier",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("4.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
-                note: "https URI Scheme — what \"secured\" means for a resource named by one, and the MUST NOT against an empty host identifier",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "Field Order — the MUST NOT against a second field line for a field with no list alternative",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("17.9"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-17.9",
-                note: "Disclosure of Sensitive Information in URIs — why §10.1.3 limits the field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.1",
-                note: "User Information — the production, its `@` delimiter, the deprecated `user:password` form, and the request not to render what follows the first colon",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.2",
-                note: "Relative Reference — `relative-part`, and why a first path segment holding a colon is not one",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.3",
-                note: "Absolute URI — the form without a fragment identifier",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("4.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.4",
-                note: "Same-Document Reference — what an empty value is",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
-                note: "Percent-Encoding — the triplet the `%` obliges",
-            },
+            RFC_9110_10_1_3,
+            RFC_9110_4_1,
+            RFC_9110_4_2_1,
+            RFC_9110_4_2_2,
+            RFC_9110_5_3,
+            RFC_9110_17_9,
+            RFC_3986_3_2_1,
+            RFC_3986_4_2,
+            RFC_3986_4_3,
+            RFC_3986_4_4,
+            RFC_3986_2_1,
         ]
     }
 

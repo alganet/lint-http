@@ -84,6 +84,64 @@ fn location_asked_for(status: u16) -> Option<&'static str> {
     None
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
+    note: "Defines `Location = URI-reference` and what the value refers to on a 201 and on a 3xx; it asks no one to send the field",
+};
+const RFC_9110_15_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
+    note: "What a provided Location buys: a user agent MAY redirect to it automatically, even where it does not understand the status code",
+};
+const RFC_9110_15_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.1",
+    note: "300 Multiple Choices: the SHOULD applies only if the server has a preferred choice, so this rule does not report a 300",
+};
+const RFC_9110_15_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2",
+    note: "301 Moved Permanently: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
+};
+const RFC_9110_15_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3",
+    note: "302 Found: the server SHOULD generate a Location header field containing a URI reference for the different URI",
+};
+const RFC_9110_15_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4",
+    note: "303 See Other: the status is defined as a redirection to the resource indicated by a URI in the Location header field",
+};
+const RFC_9110_15_4_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8",
+    note: "307 Temporary Redirect: the server SHOULD generate a Location header field containing a URI reference for the different URI",
+};
+const RFC_9110_15_4_9: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.9"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.9",
+    note: "308 Permanent Redirect: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
+};
+const RFC_9110_15_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
+    note: "201 Created: with no Location field, the resource created is identified by the target URI — which is why this rule does not report a 201",
+};
+
 impl Rule for LocationOnRedirectPresent {
     fn id(&self) -> &'static str {
         "location_on_redirect_present"
@@ -150,60 +208,15 @@ impl Rule for LocationOnRedirectPresent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.2",
-                note: "Defines `Location = URI-reference` and what the value refers to on a 201 and on a 3xx; it asks no one to send the field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
-                note: "What a provided Location buys: a user agent MAY redirect to it automatically, even where it does not understand the status code",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.1",
-                note: "300 Multiple Choices: the SHOULD applies only if the server has a preferred choice, so this rule does not report a 300",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2",
-                note: "301 Moved Permanently: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3",
-                note: "302 Found: the server SHOULD generate a Location header field containing a URI reference for the different URI",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4",
-                note: "303 See Other: the status is defined as a redirection to the resource indicated by a URI in the Location header field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8",
-                note: "307 Temporary Redirect: the server SHOULD generate a Location header field containing a URI reference for the different URI",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.9"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.9",
-                note: "308 Permanent Redirect: the server SHOULD generate a Location header field containing a preferred URI reference for the new permanent URI",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.2",
-                note: "201 Created: with no Location field, the resource created is identified by the target URI — which is why this rule does not report a 201",
-            },
+            RFC_9110_10_2_2,
+            RFC_9110_15_4,
+            RFC_9110_15_4_1,
+            RFC_9110_15_4_2,
+            RFC_9110_15_4_3,
+            RFC_9110_15_4_4,
+            RFC_9110_15_4_8,
+            RFC_9110_15_4_9,
+            RFC_9110_15_3_2,
         ]
     }
 

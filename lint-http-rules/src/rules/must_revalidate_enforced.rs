@@ -33,6 +33,34 @@ use crate::rules::Rule;
 /// to revalidate.
 pub struct MustRevalidateEnforced;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9111_5_2_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2",
+    note: "`must-revalidate`",
+};
+const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
+    note: "Freshness (a response is stale once its age reaches its freshness lifetime)",
+};
+const RFC_9111_4_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.3",
+    note: "Calculating Age (the response age this rule estimates)",
+};
+const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
+    note: "Validation (revalidating a stale entry before reuse)",
+};
+
 impl Rule for MustRevalidateEnforced {
     fn id(&self) -> &'static str {
         "must_revalidate_enforced"
@@ -135,32 +163,7 @@ impl Rule for MustRevalidateEnforced {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.2.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2.2",
-                note: "`must-revalidate`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2",
-                note: "Freshness (a response is stale once its age reaches its freshness lifetime)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.2.3",
-                note: "Calculating Age (the response age this rule estimates)",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.3",
-                note: "Validation (revalidating a stale entry before reuse)",
-            },
-        ]
+        &[RFC_9111_5_2_2_2, RFC_9111_4_2, RFC_9111_4_2_3, RFC_9111_4_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

@@ -358,6 +358,52 @@ fn extension_token(member: &str) -> &str {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6455_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1",
+    note: "Client Requirements — the numbered list a client validates the server's response against, and the sentence handing every non-101 back to plain HTTP",
+};
+const RFC_6455_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
+    note: "Reading the Client's Opening Handshake — the description a handshake has to match, and the requirement to refuse one that does not, which is what makes a 101 over a malformed key the server's defect",
+};
+const RFC_6455_4_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2",
+    note: "Sending the Server's Opening Handshake — what a server sends if it accepts, the five things it sends instead if it does not, and how `Sec-WebSocket-Accept`, `/subprotocol/` and `/extensions/` are derived from the request",
+};
+const RFC_6455_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
+    note: "Collected ABNF — `Sec-WebSocket-Protocol-Server = token` against the client's `1#token`, and the `extension` production whose first half is the name",
+};
+const RFC_6455_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6455",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1",
+    note: "Negotiating Extensions — the server's list is the extensions in use, each extension's own document defines what a valid answer to its parameters is, and an `extension-token` is a registered name",
+};
+const RFC_8441_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8441",
+    section: Some("5"),
+    url: "https://www.rfc-editor.org/rfc/rfc8441.html#section-5",
+    note: "Updates RFC 6455: over HTTP/2 the handshake is an extended CONNECT, `Connection` and `Upgrade` MUST NOT be included, and `Sec-WebSocket-Accept` is not processed — the sentences behind this rule's version gate",
+};
+const RFC_9220_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9220",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9220.html#section-3",
+    note: "Carries RFC 8441's mechanism to HTTP/3 with identical semantics",
+};
+
 impl Rule for WebsocketHandshakeValid {
     fn id(&self) -> &'static str {
         "websocket_handshake_valid"
@@ -448,48 +494,13 @@ impl Rule for WebsocketHandshakeValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.1",
-                note: "Client Requirements — the numbered list a client validates the server's response against, and the sentence handing every non-101 back to plain HTTP",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.1",
-                note: "Reading the Client's Opening Handshake — the description a handshake has to match, and the requirement to refuse one that does not, which is what makes a 101 over a malformed key the server's defect",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.2.2",
-                note: "Sending the Server's Opening Handshake — what a server sends if it accepts, the five things it sends instead if it does not, and how `Sec-WebSocket-Accept`, `/subprotocol/` and `/extensions/` are derived from the request",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-4.3",
-                note: "Collected ABNF — `Sec-WebSocket-Protocol-Server = token` against the client's `1#token`, and the `extension` production whose first half is the name",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6455",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6455.html#section-9.1",
-                note: "Negotiating Extensions — the server's list is the extensions in use, each extension's own document defines what a valid answer to its parameters is, and an `extension-token` is a registered name",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 8441",
-                section: Some("5"),
-                url: "https://www.rfc-editor.org/rfc/rfc8441.html#section-5",
-                note: "Updates RFC 6455: over HTTP/2 the handshake is an extended CONNECT, `Connection` and `Upgrade` MUST NOT be included, and `Sec-WebSocket-Accept` is not processed — the sentences behind this rule's version gate",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9220",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9220.html#section-3",
-                note: "Carries RFC 8441's mechanism to HTTP/3 with identical semantics",
-            },
+            RFC_6455_4_1,
+            RFC_6455_4_2_1,
+            RFC_6455_4_2_2,
+            RFC_6455_4_3,
+            RFC_6455_9_1,
+            RFC_8441_5,
+            RFC_9220_3,
         ]
     }
 

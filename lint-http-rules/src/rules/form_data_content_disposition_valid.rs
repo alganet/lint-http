@@ -7,6 +7,22 @@ use crate::rules::Rule;
 
 pub struct FormDataContentDispositionValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7578_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7578",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2",
+    note: "Each multipart/form-data *part* MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain a `name` parameter — a requirement on parts, which this rule approximates at the message level",
+};
+const RFC_6266_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6266",
+    section: Some("4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4.1",
+    note: "The disposition types HTTP messages actually use (`inline`, `attachment`); a message-level `form-data` is outside this grammar, which is why the type gate skips everything else",
+};
+
 impl Rule for FormDataContentDispositionValid {
     fn id(&self) -> &'static str {
         "form_data_content_disposition_valid"
@@ -184,20 +200,7 @@ impl Rule for FormDataContentDispositionValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 7578",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7578.html#section-4.2",
-                note: "Each multipart/form-data *part* MUST contain a `Content-Disposition` header with disposition-type `form-data` and MUST also contain a `name` parameter — a requirement on parts, which this rule approximates at the message level",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6266",
-                section: Some("4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4.1",
-                note: "The disposition types HTTP messages actually use (`inline`, `attachment`); a message-level `form-data` is outside this grammar, which is why the type gate skips everything else",
-            },
-        ]
+        &[RFC_7578_4_2, RFC_6266_4_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

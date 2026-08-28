@@ -8,6 +8,41 @@ use base64::Engine;
 
 pub struct DigestHeaderSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9530_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9530",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
+    note:
+        "`Content-Digest`: a Dictionary keyed by hashing algorithm whose values are Byte Sequences",
+};
+const RFC_9530_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9530",
+    section: Some("3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-3",
+    note: "`Repr-Digest`: the same syntax over representation data rather than message content",
+};
+const RFC_9530_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9530",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-4",
+    note: "`Want-Content-Digest` / `Want-Repr-Digest`: a Dictionary whose values are Integers in the range 0 to 10 inclusive",
+};
+const RFC_3230_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3230",
+    section: Some("4.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3230.html#section-4.1.1",
+    note: "Historical `Digest` / `Want-Digest`, obsoleted by RFC 9530: `digest-algorithm = token`, case-insensitive — which is why uppercase is valid there and not in the structured fields",
+};
+const RFC_7231_APPENDIX_B: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7231",
+    section: Some("Appendix B"),
+    url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
+    note: "Where `Content-MD5` was removed from HTTP — RFC 9530 does not mention the field at all",
+};
+
 impl Rule for DigestHeaderSyntax {
     fn id(&self) -> &'static str {
         "digest_header_syntax"
@@ -512,36 +547,11 @@ impl Rule for DigestHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9530",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-2",
-                note: "`Content-Digest`: a Dictionary keyed by hashing algorithm whose values are Byte Sequences",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9530",
-                section: Some("3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-3",
-                note: "`Repr-Digest`: the same syntax over representation data rather than message content",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9530",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9530.html#section-4",
-                note: "`Want-Content-Digest` / `Want-Repr-Digest`: a Dictionary whose values are Integers in the range 0 to 10 inclusive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3230",
-                section: Some("4.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3230.html#section-4.1.1",
-                note: "Historical `Digest` / `Want-Digest`, obsoleted by RFC 9530: `digest-algorithm = token`, case-insensitive — which is why uppercase is valid there and not in the structured fields",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7231",
-                section: Some("Appendix B"),
-                url: "https://www.rfc-editor.org/rfc/rfc7231.html#appendix-B",
-                note: "Where `Content-MD5` was removed from HTTP — RFC 9530 does not mention the field at all",
-            },
+            RFC_9530_2,
+            RFC_9530_3,
+            RFC_9530_4,
+            RFC_3230_4_1_1,
+            RFC_7231_APPENDIX_B,
         ]
     }
 

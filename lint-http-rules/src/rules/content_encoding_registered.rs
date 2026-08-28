@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct ContentEncodingRegistered;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
+    note: "`Content-Encoding = #content-coding`, and the reservation of `identity` for Accept-Encoding — the reason it is flagged here",
+};
+const RFC_9110_8_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
+    note: "`content-coding = token`, case-insensitive, and the \"ought to be registered\" guidance that motivates the rule without being what it checks",
+};
+const RFC_9110_12_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
+    note: "The wider Accept-Encoding grammar (`codings = content-coding / \"identity\" / \"*\"`), which is why the two headers are checked against different vocabularies",
+};
+const IANA_HTTP_PARAMETERS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA HTTP Parameters",
+    section: None,
+    url: "https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding",
+    note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
+};
+
 impl Rule for ContentEncodingRegistered {
     fn id(&self) -> &'static str {
         "content_encoding_registered"
@@ -139,30 +167,10 @@ impl Rule for ContentEncodingRegistered {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
-                note: "`Content-Encoding = #content-coding`, and the reservation of `identity` for Accept-Encoding — the reason it is flagged here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
-                note: "`content-coding = token`, case-insensitive, and the \"ought to be registered\" guidance that motivates the rule without being what it checks",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
-                note: "The wider Accept-Encoding grammar (`codings = content-coding / \"identity\" / \"*\"`), which is why the two headers are checked against different vocabularies",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA HTTP Parameters",
-                section: None,
-                url: "https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#content-coding",
-                note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
-            },
+            RFC_9110_8_4,
+            RFC_9110_8_4_1,
+            RFC_9110_12_5_3,
+            IANA_HTTP_PARAMETERS,
         ]
     }
 

@@ -14,6 +14,16 @@ use crate::rules::Rule;
 /// carries no case folding; token syntax is validated.
 pub struct SecFetchDestValueValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const FETCH_METADATA_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+spec: "Fetch Metadata",
+section: Some("2.1"),
+url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header",
+note: "Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations",
+        };
+
 impl Rule for SecFetchDestValueValid {
     fn id(&self) -> &'static str {
         "sec_fetch_dest_value_valid"
@@ -113,12 +123,7 @@ impl Rule for SecFetchDestValueValid {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[crate::rules::SpecRef {
-            spec: "Fetch Metadata",
-            section: Some("2.1"),
-            url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header",
-            note: "Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations",
-        }]
+        &[FETCH_METADATA_2_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

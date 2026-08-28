@@ -84,6 +84,34 @@ fn response_is_multipart_byteranges(headers: &hyper::HeaderMap) -> bool {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
+    note: "206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range",
+};
+const RFC_9110_15_3_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.2",
+    note: "206 Partial Content, multiple parts: the parts carry the `Content-Range` fields and the header section MUST NOT carry one; a request for a single range MUST NOT be answered with a multipart response",
+};
+const RFC_9110_14_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.4",
+    note: "Content-Range: syntax of `Content-Range` and the semantics for satisfied and unsatisfiable ranges",
+};
+const RFC_9110_15_5_17: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.17"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17",
+    note: "416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`",
+};
+
 impl Rule for RangeAndContentRangeConsistent {
     fn id(&self) -> &'static str {
         "range_and_content_range_consistent"
@@ -348,30 +376,10 @@ impl Rule for RangeAndContentRangeConsistent {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
-                note: "206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.7.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.2",
-                note: "206 Partial Content, multiple parts: the parts carry the `Content-Range` fields and the header section MUST NOT carry one; a request for a single range MUST NOT be answered with a multipart response",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.4",
-                note: "Content-Range: syntax of `Content-Range` and the semantics for satisfied and unsatisfiable ranges",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.5.17"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17",
-                note: "416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`",
-            },
+            RFC_9110_15_3_7,
+            RFC_9110_15_3_7_2,
+            RFC_9110_14_4,
+            RFC_9110_15_5_17,
         ]
     }
 

@@ -263,6 +263,46 @@ impl ForwardedHeaderValid {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7239_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-4",
+    note: "The field's grammar, the case-insensitivity of parameter names, the MUST NOT on naming a parameter twice in one element, and the sentence restricting the field to requests",
+};
+const RFC_7239_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("6"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-6",
+    note: "`node`, `nodename`, `node-port`: the obfuscated forms MUST begin with an underscore, a numeric port is one to five digits, and an address with a port MUST be quoted. §6.1's SHOULD asks for the RFC 5952 textual form",
+};
+const RFC_7239_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("5"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-5",
+    note: "The four registered parameters. `host` MUST conform to the Host ABNF and `proto` to a URI scheme name; extension parameters SHOULD be registered, in a registry this rule does not hold",
+};
+const RFC_7239_8_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7239",
+    section: Some("8.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-8.2",
+    note: "Why a response must not carry the field: it reveals the whole proxy chain to the client",
+};
+const RFC_9110_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
+    note: "`Host = uri-host [ \":\" port ]`, which §5.3 makes the syntax of a `host` parameter",
+};
+const RFC_3986_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 3986",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1",
+    note: "`scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, which §5.4 makes the syntax of a `proto` parameter",
+};
+
 impl Rule for ForwardedHeaderValid {
     fn id(&self) -> &'static str {
         "forwarded_header_valid"
@@ -344,42 +384,12 @@ impl Rule for ForwardedHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-4",
-                note: "The field's grammar, the case-insensitivity of parameter names, the MUST NOT on naming a parameter twice in one element, and the sentence restricting the field to requests",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("6"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-6",
-                note: "`node`, `nodename`, `node-port`: the obfuscated forms MUST begin with an underscore, a numeric port is one to five digits, and an address with a port MUST be quoted. §6.1's SHOULD asks for the RFC 5952 textual form",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("5"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-5",
-                note: "The four registered parameters. `host` MUST conform to the Host ABNF and `proto` to a URI scheme name; extension parameters SHOULD be registered, in a registry this rule does not hold",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7239",
-                section: Some("8.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-8.2",
-                note: "Why a response must not carry the field: it reveals the whole proxy chain to the client",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
-                note: "`Host = uri-host [ \":\" port ]`, which §5.3 makes the syntax of a `host` parameter",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 3986",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1",
-                note: "`scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, which §5.4 makes the syntax of a `proto` parameter",
-            },
+            RFC_7239_4,
+            RFC_7239_6,
+            RFC_7239_5,
+            RFC_7239_8_2,
+            RFC_9110_7_2,
+            RFC_3986_3_1,
         ]
     }
 

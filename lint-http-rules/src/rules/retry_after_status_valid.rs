@@ -41,6 +41,34 @@ fn status_defines_retry_after(status: u16) -> bool {
     status == 429
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3",
+    note: "Defines Retry-After generally, with no condition on the status code, then says what it indicates on a 503 and on any 3xx",
+};
+const RFC_9110_15_5_14: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.5.14"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.14",
+    note: "413 Content Too Large: when the condition is temporary the server SHOULD generate a Retry-After header field",
+};
+const RFC_9110_15_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.6.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.4",
+    note: "503 Service Unavailable: the server MAY send a Retry-After header field",
+};
+const RFC_6585_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6585",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc6585.html#section-4",
+    note: "429 Too Many Requests: the response MAY include a Retry-After header",
+};
+
 impl Rule for RetryAfterStatusValid {
     fn id(&self) -> &'static str {
         "retry_after_status_valid"
@@ -111,30 +139,10 @@ impl Rule for RetryAfterStatusValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3",
-                note: "Defines Retry-After generally, with no condition on the status code, then says what it indicates on a 503 and on any 3xx",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.5.14"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.14",
-                note: "413 Content Too Large: when the condition is temporary the server SHOULD generate a Retry-After header field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.6.4",
-                note: "503 Service Unavailable: the server MAY send a Retry-After header field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6585",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc6585.html#section-4",
-                note: "429 Too Many Requests: the response MAY include a Retry-After header",
-            },
+            RFC_9110_10_2_3,
+            RFC_9110_15_5_14,
+            RFC_9110_15_6_4,
+            RFC_6585_4,
         ]
     }
 

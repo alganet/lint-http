@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct AuthorizationCredentialsPresent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_11_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("11.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
+    note: "Authorization",
+};
+const RFC_7617: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7617",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc7617.html",
+    note: "Basic Authentication",
+};
+const RFC_6750: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6750",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc6750.html",
+    note: "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
+};
+
 impl Rule for AuthorizationCredentialsPresent {
     fn id(&self) -> &'static str {
         "authorization_credentials_present"
@@ -59,26 +81,7 @@ impl Rule for AuthorizationCredentialsPresent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("11.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
-                note: "Authorization",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7617",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc7617.html",
-                note: "Basic Authentication",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 6750",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc6750.html",
-                note: "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
-            },
-        ]
+        &[RFC_9110_11_6_2, RFC_7617, RFC_6750]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

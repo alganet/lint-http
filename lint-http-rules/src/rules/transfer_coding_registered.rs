@@ -21,6 +21,53 @@ const PARAMETERLESS_CODINGS: [&str; 6] = [
 
 pub struct TransferCodingRegistered;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+    note: "Transfer-Encoding = #transfer-coding, and the 501 a recipient owes a coding it does not understand",
+};
+const RFC_9112_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7",
+    note: "Transfer codings: the names are case-insensitive and 'ought to be' registered — the whole of this rule's strength",
+};
+const RFC_9112_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
+    note: "Chunked, which likewise defines no parameters",
+};
+const RFC_9112_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2",
+    note:
+        "The five compression codings, which define no parameters — §7.1 says the same of chunked",
+};
+const RFC_9112_7_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4",
+    note: "Negotiating transfer codings: chunked is forbidden in TE, an empty TE is conforming, and the q is a rank",
+};
+const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+    note: "TE, and the grammar both fields share — including the quoted-string a transfer-parameter may carry",
+};
+const IANA_HTTP_PARAMETERS: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "IANA HTTP Parameters",
+    section: None,
+    url: "https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding",
+    note: "The registry this rule is named after and does not read: names are checked against the configured 'allowed' list instead",
+};
+
 impl Rule for TransferCodingRegistered {
     fn id(&self) -> &'static str {
         "transfer_coding_registered"
@@ -356,48 +403,13 @@ impl Rule for TransferCodingRegistered {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
-                note: "Transfer-Encoding = #transfer-coding, and the 501 a recipient owes a coding it does not understand",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7",
-                note: "Transfer codings: the names are case-insensitive and 'ought to be' registered — the whole of this rule's strength",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
-                note: "Chunked, which likewise defines no parameters",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2",
-                note: "The five compression codings, which define no parameters — §7.1 says the same of chunked",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4",
-                note: "Negotiating transfer codings: chunked is forbidden in TE, an empty TE is conforming, and the q is a rank",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
-                note: "TE, and the grammar both fields share — including the quoted-string a transfer-parameter may carry",
-            },
-            crate::rules::SpecRef {
-                spec: "IANA HTTP Parameters",
-                section: None,
-                url: "https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding",
-                note: "The registry this rule is named after and does not read: names are checked against the configured 'allowed' list instead",
-            },
+            RFC_9112_6_1,
+            RFC_9112_7,
+            RFC_9112_7_1,
+            RFC_9112_7_2,
+            RFC_9112_7_4,
+            RFC_9110_10_1_4,
+            IANA_HTTP_PARAMETERS,
         ]
     }
 

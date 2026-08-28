@@ -52,6 +52,52 @@ const ADVERTISED_CAPABILITIES: [(&str, &str, bool); 3] = [
     ("accept-patch", "Accept-Patch", false),
 ];
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_9_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
+    note: "OPTIONS — the client `MUST` about `Content-Type`, the `SHOULD` to advertise, which names a class ending \"including potential extensions not defined by this specification\" rather than a field, the asterisk target that names no resource, and the `Max-Forwards` `MUST NOT` no capture can attribute",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "The method token is case-sensitive, which is why `OPTIONS` is matched exactly and a lowercase `options` is not an OPTIONS",
+};
+const RFC_9110_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
+    note: "Content — the octet stream left after framing is removed, which is what the `Content-Type` check measures instead of the presence of a framing field",
+};
+const RFC_9110_15_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3",
+    note: "2xx is the class named Successful, which is the range \"a successful response to OPTIONS\" means",
+};
+const RFC_9110_10_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
+    note: "`Allow` advertises the target resource's methods, is a `MAY` on any response other than a 405 — so it is not asked for by name — and an empty value of it means the resource allows no methods",
+};
+const RFC_9110_14_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
+    note: "`Accept-Ranges` advertises range-request support for the target resource — a second member of the class §9.3.7 asks for",
+};
+const RFC_5789_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5789",
+    section: Some("3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
+    note: "`Accept-Patch` advertises the patch formats a resource accepts, and this section asks for it in an OPTIONS response by name",
+};
+
 impl Rule for OptionsMethodCapabilities {
     fn id(&self) -> &'static str {
         "options_method_capabilities"
@@ -180,48 +226,13 @@ impl Rule for OptionsMethodCapabilities {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
-                note: "OPTIONS — the client `MUST` about `Content-Type`, the `SHOULD` to advertise, which names a class ending \"including potential extensions not defined by this specification\" rather than a field, the asterisk target that names no resource, and the `Max-Forwards` `MUST NOT` no capture can attribute",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "The method token is case-sensitive, which is why `OPTIONS` is matched exactly and a lowercase `options` is not an OPTIONS",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4",
-                note: "Content — the octet stream left after framing is removed, which is what the `Content-Type` check measures instead of the presence of a framing field",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3",
-                note: "2xx is the class named Successful, which is the range \"a successful response to OPTIONS\" means",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1",
-                note: "`Allow` advertises the target resource's methods, is a `MAY` on any response other than a 405 — so it is not asked for by name — and an empty value of it means the resource allows no methods",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
-                note: "`Accept-Ranges` advertises range-request support for the target resource — a second member of the class §9.3.7 asks for",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5789",
-                section: Some("3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc5789.html#section-3.1",
-                note: "`Accept-Patch` advertises the patch formats a resource accepts, and this section asks for it in an OPTIONS response by name",
-            },
+            RFC_9110_9_3_7,
+            RFC_9110_9_1,
+            RFC_9110_6_4,
+            RFC_9110_15_3,
+            RFC_9110_10_2_1,
+            RFC_9110_14_3,
+            RFC_5789_3_1,
         ]
     }
 

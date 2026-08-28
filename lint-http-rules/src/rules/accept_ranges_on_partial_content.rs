@@ -48,6 +48,34 @@ fn requested_unit(headers: &hyper::HeaderMap) -> Option<String> {
     Some(unit.to_ascii_lowercase())
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_14_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
+    note: "`Accept-Ranges`: advice, in the section's own words, about which range units a resource supports — or `none`, which advises against attempting a range request on the same request path. A client MAY send range requests regardless, and MUST NOT assume the field means future range requests will be answered with partial responses, which no parser can check",
+};
+const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
+    note: "`Range`: `ranges-specifier`, and an origin server MUST ignore one whose range unit it does not understand — which is what a request in an unadvertised unit costs",
+};
+const RFC_9110_14_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("14.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1",
+    note: "Range units: `range-unit = token`, shared by `Accept-Ranges` and `Range`, and case-insensitive — which is why both sides of the comparison are folded",
+};
+const RFC_9110_15_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
+    note: "`206 Partial Content`: a client MUST inspect its `Content-Type` and `Content-Range`, which is not observable either. A 206 that advertised nothing is no longer reported here. RFC 7233 §4.1 defined the status code; RFC 9110 obsoleted RFC 7233",
+};
+
 impl Rule for AcceptRangesOnPartialContent {
     fn id(&self) -> &'static str {
         "accept_ranges_on_partial_content"
@@ -165,32 +193,7 @@ impl Rule for AcceptRangesOnPartialContent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.3",
-                note: "`Accept-Ranges`: advice, in the section's own words, about which range units a resource supports — or `none`, which advises against attempting a range request on the same request path. A client MAY send range requests regardless, and MUST NOT assume the field means future range requests will be answered with partial responses, which no parser can check",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.2",
-                note: "`Range`: `ranges-specifier`, and an origin server MUST ignore one whose range unit it does not understand — which is what a request in an unadvertised unit costs",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("14.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1",
-                note: "Range units: `range-unit = token`, shared by `Accept-Ranges` and `Range`, and case-insensitive — which is why both sides of the comparison are folded",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
-                note: "`206 Partial Content`: a client MUST inspect its `Content-Type` and `Content-Range`, which is not observable either. A 206 that advertised nothing is no longer reported here. RFC 7233 §4.1 defined the status code; RFC 9110 obsoleted RFC 7233",
-            },
-        ]
+        &[RFC_9110_14_3, RFC_9110_14_2, RFC_9110_14_1, RFC_9110_15_3_7]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

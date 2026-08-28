@@ -337,6 +337,82 @@ impl TeHeaderValid {
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+    note: "The field: what a member is, the grammar of its parameters, and the connection option a sender of TE must send beside it",
+};
+const RFC_9110_10_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
+    note: "The section the field is defined in — request context fields. It is the whole of the ground for reporting a TE in a response, and it carries no modal",
+};
+const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("A"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
+    note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
+};
+const RFC_9110_12_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
+    note: "`weight` and `qvalue`, and the MUST NOT on generating more than three digits after the point",
+};
+const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
+    note: "The sender's half of the list construct: no empty elements. The recipient's half (§5.6.1.2, ignore them) is a different party's requirement",
+};
+const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
+    note: "`BWS`: the whitespace around a transfer-parameter's `=`, which a recipient MUST remove and a sender MUST NOT write",
+};
+const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
+    note: "The `Connection` field the option is listed in, and the note that some versions of HTTP do not allow the field at all",
+};
+const RFC_9112_7_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4",
+    note: "HTTP/1.1's own account of the field: what an empty value means, the `q` rank, the `chunked` MUST NOT, and why the connection option is required",
+};
+const RFC_9112_7_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.3",
+    note: "`q` is a pseudo-parameter rather than a transfer-parameter, and its name is case-insensitive",
+};
+const RFC_9113_8_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
+    note: "HTTP/2 forbids the `Connection` field, and excepts `TE` in a request when it holds nothing but `trailers`",
+};
+const RFC_9114_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
+    note: "The same for HTTP/3. `no_connection_specific_fields` is the rule that enforces the value restriction, on both versions",
+};
+const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("6.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
+    note: "What the `trailers` keyword says on the wire: the client will not discard a trailer section",
+};
+
 impl Rule for TeHeaderValid {
     fn id(&self) -> &'static str {
         "te_header_valid"
@@ -414,78 +490,18 @@ impl Rule for TeHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
-                note: "The field: what a member is, the grammar of its parameters, and the connection option a sender of TE must send beside it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("10.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
-                note: "The section the field is defined in — request context fields. It is the whole of the ground for reporting a TE in a response, and it carries no modal",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("A"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
-                note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-                note: "`weight` and `qvalue`, and the MUST NOT on generating more than three digits after the point",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-                note: "The sender's half of the list construct: no empty elements. The recipient's half (§5.6.1.2, ignore them) is a different party's requirement",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-                note: "`BWS`: the whitespace around a transfer-parameter's `=`, which a recipient MUST remove and a sender MUST NOT write",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1",
-                note: "The `Connection` field the option is listed in, and the note that some versions of HTTP do not allow the field at all",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4",
-                note: "HTTP/1.1's own account of the field: what an empty value means, the `q` rank, the `chunked` MUST NOT, and why the connection option is required",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("7.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.3",
-                note: "`q` is a pseudo-parameter rather than a transfer-parameter, and its name is case-insensitive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9113",
-                section: Some("8.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
-                note: "HTTP/2 forbids the `Connection` field, and excepts `TE` in a request when it holds nothing but `trailers`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9114",
-                section: Some("4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
-                note: "The same for HTTP/3. `no_connection_specific_fields` is the rule that enforces the value restriction, on both versions",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("6.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-6.5.1",
-                note: "What the `trailers` keyword says on the wire: the client will not discard a trailer section",
-            },
+            RFC_9110_10_1_4,
+            RFC_9110_10_1,
+            RFC_9110_A,
+            RFC_9110_12_4_2,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_3,
+            RFC_9110_7_6_1,
+            RFC_9112_7_4,
+            RFC_9112_7_3,
+            RFC_9113_8_2_2,
+            RFC_9114_4_2,
+            RFC_9110_6_5_1,
         ]
     }
 

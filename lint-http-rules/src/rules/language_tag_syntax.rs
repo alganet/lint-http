@@ -7,6 +7,41 @@ use crate::rules::Rule;
 
 pub struct LanguageTagSyntax;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_8_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5.1",
+    note: "Language Tags: the sentence that assigns a different production to each of the two fields — `language-range` for Accept-Language, `language-tag` for Content-Language",
+};
+const RFC_5646_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5646",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
+    note: "Syntax: the `Language-Tag` production Content-Language carries. Its prose properties are enforced; its subtag ordering and length classes are not",
+};
+const RFC_4647_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 4647",
+    section: Some("2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc4647.html#section-2.1",
+    note: "Basic Language Range: the production Accept-Language carries, including the `*` alternative and the statement that a range needs no well-formedness at all",
+};
+const RFC_9110_8_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5",
+    note:
+        "Content-Language: `#language-tag` — a list of tags, with no wildcard and no weight in it",
+};
+const RFC_9110_12_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.5.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4",
+    note: "Accept-Language: where the `language-range` production is pulled in by reference. The weight beside it is `accept_language_weight_valid`'s subject",
+};
+
 impl Rule for LanguageTagSyntax {
     fn id(&self) -> &'static str {
         "language_tag_syntax"
@@ -173,36 +208,11 @@ impl Rule for LanguageTagSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5.1",
-                note: "Language Tags: the sentence that assigns a different production to each of the two fields — `language-range` for Accept-Language, `language-tag` for Content-Language",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5646",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
-                note: "Syntax: the `Language-Tag` production Content-Language carries. Its prose properties are enforced; its subtag ordering and length classes are not",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 4647",
-                section: Some("2.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc4647.html#section-2.1",
-                note: "Basic Language Range: the production Accept-Language carries, including the `*` alternative and the statement that a range needs no well-formedness at all",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5",
-                note: "Content-Language: `#language-tag` — a list of tags, with no wildcard and no weight in it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.5.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4",
-                note: "Accept-Language: where the `language-range` production is pulled in by reference. The weight beside it is `accept_language_weight_valid`'s subject",
-            },
+            RFC_9110_8_5_1,
+            RFC_5646_2_1,
+            RFC_4647_2_1,
+            RFC_9110_8_5,
+            RFC_9110_12_5_4,
         ]
     }
 

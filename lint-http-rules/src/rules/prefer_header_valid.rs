@@ -86,6 +86,64 @@ fn one_of(value: Option<&str>, admitted: &'static [&'static str]) -> Option<Stri
     ))
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_7240_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
+    note: "`Prefer` — the grammar, the equivalence of several field lines with one, the equivalence of an empty value with no value, the case rules for names and values, the SHOULD NOT against repeating a token, and the server's MUST to ignore a preference it does not recognize",
+};
+const RFC_7240_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("4"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-4",
+    note: "The four preferences this document defines, each with its own production: `respond-async` (§4.1), `return` (§4.2), `wait` (§4.3) and `handling` (§4.4). §4.2 and §4.4 add that the two values of `return` and of `handling` are mutually exclusive",
+};
+const RFC_7240_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-5.1",
+    note: "The \"HTTP Preferences\" registry is open under Specification Required, and a registration carries its own enumeration of admitted values — which is why a preference RFC 7240 does not define has its value left unjudged here",
+};
+const RFC_7240_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 7240",
+    section: Some("1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-1.1",
+    note: "Where `token`, `word`, `OWS`, `BWS`, the `#rule` extension and `delta-seconds` come from. The named sources are RFC 7230 and RFC 7231, which RFC 9110 obsoletes; `word` is the one name RFC 9110 did not keep, and the `delta-seconds` pointer is wrong twice over — RFC 7231 §8.1.3 is a registration procedure, and RFC 7231 does not define `delta-seconds` anywhere. It was RFC 7234 §1.2.1's, and the live definition is RFC 9111 §1.2.2",
+};
+const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
+    note: "The MUST NOT on generating a protocol element that does not match its ABNF — what makes a value outside a §4 production a finding, since RFC 7240 writes those productions and states no requirement about them",
+};
+const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
+    note: "The `#rule` extension: §5.6.1.1 forbids the sender an empty list element, §5.6.1.2 prints the values a `1#` production rejects for having no non-empty member",
+};
+const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
+    note: "`BWS`: a recipient must remove it before interpreting the element, and a sender must not have written it — both directions are read at the `=` in `preference` and in `parameter`",
+};
+const RFC_9111_1_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("1.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
+    note: "`delta-seconds = 1*DIGIT` — what the `wait` preference's value has to be",
+};
+const RFC_5234_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 5234",
+    section: Some("2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc5234.html#section-2.3",
+    note: "An ABNF string literal matches any case, which is why `return=Minimal` is not reported against §4.2's `\"minimal\"`",
+};
+
 impl Rule for PreferHeaderValid {
     fn id(&self) -> &'static str {
         "prefer_header_valid"
@@ -306,60 +364,15 @@ impl Rule for PreferHeaderValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-2",
-                note: "`Prefer` — the grammar, the equivalence of several field lines with one, the equivalence of an empty value with no value, the case rules for names and values, the SHOULD NOT against repeating a token, and the server's MUST to ignore a preference it does not recognize",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("4"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-4",
-                note: "The four preferences this document defines, each with its own production: `respond-async` (§4.1), `return` (§4.2), `wait` (§4.3) and `handling` (§4.4). §4.2 and §4.4 add that the two values of `return` and of `handling` are mutually exclusive",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("5.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-5.1",
-                note: "The \"HTTP Preferences\" registry is open under Specification Required, and a registration carries its own enumeration of admitted values — which is why a preference RFC 7240 does not define has its value left unjudged here",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 7240",
-                section: Some("1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-1.1",
-                note: "Where `token`, `word`, `OWS`, `BWS`, the `#rule` extension and `delta-seconds` come from. The named sources are RFC 7230 and RFC 7231, which RFC 9110 obsoletes; `word` is the one name RFC 9110 did not keep, and the `delta-seconds` pointer is wrong twice over — RFC 7231 §8.1.3 is a registration procedure, and RFC 7231 does not define `delta-seconds` anywhere. It was RFC 7234 §1.2.1's, and the live definition is RFC 9111 §1.2.2",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
-                note: "The MUST NOT on generating a protocol element that does not match its ABNF — what makes a value outside a §4 production a finding, since RFC 7240 writes those productions and states no requirement about them",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
-                note: "The `#rule` extension: §5.6.1.1 forbids the sender an empty list element, §5.6.1.2 prints the values a `1#` production rejects for having no non-empty member",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-                note: "`BWS`: a recipient must remove it before interpreting the element, and a sender must not have written it — both directions are read at the `=` in `preference` and in `parameter`",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("1.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
-                note: "`delta-seconds = 1*DIGIT` — what the `wait` preference's value has to be",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 5234",
-                section: Some("2.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc5234.html#section-2.3",
-                note: "An ABNF string literal matches any case, which is why `return=Minimal` is not reported against §4.2's `\"minimal\"`",
-            },
+            RFC_7240_2,
+            RFC_7240_4,
+            RFC_7240_5_1,
+            RFC_7240_1_1,
+            RFC_9110_2_2,
+            RFC_9110_5_6_1,
+            RFC_9110_5_6_3,
+            RFC_9111_1_2_2,
+            RFC_5234_2_3,
         ]
     }
 

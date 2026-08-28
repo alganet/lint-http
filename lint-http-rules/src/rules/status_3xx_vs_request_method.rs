@@ -47,6 +47,52 @@ fn unambiguous_alternative(status: u16) -> Option<(&'static str, &'static str)> 
     }
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_15_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2",
+    note: "301 Moved Permanently: a user agent MAY change the method from POST to GET, and 308 is the status named for a server that does not want that",
+};
+const RFC_9110_15_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3",
+    note: "302 Found: the same permission, answered by 307 rather than by 308 — the alternative is per status",
+};
+const RFC_9110_15_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
+    note: "Why only these two: 307 and 308 were added to indicate method-preserving redirects, and 301 and 302 were adjusted to allow a POST to be redirected as GET. This is also the only sentence that says 308 preserves the method — §15.4.9 does not repeat it. Also what a provided Location buys: a user agent MAY follow it automatically",
+};
+const RFC_9110_15_4_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8",
+    note: "307 Temporary Redirect: the user agent MUST NOT change the request method when it redirects automatically — the unambiguous half of the 302 pair, and never reported by this rule",
+};
+const RFC_9110_15_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.4.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4",
+    note: "303 See Other: defined as a redirection to a resource the user agent retrieves, so the change of method is what the status means rather than something left open",
+};
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "The method token is case-sensitive, so the rule compares it exactly rather than folding case",
+};
+const RFC_9110_9_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3",
+    note: "The 303 alternative: an origin server MAY redirect a POST with a 303, if the result of processing it is equivalent to a representation of an existing resource",
+};
+
 impl Rule for Status3xxVsRequestMethod {
     fn id(&self) -> &'static str {
         "status_3xx_vs_request_method"
@@ -123,48 +169,13 @@ impl Rule for Status3xxVsRequestMethod {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.2",
-                note: "301 Moved Permanently: a user agent MAY change the method from POST to GET, and 308 is the status named for a server that does not want that",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.3",
-                note: "302 Found: the same permission, answered by 307 rather than by 308 — the alternative is per status",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4",
-                note: "Why only these two: 307 and 308 were added to indicate method-preserving redirects, and 301 and 302 were adjusted to allow a POST to be redirected as GET. This is also the only sentence that says 308 preserves the method — §15.4.9 does not repeat it. Also what a provided Location buys: a user agent MAY follow it automatically",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.8",
-                note: "307 Temporary Redirect: the user agent MUST NOT change the request method when it redirects automatically — the unambiguous half of the 302 pair, and never reported by this rule",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("15.4.4"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.4",
-                note: "303 See Other: defined as a redirection to a resource the user agent retrieves, so the change of method is what the status means rather than something left open",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "The method token is case-sensitive, so the rule compares it exactly rather than folding case",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.3",
-                note: "The 303 alternative: an origin server MAY redirect a POST with a 303, if the result of processing it is equivalent to a representation of an existing resource",
-            },
+            RFC_9110_15_4_2,
+            RFC_9110_15_4_3,
+            RFC_9110_15_4,
+            RFC_9110_15_4_8,
+            RFC_9110_15_4_4,
+            RFC_9110_9_1,
+            RFC_9110_9_3_3,
         ]
     }
 

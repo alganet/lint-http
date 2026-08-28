@@ -191,6 +191,40 @@ fn refresh_value_error(s: &str) -> Option<String> {
     find_invalid_url_unit(&url).map(|why| format!("the URL {url:?} {why}"))
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const HTML_SPECULATIVE_LOADING_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Speculative Loading",
+    section: Some("7.8"),
+    url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-refresh-header",
+    note: "The `Refresh` header. Three sentences: it is the `meta` pragma's HTTP equivalent, it takes the same value, and its processing model is elsewhere. It states no requirement of its own",
+};
+const HTML_SEMANTICS_4_2_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Semantics",
+    section: Some("4.2.5.3"),
+    url: "https://html.spec.whatwg.org/multipage/semantics.html#attr-meta-http-equiv-refresh",
+    note: "Refresh state: the shared declarative refresh steps, and the authoring conformance requirement this rule enforces — the only sentence in HTML that says what a conforming value looks like",
+};
+const HTML_DOCUMENT_LIFECYCLE_7_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "HTML Document Lifecycle",
+    section: Some("7.5.1"),
+    url: "https://html.spec.whatwg.org/multipage/document-lifecycle.html#initialise-the-document-object",
+    note: "Create and initialize a Document object: the field is isomorphic-decoded before parsing, and a note records that multiple field lines are unspecified",
+};
+const URL_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "URL",
+    section: Some("4.3"),
+    url: "https://url.spec.whatwg.org/#url-writing",
+    note: "URL writing: valid URL string, URL code points and URL units — the alphabet the `URL=` value is judged against, which is not RFC 3986's",
+};
+const MDN_REFRESH: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Refresh",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh",
+    note: "`Refresh` header, with browser support notes",
+};
+
 impl Rule for RefreshHeaderSyntax {
     fn id(&self) -> &'static str {
         "refresh_header_syntax"
@@ -275,36 +309,11 @@ impl Rule for RefreshHeaderSyntax {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "HTML Speculative Loading",
-                section: Some("7.8"),
-                url: "https://html.spec.whatwg.org/multipage/speculative-loading.html#the-refresh-header",
-                note: "The `Refresh` header. Three sentences: it is the `meta` pragma's HTTP equivalent, it takes the same value, and its processing model is elsewhere. It states no requirement of its own",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML Semantics",
-                section: Some("4.2.5.3"),
-                url: "https://html.spec.whatwg.org/multipage/semantics.html#attr-meta-http-equiv-refresh",
-                note: "Refresh state: the shared declarative refresh steps, and the authoring conformance requirement this rule enforces — the only sentence in HTML that says what a conforming value looks like",
-            },
-            crate::rules::SpecRef {
-                spec: "HTML Document Lifecycle",
-                section: Some("7.5.1"),
-                url: "https://html.spec.whatwg.org/multipage/document-lifecycle.html#initialise-the-document-object",
-                note: "Create and initialize a Document object: the field is isomorphic-decoded before parsing, and a note records that multiple field lines are unspecified",
-            },
-            crate::rules::SpecRef {
-                spec: "URL",
-                section: Some("4.3"),
-                url: "https://url.spec.whatwg.org/#url-writing",
-                note: "URL writing: valid URL string, URL code points and URL units — the alphabet the `URL=` value is judged against, which is not RFC 3986's",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Refresh",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Refresh",
-                note: "`Refresh` header, with browser support notes",
-            },
+            HTML_SPECULATIVE_LOADING_7_8,
+            HTML_SEMANTICS_4_2_5_3,
+            HTML_DOCUMENT_LIFECYCLE_7_5_1,
+            URL_4_3,
+            MDN_REFRESH,
         ]
     }
 

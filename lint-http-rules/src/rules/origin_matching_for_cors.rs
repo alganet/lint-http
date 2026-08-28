@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct OriginMatchingForCors;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_6454: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 6454",
+    section: None,
+    url: "https://www.rfc-editor.org/rfc/rfc6454.html",
+    note: "The Web Origin Concept",
+};
+const FETCH_4_10: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "Fetch",
+    section: Some("4.10"),
+    url: "https://fetch.spec.whatwg.org/#concept-cors-check",
+    note: "Fetch CORS check — the response origin must byte-match the request `Origin` (or be `*` for a non-credentialed request); this rule's matching logic lives here (two of its three cites)",
+};
+const MDN_ACCESS_CONTROL_ALLOW_ORIGIN: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "MDN Access-Control-Allow-Origin",
+    section: None,
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
+    note: "Access-Control-Allow-Origin",
+};
+
 impl Rule for OriginMatchingForCors {
     fn id(&self) -> &'static str {
         "origin_matching_for_cors"
@@ -121,26 +143,7 @@ impl Rule for OriginMatchingForCors {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 6454",
-                section: None,
-                url: "https://www.rfc-editor.org/rfc/rfc6454.html",
-                note: "The Web Origin Concept",
-            },
-            crate::rules::SpecRef {
-                spec: "Fetch",
-                section: Some("4.10"),
-                url: "https://fetch.spec.whatwg.org/#concept-cors-check",
-                note: "Fetch CORS check — the response origin must byte-match the request `Origin` (or be `*` for a non-credentialed request); this rule's matching logic lives here (two of its three cites)",
-            },
-            crate::rules::SpecRef {
-                spec: "MDN Access-Control-Allow-Origin",
-                section: None,
-                url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin",
-                note: "Access-Control-Allow-Origin",
-            },
-        ]
+        &[RFC_6454, FETCH_4_10, MDN_ACCESS_CONTROL_ALLOW_ORIGIN]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

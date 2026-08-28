@@ -8,6 +8,40 @@ use crate::rules::Rule;
 
 pub struct MaxForwardsNumeric;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_7_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.6.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2",
+    note: "The field: its grammar (`1*DIGIT`), the methods it works with, and the recipient's permission to ignore it on the others. The section's requirements on intermediaries — check and update the value, do not forward at zero — are stated here and are not measurable from one captured leg; this rule reads the syntax only",
+};
+const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
+    note: "A sender MUST NOT generate multiple field lines with the same name unless the field's definition allows them to be recombined as a comma-separated list. `Max-Forwards` has no such alternative, so two lines are reported",
+};
+const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
+    note: "Repeated field lines in one section are one field value, joined with a comma — so the value measured against `1*DIGIT` is the one a recipient reads",
+};
+const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
+    note: "Singleton fields, why detecting a singleton sent with several members is worth doing, and the MUST to exclude leading and trailing whitespace before evaluating a field value",
+};
+const RFC_9110_9_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.7"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
+    note: "A client MAY send the field in an OPTIONS request to target a specific recipient, and a proxy MUST NOT generate it while forwarding a request that arrived without it — the second is undecidable from a captured message, since nothing on the wire records who wrote a field",
+};
+
 impl Rule for MaxForwardsNumeric {
     fn id(&self) -> &'static str {
         "max_forwards_numeric"
@@ -136,36 +170,11 @@ impl Rule for MaxForwardsNumeric {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("7.6.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.2",
-                note: "The field: its grammar (`1*DIGIT`), the methods it works with, and the recipient's permission to ignore it on the others. The section's requirements on intermediaries — check and update the value, do not forward at zero — are stated here and are not measurable from one captured leg; this rule reads the syntax only",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-                note: "A sender MUST NOT generate multiple field lines with the same name unless the field's definition allows them to be recombined as a comma-separated list. `Max-Forwards` has no such alternative, so two lines are reported",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2",
-                note: "Repeated field lines in one section are one field value, joined with a comma — so the value measured against `1*DIGIT` is the one a recipient reads",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
-                note: "Singleton fields, why detecting a singleton sent with several members is worth doing, and the MUST to exclude leading and trailing whitespace before evaluating a field value",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.7"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.7",
-                note: "A client MAY send the field in an OPTIONS request to target a specific recipient, and a proxy MUST NOT generate it while forwarding a request that arrived without it — the second is undecidable from a captured message, since nothing on the wire records who wrote a field",
-            },
+            RFC_9110_7_6_2,
+            RFC_9110_5_3,
+            RFC_9110_5_2,
+            RFC_9110_5_5,
+            RFC_9110_9_3_7,
         ]
     }
 

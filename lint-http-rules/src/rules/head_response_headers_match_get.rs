@@ -116,6 +116,34 @@ fn content_length_finding(
 
 pub struct HeadResponseHeadersMatchGet;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+    note: "The rule's sentence, quoted whole: \"The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET. However, a server MAY omit header fields for which a value is determined only while generating the content.\" The MAY names a class, and the section prints Content-Length and Vary as examples of it rather than as its membership",
+};
+const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+    note: "Content-Length is the one requirement here that is not a SHOULD: \"a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method\". The same sentence opens with the MAY that lets a HEAD response omit it",
+};
+const RFC_9110_8_8: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8",
+    note: "Why a difference between the two responses is not automatically a finding: validator fields \"describe the selected representation chosen by the origin server while handling the response\", so an ETag or Last-Modified that moved between the observed GET and this HEAD says the resource changed, and the rule declines",
+};
+const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+    note: "Transfer-Encoding is excluded outright: it \"MAY be sent in a response to a HEAD request\", the indication \"is not required\", and any recipient on the response chain \"can remove transfer codings when they are not needed\" — so neither its presence nor its value is comparable across the two messages",
+};
+
 impl Rule for HeadResponseHeadersMatchGet {
     fn id(&self) -> &'static str {
         "head_response_headers_match_get"
@@ -326,32 +354,7 @@ impl Rule for HeadResponseHeadersMatchGet {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-                note: "The rule's sentence, quoted whole: \"The server SHOULD send the same header fields in response to a HEAD request as it would have sent if the request method had been GET. However, a server MAY omit header fields for which a value is determined only while generating the content.\" The MAY names a class, and the section prints Content-Length and Vary as examples of it rather than as its membership",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "Content-Length is the one requirement here that is not a SHOULD: \"a server MUST NOT send Content-Length in such a response unless its field value equals the decimal number of octets that would have been sent in the content of a response if the same request had used the GET method\". The same sentence opens with the MAY that lets a HEAD response omit it",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.8"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8",
-                note: "Why a difference between the two responses is not automatically a finding: validator fields \"describe the selected representation chosen by the origin server while handling the response\", so an ETag or Last-Modified that moved between the observed GET and this HEAD says the resource changed, and the rule declines",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9112",
-                section: Some("6.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
-                note: "Transfer-Encoding is excluded outright: it \"MAY be sent in a response to a HEAD request\", the indication \"is not required\", and any recipient on the response chain \"can remove transfer codings when they are not needed\" — so neither its presence nor its value is comparable across the two messages",
-            },
-        ]
+        &[RFC_9110_9_3_2, RFC_9110_8_6, RFC_9110_8_8, RFC_9112_6_1]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

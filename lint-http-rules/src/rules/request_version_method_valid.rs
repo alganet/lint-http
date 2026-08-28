@@ -49,6 +49,46 @@ fn request_declares_content(req: &crate::http_transaction::RequestInfo) -> bool 
         || crate::helpers::headers::declared_content_length(&req.headers).is_some_and(|n| n > 0)
 }
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "Methods overview — the method token is case-sensitive, which is why the four names below are matched exactly and a lowercase `get` is not a GET",
+};
+const RFC_9110_9_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1",
+    note: "GET — the SHOULD NOT, its `unless` clause, and the sentence that declines to rely on the private agreement the clause describes. Also the statement that framing is independent of the method, which is why a Transfer-Encoding alone is not content",
+};
+const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
+    note: "HEAD — the same paragraph, word for word",
+};
+const RFC_9110_9_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5",
+    note: "DELETE — the same paragraph again",
+};
+const RFC_9110_9_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+    note: "CONNECT — a definition rather than a modal, and the sentence that makes the octets after the header section tunnel payload instead of content",
+};
+const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
+    note: "Content-Length as the amount of data enclosed — the fallback evidence when no body was captured",
+};
+
 impl Rule for RequestVersionMethodValid {
     fn id(&self) -> &'static str {
         "request_version_method_valid"
@@ -123,42 +163,12 @@ impl Rule for RequestVersionMethodValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
-                note: "Methods overview — the method token is case-sensitive, which is why the four names below are matched exactly and a lowercase `get` is not a GET",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.1",
-                note: "GET — the SHOULD NOT, its `unless` clause, and the sentence that declines to rely on the private agreement the clause describes. Also the statement that framing is independent of the method, which is why a Transfer-Encoding alone is not content",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.2",
-                note: "HEAD — the same paragraph, word for word",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.5"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.5",
-                note: "DELETE — the same paragraph again",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("9.3.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
-                note: "CONNECT — a definition rather than a modal, and the sentence that makes the octets after the header section tunnel payload instead of content",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.6"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-                note: "Content-Length as the amount of data enclosed — the fallback evidence when no body was captured",
-            },
+            RFC_9110_9_1,
+            RFC_9110_9_3_1,
+            RFC_9110_9_3_2,
+            RFC_9110_9_3_5,
+            RFC_9110_9_3_6,
+            RFC_9110_8_6,
         ]
     }
 

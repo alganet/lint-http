@@ -7,6 +7,28 @@ use crate::rules::Rule;
 
 pub struct MultipartContentTypeAndBodyConsistent;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_2046_5_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2046",
+    section: Some("5.1.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
+    note: "Multipart common syntax: `dash-boundary`, `delimiter` and `close-delimiter`, the requirement that a delimiter begin a line, the instruction to compare against the beginning of a candidate line rather than the whole of it, and the ignoring of preamble and epilogue",
+};
+const RFC_9110_8_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.3",
+    note: "Multipart Types: where HTTP adopts RFC 2046 §5.1.1, and the CRLF-between-parts requirement this rule tolerates rather than enforces. It also says HTTP framing does not use the boundary as a length indicator, so nothing here is a framing check",
+};
+const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
+    note: "Content-Type: the field describes a representation in either direction, which is what puts request and response bodies both in scope",
+};
+
 impl Rule for MultipartContentTypeAndBodyConsistent {
     fn id(&self) -> &'static str {
         "multipart_content_type_and_body_consistent"
@@ -120,26 +142,7 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 2046",
-                section: Some("5.1.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
-                note: "Multipart common syntax: `dash-boundary`, `delimiter` and `close-delimiter`, the requirement that a delimiter begin a line, the instruction to compare against the beginning of a candidate line rather than the whole of it, and the ignoring of preamble and epilogue",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.3",
-                note: "Multipart Types: where HTTP adopts RFC 2046 §5.1.1, and the CRLF-between-parts requirement this rule tolerates rather than enforces. It also says HTTP framing does not use the boundary as a length indicator, so nothing here is a framing check",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
-                note: "Content-Type: the field describes a representation in either direction, which is what puts request and response bodies both in scope",
-            },
-        ]
+        &[RFC_2046_5_1_1, RFC_9110_8_3_3, RFC_9110_8_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {

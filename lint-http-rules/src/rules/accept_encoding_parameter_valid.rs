@@ -7,6 +7,34 @@ use crate::rules::Rule;
 
 pub struct AcceptEncodingParameterValid;
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_9110_12_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.5.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
+    note: "Accept-Encoding: `#( codings [ weight ] )` — the production that says a coding may carry a weight and nothing else. Also the three `codings` alternatives, the meaning of an empty field value, and the meaning of the field in a response",
+};
+const RFC_9110_12_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("12.4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
+    note: "Quality Values: the `weight` production this field admits, the `qvalue` its value must be, and the case-insensitive parameter name",
+};
+const RFC_9110_8_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("8.4.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
+    note: "Content Codings: `content-coding = token`, which is what the character check on each coding enforces",
+};
+const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
+    note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
+};
+
 impl Rule for AcceptEncodingParameterValid {
     fn id(&self) -> &'static str {
         "accept_encoding_parameter_valid"
@@ -203,30 +231,10 @@ impl Rule for AcceptEncodingParameterValid {
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.5.3"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
-                note: "Accept-Encoding: `#( codings [ weight ] )` — the production that says a coding may carry a weight and nothing else. Also the three `codings` alternatives, the meaning of an empty field value, and the meaning of the field in a response",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("12.4.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-                note: "Quality Values: the `weight` production this field admits, the `qvalue` its value must be, and the case-insensitive parameter name",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("8.4.1"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
-                note: "Content Codings: `content-coding = token`, which is what the character check on each coding enforces",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9110",
-                section: Some("5.6.1.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
-                note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
-            },
+            RFC_9110_12_5_3,
+            RFC_9110_12_4_2,
+            RFC_9110_8_4_1,
+            RFC_9110_5_6_1_2,
         ]
     }
 

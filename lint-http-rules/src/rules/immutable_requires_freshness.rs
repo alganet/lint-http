@@ -26,6 +26,22 @@ pub struct ImmutableRequiresFreshness;
 /// with a positive `max-age` is still *fresh*, it just cannot be reused without revalidation.)
 const NEVER_FRESH: &[&str] = &["no-store", "no-cache", "max-age=0", "s-maxage=0"];
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
+const RFC_8246_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 8246",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-2",
+    note: "The `immutable` Cache-Control extension — applies only during the freshness lifetime",
+};
+const RFC_9111_5_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("5.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2",
+    note: "Response directives: `no-store`, `no-cache`, `max-age`, `s-maxage`",
+};
+
 impl Rule for ImmutableRequiresFreshness {
     fn id(&self) -> &'static str {
         "immutable_requires_freshness"
@@ -125,20 +141,7 @@ impl Rule for ImmutableRequiresFreshness {
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            crate::rules::SpecRef {
-                spec: "RFC 8246",
-                section: Some("2"),
-                url: "https://www.rfc-editor.org/rfc/rfc8246.html#section-2",
-                note: "The `immutable` Cache-Control extension — applies only during the freshness lifetime",
-            },
-            crate::rules::SpecRef {
-                spec: "RFC 9111",
-                section: Some("5.2.2"),
-                url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2.2",
-                note: "Response directives: `no-store`, `no-cache`, `max-age`, `s-maxage`",
-            },
-        ]
+        &[RFC_8246_2, RFC_9111_5_2_2]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
