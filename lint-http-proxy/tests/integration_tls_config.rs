@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: ISC
 
 use hyper::Uri;
-use lint_http::make_temp_captures_path;
+
+mod common;
+use common::TempFiles;
 use std::sync::Arc;
-use tokio::fs;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -20,7 +21,8 @@ async fn test_suppress_headers() -> anyhow::Result<()> {
         .mount(&mock)
         .await;
 
-    let tmp_capture = make_temp_captures_path("lint_test_suppress");
+    let mut temp = TempFiles::new();
+    let tmp_capture = temp.path("lint_test_suppress", "jsonl");
     let tmp_capture_str = tmp_capture
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("temp_capture path not utf8"))?
@@ -92,7 +94,6 @@ async fn test_suppress_headers() -> anyhow::Result<()> {
     assert!(received_req.headers.get("x-public").is_some());
     assert!(received_req.headers.get("x-secret").is_none());
 
-    fs::remove_file(&tmp_capture).await?;
     Ok(())
 }
 
@@ -112,7 +113,8 @@ async fn test_passthrough_domains() -> anyhow::Result<()> {
         }
     });
 
-    let tmp_capture = make_temp_captures_path("lint_test_pass");
+    let mut temp = TempFiles::new();
+    let tmp_capture = temp.path("lint_test_pass", "jsonl");
     let tmp_capture_str = tmp_capture
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("temp_capture path not utf8"))?
@@ -183,6 +185,5 @@ async fn test_passthrough_domains() -> anyhow::Result<()> {
     let response = String::from_utf8_lossy(&buf[0..n]);
     assert_eq!(response, "hello");
 
-    fs::remove_file(&tmp_capture).await?;
     Ok(())
 }

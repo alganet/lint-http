@@ -1552,7 +1552,8 @@ mod tests {
     #[tokio::test]
     async fn origin_settings_appear_as_server_events_on_the_upstream_connection() {
         let (ca_pem, leaf, key) = test_certs();
-        let ca_path = std::env::temp_dir().join(format!("lint_p5_ca_{}.pem", uuid::Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let ca_path = temp.path("lint_p5_ca", "pem");
         tokio::fs::write(&ca_path, ca_pem.as_bytes()).await.unwrap();
 
         let origin = spawn_h3_origin(leaf, key);
@@ -1562,8 +1563,8 @@ mod tests {
         cfg.general.h3_upstream_enabled = true;
         cfg.general.h3_upstream_authorities = vec![authority.clone()];
         cfg.general.h3_upstream_extra_ca_certs = vec![ca_path.to_string_lossy().to_string()];
-        let (shared, tmp, _cw) =
-            crate::proxy::test_support::make_shared_with_cfg(Arc::new(cfg), None)
+        let (shared, _tmp, _cw) =
+            crate::proxy::test_support::make_shared_with_cfg(Arc::new(cfg), None, &mut temp)
                 .await
                 .unwrap();
 
@@ -1620,8 +1621,5 @@ mod tests {
             found,
             "origin SETTINGS should be recorded as a Server event on the upstream connection_id"
         );
-
-        let _ = tokio::fs::remove_file(&tmp).await;
-        let _ = tokio::fs::remove_file(&ca_path).await;
     }
 }

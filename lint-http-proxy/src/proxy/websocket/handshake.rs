@@ -409,7 +409,8 @@ mod tests {
     async fn handle_websocket_upgrade_upstream_connect_error() -> anyhow::Result<()> {
         // Test that handle_websocket_upgrade returns 502 when upstream is unreachable
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         // Build a request targeting a closed port
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
@@ -478,7 +479,8 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
         let fake_on_upgrade = hyper::upgrade::on(
@@ -532,7 +534,8 @@ mod tests {
 
         let mut cfg = crate::config::Config::default();
         cfg.general.max_body_bytes = 4;
-        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None, &mut temp).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
         let fake_on_upgrade = hyper::upgrade::on(
@@ -624,7 +627,8 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/ws", port).parse()?;
         let fake_on_upgrade = hyper::upgrade::on(
@@ -677,7 +681,8 @@ mod tests {
     #[tokio::test]
     async fn handle_websocket_upgrade_refuses_at_capacity() -> anyhow::Result<()> {
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         // Hold every permit: the proxy is at capacity.
         let total = shared.semaphore.available_permits();
@@ -742,7 +747,8 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
         let total = shared.semaphore.available_permits();
 
         // An OnUpgrade whose request is dropped immediately: the client half

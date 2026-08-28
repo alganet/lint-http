@@ -2,6 +2,12 @@
 //
 // SPDX-License-Identifier: ISC
 
+// The binary is its own compilation unit, so it includes the guard again —
+// the same file, not a second copy of it. See the note in `lib.rs`.
+#[cfg(test)]
+#[path = "../tests/common/temp_files.rs"]
+mod temp_files;
+
 use clap::{Parser, Subcommand, ValueEnum};
 use std::net::SocketAddr;
 
@@ -592,8 +598,11 @@ mod tests {
 
     // Write a minimal config that enables exactly one rule at `warn` and return
     // its temp path.
-    async fn write_config_enabling(rule_id: &str) -> anyhow::Result<std::path::PathBuf> {
-        let tmp = std::env::temp_dir().join(format!("lint_lint_cfg_{}.toml", Uuid::new_v4()));
+    async fn write_config_enabling(
+        rule_id: &str,
+        temp: &mut crate::temp_files::TempFiles,
+    ) -> anyhow::Result<std::path::PathBuf> {
+        let tmp = temp.path("lint_lint_cfg", "toml");
         let toml = format!(
             r#"[general]
 listen = "127.0.0.1:3000"
@@ -613,16 +622,19 @@ severity = "warn"
 
     // Enables `cache_control_present` (fires on a 200 response without a
     // Cache-Control header).
-    async fn write_cache_control_config() -> anyhow::Result<std::path::PathBuf> {
-        write_config_enabling("cache_control_present").await
+    async fn write_cache_control_config(
+        temp: &mut crate::temp_files::TempFiles,
+    ) -> anyhow::Result<std::path::PathBuf> {
+        write_config_enabling("cache_control_present", temp).await
     }
 
     // Serialize transactions into a JSONL capture file (one versioned envelope per
     // line) the way the proxy's CaptureWriter would, and return its temp path.
     async fn write_capture_file(
         txs: &[lint_http::http_transaction::HttpTransaction],
+        temp: &mut crate::temp_files::TempFiles,
     ) -> anyhow::Result<std::path::PathBuf> {
-        let tmp = std::env::temp_dir().join(format!("lint_lint_caps_{}.jsonl", Uuid::new_v4()));
+        let tmp = temp.path("lint_lint_caps", "jsonl");
         let mut body = String::new();
         for tx in txs {
             let envelope = capture::CaptureEnvelope {
@@ -640,9 +652,11 @@ severity = "warn"
     async fn lint_reports_violations_and_counts_them() -> anyhow::Result<()> {
         use lint_http_core::test_helpers::make_test_transaction_with_response;
 
-        let cfg = write_cache_control_config().await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_cache_control_config(&mut temp).await?;
         // 200 without Cache-Control -> one violation.
-        let caps = write_capture_file(&[make_test_transaction_with_response(200, &[])]).await?;
+        let caps =
+            write_capture_file(&[make_test_transaction_with_response(200, &[])], &mut temp).await?;
 
         let found = lint_app(
             cfg.to_str().unwrap(),
@@ -660,14 +674,17 @@ severity = "warn"
 
     #[tokio::test]
     async fn lint_clean_capture_reports_zero() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
         use lint_http_core::test_helpers::make_test_transaction_with_response;
-
-        let cfg = write_cache_control_config().await?;
+        let cfg = write_cache_control_config(&mut temp).await?;
         // 200 *with* Cache-Control -> the rule is satisfied, no violation.
-        let caps = write_capture_file(&[make_test_transaction_with_response(
-            200,
-            &[("cache-control", "no-store")],
-        )])
+        let caps = write_capture_file(
+            &[make_test_transaction_with_response(
+                200,
+                &[("cache-control", "no-store")],
+            )],
+            &mut temp,
+        )
         .await?;
 
         let found = lint_app(
@@ -686,8 +703,9 @@ severity = "warn"
 
     #[tokio::test]
     async fn lint_empty_capture_reports_zero() -> anyhow::Result<()> {
-        let cfg = write_cache_control_config().await?;
-        let caps = std::env::temp_dir().join(format!("lint_lint_empty_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_cache_control_config(&mut temp).await?;
+        let caps = temp.path("lint_lint_empty", "jsonl");
         fs::write(&caps, "").await?;
 
         let found = lint_app(
@@ -706,7 +724,8 @@ severity = "warn"
 
     #[tokio::test]
     async fn lint_missing_capture_file_errors() -> anyhow::Result<()> {
-        let cfg = write_cache_control_config().await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_cache_control_config(&mut temp).await?;
         let result = lint_app(
             cfg.to_str().unwrap(),
             "/nonexistent/does-not-exist.jsonl",
@@ -721,8 +740,10 @@ severity = "warn"
     }
 
     // Enables only the WebSocket opcode-sequence protocol rule.
-    async fn write_ws_opcode_config() -> anyhow::Result<std::path::PathBuf> {
-        write_config_enabling("websocket_frame_opcode_sequence").await
+    async fn write_ws_opcode_config(
+        temp: &mut crate::temp_files::TempFiles,
+    ) -> anyhow::Result<std::path::PathBuf> {
+        write_config_enabling("websocket_frame_opcode_sequence", temp).await
     }
 
     fn ws_message(
@@ -745,8 +766,9 @@ severity = "warn"
     // proxy's CaptureWriter would, and return its temp path.
     async fn write_ws_capture_file(
         session: lint_http::websocket_session::WebSocketSession,
+        temp: &mut crate::temp_files::TempFiles,
     ) -> anyhow::Result<std::path::PathBuf> {
-        let tmp = std::env::temp_dir().join(format!("lint_ws_caps_{}.jsonl", Uuid::new_v4()));
+        let tmp = temp.path("lint_ws_caps", "jsonl");
         let envelope = capture::CaptureEnvelope::new(capture::CaptureRecord::WebsocketSession(
             Box::new(session),
         ));
@@ -757,14 +779,14 @@ severity = "warn"
     #[tokio::test]
     async fn lint_replays_websocket_sessions_through_protocol_rules() -> anyhow::Result<()> {
         use lint_http::websocket_session::{MessageDirection, WebSocketSession};
-
-        let cfg = write_ws_opcode_config().await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_ws_opcode_config(&mut temp).await?;
         // Reserved opcode 3 → one violation from the opcode-sequence rule.
         let mut session = WebSocketSession::new(Uuid::new_v4());
         session
             .messages
             .push(ws_message(MessageDirection::Client, 3, 5));
-        let caps = write_ws_capture_file(session).await?;
+        let caps = write_ws_capture_file(session, &mut temp).await?;
 
         let found = lint_app(
             cfg.to_str().unwrap(),
@@ -783,8 +805,8 @@ severity = "warn"
     #[tokio::test]
     async fn lint_websocket_data_after_close_is_flagged_statefully() -> anyhow::Result<()> {
         use lint_http::websocket_session::{MessageDirection, WebSocketSession};
-
-        let cfg = write_ws_opcode_config().await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_ws_opcode_config(&mut temp).await?;
         // Close then a data frame in the same direction — only detectable when
         // the replay feeds prior frames into the session history.
         let mut session = WebSocketSession::new(Uuid::new_v4());
@@ -795,7 +817,7 @@ severity = "warn"
             .messages
             .push(ws_message(MessageDirection::Client, 1, 4));
         session.close_code = Some(1000);
-        let caps = write_ws_capture_file(session).await?;
+        let caps = write_ws_capture_file(session, &mut temp).await?;
 
         let found = lint_app(
             cfg.to_str().unwrap(),
@@ -814,8 +836,8 @@ severity = "warn"
     #[tokio::test]
     async fn lint_clean_websocket_session_reports_zero() -> anyhow::Result<()> {
         use lint_http::websocket_session::{MessageDirection, WebSocketSession};
-
-        let cfg = write_ws_opcode_config().await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_ws_opcode_config(&mut temp).await?;
         let mut session = WebSocketSession::new(Uuid::new_v4());
         session
             .messages
@@ -827,7 +849,7 @@ severity = "warn"
             .messages
             .push(ws_message(MessageDirection::Client, 8, 2));
         session.close_code = Some(1000);
-        let caps = write_ws_capture_file(session).await?;
+        let caps = write_ws_capture_file(session, &mut temp).await?;
 
         let found = lint_app(
             cfg.to_str().unwrap(),
@@ -846,8 +868,8 @@ severity = "warn"
     #[tokio::test]
     async fn lint_duplicate_session_records_do_not_contaminate() -> anyhow::Result<()> {
         use lint_http::websocket_session::{MessageDirection, WebSocketSession};
-
-        let cfg = write_ws_opcode_config().await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_ws_opcode_config(&mut temp).await?;
         // A clean session (text then close) recorded TWICE in one capture —
         // e.g. concatenated capture files. Each replay must start from a fresh
         // history: the first replay's Close frame must not make the second
@@ -861,7 +883,7 @@ severity = "warn"
             .push(ws_message(MessageDirection::Client, 8, 2));
         session.close_code = Some(1000);
 
-        let tmp = std::env::temp_dir().join(format!("lint_ws_dup_{}.jsonl", Uuid::new_v4()));
+        let tmp = temp.path("lint_ws_dup", "jsonl");
         let envelope = capture::CaptureEnvelope::new(capture::CaptureRecord::WebsocketSession(
             Box::new(session),
         ));
@@ -884,11 +906,13 @@ severity = "warn"
 
     #[tokio::test]
     async fn lint_min_severity_gates_findings_and_exit_code() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
         use lint_http_core::test_helpers::make_test_transaction_with_response;
 
         // The config rates the rule `warn`, so an `error` gate filters it out…
-        let cfg = write_cache_control_config().await?;
-        let caps = write_capture_file(&[make_test_transaction_with_response(200, &[])]).await?;
+        let cfg = write_cache_control_config(&mut temp).await?;
+        let caps =
+            write_capture_file(&[make_test_transaction_with_response(200, &[])], &mut temp).await?;
 
         let found = lint_app(
             cfg.to_str().unwrap(),
@@ -1063,10 +1087,10 @@ severity = "warn"
     // and legacy arms without the proxy blocking.
     async fn write_port_taken_config(
         addr: std::net::SocketAddr,
+        temp: &mut crate::temp_files::TempFiles,
     ) -> anyhow::Result<(std::path::PathBuf, std::path::PathBuf)> {
-        let cfg = std::env::temp_dir().join(format!("lint_dispatch_cfg_{}.toml", Uuid::new_v4()));
-        let caps =
-            std::env::temp_dir().join(format!("lint_dispatch_caps_{}.jsonl", Uuid::new_v4()));
+        let cfg = temp.path("lint_dispatch_cfg", "toml");
+        let caps = temp.path("lint_dispatch_caps", "jsonl");
         let toml = format!(
             "[general]\nlisten = \"{addr}\"\ncaptures = \"{caps}\"\n\n[tls]\nenabled = false\n",
             addr = addr,
@@ -1079,8 +1103,10 @@ severity = "warn"
     #[tokio::test]
     async fn dispatch_lint_findings_returns_exit_1() -> anyhow::Result<()> {
         use lint_http_core::test_helpers::make_test_transaction_with_response;
-        let cfg = write_cache_control_config().await?;
-        let caps = write_capture_file(&[make_test_transaction_with_response(200, &[])]).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg = write_cache_control_config(&mut temp).await?;
+        let caps =
+            write_capture_file(&[make_test_transaction_with_response(200, &[])], &mut temp).await?;
         let cli = Cli::parse_from([
             "lint-http",
             "lint",
@@ -1096,12 +1122,16 @@ severity = "warn"
 
     #[tokio::test]
     async fn dispatch_lint_clean_returns_exit_0() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
         use lint_http_core::test_helpers::make_test_transaction_with_response;
-        let cfg = write_cache_control_config().await?;
-        let caps = write_capture_file(&[make_test_transaction_with_response(
-            200,
-            &[("cache-control", "no-store")],
-        )])
+        let cfg = write_cache_control_config(&mut temp).await?;
+        let caps = write_capture_file(
+            &[make_test_transaction_with_response(
+                200,
+                &[("cache-control", "no-store")],
+            )],
+            &mut temp,
+        )
         .await?;
         let cli = Cli::parse_from([
             "lint-http",
@@ -1126,7 +1156,8 @@ severity = "warn"
     async fn dispatch_run_command_routes_to_run_app() -> anyhow::Result<()> {
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
-        let (cfg, caps) = write_port_taken_config(addr).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (cfg, caps) = write_port_taken_config(addr, &mut temp).await?;
         let cli = Cli::parse_from(["lint-http", "run", "--config", cfg.to_str().unwrap()]);
         // run_app binds the already-taken port and errors fast.
         assert!(dispatch(cli).await.is_err());
@@ -1138,9 +1169,10 @@ severity = "warn"
 
     #[tokio::test]
     async fn dispatch_legacy_config_routes_to_run_app() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
-        let (cfg, caps) = write_port_taken_config(addr).await?;
+        let (cfg, caps) = write_port_taken_config(addr, &mut temp).await?;
         let cli = Cli::parse_from(["lint-http", "--config", cfg.to_str().unwrap()]);
         // Legacy bare --config routes to run_app, which errors on the taken port.
         assert!(dispatch(cli).await.is_err());
@@ -1231,7 +1263,8 @@ severity = "warn"
     #[tokio::test]
     async fn rules_list_with_config_annotates_enabled() -> anyhow::Result<()> {
         // The fixture config enables exactly `cache_control_present`.
-        let cfg_path = write_cache_control_config().await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cfg_path = write_cache_control_config(&mut temp).await?;
         let cfg = load_validated_config(cfg_path.to_str().unwrap()).await?;
 
         let text = rules_list(OutputFormat::Text, Some(&cfg))?;
@@ -1275,7 +1308,8 @@ severity = "warn"
 
     #[tokio::test]
     async fn main_cli_config_loads_toml() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_main_cli_cfg_{}.toml", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_main_cli_cfg", "toml");
         let toml = r#"[rules]
     [rules.cache_control_present]
     enabled = false
@@ -1306,8 +1340,8 @@ severity = "warn"
 
     #[tokio::test]
     async fn main_rejects_invalid_rule_config_before_proxy_starts() -> anyhow::Result<()> {
-        let tmp =
-            std::env::temp_dir().join(format!("lint_main_cli_cfg_invalid_{}.toml", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_main_cli_cfg_invalid", "toml");
         let toml = r#"[general]
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
@@ -1338,14 +1372,13 @@ enabled = false
 
     #[tokio::test]
     async fn run_app_with_limit_starts_and_returns() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
         // Pick a free port
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let port = l.local_addr()?.port();
         drop(l);
-
-        let tmp =
-            std::env::temp_dir().join(format!("lint_main_with_limit_{}.toml", Uuid::new_v4()));
-        let capture_path = std::env::temp_dir().join(format!("captures_{}.jsonl", Uuid::new_v4()));
+        let tmp = temp.path("lint_main_with_limit", "toml");
+        let capture_path = temp.path("captures", "jsonl");
         let toml = format!(
             r#"[rules]
 [rules.cache_control_present]
@@ -1387,7 +1420,6 @@ enabled = false
         assert!(res.is_ok());
 
         let _ = fs::remove_file(&tmp).await;
-        let _ = tokio::fs::remove_file(&capture_path).await;
         Ok(())
     }
 
@@ -1397,9 +1429,9 @@ enabled = false
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
 
-        let tmp =
-            std::env::temp_dir().join(format!("lint_main_port_taken_{}.toml", Uuid::new_v4()));
-        let capture_path = std::env::temp_dir().join(format!("captures_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_main_port_taken", "toml");
+        let capture_path = temp.path("captures", "jsonl");
         let toml = format!(
             r#"[rules]
 [rules.cache_control_present]
@@ -1426,8 +1458,6 @@ enabled = false
         assert!(res.is_err());
 
         // Cleanup
-        let _ = tokio::fs::remove_file(&tmp).await;
-        let _ = tokio::fs::remove_file(&capture_path).await;
         drop(l);
         Ok(())
     }

@@ -135,7 +135,8 @@ mod tests {
             "cache_control_present",
             "etag_or_last_modified_present",
         ]);
-        let (shared, tmp, cw) = make_shared_with_cfg(Arc::new(cfg_inner), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(Arc::new(cfg_inner), None, &mut temp).await?;
 
         let tx = make_test_transaction_with_response(200, &[]);
         let violations = shared.pipeline().commit(tx).await;
@@ -160,7 +161,8 @@ mod tests {
             "cache_control_present",
             "etag_or_last_modified_present",
         ]);
-        let (shared, tmp, _cw) = make_shared_with_cfg(Arc::new(cfg_inner), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(Arc::new(cfg_inner), None, &mut temp).await?;
 
         let tx = make_test_transaction_with_response(200, &[]);
         let client = tx.client.clone();
@@ -179,8 +181,10 @@ mod tests {
 
     #[tokio::test]
     async fn protocol_event_pipeline_commit_records_and_returns() -> anyhow::Result<()> {
+        let mut temp = crate::temp_files::TempFiles::new();
         let (shared, tmp, _cw) =
-            make_shared_with_cfg(Arc::new(crate::config::Config::default()), None).await?;
+            make_shared_with_cfg(Arc::new(crate::config::Config::default()), None, &mut temp)
+                .await?;
 
         let connection_id = uuid::Uuid::new_v4();
         let pe = ProtocolEvent {

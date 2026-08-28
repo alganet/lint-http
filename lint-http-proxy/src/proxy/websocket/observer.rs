@@ -126,8 +126,11 @@ mod tests {
     use crate::capture::CaptureWriter;
     use std::sync::Arc;
 
-    async fn test_observer(direction: MessageDirection) -> (DirectionObserver, String) {
-        let tmp = std::env::temp_dir().join(format!("lint_ws_observer_{}.jsonl", Uuid::new_v4()));
+    async fn test_observer(
+        direction: MessageDirection,
+        temp: &mut crate::temp_files::TempFiles,
+    ) -> (DirectionObserver, String) {
+        let tmp = temp.path("lint_ws_observer", "jsonl");
         let path = tmp.to_str().unwrap().to_string();
         let captures = CaptureWriter::new(path.clone(), false).await.unwrap();
         let cfg = crate::config::Config::default();
@@ -156,7 +159,8 @@ mod tests {
     /// carries its own arrival time.
     #[tokio::test]
     async fn frames_are_recorded_with_real_header_bits_and_timestamps() {
-        let (mut observer, path) = test_observer(MessageDirection::Client).await;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (mut observer, _path) = test_observer(MessageDirection::Client, &mut temp).await;
 
         // Masked text "hi", then an unmasked fragmented binary start.
         let key = [1u8, 2, 3, 4];
@@ -178,14 +182,13 @@ mod tests {
             "the real FIN bit, not a hardcoded true"
         );
         assert_eq!(outcome.close_code, None);
-
-        let _ = tokio::fs::remove_file(&path).await;
     }
 
     /// Each direction reads its own close code, from an unmasked payload.
     #[tokio::test]
     async fn the_close_code_is_read_from_this_directions_close_frame() {
-        let (mut observer, path) = test_observer(MessageDirection::Client).await;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (mut observer, _path) = test_observer(MessageDirection::Client, &mut temp).await;
 
         let key = [7u8, 7, 7, 7];
         let payload = [0x03u8, 0xE9]; // 1001
@@ -198,16 +201,14 @@ mod tests {
         assert_eq!(outcome.close_code, Some(1001));
         assert_eq!(outcome.frames.len(), 1);
         assert_eq!(outcome.frames[0].opcode, 8);
-
-        let _ = tokio::fs::remove_file(&path).await;
     }
 
     /// A truncated direction is visible to the relay for its wind-down log.
     #[tokio::test]
     async fn a_wire_cut_mid_frame_reports_as_such() {
-        let (mut observer, path) = test_observer(MessageDirection::Server).await;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (mut observer, _path) = test_observer(MessageDirection::Server, &mut temp).await;
         observer.observe(&[0x81, 0x05, b'h']);
         assert!(observer.mid_frame());
-        let _ = tokio::fs::remove_file(&path).await;
     }
 }

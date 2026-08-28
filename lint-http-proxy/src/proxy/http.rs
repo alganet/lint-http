@@ -284,7 +284,7 @@ mod tests {
     use hyper::Request;
     use std::sync::Arc as StdArc;
     use tokio::fs;
-    use uuid::Uuid;
+
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
@@ -302,7 +302,9 @@ mod tests {
             "cache_control_present",
             "etag_or_last_modified_present",
         ]);
-        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg_inner), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) =
+            make_shared_with_cfg(StdArc::new(cfg_inner), None, &mut temp).await?;
 
         let req = make_request_with_headers("GET", mock.uri(), None)?;
 
@@ -334,7 +336,8 @@ mod tests {
     #[tokio::test]
     async fn handle_request_upstream_error() -> anyhow::Result<()> {
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         // Use a port that is (likely) closed to provoke a client error
         let req = make_request_with_headers("GET", "http://127.0.0.1:9/", None)?;
@@ -379,7 +382,8 @@ mod tests {
             .await;
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         // Build a relative URI and set Host header so proxy builds absolute URI from Host
         let host = mock.address().to_string();
@@ -424,7 +428,8 @@ mod tests {
             .await;
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let uri = format!("{}/ok", mock.uri());
         let req = make_request_with_headers(
@@ -465,12 +470,14 @@ mod tests {
         let cfg = StdArc::new(cfg);
 
         // Create a temporary CA for the test
-        let ca_dir = std::env::temp_dir().join(format!("lint_http_test_ca_{}", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let ca_dir = temp.dir("lint_http_test_ca");
         let cert_path = ca_dir.join("ca.crt");
         let key_path = ca_dir.join("ca.key");
         let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
 
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg.clone(), Some(ca.clone())).await?;
+        let (shared, tmp, _cw) =
+            make_shared_with_cfg(cfg.clone(), Some(ca.clone()), &mut temp).await?;
 
         let req = Request::builder()
             .method("GET")
@@ -510,8 +517,13 @@ mod tests {
 
     #[tokio::test]
     async fn handle_request_connect_without_tls_returns_405() -> anyhow::Result<()> {
-        let (shared, tmp, _cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
 
         // Try to use CONNECT method
         let req = Request::builder()
@@ -555,7 +567,8 @@ mod tests {
             .await;
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let req = make_request_with_headers("GET", format!("{}/hop", mock.uri()), None)?;
 
@@ -623,7 +636,8 @@ mod tests {
     #[tokio::test]
     async fn handle_request_ca_cert_endpoint_without_tls_returns_404() -> anyhow::Result<()> {
         let cfg = StdArc::new(crate::config::Config::default()); // TLS disabled by default
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let req = Request::builder()
             .method("GET")
@@ -680,7 +694,8 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/error", port).parse()?;
         let req = Request::builder()
@@ -718,7 +733,8 @@ mod tests {
 
         let mut cfg = crate::config::Config::default();
         cfg.general.captures_max_body_bytes = 8;
-        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None, &mut temp).await?;
 
         // The full 64-byte body is streamed to the upstream (no rejection); only
         // the captured copy is bounded to the 8-byte prefix.
@@ -764,7 +780,8 @@ mod tests {
 
         let mut cfg = crate::config::Config::default();
         cfg.general.captures_max_body_bytes = 8;
-        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None, &mut temp).await?;
 
         let req = make_request_with_headers("GET", mock.uri(), None)?;
         let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
@@ -812,7 +829,8 @@ mod tests {
 
         let mut cfg = crate::config::Config::default();
         cfg.general.captures_max_body_bytes = 8;
-        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg), None, &mut temp).await?;
 
         let req = make_request_with_headers("GET", mock.uri(), None)?;
         let conn_metadata = StdArc::new(crate::connection::ConnectionMetadata::new(
@@ -850,7 +868,8 @@ mod tests {
         let mut cfg_inner = crate::config::Config::default();
         cfg_inner.tls.suppress_headers = vec!["user-agent".to_string()];
         let cfg = StdArc::new(cfg_inner);
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let uri: Uri = mock.uri().parse()?;
         let req = Request::builder()
@@ -925,7 +944,9 @@ mod tests {
             "etag_or_last_modified_present",
             "status_405_allow_valid",
         ]);
-        let (shared, tmp, _cw) = make_shared_with_cfg(StdArc::new(cfg_inner), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) =
+            make_shared_with_cfg(StdArc::new(cfg_inner), None, &mut temp).await?;
 
         let cases = vec!["/no-content-type", "/no-etag", "/405-no-allow"];
         for path in cases {
@@ -979,8 +1000,13 @@ mod tests {
     #[tokio::test]
     async fn handle_request_relative_uri_with_invalid_host_falls_back_and_returns_502(
     ) -> anyhow::Result<()> {
-        let (shared, tmp, _cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
 
         // Relative URI with invalid Host header should fail to parse and fallback to localhost
         let req = Request::builder()
@@ -1033,7 +1059,8 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/", addr.port()).parse()?;
         let req = Request::builder()
@@ -1108,7 +1135,8 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let uri: Uri = format!("http://127.0.0.1:{}/", addr.port()).parse()?;
         let req = Request::builder()
@@ -1171,7 +1199,8 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         // Build a WebSocket upgrade request with full URI
         let uri: Uri = format!("http://127.0.0.1:{}/ws", ws_port).parse()?;
@@ -1243,7 +1272,8 @@ mod tests {
         });
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         // Regular GET — NOT a WebSocket upgrade request
         let uri: Uri = format!("http://127.0.0.1:{}/upgrade", port).parse()?;

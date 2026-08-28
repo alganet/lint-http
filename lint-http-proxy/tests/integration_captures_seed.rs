@@ -4,8 +4,10 @@
 
 //! Integration tests for the captures_seed feature
 
-use lint_http::{make_temp_captures_path, make_temp_config_path};
 use rstest::rstest;
+
+mod common;
+use common::TempFiles;
 use tokio::fs;
 
 #[rstest]
@@ -14,8 +16,9 @@ use tokio::fs;
 #[tokio::test]
 async fn test_captures_seed_behavior(#[case] seed_enabled: bool) -> anyhow::Result<()> {
     let suffix = if seed_enabled { "enabled" } else { "disabled" };
-    let captures_file = make_temp_captures_path(&format!("test_seed_{}", suffix));
-    let config_file = make_temp_config_path(&format!("test_config_{}", suffix));
+    let mut temp = TempFiles::new();
+    let captures_file = temp.path(&format!("test_seed_{}", suffix), "jsonl");
+    let config_file = temp.path(&format!("test_config_{}", suffix), "toml");
 
     use lint_http::http_transaction::{HttpTransaction, ResponseInfo, TimingInfo};
 
@@ -83,16 +86,15 @@ enabled = false
         assert!(prev.is_none(), "State should not be seeded");
     }
 
-    fs::remove_file(&captures_file).await?;
-    fs::remove_file(&config_file).await?;
     Ok(())
 }
 
 #[tokio::test]
 async fn test_captures_seed_with_nonexistent_file() -> anyhow::Result<()> {
     // Create a config pointing to a non-existent captures file
-    let captures_file = make_temp_captures_path("nonexistent");
-    let config_file = make_temp_config_path("test_config_nonexistent");
+    let mut temp = TempFiles::new();
+    let captures_file = temp.path("nonexistent", "jsonl");
+    let config_file = temp.path("test_config_nonexistent", "toml");
 
     let config_toml = format!(
         r#"[general]
@@ -124,6 +126,5 @@ enabled = false
     );
 
     // Cleanup
-    fs::remove_file(&config_file).await?;
     Ok(())
 }

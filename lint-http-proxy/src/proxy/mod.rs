@@ -551,7 +551,6 @@ mod tests {
     use super::*;
     use std::sync::Arc as StdArc;
     use tokio::fs;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn run_proxy_bind_fails_when_port_taken() -> anyhow::Result<()> {
@@ -559,8 +558,13 @@ mod tests {
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
 
-        let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
 
         // run_proxy should return an error since the port is already in use
         let res = run_proxy(addr, cw, shared.cfg.clone()).await;
@@ -581,10 +585,19 @@ mod tests {
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
 
-        let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
-        let (_shared2, tmp2, cw2) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
+        let (_shared2, tmp2, cw2) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
 
         // By address, while we hold the port: the bind fails.
         assert!(run_proxy(addr, cw, shared.cfg.clone()).await.is_err());
@@ -605,14 +618,15 @@ mod tests {
         let addr = l.local_addr()?;
 
         // Create a path that is a directory so load_captures will error when attempting to open it
-        let dir = std::env::temp_dir().join(format!("lint_proxy_seed_dir_{}", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let dir = temp.dir("lint_proxy_seed_dir");
         tokio::fs::create_dir(&dir).await?;
 
         let mut cfg_inner = crate::config::Config::default();
         cfg_inner.general.captures_seed = true;
         cfg_inner.general.captures = dir.to_string_lossy().to_string();
         let cfg = StdArc::new(cfg_inner);
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg.clone(), None).await?;
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg.clone(), None, &mut temp).await?;
 
         // run_proxy should still return an error due to port being taken, but during
         // startup it should attempt to seed captures and hit the Err branch.
@@ -628,8 +642,13 @@ mod tests {
 
     #[tokio::test]
     async fn run_proxy_starts_and_can_be_aborted() -> anyhow::Result<()> {
-        let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, _tmp, cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse()?;
 
         let task = tokio::spawn(async move {
@@ -640,7 +659,6 @@ mod tests {
         task.abort();
         let _ = task.await;
 
-        tokio::fs::remove_file(&tmp).await?;
         Ok(())
     }
 
@@ -654,8 +672,13 @@ mod tests {
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
 
-        let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
 
         // spawn the proxy with accept_limit = 1
         let cw_clone = cw.clone();
@@ -699,8 +722,13 @@ mod tests {
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
 
-        let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
 
         let shutdown = CancellationToken::new();
         let cfg_clone = shared.cfg.clone();
@@ -741,8 +769,13 @@ mod tests {
         // pick a free port, and keep the listener rather than racing to rebind it
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
 
-        let (_shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (_shared, tmp, cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
 
         // accept_limit = 0 should return quickly
         tokio::time::timeout(
@@ -764,8 +797,13 @@ mod tests {
         let l = std::net::TcpListener::bind("127.0.0.1:0")?;
         let addr = l.local_addr()?;
 
-        let (shared, tmp, cw) =
-            make_shared_with_cfg(StdArc::new(crate::config::Config::default()), None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, cw) = make_shared_with_cfg(
+            StdArc::new(crate::config::Config::default()),
+            None,
+            &mut temp,
+        )
+        .await?;
 
         let task =
             tokio::spawn(
@@ -806,8 +844,8 @@ mod tests {
         let addr = l.local_addr()?;
 
         // Create a temporary captures JSONL with a single valid transaction
-        let tmp_capture =
-            std::env::temp_dir().join(format!("lint_proxy_seed_ok_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp_capture = temp.path("lint_proxy_seed_ok", "jsonl");
         let pcap = tmp_capture
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
@@ -824,7 +862,7 @@ mod tests {
         cfg_inner.general.captures_seed = true;
         cfg_inner.general.captures = pcap.clone();
         let cfg = StdArc::new(cfg_inner);
-        let (shared, tmp, cw) = make_shared_with_cfg(cfg.clone(), None).await?;
+        let (shared, tmp, cw) = make_shared_with_cfg(cfg.clone(), None, &mut temp).await?;
 
         // run_proxy should attempt to load captures and then fail on bind
         let res = run_proxy(addr, cw, shared.cfg.clone()).await;
@@ -832,7 +870,6 @@ mod tests {
 
         // Cleanup
         let _ = fs::remove_file(&tmp).await;
-        let _ = tokio::fs::remove_file(&tmp_capture).await;
         drop(l);
         Ok(())
     }
@@ -842,13 +879,14 @@ mod tests {
         let mut cfg = crate::config::Config::default();
         cfg.tls.enabled = true;
         // Use temp paths for CA files
-        let cert_path = std::env::temp_dir().join(format!("test_ca_run_{}.crt", Uuid::new_v4()));
-        let key_path = std::env::temp_dir().join(format!("test_ca_run_{}.key", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cert_path = temp.path("test_ca_run", "crt");
+        let key_path = temp.path("test_ca_run", "key");
         cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
         cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
 
         let cfg = StdArc::new(cfg);
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg.clone(), None).await?;
+        let (shared, _tmp, _cw) = make_shared_with_cfg(cfg.clone(), None, &mut temp).await?;
         let addr: std::net::SocketAddr = "127.0.0.1:0".parse()?;
 
         let task = tokio::spawn(async move {
@@ -871,9 +909,6 @@ mod tests {
         assert!(cert_path.exists());
         assert!(key_path.exists());
 
-        tokio::fs::remove_file(&cert_path).await?;
-        tokio::fs::remove_file(&key_path).await?;
-        tokio::fs::remove_file(&tmp).await?;
         Ok(())
     }
 }
