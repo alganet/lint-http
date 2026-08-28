@@ -6155,7 +6155,7 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field
     cited_by:
     - file: lint-http-proxy/src/proxy/exchange.rs
-      line: 365
+      line: 386
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs
     section: § 11.7.1
     snippet: Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain.
@@ -6225,7 +6225,7 @@ sources:
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/handshake.rs
-      line: 91
+      line: 86
     - file: lint-http-rules/src/rules/http3_status_code_valid.rs
       line: 83
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
