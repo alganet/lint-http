@@ -17,6 +17,40 @@ const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Cache-Control directives and general directive syntax",
 };
 
+impl CacheControlDirectiveValid {
+    /// The first defect in one message's `Cache-Control` field, if it has one.
+    ///
+    /// Read line by line rather than over the whole section, because an
+    /// unreadable line is one of the findings and the field line is what that
+    /// finding is about. Where the members come from, and which of them the
+    /// grammar's `#element` even admits, is
+    /// [`crate::helpers::cache_control`]'s answer.
+    fn defect(
+        &self,
+        headers: &hyper::HeaderMap,
+        side: &str,
+        severity: crate::lint::Severity,
+    ) -> Option<Violation> {
+        for line in headers.get_all("cache-control").iter() {
+            let Ok(line) = line.to_str() else {
+                return Some(self.violation(
+                    severity,
+                    "Cache-Control header contains non-UTF8 value".into(),
+                ));
+            };
+            for member in crate::helpers::cache_control::members_of(line) {
+                if let Some(message) = member_defect(member) {
+                    return Some(self.violation(
+                        severity,
+                        format!("Invalid Cache-Control header in {}: {}", side, message),
+                    ));
+                }
+            }
+        }
+        None
+    }
+}
+
 impl Rule for CacheControlDirectiveValid {
     fn id(&self) -> &'static str {
         "cache_control_directive_valid"
@@ -34,56 +68,16 @@ impl Rule for CacheControlDirectiveValid {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
+        //
+        // Both sides of the exchange carry this field and are read the same way;
+        // only the word in the finding differs.
+        // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         let finding = || -> Option<Violation> {
-            // Apply to both request and response messages
-            // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
-            for header_val in tx.request.headers.get_all("cache-control").iter() {
-                if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
-                    // An entirely empty Cache-Control value is a zero-element list, which is legal
-                    // (`#element => [ 1#element ]`); that is distinct from an empty *element*
-                    // within a list, which check_cache_control_directives flags. Skip it.
-                    if v.is_empty() {
-                        continue;
-                    }
-                    if let Some(msg) = check_cache_control_directives(v) {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!("Invalid Cache-Control header in request: {}", msg),
-                        ));
-                    }
-                } else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Cache-Control header contains non-UTF8 value".into(),
-                    ));
-                }
-            }
-
-            if let Some(resp) = &tx.response {
-                for header_val in resp.headers.get_all("cache-control").iter() {
-                    if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
-                        // An entirely empty Cache-Control value is a zero-element list, which is legal
-                        // (`#element => [ 1#element ]`); that is distinct from an empty *element*
-                        // within a list, which check_cache_control_directives flags. Skip it.
-                        if v.is_empty() {
-                            continue;
-                        }
-                        if let Some(msg) = check_cache_control_directives(v) {
-                            return Some(self.violation(
-                                ctx.severity,
-                                format!("Invalid Cache-Control header in response: {}", msg),
-                            ));
-                        }
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Cache-Control header contains non-UTF8 value".into(),
-                        ));
-                    }
-                }
-            }
-
-            None
+            self.defect(&tx.request.headers, "request", ctx.severity)
+                .or_else(|| {
+                    let resp = tx.response.as_ref()?;
+                    self.defect(&resp.headers, "response", ctx.severity)
+                })
         };
         Vec::from_iter(finding())
     }
@@ -113,129 +107,97 @@ impl Rule for CacheControlDirectiveValid {
     }
 }
 
-fn check_cache_control_directives(s: &str) -> Option<String> {
-    for member in crate::helpers::headers::split_commas_respecting_quotes(s) {
-        // An empty element *within* the list is forbidden, unlike the empty whole
-        // value the callers skip as a zero-element list.
-        // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-        if member.is_empty() {
-            return Some("Empty directive in Cache-Control header".into());
-        }
+/// What is wrong with one `cache-directive`, if anything.
+///
+/// The name is read by the shared strict reader, which owns the three defects
+/// the two Cache-Control syntax rules report identically. What this rule adds is
+/// the part that is its own: what each *named* directive's argument may say.
+// cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
+fn member_defect(member: &str) -> Option<String> {
+    let directive = match crate::helpers::cache_control::read_member(member) {
+        Ok(directive) => directive,
+        Err(message) => return Some(message),
+    };
+    let name = directive.name;
+    // An empty argument is accepted for directives that take one; the `=` with
+    // nothing after it is the leniency recorded in the token rule beside this.
+    let argument = directive.argument.filter(|a| !a.is_empty())?;
 
-        // The name/value split below transcribes the cache-directive grammar; the
-        // `token` and `quoted-string` rules themselves stay helper-owned.
-        // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
-        let mut kv = member.splitn(2, '=');
-        let name = kv.next().unwrap().trim();
-        if name.is_empty() {
-            return Some(format!(
-                "Empty directive name in Cache-Control member: '{}'",
-                member
-            ));
-        }
-
-        if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-            return Some(format!(
-                "Directive name contains invalid character: '{}'",
-                c
-            ));
-        }
-
-        if let Some(vpart) = kv.next() {
-            let vpart = vpart.trim();
-            if vpart.is_empty() {
-                // empty value allowed for directives that accept an empty value
-                continue;
+    match name.to_ascii_lowercase().as_str() {
+        "max-age" | "s-maxage" => {
+            // Both take a delta-seconds argument, which is why a sign, a
+            // decimal point or any non-digit is rejected here.
+            // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
+            if let Some(c) = crate::helpers::token::find_invalid_token_char(argument) {
+                // If it contains non-token chars it's invalid (no quotes allowed here)
+                return Some(format!(
+                    "{} value contains invalid character: '{}'",
+                    name, c
+                ));
             }
-
-            // Specific directive checks
-            let lname = name.to_ascii_lowercase();
-            match lname.as_str() {
-                "max-age" | "s-maxage" => {
-                    // Both take a delta-seconds argument, which is why a sign, a
-                    // decimal point or any non-digit is rejected here.
-                    // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
-                        // If it contains non-token chars it's invalid (no quotes allowed here)
-                        return Some(format!(
-                            "{} value contains invalid character: '{}'",
-                            name, c
-                        ));
-                    }
-                    if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
-                        return Some(format!("{} must be a non-negative integer", name));
-                    }
-                    // A digit run too large for any particular integer type is still
-                    // syntactically valid `1*DIGIT`, and the spec says what to do about
-                    // it — clamp, not reject — so there is nothing here to report. The
-                    // value's magnitude is the recipient's problem, not the sender's.
-                    // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
-                    // cite(RFC 9111 § 1.2.2): "or the greatest positive integer it can conveniently represent."
-                }
-                "private" | "no-cache" => {
-                    // Both take the same optional argument: a `#field-name` list, which
-                    // is what this branch validates (as a quoted-string or, leniently,
-                    // as a bare comma-separated list). The sentence below is stated for
-                    // private; no-cache's qualified form (§5.2.2.4) has the same shape.
-                    // cite(RFC 9111 § 5.2.2.7): "If a qualified private response directive is present, with an argument that lists one or more field names"
-                    if vpart.starts_with('"') {
-                        match crate::helpers::headers::unescape_quoted_string(vpart) {
-                            Ok(inner) => {
-                                for field in inner.split(',') {
-                                    let f = field.trim();
-                                    if f.is_empty() {
-                                        return Some(format!("Empty field-name in {} value", name));
-                                    }
-                                    if let Some(c) =
-                                        crate::helpers::token::find_invalid_token_char(f)
-                                    {
-                                        return Some(format!(
-                                            "{} includes invalid field-name character: '{}'",
-                                            name, c
-                                        ));
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                return Some(format!(
-                                    "Invalid quoted-string in {} value: {}",
-                                    name, e
-                                ))
-                            }
-                        }
-                    } else {
-                        // unquoted: allow single token or comma-separated tokens
-                        for part in vpart.split(',') {
-                            let p = part.trim();
-                            if p.is_empty() {
-                                return Some(format!("Empty field-name in {} value", name));
-                            }
-                            if let Some(c) = crate::helpers::token::find_invalid_token_char(p) {
-                                return Some(format!(
-                                    "{} includes invalid field-name character: '{}'",
-                                    name, c
-                                ));
-                            }
-                        }
-                    }
-                }
-                _ => {
-                    // For other directives, accept token or quoted-string and ensure token syntax if unquoted
-                    if vpart.starts_with('"') {
-                        if let Err(e) = crate::helpers::headers::validate_quoted_string(vpart) {
-                            return Some(format!(
-                                "Invalid quoted-string in directive {} value: {}",
-                                name, e
-                            ));
-                        }
-                    } else if let Some(c) = crate::helpers::token::find_invalid_token_char(vpart) {
-                        return Some(format!(
-                            "Directive {} value contains invalid character: '{}'",
-                            name, c
-                        ));
-                    }
-                }
+            if argument.chars().any(|ch| !ch.is_ascii_digit()) {
+                return Some(format!("{} must be a non-negative integer", name));
             }
+            // A digit run too large for any particular integer type is still
+            // syntactically valid `1*DIGIT`, and the spec says what to do about
+            // it — clamp, not reject — so there is nothing here to report. The
+            // value's magnitude is the recipient's problem, not the sender's.
+            // cite(RFC 9111 § 1.2.2): "If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648"
+            // cite(RFC 9111 § 1.2.2): "or the greatest positive integer it can conveniently represent."
+            None
+        }
+        // Both take the same optional argument: a `#field-name` list, which is
+        // what this branch validates (as a quoted-string or, leniently, as a
+        // bare comma-separated list). The sentence below is stated for private;
+        // no-cache's qualified form (§5.2.2.4) has the same shape.
+        // cite(RFC 9111 § 5.2.2.7): "If a qualified private response directive is present, with an argument that lists one or more field names"
+        "private" | "no-cache" => field_name_list_defect(name, argument),
+        _ => {
+            // For other directives, accept token or quoted-string and ensure token syntax if unquoted
+            if argument.starts_with('"') {
+                if let Err(e) = crate::helpers::headers::validate_quoted_string(argument) {
+                    return Some(format!(
+                        "Invalid quoted-string in directive {} value: {}",
+                        name, e
+                    ));
+                }
+                return None;
+            }
+            crate::helpers::token::find_invalid_token_char(argument).map(|c| {
+                format!(
+                    "Directive {} value contains invalid character: '{}'",
+                    name, c
+                )
+            })
+        }
+    }
+}
+
+/// The `#field-name` argument `private` and `no-cache` share, quoted or bare.
+///
+/// The two spellings ask the same question of each name, which is why the walk
+/// below is written once over whichever list the argument turned out to be.
+fn field_name_list_defect(name: &str, argument: &str) -> Option<String> {
+    let list = if argument.starts_with('"') {
+        match crate::helpers::headers::unescape_quoted_string(argument) {
+            Ok(inner) => inner,
+            Err(e) => return Some(format!("Invalid quoted-string in {} value: {}", name, e)),
+        }
+    } else {
+        // unquoted: allow single token or comma-separated tokens
+        argument.to_string()
+    };
+
+    for field in list.split(',') {
+        let field = field.trim();
+        if field.is_empty() {
+            return Some(format!("Empty field-name in {} value", name));
+        }
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(field) {
+            return Some(format!(
+                "{} includes invalid field-name character: '{}'",
+                name, c
+            ));
         }
     }
     None

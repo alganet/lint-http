@@ -85,24 +85,88 @@ impl<'a> Directive<'a> {
     }
 }
 
+/// Every list member in the section's `Cache-Control` field lines, in order and
+/// as written — **including the empty ones**.
+///
+/// [`directives`] drops an empty member because a caller asking what the sender
+/// requested has nothing to read in one. A caller reporting on the sender's
+/// syntax has the opposite need: an empty element is precisely its finding, and
+/// before this existed those callers reached past the reader and re-split the
+/// field themselves to see it.
+///
+/// **A field line that is empty contributes no members at all**, and that is
+/// the one exemption every caller of this needs: an entirely empty
+/// `Cache-Control` value is a zero-element list, which `#element` permits,
+/// while an empty element *within* a list is forbidden. Three rules wrote that
+/// distinction out separately — skipping the empty value at the call site and
+/// reporting the empty member in a function two levels down — which is two
+/// places to get one sentence right.
+///
+/// Field lines that are not readable as text are skipped by both readers.
+/// Naming *that* defect belongs to the rule that owns the field and needs the
+/// field line rather than the member, so it asks
+/// [`crate::helpers::headers::has_unreadable_line`].
+// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
+// cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+// cite(RFC 9110 § 5.6.1): "#element => [ element ] *( OWS "," OWS [ element ] )"
+pub fn members(headers: &HeaderMap) -> impl Iterator<Item = &str> {
+    crate::helpers::headers::field_lines(headers, "cache-control").flat_map(members_of)
+}
+
+/// The list members of one `Cache-Control` field line, as written.
+///
+/// [`members`] over a whole section is this applied to each readable line. A
+/// caller reaches for this one when it reports per line — because the field
+/// line, not the member, is what its finding is about — and the two must agree
+/// about the member boundary, which is why the split lives here once.
+pub fn members_of(line: &str) -> Vec<&str> {
+    if line.trim().is_empty() {
+        return Vec::new();
+    }
+    // `,` is the list separator the grammar prints; `;` is a tolerance for the
+    // malformed `a;b` form some senders write. Accepting it only ever widens
+    // what a directive search finds, never narrows it.
+    split_top_level(line, b",;")
+}
+
 /// Every directive in the section's `Cache-Control` field lines, in order.
 ///
-/// Field lines that are not readable as text are skipped rather than reported:
-/// naming that defect belongs to the rule that owns the field's syntax, and
-/// every caller here is asking what the sender *asked for*, not whether they
-/// wrote it correctly.
-// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
+/// Empty members are dropped: every caller here is asking what the sender
+/// *asked for*, not whether they wrote it correctly. Use [`members`] to see
+/// them.
 pub fn directives(headers: &HeaderMap) -> impl Iterator<Item = Directive<'_>> {
-    headers
-        .get_all("cache-control")
-        .iter()
-        .filter_map(|hv| hv.to_str().ok())
-        // `,` is the list separator the grammar prints; `;` is a tolerance for
-        // the malformed `a;b` form some senders write. Accepting it only ever
-        // widens what a directive search finds, never narrows it.
-        .flat_map(|value| split_top_level(value, b",;"))
+    members(headers)
         .filter(|member| !member.is_empty())
         .map(Directive::parse)
+}
+
+/// Read one list member strictly, as a rule reporting on this field's syntax
+/// must: a defect comes back as the sentence that names it.
+///
+/// The three defects below were transcribed twice, once in each of the two
+/// rules that check this field's grammar, down to the wording — which is what
+/// made them worth moving rather than merely sharing a splitter. What the two
+/// rules do *after* the name is read is genuinely different, and stays theirs.
+// cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
+// cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+pub fn read_member(member: &str) -> Result<Directive<'_>, String> {
+    if member.is_empty() {
+        return Err("Empty directive in Cache-Control header".into());
+    }
+    let directive = Directive::parse(member);
+    if directive.name.is_empty() {
+        return Err(format!(
+            "Empty directive name in Cache-Control member: '{}'",
+            member
+        ));
+    }
+    if let Some(c) = crate::helpers::token::find_invalid_token_char(directive.name) {
+        return Err(format!(
+            "Directive name contains invalid character: '{}'",
+            c
+        ));
+    }
+    Ok(directive)
 }
 
 /// Whether the section carries the named directive at all.
@@ -243,6 +307,49 @@ mod tests {
         let d = directives(&hm).next().unwrap();
         assert_eq!(d.delta_seconds(), Some(-1));
         assert_eq!(delta_seconds(&hm, "max-age"), None);
+    }
+
+    /// The syntax rules see what the question-asking readers filter away.
+    #[test]
+    fn members_keeps_the_empty_elements_directives_drops() {
+        let hm = headers(&["max-age=1, ,public"]);
+        assert_eq!(
+            members(&hm).collect::<Vec<_>>(),
+            ["max-age=1", "", "public"]
+        );
+        assert_eq!(directives(&hm).count(), 2);
+    }
+
+    /// An empty *value* is a zero-element list and contributes no member; an
+    /// empty *element* inside a list is a member, and a defect.
+    #[test]
+    fn an_empty_field_value_is_a_zero_element_list() {
+        assert_eq!(members(&headers(&[""])).count(), 0);
+        assert_eq!(members(&headers(&["   "])).count(), 0);
+        assert_eq!(members(&headers(&[","])).collect::<Vec<_>>(), ["", ""]);
+        assert_eq!(
+            members(&headers(&["", "max-age=1"])).collect::<Vec<_>>(),
+            ["max-age=1"]
+        );
+    }
+
+    #[test]
+    fn read_member_names_each_defect_in_the_directive_name() {
+        assert_eq!(
+            read_member("").unwrap_err(),
+            "Empty directive in Cache-Control header"
+        );
+        assert_eq!(
+            read_member("=1").unwrap_err(),
+            "Empty directive name in Cache-Control member: '=1'"
+        );
+        assert_eq!(
+            read_member("no cache").unwrap_err(),
+            "Directive name contains invalid character: ' '"
+        );
+        let directive = read_member("max-age=60").unwrap();
+        assert_eq!(directive.name, "max-age");
+        assert_eq!(directive.argument, Some("60"));
     }
 
     #[test]

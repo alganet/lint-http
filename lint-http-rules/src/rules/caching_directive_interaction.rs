@@ -56,57 +56,40 @@ impl Rule for CachingDirectiveInteraction {
         let finding = || -> Option<Violation> {
             // Helper to check a single HeaderMap for contradictions
             let check_headers = |hdrs: &hyper::HeaderMap| -> Option<Violation> {
-                use crate::helpers::headers::split_commas_respecting_quotes;
-
-                // Collect directives across possibly multiple header fields
-                let mut directives: Vec<(String, Option<String>)> = Vec::new();
-
-                for hv in hdrs.get_all("cache-control").iter() {
-                    let s = match hv.to_str() {
-                        Ok(s) => s,
-                        Err(_) => {
-                            return Some(self.violation(
-                                ctx.severity,
-                                "Cache-Control header contains non-UTF8 value".into(),
-                            ))
-                        }
-                    };
-
-                    // An entirely empty Cache-Control value is a zero-element list, which is legal
-                    // (`#element => [ 1#element ]`); that is distinct from an empty *element*
-                    // within a list, which the check below flags. Skip the empty-list case.
-                    if s.trim().is_empty() {
-                        continue;
-                    }
-
-                    for member in split_commas_respecting_quotes(s) {
-                        let m = member;
-                        if m.is_empty() {
-                            // Cache-Control is a `#cache-directive` list, and the sender (client on a
-                            // request, server on a response) must not emit empty list elements.
-                            // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                            return Some(self.violation(
-                                ctx.severity,
-                                "Cache-Control header contains empty member".into(),
-                            ));
-                        }
-
-                        let mut kv = m.splitn(2, '=');
-                        let name = kv.next().unwrap().trim().to_ascii_lowercase();
-                        let value = kv.next().map(|v| v.trim().to_string());
-
-                        directives.push((name, value));
-                    }
+                // The shared reader skips a field line it cannot read as text;
+                // reporting that is this rule's, so it is asked for separately.
+                if crate::helpers::headers::has_unreadable_line(hdrs, "cache-control") {
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Cache-Control header contains non-UTF8 value".into(),
+                    ));
                 }
 
-                if directives.is_empty() {
-                    return None;
+                // An empty *element* within the list is forbidden — as distinct
+                // from an entirely empty field value, which is a legal
+                // zero-element list and which `members` already exempts.
+                // `directives` would have dropped the empty member; this is
+                // what the raw reader is for.
+                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                if crate::helpers::cache_control::members(hdrs).any(str::is_empty) {
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Cache-Control header contains empty member".into(),
+                    ));
                 }
 
+                // Directive names are compared case-insensitively, so the map is
+                // keyed by the folded name; the argument is kept as written.
                 use std::collections::HashMap;
                 let mut seen: HashMap<String, Vec<Option<String>>> = HashMap::new();
-                for (n, v) in directives {
-                    seen.entry(n).or_default().push(v);
+                for directive in crate::helpers::cache_control::directives(hdrs) {
+                    seen.entry(directive.name.to_ascii_lowercase())
+                        .or_default()
+                        .push(directive.argument.map(str::to_string));
+                }
+
+                if seen.is_empty() {
+                    return None;
                 }
 
                 // public vs private contradiction. Only *unqualified* private (no `=field-name`
