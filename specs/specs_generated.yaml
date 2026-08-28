@@ -671,33 +671,33 @@ sources:
     snippet: Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 336
+      line: 362
   - label: permissions_policy_directives_valid (2)
     section: § 5.2
     snippet: Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 99
+      line: 94
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 320
+      line: 346
   - label: permissions_policy_directives_valid (3)
     section: § 5.2
     snippet: The Member Names must be Tokens.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 428
+      line: 459
   - label: permissions_policy_directives_valid (4)
     section: § 5.2
     snippet: 'The Member Values represent allowlists, and must be one of:'
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 319
+      line: 345
   - label: permissions_policy_directives_valid (5)
     section: § 6.1
     snippet: The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 103
+      line: 98
 - label: draft-ietf-httpbis-rfc6265bis
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
@@ -10742,7 +10742,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 414
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 45
+      line: 44
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 35
   - label: lint-http-rules/src/helpers/structured_fields.rs (8)
@@ -10855,6 +10855,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 481
+    - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
+      line: 220
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 333
   - label: lint-http-rules/src/helpers/structured_fields.rs (26)
@@ -10864,7 +10866,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 457
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 72
+      line: 69
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
       line: 247
   - label: lint-http-rules/src/helpers/structured_fields.rs (27)
@@ -10910,7 +10912,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 619
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 383
+      line: 414
   - label: lint-http-rules/src/helpers/structured_fields.rs (34)
     section: § 4.2.3.3
     snippet: If the first character of input_string is not lcalpha or "*", fail parsing.
@@ -10918,7 +10920,7 @@ sources:
     - file: lint-http-rules/src/helpers/structured_fields.rs
       line: 225
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 363
+      line: 390
   - label: lint-http-rules/src/helpers/structured_fields.rs (35)
     section: § 4.2.3.3
     snippet: If the first character of input_string is not one of lcalpha, DIGIT, "_", "-", ".", or "*", return output_string.
@@ -11064,21 +11066,21 @@ sources:
     snippet: As with Lists, an empty Dictionary is represented by omitting the entire field.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 73
+      line: 70
   - label: permissions_policy_directives_valid (2)
     section: § 3.2
     snippet: Member keys cannot contain uppercase characters.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 321
+      line: 347
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 429
+      line: 460
   - label: permissions_policy_directives_valid (3)
     section: § 4.2
     snippet: If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 95
+      line: 90
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 264
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
@@ -11088,7 +11090,7 @@ sources:
     snippet: When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 37
+      line: 36
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 61
     - file: lint-http-rules/src/rules/structured_headers_valid.rs
@@ -11098,7 +11100,7 @@ sources:
     snippet: Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored.
     cited_by:
     - file: lint-http-rules/src/rules/permissions_policy_directives_valid.rs
-      line: 240
+      line: 258
     - file: lint-http-rules/src/rules/priority_header_syntax.rs
       line: 279
   - label: priority_header_syntax

@@ -23,102 +23,100 @@ impl Rule for PermissionsPolicyDirectivesValid {
         _history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Only inspect responses (server header)
-            let resp = tx.response.as_ref()?;
+        // Only inspect responses (server header)
+        let Some(resp) = tx.response.as_ref() else {
+            return Vec::new();
+        };
 
-            // Every field line, joined first. The rule used to validate each line on
-            // its own, and a Dictionary is not a per-line structure: § 4.2 makes
-            // combining a MUST and says why, and § 3.2 notes that members may be
-            // spread across lines deliberately. Judging a line alone described a
-            // message nobody sends.
-            // cite(RFC 9651 § 4.2): "When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly."
-            let mut lines: Vec<&str> = Vec::new();
-            for hv in resp.headers.get_all("permissions-policy").iter() {
-                // Not "valid UTF-8", which is what this used to say and is a
-                // different claim: a well-formed multi-byte character fails here
-                // too. Structured Fields are ASCII, and a byte outside it is a
-                // parse failure at step 1, before any of this field's own grammar
-                // is consulted -- so the whole field goes.
-                // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
-                let Ok(v) = hv.to_str() else {
-                    return Some(
-                        self.violation(
-                            ctx.severity,
-                            "Permissions-Policy contains a byte outside ASCII, so the field \
+        // Every field line, joined first. The rule used to validate each line on
+        // its own, and a Dictionary is not a per-line structure: § 4.2 makes
+        // combining a MUST and says why, and § 3.2 notes that members may be
+        // spread across lines deliberately. Judging a line alone described a
+        // message nobody sends.
+        // cite(RFC 9651 § 4.2): "When generating input_bytes, parsers MUST combine all field lines in the same section (header or trailer) that case-insensitively match the field name into one comma-separated field-value, as per Section 5.2 of [HTTP]; this assures that the entire field value is processed correctly."
+        let mut lines: Vec<&str> = Vec::new();
+        for hv in resp.headers.get_all("permissions-policy").iter() {
+            // Not "valid UTF-8", which is what this used to say and is a
+            // different claim: a well-formed multi-byte character fails here
+            // too. Structured Fields are ASCII, and a byte outside it is a
+            // parse failure at step 1, before any of this field's own grammar
+            // is consulted -- so the whole field goes.
+            // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
+            let Ok(v) = hv.to_str() else {
+                return vec![self.violation(
+                    ctx.severity,
+                    "Permissions-Policy contains a byte outside ASCII, so the field \
                                   fails Structured Fields parsing and every directive in it is \
                                   discarded"
-                                .into(),
-                        ),
-                    );
-                };
-                lines.push(v);
-            }
-            if lines.is_empty() {
-                return None;
-            }
-            let joined = lines.join(", ");
-            let s = joined.trim();
+                        .into(),
+                )];
+            };
+            lines.push(v);
+        }
+        if lines.is_empty() {
+            return Vec::new();
+        }
+        let joined = lines.join(", ");
+        let s = joined.trim();
 
-            {
-                // An empty value is *not* a parse failure -- § 4.2.2 ends by
-                // returning an empty Dictionary -- so nothing is discarded and the
-                // message no longer implies otherwise. It is still worth saying:
-                // § 3.2 is explicit that an empty Dictionary is spelled by leaving
-                // the field out, so a server sending this one wrote a header that
-                // does nothing.
-                // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
-                // cite(RFC 9651 § 3.2): "As with Lists, an empty Dictionary is represented by omitting the entire field."
-                if s.is_empty() {
-                    return Some(
-                        self.violation(
-                            ctx.severity,
-                            "Permissions-Policy is empty, which grants and denies nothing; an \
+        {
+            // An empty value is *not* a parse failure -- § 4.2.2 ends by
+            // returning an empty Dictionary -- so nothing is discarded and the
+            // message no longer implies otherwise. It is still worth saying:
+            // § 3.2 is explicit that an empty Dictionary is spelled by leaving
+            // the field out, so a server sending this one wrote a header that
+            // does nothing.
+            // cite(RFC 9651 § 4.2.2): "No structured data has been found; return dictionary (which is empty)."
+            // cite(RFC 9651 § 3.2): "As with Lists, an empty Dictionary is represented by omitting the entire field."
+            if s.is_empty() {
+                return vec![self.violation(
+                    ctx.severity,
+                    "Permissions-Policy is empty, which grants and denies nothing; an \
                                   empty policy is written by omitting the field"
-                                .into(),
-                        ),
-                    );
-                }
+                        .into(),
+                )];
+            }
 
-                // Neither specification says "invalid" about any of this, and the
-                // wrapper used to. Both define *ignore* semantics, at two different
-                // scopes, and which one applies is the thing a reader needs:
-                //
-                //  - A Structured Fields parse failure -- a member name with an
-                //    uppercase letter, an unterminated inner list, a control
-                //    character -- takes the whole field with it. RFC 9651 is
-                //    deliberately absolute about this, and forbids field
-                //    specifications from softening it, so the cost of one stray
-                //    capital is every directive in the header.
-                //    cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
-                //
-                //  - A value that parses but is not an allowlist costs one
-                //    directive; the rest of the policy is still enforced.
-                //    cite(Permissions Policy § 5.2): "Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps."
-                //
-                // Either way the finding is that something the server wrote will
-                // not be enforced, which is what the message says now.
-                // cite(Permissions Policy § 6.1): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
-                if let Some(msg) = validate_permissions_policy(s) {
-                    return Some(self.violation(
+            // Neither specification says "invalid" about any of this, and the
+            // wrapper used to. Both define *ignore* semantics, at two different
+            // scopes, and which one applies is the thing a reader needs:
+            //
+            //  - A Structured Fields parse failure -- a member name with an
+            //    uppercase letter, an unterminated inner list, a control
+            //    character -- takes the whole field with it. RFC 9651 is
+            //    deliberately absolute about this, and forbids field
+            //    specifications from softening it, so the cost of one stray
+            //    capital is every directive in the header.
+            //    cite(RFC 9651 § 4.2): "If parsing fails, either the entire field value MUST be ignored (i.e., treated as if the field were not present in the section), or alternatively the complete HTTP message MUST be treated as malformed."
+            //
+            //  - A value that parses but is not an allowlist costs one
+            //    directive; the rest of the policy is still enforced.
+            //    cite(Permissions Policy § 5.2): "Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps."
+            //
+            // Either way the finding is that something the server wrote will
+            // not be enforced, which is what the message says now.
+            // cite(Permissions Policy § 6.1): "The `Permissions-Policy` HTTP header field can be used in the response (server to client) to communicate the permissions policy that should be enforced by the client."
+            // One finding per message the validator has, each with the same
+            // preamble: a parse failure comes back alone because it took the
+            // whole field with it, and a directive that parsed and will be
+            // ignored comes back beside the others like it.
+            validate_permissions_policy(s)
+                .into_iter()
+                .map(|msg| {
+                    self.violation(
                         ctx.severity,
                         format!(
                             "Permissions-Policy will not be enforced as written: {}",
                             msg
                         ),
-                    ));
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
+                    )
+                })
+                .collect()
+        }
     }
 
     fn description(&self) -> &'static str {
-        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
+        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which, and so does their number: a parse failure is reported alone because nothing else in the field survived it, while every directive that parsed and will be ignored is reported beside the others like it. A member with no `=` at all belongs to the second group — §4.2.2 reads a bare key as the Boolean true, which parses, so the cost is that one directive.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -188,30 +186,50 @@ impl Rule for PermissionsPolicyDirectivesValid {
 // - MemberValue: token '*', token 'self', string, or inner-list '(...)'
 // - MemberValue may have parameters after it; only parameter name 'report-to' is validated to be a quoted-string
 // Conservative: relies on liberal parsing of inner-list contents; primary goal is to catch common mistakes
-fn validate_permissions_policy(s: &str) -> Option<String> {
+///
+/// The two scopes § 5.2 and RFC 9651 § 4.2 define decide the shape of the
+/// answer. A Structured Fields parse failure discards the whole field, so it is
+/// one message and the only one -- there are no surviving directives to describe
+/// and the scan stops. A member that parses and is then ignored costs one
+/// directive, so those accumulate: a policy with two unenforceable directives is
+/// two findings, and used to be one finding and a silence.
+fn validate_permissions_policy(s: &str) -> Vec<String> {
     // Reject control characters
     if s.bytes().any(|b| (b < 0x20 && b != b'\t') || b == 0x7f) {
-        return Some(
+        return vec![
             "contains control characters, so the field fails Structured Fields parsing and \
              every directive in it is discarded"
                 .into(),
-        );
+        ];
     }
 
+    let mut out: Vec<String> = Vec::new();
     let mut seen_keys = std::collections::HashSet::new();
     let members = split_commas_outside_quotes(s);
     for m in members {
         let m = m.trim();
         if m.is_empty() {
-            return Some("empty directive/member".into());
+            return vec!["empty directive/member".into()];
         }
 
-        // find '=' outside quotes
-        let eq = find_char_outside_quotes(m, '=');
-        if eq.is_none() {
-            return Some(format!("member '{}' missing '=' and value", m));
-        }
-        let eq = eq.unwrap();
+        // A member with no `=` is not malformed and this used to say it was.
+        // § 4.2.2 reads a bare key as the Boolean true, which parses -- so the
+        // field survives and this one directive does not: a Boolean is a Member
+        // Value of "any other form", and § 5.2 drops the member for it. The same
+        // finding as the explicit `?1` below, reached by leaving the value out.
+        // cite(RFC 9651 § 4.2.2): "Let value be Boolean true."
+        let eq = match find_char_outside_quotes(m, '=') {
+            Some(eq) => eq,
+            None => {
+                out.push(format!(
+                    "member '{}' has no value, which is the Boolean true and not an allowlist: \
+                     § 5.2 permits a string, the token '*', the token 'self', or an inner list \
+                     of those",
+                    m
+                ));
+                continue;
+            }
+        };
         let (left, right) = m.split_at(eq);
         let mut feature_part = left.trim();
         let value_part = right[1..].trim(); // drop '='
@@ -222,12 +240,12 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
         }
 
         if !is_valid_feature_identifier(feature_part) {
-            return Some(format!(
+            return vec![format!(
                 "invalid feature identifier '{}': a Dictionary member name is an SF key \
                  (lowercase, starting with a letter or '*'), and a key that is not one fails \
                  parsing -- which discards every directive in the field, not just this one",
                 feature_part
-            ));
+            )];
         }
 
         // A repeated key is not a parse failure and not an error: the parser
@@ -239,47 +257,55 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
         // which the key grammar makes moot anyway.
         // cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
         if !seen_keys.insert(feature_part.to_string()) {
-            return Some(format!(
+            out.push(format!(
                 "feature '{}' is given more than once; all but the last are ignored, so the \
                  earlier allowlist has no effect",
                 feature_part
             ));
+            continue;
         }
 
         // value_part may contain parameters separated by ';' outside quotes
         let parts = split_semicolons_outside_quotes(value_part);
         let item = parts.first().map(|s| s.trim()).unwrap_or("");
+        // Nothing after the `=` fails § 4.2.2's parse of a Dictionary member
+        // value, so this is the whole field rather than the one directive.
         if item.is_empty() {
-            return Some(format!("member '{}' has empty value", feature_part));
+            return vec![format!("member '{}' has empty value", feature_part)];
         }
 
         // Disallow bare booleans, numbers, and byte-sequences as member values
+        // Each of these parses and is then dropped for its form, so each costs
+        // its own directive and the scan carries on to the next one.
         if item.starts_with('?') {
-            return Some(format!(
+            out.push(format!(
                 "member '{}' has boolean value not allowed",
                 feature_part
             ));
+            continue;
         }
         if is_number(item) {
-            return Some(format!(
+            out.push(format!(
                 "member '{}' has numeric value not allowed",
                 feature_part
             ));
+            continue;
         }
         if is_byte_sequence(item) {
-            return Some(format!(
+            out.push(format!(
                 "member '{}' has byte-sequence value not allowed",
                 feature_part
             ));
+            continue;
         }
 
         // Allowed item forms: inner list '(...)', quoted-string '"..."', token '*' or 'self', or token-like
         if item.starts_with('(') {
             if !item.ends_with(')') {
-                return Some(format!(
+                return vec![format!(
                     "member '{}' has unterminated inner-list",
                     feature_part
-                ));
+                )];
             }
             // inner-list contents are permissively accepted; ensure there are no empty members like '(,)'
             let inner = &item[1..item.len() - 1];
@@ -290,19 +316,19 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
                 let members = split_spaces_outside_quotes(inner);
                 for im in members {
                     if im.trim().is_empty() {
-                        return Some(format!(
+                        return vec![format!(
                             "member '{}' has empty inner-list member",
                             feature_part
-                        ));
+                        )];
                     }
                 }
             }
         } else if item.starts_with('"') {
             if !is_quoted_string(item) {
-                return Some(format!(
+                return vec![format!(
                     "member '{}' has invalid quoted-string",
                     feature_part
-                ));
+                )];
             }
         } else if item == "*" || item == "self" {
             // § 5.2 names two permitted Tokens, and a Token keeps its case:
@@ -339,18 +365,19 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
             } else {
                 "value"
             };
-            return Some(format!(
+            out.push(format!(
                 "member '{}' has {} '{}', which is not an allowlist: § 5.2 permits a string, \
                  the token '*', the token 'self', or an inner list of those",
                 feature_part, shape, item
             ));
+            continue;
         }
 
         // Validate parameters (if any): only 'report-to' is checked to be a quoted-string when present.
         for p in parts.iter().skip(1) {
             let p = p.trim();
             if p.is_empty() {
-                return Some(format!("empty parameter for feature '{}'", feature_part));
+                return vec![format!("empty parameter for feature '{}'", feature_part)];
             }
             if let Some(eqpos) = find_char_outside_quotes(p, '=') {
                 let (pn, pv) = p.split_at(eqpos);
@@ -362,17 +389,21 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
                 // spelled `report-to`; it is a member the whole field dies on.
                 // cite(RFC 9651 § 4.2.3.3): "If the first character of input_string is not lcalpha or "*", fail parsing."
                 if !is_valid_sf_key(pn) {
-                    return Some(format!(
+                    return vec![format!(
                         "invalid parameter '{}' for feature '{}'",
                         pn, feature_part
-                    ));
+                    )];
                 }
                 if pn == "report-to" {
+                    // The one per-directive failure among the parameters: the
+                    // value parses as a Structured Field and is refused by this
+                    // field's own definition, not by § 4.2.
                     if !is_quoted_string(pv) {
-                        return Some(format!(
+                        out.push(format!(
                             "parameter 'report-to' for '{}' must be a quoted-string",
                             feature_part
                         ));
+                        continue;
                     }
                 } else {
                     // Any bare Item, not the three that used to be listed here.
@@ -382,24 +413,24 @@ fn validate_permissions_policy(s: &str) -> Option<String> {
                     // left at this site is the Structured Fields one.
                     // cite(RFC 9651 § 4.2.3.2): "Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string."
                     if !is_bare_item(pv) {
-                        return Some(format!(
+                        return vec![format!(
                             "invalid parameter '{}' for feature '{}'",
                             pn, feature_part
-                        ));
+                        )];
                     }
                 }
             } else {
                 // bare parameter name
                 if !is_valid_sf_key(p) {
-                    return Some(format!(
+                    return vec![format!(
                         "invalid bare parameter '{}' for '{}'",
                         p, feature_part
-                    ));
+                    )];
                 }
             }
         }
     }
-    None
+    out
 }
 
 // Shared parsing helpers (splitting, quoted-string, byte-seq, key/token-like)
@@ -520,6 +551,8 @@ mod tests {
     // Uppercase cannot appear in an SF key, and the Dictionary fails to parse.
     #[case(Some("Geolocation=(self)"), true)]
     #[case(Some("geoLocation=(self)"), true)]
+    // A bare key parses -- it is the Boolean true -- so the field survives and
+    // this one directive does not.
     #[case(Some("geolocation"), true)]
     #[case(Some("geolocation=(self);report-to=endpoint"), true)]
     #[case(Some("geolocation=?1"), true)]
@@ -603,8 +636,8 @@ mod tests {
     fn control_characters_are_rejected() {
         // hyper rejects control characters in header values; test validator directly instead
         let res = validate_permissions_policy("geo=\u{0001}");
-        assert!(res.is_some());
-        assert!(res.unwrap().contains("control characters"));
+        assert_eq!(res.len(), 1, "{res:?}");
+        assert!(res[0].contains("control characters"), "{}", res[0]);
     }
 
     #[test]
@@ -842,16 +875,16 @@ mod tests {
     #[case("geolocation=(self);label=%\"caf%c3%a9\"")]
     fn any_bare_item_is_a_parameter_value(#[case] value: &str) {
         let v = validate_permissions_policy(value);
-        assert!(v.is_none(), "unexpected finding for {:?}: {:?}", value, v);
+        assert!(v.is_empty(), "unexpected finding for {:?}: {:?}", value, v);
     }
 
     #[rstest]
     fn an_uppercase_parameter_key_is_not_report_to() {
         // A key cannot hold an uppercase letter, so this is a parse failure
         // rather than a misspelled `report-to` whose value needs checking.
-        let v = validate_permissions_policy("geolocation=(self);Report-To=\"endpoint\"")
-            .expect("should report");
-        assert!(v.contains("invalid parameter 'Report-To'"), "{v}");
+        let v = validate_permissions_policy("geolocation=(self);Report-To=\"endpoint\"");
+        assert_eq!(v.len(), 1, "{v:?}");
+        assert!(v[0].contains("invalid parameter 'Report-To'"), "{}", v[0]);
     }
 
     #[test]
@@ -1144,6 +1177,66 @@ mod tests {
         );
     }
 
+    fn judge_all(value: &str) -> Vec<Violation> {
+        let rule = PermissionsPolicyDirectivesValid;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("permissions-policy", value)]);
+        crate::test_helpers::run_rule_all(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+    }
+
+    /// A member that parses and is then ignored costs one directive, and § 5.2
+    /// leaves the rest of the policy enforced -- so every such member is its own
+    /// finding. Three here: a Boolean value, a Token that is not one § 5.2 names,
+    /// and a feature given twice. Only the first used to be reported.
+    #[test]
+    fn each_unenforceable_directive_is_its_own_finding() {
+        let all = judge_all("geolocation=?1, camera=SELF, fullscreen=*, fullscreen=(self)");
+        assert_eq!(all.len(), 3, "{all:?}");
+        assert!(all[0].message.contains("geolocation"), "{}", all[0].message);
+        assert!(all[1].message.contains("camera"), "{}", all[1].message);
+        assert!(
+            all[2].message.contains("fullscreen") && all[2].message.contains("more than once"),
+            "{}",
+            all[2].message
+        );
+    }
+
+    /// A parse failure is one finding and the only one: § 4.2 discards the whole
+    /// field, so there are no surviving directives left to describe -- the
+    /// `camera=?1` beside it is not separately unenforceable, it is gone with
+    /// everything else.
+    #[test]
+    fn a_parse_failure_is_the_only_finding() {
+        let all = judge_all("Geolocation=(self), camera=?1");
+        assert_eq!(all.len(), 1, "{all:?}");
+        assert!(
+            all[0].message.contains("invalid feature identifier"),
+            "{}",
+            all[0].message
+        );
+    }
+
+    /// A bare key is not malformed and this rule used to say it was: § 4.2.2
+    /// reads it as the Boolean true, which parses. So the field survives, the
+    /// directive does not, and the scan carries on to the next member.
+    #[test]
+    fn a_bare_key_costs_its_own_directive_only() {
+        let all = judge_all("geolocation, camera=?1");
+        assert_eq!(all.len(), 2, "{all:?}");
+        assert!(
+            all[0].message.contains("the Boolean true"),
+            "{}",
+            all[0].message
+        );
+        assert!(all[1].message.contains("camera"), "{}", all[1].message);
+    }
+
     /// Field lines are joined before parsing, as § 4.2 requires, so a Dictionary
     /// spread across lines is one Dictionary -- including for the duplicate
     /// check, which per-line validation could never have seen.
@@ -1218,8 +1311,8 @@ mod tests {
     fn quoted_string_with_control_char_is_rejected() {
         // hyper rejects control characters in header values; test validator directly instead
         let res = validate_permissions_policy("geolocation=\"a\u{0001}\"");
-        assert!(res.is_some());
+        assert_eq!(res.len(), 1, "{res:?}");
         // top-level control character check runs first
-        assert!(res.unwrap().contains("control characters"));
+        assert!(res[0].contains("control characters"), "{}", res[0]);
     }
 }
