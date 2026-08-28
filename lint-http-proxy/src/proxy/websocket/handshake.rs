@@ -203,7 +203,6 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
         // counts the live session against `max_connections` (and makes the
         // drain barrier wait for it), the token lets it close promptly on
         // shutdown.
-        let captures_clone = shared.captures.clone();
         let connection_id = facts.connection_id;
         let pe_pipeline = shared.protocol_event_pipeline();
         let relay_shutdown = shared.shutdown.clone();
@@ -224,7 +223,6 @@ pub(in crate::proxy) async fn handle_websocket_upgrade(
                 TokioIo::new(client_io),
                 TokioIo::new(server_io),
                 tx_id,
-                captures_clone,
                 connection_id,
                 negotiated,
                 pe_pipeline,
