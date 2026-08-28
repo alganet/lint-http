@@ -94,7 +94,8 @@ impl Rule for XXssProtectionValueValid {
                 return None;
             }
 
-            Some(self.violation(
+            Some(self.cited(
+                &MDN_X_XSS_PROTECTION,
                 ctx.severity,
                 format!("X-XSS-Protection contains unsupported value: '{}'", val),
             ))

@@ -142,7 +142,8 @@ impl Rule for TransferEncodingChunkedFinal {
             // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed)."
             let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
             if chunked_count > 1 {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &RFC_9112_6_1,
                     ctx.severity,
                     format!(
                         "The chunked transfer coding must not be applied more than once: \
@@ -207,7 +208,8 @@ impl Rule for TransferEncodingChunkedFinal {
                 && codings.iter().any(|c| c != "chunked")
                 && codings.last().map(String::as_str) != Some("chunked")
             {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &RFC_9112_6_1,
                     ctx.severity,
                     format!(
                         "A request that applies any transfer coding other than chunked must apply \

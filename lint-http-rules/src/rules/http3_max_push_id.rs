@@ -62,7 +62,8 @@ impl ProtocolRule for Http3MaxPushId {
             // the origin sent to this proxy, which as the receiving client must reject.
             // cite(RFC 9114 § 7.2.7): "A server MUST NOT send a MAX_PUSH_ID frame.  A client MUST treat the receipt of a MAX_PUSH_ID frame as a connection error of type H3_FRAME_UNEXPECTED."
             if direction == MessageDirection::Server {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &RFC_9114_7_2_7,
                     ctx.severity,
                     format!(
                         "HTTP/3 MAX_PUSH_ID (push_id {}) sent by a server; a server MUST NOT \
@@ -82,7 +83,8 @@ impl ProtocolRule for Http3MaxPushId {
                 } = &prev.kind
                 {
                     if current < *prev_id {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_9114_7_2_7,
                             ctx.severity,
                             format!(
                                 "HTTP/3 MAX_PUSH_ID {} decreased from previous {} \

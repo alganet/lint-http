@@ -48,16 +48,16 @@ impl Rule for VaryHeaderValid {
             // are each "*" or a field-name.
             // cite(RFC 9110 § 12.5.5): "Vary = #( "*" / field-name )"
             for hv in resp.headers.get_all("vary").iter() {
-                let s =
-                    match hv.to_str() {
-                        Ok(s) => s,
-                        Err(_) => {
-                            return Some(self.violation(
-                                ctx.severity,
-                                "Vary header contains non-UTF8 value".into(),
-                            ))
-                        }
-                    };
+                let s = match hv.to_str() {
+                    Ok(s) => s,
+                    Err(_) => {
+                        return Some(self.cited(
+                            &RFC_9110_12_5_5,
+                            ctx.severity,
+                            "Vary header contains non-UTF8 value".into(),
+                        ))
+                    }
+                };
 
                 // Vary is a `#`-list, so an entirely empty value is a legal zero-element
                 // list (the degenerate "does not vary" case), not a malformed header.

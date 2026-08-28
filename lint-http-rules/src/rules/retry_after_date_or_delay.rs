@@ -54,7 +54,8 @@ impl Rule for RetryAfterDateOrDelay {
                 let s = match val.to_str() {
                     Ok(s) => s.trim(),
                     Err(_) => {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_9110_10_2_3,
                             ctx.severity,
                             "Retry-After header contains non-UTF8 value".into(),
                         ))

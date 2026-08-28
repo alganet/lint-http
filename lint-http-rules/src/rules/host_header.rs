@@ -154,7 +154,7 @@ impl Rule for HostHeader {
             // field value is neither: it is a `uri-host` and a port.
             // cite(RFC 9112 § 3.2): "If the target URI includes an authority component, then a client MUST send a field value for Host that is identical to that authority component, excluding any userinfo subcomponent and its "@" delimiter (Section 4.2 of [HTTP])."
             if s.contains('@') {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9112_3_2, ctx.severity, format!(
                         "Host field value '{}' carries a userinfo subcomponent and its '@' delimiter",
                         s
                     )));
@@ -169,7 +169,7 @@ impl Rule for HostHeader {
             if s.parse::<std::net::Ipv6Addr>().is_ok()
                 || crate::helpers::ipv6::looks_like_unbracketed_ipv6_with_port(s)
             {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_3986_3_2_2, ctx.severity, format!(
                         "IPv6 literal '{}' in a Host field value must be enclosed in square brackets",
                         s
                     )));
@@ -182,7 +182,8 @@ impl Rule for HostHeader {
             // the whole of what RFC 3986 §3.2.3 says a port looks like.
             // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
             if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(s) {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &RFC_9110_7_2,
                     ctx.severity,
                     format!("Host field value '{}' is not a host and port: {}", s, msg),
                 ));

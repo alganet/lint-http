@@ -95,7 +95,8 @@ impl Rule for CookieAttributeConsistent {
 
                     // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_6265_4_1_1,
                             ctx.severity,
                             format!("Set-Cookie cookie-name contains invalid character: '{}'", c),
                         ));
@@ -121,7 +122,8 @@ impl Rule for CookieAttributeConsistent {
                             // The grammar admits no "=" — the attribute is its own presence.
                             // cite(RFC 6265 § 4.1.1): "secure-av         = "Secure""
                             if val_opt.is_some() && !val_opt.unwrap().is_empty() {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_6265_4_1_1,
                                     ctx.severity,
                                     "Set-Cookie attribute 'Secure' must not have a value".into(),
                                 ));
@@ -133,7 +135,8 @@ impl Rule for CookieAttributeConsistent {
                         if key.eq_ignore_ascii_case("httponly") {
                             // cite(RFC 6265 § 4.1.1): "httponly-av       = "HttpOnly""
                             if val_opt.is_some() && !val_opt.unwrap().is_empty() {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_6265_4_1_1,
                                     ctx.severity,
                                     "Set-Cookie attribute 'HttpOnly' must not have a value".into(),
                                 ));
@@ -186,7 +189,8 @@ impl Rule for CookieAttributeConsistent {
                             // cite(RFC 6265 § 5.2.2): "If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av."
                             // cite(RFC 6265 § 5.2.2): "If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av."
                             if v.parse::<i64>().is_err() {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_6265_5_2_2,
                                     ctx.severity,
                                     format!(
                                     "Set-Cookie attribute 'Max-Age' is not a valid integer: '{}'",
@@ -210,7 +214,8 @@ impl Rule for CookieAttributeConsistent {
                             };
                             // cite(RFC 6265 § 4.1.1): "expires-av        = "Expires=" sane-cookie-date"
                             if !crate::http_date::is_valid_http_date(v) {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_6265_4_1_1,
                                     ctx.severity,
                                     format!(
                                     "Set-Cookie attribute 'Expires' is not a valid HTTP-date: '{}'",

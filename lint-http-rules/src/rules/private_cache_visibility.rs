@@ -98,7 +98,7 @@ impl Rule for PrivateCacheVisibility {
                                             // representation directly from the origin share it legitimately.
                                             // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
                                             if val_norm == normalized {
-                                                return Some(self.violation(ctx.severity, format!(
+                                                return Some(self.cited(&RFC_9111_5_2_2_7, ctx.severity, format!(
                                                         "Validator '{}' from a private response seen by a different client",
                                                         member
                                                     )));
@@ -133,7 +133,7 @@ impl Rule for PrivateCacheVisibility {
                                                 // Same heuristic + cite as the ETag branch above.
                                                 // cite(RFC 9111 § 5.2.2.7): "The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user)."
                                                 if val_dt == candidate_dt {
-                                                    return Some(self.violation(ctx.severity, format!(
+                                                    return Some(self.cited(&RFC_9111_5_2_2_7, ctx.severity, format!(
                                                             "Validator '{}' from a private response seen by a different client",
                                                             candidate
                                                         )));

@@ -93,7 +93,8 @@ impl ProtocolRule for QuicTransportParametersValid {
             // cite(RFC 9114 § 6.1): "In order to permit these streams to open, an HTTP/3 server SHOULD configure non-zero minimum values for the number of permitted streams and the initial stream flow-control window."
             if params.initial_max_streams_bidi == Some(0) {
                 return Some(
-                    self.violation(
+                    self.cited(
+                        &RFC_9114_6_1,
                         ctx.severity,
                         "QUIC initial_max_streams_bidi is 0; HTTP/3 requires at least one \
                          bidirectional stream for request/response exchange (RFC 9114 §6.1)"
@@ -109,7 +110,8 @@ impl ProtocolRule for QuicTransportParametersValid {
             // cite(RFC 9000 § 18.2): "the initial value for the maximum amount of data that can be sent on the connection"
             if params.initial_max_data == Some(0) {
                 return Some(
-                    self.violation(
+                    self.cited(
+                        &RFC_9000_18_2,
                         ctx.severity,
                         "QUIC initial_max_data is 0; no data can be transferred on this \
                          connection (RFC 9000 §18.2)"
@@ -141,7 +143,8 @@ impl ProtocolRule for QuicTransportParametersValid {
             // cite(RFC 9114 § 6.1): "In order to permit these streams to open, an HTTP/3 server SHOULD configure non-zero minimum values for the number of permitted streams and the initial stream flow-control window."
             if params.initial_max_stream_data_bidi_remote == Some(0) {
                 return Some(
-                    self.violation(
+                    self.cited(
+                        &RFC_9114_6_1,
                         ctx.severity,
                         "QUIC initial_max_stream_data_bidi_remote is 0; request streams \
                          cannot carry data (RFC 9114 §6.1)"
@@ -155,7 +158,8 @@ impl ProtocolRule for QuicTransportParametersValid {
             // cite(RFC 9114 § 6.2): "Endpoints that excessively restrict the number of streams or the flow-control window of these streams will increase the chance that the remote peer reaches the limit early and becomes blocked."
             if params.initial_max_stream_data_uni == Some(0) {
                 return Some(
-                    self.violation(
+                    self.cited(
+                        &RFC_9114_6_2,
                         ctx.severity,
                         "QUIC initial_max_stream_data_uni is 0; HTTP/3 unidirectional streams \
                          (control, QPACK) cannot carry data (RFC 9114 §6.2)"
@@ -171,7 +175,8 @@ impl ProtocolRule for QuicTransportParametersValid {
             match params.max_idle_timeout_ms {
                 Some(0) | None => {
                     return Some(
-                        self.violation(
+                        self.cited(
+                            &RFC_9000_18_2,
                             ctx.severity,
                             "QUIC max_idle_timeout is 0 or absent; connections may remain \
                              idle indefinitely, consuming server resources (RFC 9000 §18.2)"

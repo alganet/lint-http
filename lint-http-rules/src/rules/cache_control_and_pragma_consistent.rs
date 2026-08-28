@@ -79,7 +79,7 @@ impl Rule for CacheControlAndPragmaConsistent {
             // cite(RFC 9111 § 5.4): "However, support for Cache-Control is now widespread.  As a result, this specification deprecates Pragma."
             if let Some(resp) = &tx.response {
                 if resp.headers.contains_key("pragma") {
-                    return Some(self.violation(ctx.severity, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead (RFC 9111 §5.4)".into()));
+                    return Some(self.cited(&RFC_9111_5_4, ctx.severity, "Response contains 'Pragma' header; its meaning in responses was never specified and Pragma is deprecated — use 'Cache-Control' instead (RFC 9111 §5.4)".into()));
                 }
             }
 

@@ -142,7 +142,7 @@ impl Rule for MustRevalidateEnforced {
                     resp.headers.contains_key("etag") || resp.headers.contains_key("last-modified");
                 // cite(RFC 9111 § 5.2.2.2): "The must-revalidate response directive indicates that once the response has become stale, a cache MUST NOT reuse that response to satisfy another request until it has been successfully validated by the origin, as defined by Section 4.3."
                 if has_validator {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(self.cited(&RFC_9111_5_2_2_2, ctx.severity, format!(
                             "Cached response with 'must-revalidate' directive is stale (age {} >= freshness {}) and was reused without conditional request",
                             current_age, freshness_lifetime
                         )));

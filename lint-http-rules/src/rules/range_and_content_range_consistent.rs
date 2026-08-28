@@ -169,7 +169,7 @@ impl Rule for RangeAndContentRangeConsistent {
             // well-formed satisfied Content-Range could reach it.
             // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
             if status == 206 && !has_range_request {
-                return Some(self.violation(config.severity, "206 Partial Content response received but request did not include a Range header"
+                return Some(self.cited(&RFC_9110_15_3_7, config.severity, "206 Partial Content response received but request did not include a Range header"
                             .into()));
             }
 
@@ -189,7 +189,7 @@ impl Rule for RangeAndContentRangeConsistent {
                 if response_is_multipart_byteranges(&resp.headers) {
                     // cite(RFC 9110 § 15.3.7.2): "To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead)."
                     if cr.is_some() {
-                        return Some(self.violation(config.severity, "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into()));
+                        return Some(self.cited(&RFC_9110_15_3_7_2, config.severity, "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into()));
                     }
 
                     // One requested range may not be answered with a multipart
@@ -353,11 +353,12 @@ impl Rule for RangeAndContentRangeConsistent {
                         // because it is about a field the server chose to send rather
                         // than about one the spec asked it for.
                         // cite(RFC 9110 § 14.4): "The complete-length in a 416 response indicates the current length of the selected representation."
-                        return Some(self.violation(config.severity, "416 response should use the '*/complete-length' form in Content-Range"
+                        return Some(self.cited(&RFC_9110_14_4, config.severity, "416 response should use the '*/complete-length' form in Content-Range"
                                     .into()));
                     }
                     Err(e) => {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_9110_14_4,
                             config.severity,
                             format!("Invalid Content-Range header '{}': {}", cr, e),
                         ));

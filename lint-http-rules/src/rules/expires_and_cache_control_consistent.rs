@@ -124,7 +124,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             // cite(RFC 9111 § 5.3): "A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired")."
             if expires_dt.is_none() {
                 if cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0 {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(self.cited(&RFC_9111_5_3, ctx.severity, format!(
                             "Expires '{}' is not a valid HTTP-date, so a cache MUST read it as already expired, but Cache-Control max-age/s-maxage says the response is still fresh — values are contradictory (RFC 9111 §5.3)",
                             expires_raw
                         )));
@@ -174,7 +174,7 @@ impl Rule for ExpiresAndCacheControlConsistent {
             if (cc_max_age.unwrap_or(-1) > 0 || cc_s_maxage.unwrap_or(-1) > 0)
                 && expires <= date_ref
             {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9111_5_3, ctx.severity, format!(
                         "Response contains Cache-Control max-age/s-maxage but Expires {} is not in the future relative to Date {} — values are contradictory (RFC 9111 §4.2, §5.3)",
                         expires, date_ref
                     )));

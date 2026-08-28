@@ -103,7 +103,7 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
             // cite(Fetch § 4.10): "If credentials is `true`, then return success."
             if acc_val.eq_ignore_ascii_case("true") && acao_has_star {
-                return Some(self.violation(ctx.severity, "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'".into()));
+                return Some(self.cited(&FETCH_4_10, ctx.severity, "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'".into()));
             }
 
             None

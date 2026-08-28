@@ -102,7 +102,7 @@ impl Rule for ProxyConnectionDiscouraged {
             // several, so it reproduces the problem it was meant to solve.
             //
             // cite(RFC 9112 § C.2.2): "One attempted solution was the introduction of a Proxy-Connection header field, targeted specifically at proxies.  In practice, this was also unworkable, because proxies are often deployed in multiple layers, bringing about the same problem discussed above."
-            Some(self.violation(
+            Some(self.cited(&RFC_9112_C_2_2,
                 ctx.severity,
                 format!(
                     "Request carries a Proxy-Connection header field: '{}'. RFC 9112 Appendix C.2.2 \

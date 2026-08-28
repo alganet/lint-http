@@ -102,7 +102,7 @@ impl Rule for StatusAndCachingSemantics {
             // None of the storability signals §3 requires are present, and the status is not
             // heuristically cacheable — so a cache cannot store this response.
             // cite(RFC 9111 § 3): "A cache MUST NOT store a response to a request unless"
-            Some(self.violation(ctx.severity, format!(
+            Some(self.cited(&RFC_9111_3, ctx.severity, format!(
                     "Response {} is not cacheable by default and lacks explicit freshness information (Cache-Control: max-age/s-maxage or Expires)",
                     status
                 )))

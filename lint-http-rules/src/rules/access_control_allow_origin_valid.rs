@@ -69,7 +69,7 @@ impl Rule for AccessControlAllowOriginValid {
             // header carries one value — an echoed origin, `null`, or `*` — not a list.
             // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
             if acao_count > 1 {
-                return Some(self.violation(ctx.severity, "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into()));
+                return Some(self.cited(&FETCH_3_3_3, ctx.severity, "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into()));
             }
 
             // There is a single header field; validate its single value semantics and origin syntax.

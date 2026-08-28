@@ -130,7 +130,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
                     // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
                     if media == "*" {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_9110_12_5_1,
                             ctx.severity,
                             format!("Invalid media-range '*' in {} header", hdr),
                         ));
@@ -160,7 +161,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             if let Some(c) =
                                 crate::helpers::token::find_invalid_token_char(parsed.type_)
                             {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_9110_8_3_1,
                                     ctx.severity,
                                     format!(
                                         "Invalid token '{}' in media type '{}' of {}",
@@ -221,7 +223,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // cite(RFC 9110 § 12.5.1): "The accept extension grammar (accept-params, accept-ext) has been removed because it had a complicated definition, was not being used in practice, and is more easily deployed through new header fields."
                         // cite(RFC 9110 § 12.5.1): "Senders using weights SHOULD send "q" last (after all media-range parameters)."
                         if weight_seen {
-                            return Some(self.violation(ctx.severity, format!(
+                            return Some(self.cited(&RFC_9110_12_5_1, ctx.severity, format!(
                                     "Parameter '{}' follows the weight in {} header: the weight closes a media-range, and the extension parameters that once came after it were removed from the grammar",
                                     p, hdr
                                 )));
@@ -291,7 +293,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // the same bound, and it is senders this rule reports.
                             // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
                             if !crate::helpers::headers::valid_qvalue(v) {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_9110_12_4_2,
                                     ctx.severity,
                                     format!("Invalid qvalue '{}' in {} header", v, hdr),
                                 ));

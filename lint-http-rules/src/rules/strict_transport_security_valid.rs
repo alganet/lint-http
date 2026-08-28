@@ -69,7 +69,8 @@ impl Rule for StrictTransportSecurityValid {
                 let v = match hv.to_str() {
                     Ok(s) => s.trim(),
                     Err(_) => {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_6797_6_1,
                             ctx.severity,
                             "Strict-Transport-Security header contains non-UTF8 value".into(),
                         ));
@@ -108,7 +109,7 @@ impl Rule for StrictTransportSecurityValid {
 
                     // cite(RFC 6797 § 6.1): "directive-name            = token"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                        return Some(self.violation(ctx.severity, format!("Strict-Transport-Security directive name contains invalid character: '{}'", c)));
+                        return Some(self.cited(&RFC_6797_6_1, ctx.severity, format!("Strict-Transport-Security directive name contains invalid character: '{}'", c)));
                     }
 
                     let lname = name.to_ascii_lowercase();
@@ -169,7 +170,7 @@ impl Rule for StrictTransportSecurityValid {
                                     if let Err(e) =
                                         crate::helpers::headers::validate_quoted_string(vpart)
                                     {
-                                        return Some(self.violation(ctx.severity, format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e)));
+                                        return Some(self.cited(&RFC_6797_6_1, ctx.severity, format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e)));
                                     }
                                 } else if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(vpart)
@@ -183,13 +184,14 @@ impl Rule for StrictTransportSecurityValid {
 
                 // cite(RFC 6797 § 6.1): "All directives MUST appear only once in an STS header field."
                 if max_age_count > 1 {
-                    return Some(self.violation(ctx.severity, "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
+                    return Some(self.cited(&RFC_6797_6_1, ctx.severity, "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
                                 .into()));
                 }
 
                 if !saw_max_age {
                     return Some(
-                        self.violation(
+                        self.cited(
+                            &RFC_6797_6_1,
                             ctx.severity,
                             "Strict-Transport-Security header missing required 'max-age' directive"
                                 .into(),

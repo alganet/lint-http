@@ -123,7 +123,8 @@ impl Rule for ContentTypeRegistered {
                         }
                     }
 
-                    Some(self.violation(
+                    Some(self.cited(
+                        &RFC_6838_4_2_8,
                         ctx.severity,
                         format!("Unrecognized media type '{}' in {} header", full, hdr_name),
                     ))

@@ -146,7 +146,7 @@ impl Rule for AcceptRangesOnPartialContent {
             //
             // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
             if advertised.advertises("none") {
-                return Some(self.violation(ctx.severity, "Previous response for this resource sent Accept-Ranges: none, advising against a range request on the same request path, and this request sends Range anyway (advice: nothing forbids it)".into()));
+                return Some(self.cited(&RFC_9110_14_3, ctx.severity, "Previous response for this resource sent Accept-Ranges: none, advising against a range request on the same request path, and this request sends Range anyway (advice: nothing forbids it)".into()));
             }
 
             // A field line that could not be read may have been the one naming this
@@ -166,7 +166,7 @@ impl Rule for AcceptRangesOnPartialContent {
             //
             // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand."
             if !advertised.advertises(&unit) {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9110_14_2, ctx.severity, format!(
                         "Range asks in '{}', a unit the previous response for this resource did not advertise, so a server that does not understand it will ignore the field and send the whole representation (advice: nothing forbids it)",
                         unit
                     )));

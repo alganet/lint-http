@@ -191,7 +191,8 @@ impl NoConnectionSpecificFields {
         // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
         if direction == Direction::Response {
             if headers.contains_key("te") {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &RFC_9110_10_1_4,
                     severity,
                     format!(
                         "{} response carries a TE header field; the exception {} makes is \

@@ -92,7 +92,8 @@ impl Rule for CrossOriginResourcePolicyValid {
                 return None;
             }
 
-            Some(self.violation(
+            Some(self.cited(
+                &FETCH_3_7,
                 ctx.severity,
                 format!(
                     "Cross-Origin-Resource-Policy contains unsupported value: '{}'",

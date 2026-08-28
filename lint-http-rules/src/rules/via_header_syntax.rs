@@ -89,13 +89,13 @@ impl Rule for ViaHeaderSyntax {
         let finding = || -> Option<Violation> {
             // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
             if let Some(err) = judge(&tx.request.headers, "Request") {
-                return Some(self.violation(ctx.severity, err));
+                return Some(self.cited(&RFC_9110_7_6_3, ctx.severity, err));
             }
 
             // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
             if let Some(resp) = &tx.response {
                 if let Some(err) = judge(&resp.headers, "Response") {
-                    return Some(self.violation(ctx.severity, err));
+                    return Some(self.cited(&RFC_9110_7_6_3, ctx.severity, err));
                 }
             }
 

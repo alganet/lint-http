@@ -90,7 +90,8 @@ impl Rule for XFrameOptionsValueValid {
             // the generic unsupported-value one.
             // cite(HTML Speculative Loading § 7.7): "In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented."
             if val.len() >= 10 && val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &HTML_SPECULATIVE_LOADING_7_7,
                     ctx.severity,
                     format!(
                         "X-Frame-Options: ALLOW-FROM is obsolete and not implemented by browsers \

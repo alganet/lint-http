@@ -152,7 +152,7 @@ impl Rule for OptionsMethodCapabilities {
             crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)
         {
             if !tx.request.headers.contains_key("content-type") {
-                out.push(self.violation(ctx.severity, format!(
+                out.push(self.cited(&RFC_9110_9_3_7, ctx.severity, format!(
                             "OPTIONS request carries content ({evidence}) with no Content-Type header field; RFC 9110 § 9.3.7 says a client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type"
                         )));
             }

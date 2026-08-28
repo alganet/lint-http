@@ -115,7 +115,7 @@ impl Rule for AcceptLanguageWeightValid {
                         let val_opt = nv.next();
 
                         if !name.eq_ignore_ascii_case("q") {
-                            return Some(self.violation(ctx.severity, format!(
+                            return Some(self.cited(&RFC_9110_12_4_2, ctx.severity, format!(
                                     "'{}' is not a weight, and a weight is the only thing an Accept-Language range may carry (member '{}')",
                                     param, member
                                 )));
@@ -140,7 +140,8 @@ impl Rule for AcceptLanguageWeightValid {
 
                         // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                         if !crate::helpers::headers::valid_qvalue(val) {
-                            return Some(self.violation(
+                            return Some(self.cited(
+                                &RFC_9110_12_4_2,
                                 ctx.severity,
                                 format!(
                                     "Invalid qvalue '{}' in Accept-Language member '{}'",

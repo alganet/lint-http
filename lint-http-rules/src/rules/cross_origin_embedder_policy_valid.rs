@@ -93,7 +93,7 @@ impl Rule for CrossOriginEmbedderPolicyValid {
                 return None;
             }
 
-            Some(self.violation(ctx.severity, format!(
+            Some(self.cited(&HTML_7_1_4, ctx.severity, format!(
                     "Cross-Origin-Embedder-Policy value '{}' does not enable cross-origin isolation (use 'require-corp' or 'credentialless')",
                     val
                 )))

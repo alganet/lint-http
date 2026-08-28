@@ -71,7 +71,11 @@ impl Rule for SecFetchUserValueValid {
             // An empty value cannot be an sf-boolean.
             // cite(Fetch Metadata § 2.4): "It is a Structured Field whose value is a boolean."
             if val.is_empty() {
-                return Some(self.violation(ctx.severity, "Sec-Fetch-User header is empty".into()));
+                return Some(self.cited(
+                    &FETCH_METADATA_2_4,
+                    ctx.severity,
+                    "Sec-Fetch-User header is empty".into(),
+                ));
             }
 
             // The canonical serialization for a structured-boolean true is `?1`. `?0` is a

@@ -201,7 +201,7 @@ impl Rule for StatusCodeSemantics {
             // an operator reads it.
             // cite(RFC 9110 § 11.7.1): "Unlike WWW-Authenticate, the Proxy-Authenticate header field applies only to the next outbound client on the response chain."
             if resp.headers.contains_key("proxy-authenticate") {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9110_11_7_1, ctx.severity, format!(
                         "Proxy-Authenticate arrived on status {status}; RFC 9110 pairs this field \
                          with 407 Proxy Authentication Required, the one response a proxy MUST send \
                          it in. No requirement forbids it here — the field's definition puts no \

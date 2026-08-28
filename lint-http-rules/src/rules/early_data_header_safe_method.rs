@@ -227,7 +227,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 // has an intermediary write the field: it adds one only where there is none.
                 // cite(RFC 8470 § 5.1): "An intermediary that forwards a request prior to the completion of the TLS handshake with its client MUST send it with the Early-Data header field set to "1" (i.e., it adds it if not present in the request)."
                 if instances > 1 {
-                    return Some(self.violation(
+                    return Some(self.cited(&RFC_8470_5_1,
                         config.severity,
                         format!(
                             "Request carries {instances} Early-Data header field lines, and a client may send at most one — the field holds a single bit. A server reads them as one instance with the value 1, so the extra lines change nothing about the request; an intermediary marking early data adds the field only when it is not already there"
@@ -244,7 +244,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
                 if let Some(hv) = tx.request.headers.get(FIELD) {
                     let written = hv.as_bytes();
                     if written != b"1" {
-                        return Some(self.violation(
+                        return Some(self.cited(&RFC_8470_5_1,
                             config.severity,
                             format!(
                                 "Early-Data header field carries {}, and the field has exactly one valid value, \"1\". A server treats an invalid instance as though it said 1, so the request is marked as early data all the same — the value is simply wrong",
@@ -272,7 +272,7 @@ impl Rule for EarlyDataHeaderSafeMethod {
             if let Some(resp) = &tx.response {
                 // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
                 if resp.headers.contains_key(FIELD) {
-                    return Some(self.violation(
+                    return Some(self.cited(&RFC_8470_5_1,
                         config.severity,
                         "Response carries an Early-Data header field. The field is a request header field: it tells a server that a request reached it through early data, and a response has nothing to mark".to_string(),
                     ));

@@ -138,7 +138,8 @@ impl Rule for ContentTypePresent {
             // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
             // cite(RFC 9110 § 8.3): "This "MIME sniffing" risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., "privilege escalation")."
             if has_content {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &RFC_9110_8_3,
                     ctx.severity,
                     "Response contains content but no Content-Type header".into(),
                 ));

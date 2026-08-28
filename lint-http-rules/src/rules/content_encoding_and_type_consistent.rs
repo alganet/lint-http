@@ -129,7 +129,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 let is_no_body_status =
                     (100..200).contains(&status) || status == 204 || status == 304;
                 if is_no_body_status && resp.headers.contains_key("content-encoding") {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(self.cited(&RFC_9110_15_4_5, ctx.severity, format!(
                             "Response {} carries no content, so it should not send Content-Encoding",
                             status
                         )));

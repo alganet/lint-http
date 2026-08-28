@@ -126,7 +126,7 @@ impl Rule for MediaTypeSuffixValid {
                     // the bare-trailing-"+" check below, on the same reasoning.
                     // cite(RFC 6838 § 4.2): "restricted-name = restricted-name-first *126restricted-name-chars restricted-name-first  = ALPHA / DIGIT"
                     if subtype.starts_with('+') {
-                        return Some(self.violation(ctx.severity, format!(
+                        return Some(self.cited(&RFC_6838_4_2, ctx.severity, format!(
                                 "Media type '{}/{}' in {} is a structured suffix with no base subtype name",
                                 parsed.type_, parsed.subtype, hdr_name
                             )));
@@ -163,7 +163,7 @@ impl Rule for MediaTypeSuffixValid {
                     // cite(RFC 6838 § 4.2.8): ""+suffix" constructs for as-yet unregistered structured syntaxes SHOULD NOT be used, given the possibility of conflicts with future suffix definitions."
                     // cite(RFC 6838 § 4.2.8): "By the same token, media types MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ."
                     if !config.allowed.contains(&suffix) {
-                        return Some(self.violation(ctx.severity, format!(
+                        return Some(self.cited(&RFC_6838_4_2_8, ctx.severity, format!(
                                         "Unrecognized structured syntax suffix '+{}' in media type '{}/{}' (header '{}')",
                                         suffix, parsed.type_, parsed.subtype, hdr_name
                                     )));

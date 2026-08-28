@@ -118,7 +118,7 @@ impl Rule for RetryAfterStatusValid {
             // it, which is an interoperability observation and not a requirement.
             // `description()` says the same where an operator reads it.
             // cite(RFC 9110 § 10.2.3): "Servers send the "Retry-After" header field to indicate how long the user agent ought to wait before making a follow-up request."
-            Some(self.violation(ctx.severity, format!(
+            Some(self.cited(&RFC_9110_10_2_3, ctx.severity, format!(
                     "Retry-After arrived on status {status}, which neither RFC 9110 nor RFC 6585 pairs with \
                      this field; the two documents pair it with any 3xx redirection, 413 Content Too Large, \
                      429 Too Many Requests, and 503 Service Unavailable. No requirement forbids sending it \

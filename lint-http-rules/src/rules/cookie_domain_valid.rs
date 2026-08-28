@@ -66,7 +66,8 @@ impl Rule for CookieDomainValid {
                     if key.eq_ignore_ascii_case("domain") {
                         // cite(RFC 6265 § 5.2.3): "If the attribute-value is empty, the behavior is undefined."
                         if val.is_empty() {
-                            return Some(self.violation(
+                            return Some(self.cited(
+                                &RFC_6265_5_2_3,
                                 ctx.severity,
                                 "Set-Cookie attribute 'Domain' requires a value".into(),
                             ));
@@ -80,11 +81,12 @@ impl Rule for CookieDomainValid {
                                 // not), so the server should send the registry form without it.
                                 // cite(RFC 6265 § 5.2.3): "Let cookie-domain be the attribute-value without the leading %x2E (".") character."
                                 if val.starts_with('.') {
-                                    return Some(self.violation(ctx.severity, "Set-Cookie 'Domain' attribute uses a leading '.' which is deprecated; prefer the registry form without leading dot".into()));
+                                    return Some(self.cited(&RFC_6265_5_2_3, ctx.severity, "Set-Cookie 'Domain' attribute uses a leading '.' which is deprecated; prefer the registry form without leading dot".into()));
                                 }
                             }
                             Err(e) => {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_6265_5_2_3,
                                     ctx.severity,
                                     format!("Invalid Set-Cookie Domain attribute '{}': {}", val, e),
                                 ));

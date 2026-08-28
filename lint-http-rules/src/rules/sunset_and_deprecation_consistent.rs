@@ -67,7 +67,8 @@ impl Rule for SunsetAndDeprecationConsistent {
                 Some(s) => match crate::http_date::parse_http_date_to_datetime(s) {
                     Ok(dt) => Some((s.to_string(), dt)),
                     Err(_) => {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_8594_3,
                             ctx.severity,
                             "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                         ));
@@ -133,7 +134,7 @@ impl Rule for SunsetAndDeprecationConsistent {
             {
                 let allowed_skew = chrono::Duration::seconds(60);
                 if dep_dt > sun_dt + allowed_skew {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(self.cited(&RFC_9745_4, ctx.severity, format!(
                             "Deprecation '{}' indicates a time after Sunset '{}'; the Sunset timestamp must not be earlier than Deprecation (RFC 9745 §4)",
                             dep_raw, sun_raw
                         )));

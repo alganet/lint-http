@@ -109,7 +109,7 @@ impl Rule for OriginMatchingForCors {
                     "access-control-allow-credentials",
                 ) {
                     if cred.trim().eq_ignore_ascii_case("true") {
-                        return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true".into()));
+                        return Some(self.cited(&FETCH_4_10, ctx.severity, "Access-Control-Allow-Origin '*' is not allowed when Access-Control-Allow-Credentials is true".into()));
                     }
                 }
                 return None;
@@ -120,7 +120,8 @@ impl Rule for OriginMatchingForCors {
             // case normalisation is applied on either side.
             // cite(Fetch § 4.10): "If the result of byte-serializing a request origin with request is not origin, then return failure."
             if acao_val != origin {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &FETCH_4_10,
                     ctx.severity,
                     format!(
                         "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",

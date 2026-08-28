@@ -100,7 +100,8 @@ impl Rule for CrossOriginOpenerPolicyValid {
                 return None;
             }
 
-            Some(self.violation(
+            Some(self.cited(
+                &HTML_7_1_3_1,
                 ctx.severity,
                 format!(
                     "Cross-Origin-Opener-Policy contains unsupported value: '{}'",

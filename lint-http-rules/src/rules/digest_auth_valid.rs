@@ -162,7 +162,7 @@ impl Rule for DigestAuthValid {
 
                                     let quoted = v.starts_with('"');
                                     if MUST_QUOTE.contains(&k.as_str()) && !quoted {
-                                        return Some(self.violation(ctx.severity, format!(
+                                        return Some(self.cited(&RFC_7616_3_4, ctx.severity, format!(
                                                 "Digest Authorization sends '{k}' unquoted, and RFC 7616 \u{a7}3.4 admits only the quoted string syntax for it (\"a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque\")"
                                             )));
                                     }

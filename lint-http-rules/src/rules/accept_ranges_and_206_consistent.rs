@@ -96,7 +96,7 @@ impl Rule for AcceptRangesAnd206Consistent {
             // cite(RFC 9110 § 14.3): "A server that does not support any kind of range request for the target resource MAY send"
             // cite(RFC 9110 § 14.3): "to advise the client not to attempt a range request on the same request path.  The range unit "none" is reserved for this purpose."
             if advertised.advertises("none") {
-                return Some(self.violation(ctx.severity, "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into()));
+                return Some(self.cited(&RFC_9110_14_3, ctx.severity, "Accept-Ranges: none says this resource supports no kind of range request, in the very response that fulfilled one (206 Partial Content)".into()));
             }
 
             // A unit that could not be read may be the one the Content-Range names,
@@ -126,7 +126,7 @@ impl Rule for AcceptRangesAnd206Consistent {
             //
             // cite(RFC 9110 § 14.2): "If all of the preconditions are true, the server supports the Range header field for the target resource, the received Range field-value contains a valid ranges-specifier with a range-unit supported for that target resource, and that ranges-specifier is satisfiable with respect to the selected representation, the server SHOULD send a 206 (Partial Content) response with content containing one or more partial representations that correspond to the satisfiable range-spec(s) requested."
             if !advertised.advertises(unit) {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9110_14_2, ctx.severity, format!(
                         "Content-Range describes a range in '{}', a unit this response's Accept-Ranges does not advertise (advice: nothing requires the two to agree)",
                         unit
                     )));
