@@ -207,234 +207,265 @@ fn validate_permissions_policy(s: &str) -> Vec<String> {
         ];
     }
 
-    let mut out: Vec<String> = Vec::new();
+    let mut ignored: Vec<String> = Vec::new();
     let mut seen_keys = std::collections::HashSet::new();
-    let members = split_commas_outside_quotes(s);
-    for m in members {
-        let m = m.trim();
-        if m.is_empty() {
-            return vec!["empty directive/member".into()];
-        }
-
-        // A member with no `=` is not malformed and this used to say it was.
-        // § 4.2.2 reads a bare key as the Boolean true, which parses -- so the
-        // field survives and this one directive does not: a Boolean is a Member
-        // Value of "any other form", and § 5.2 drops the member for it. The same
-        // finding as the explicit `?1` below, reached by leaving the value out.
-        // cite(RFC 9651 § 4.2.2): "Let value be Boolean true."
-        let eq = match find_char_outside_quotes(m, '=') {
-            Some(eq) => eq,
-            None => {
-                out.push(format!(
-                    "member '{}' has no value, which is the Boolean true and not an allowlist: \
-                     § 5.2 permits a string, the token '*', the token 'self', or an inner list \
-                     of those",
-                    m
-                ));
-                continue;
-            }
-        };
-        let (left, right) = m.split_at(eq);
-        let mut feature_part = left.trim();
-        let value_part = right[1..].trim(); // drop '='
-
-        // feature_part may contain params (e.g., key;param=1). Keep only the key name
-        if let Some(semipos) = find_char_outside_quotes(feature_part, ';') {
-            feature_part = feature_part[..semipos].trim();
-        }
-
-        if !is_valid_feature_identifier(feature_part) {
-            return vec![format!(
-                "invalid feature identifier '{}': a Dictionary member name is an SF key \
-                 (lowercase, starting with a letter or '*'), and a key that is not one fails \
-                 parsing -- which discards every directive in the field, not just this one",
-                feature_part
-            )];
-        }
-
-        // A repeated key is not a parse failure and not an error: the parser
-        // keeps the last one and the earlier directive simply stops existing.
-        // That is precisely this rule's subject -- something the server wrote
-        // that will not be enforced -- and it is invisible without being told,
-        // since the header still looks like it says both things. Keys are
-        // compared character for character, which § 4.2.2 says outright and
-        // which the key grammar makes moot anyway.
-        // cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
-        if !seen_keys.insert(feature_part.to_string()) {
-            out.push(format!(
-                "feature '{}' is given more than once; all but the last are ignored, so the \
-                 earlier allowlist has no effect",
-                feature_part
-            ));
-            continue;
-        }
-
-        // value_part may contain parameters separated by ';' outside quotes
-        let parts = split_semicolons_outside_quotes(value_part);
-        let item = parts.first().map(|s| s.trim()).unwrap_or("");
-        // Nothing after the `=` fails § 4.2.2's parse of a Dictionary member
-        // value, so this is the whole field rather than the one directive.
-        if item.is_empty() {
-            return vec![format!("member '{}' has empty value", feature_part)];
-        }
-
-        // Disallow bare booleans, numbers, and byte-sequences as member values
-        // Each of these parses and is then dropped for its form, so each costs
-        // its own directive and the scan carries on to the next one.
-        if item.starts_with('?') {
-            out.push(format!(
-                "member '{}' has boolean value not allowed",
-                feature_part
-            ));
-            continue;
-        }
-        if is_number(item) {
-            out.push(format!(
-                "member '{}' has numeric value not allowed",
-                feature_part
-            ));
-            continue;
-        }
-        if is_byte_sequence(item) {
-            out.push(format!(
-                "member '{}' has byte-sequence value not allowed",
-                feature_part
-            ));
-            continue;
-        }
-
-        // Allowed item forms: inner list '(...)', quoted-string '"..."', token '*' or 'self', or token-like
-        if item.starts_with('(') {
-            if !item.ends_with(')') {
-                return vec![format!(
-                    "member '{}' has unterminated inner-list",
-                    feature_part
-                )];
-            }
-            // inner-list contents are permissively accepted; ensure there are no empty members like '(,)'
-            let inner = &item[1..item.len() - 1];
-            if inner.trim() == "" {
-                // empty inner list is acceptable: ()
-            } else {
-                // ensure no empty inner members after space-splitting outside quotes
-                let members = split_spaces_outside_quotes(inner);
-                for im in members {
-                    if im.trim().is_empty() {
-                        return vec![format!(
-                            "member '{}' has empty inner-list member",
-                            feature_part
-                        )];
-                    }
-                }
-            }
-        } else if item.starts_with('"') {
-            if !is_quoted_string(item) {
-                return vec![format!(
-                    "member '{}' has invalid quoted-string",
-                    feature_part
-                )];
-            }
-        } else if item == "*" || item == "self" {
-            // § 5.2 names two permitted Tokens, and a Token keeps its case:
-            // RFC 9651 § 4.2.6 consumes each character and appends it to the
-            // output unchanged, and nothing anywhere folds a Token. Compare
-            // § 3.2, which says outright that member *keys* cannot contain
-            // uppercase -- the specification distinguishes the two cases, so
-            // this code should not have folded them together.
-            //
-            // `SELF` is therefore a different Token from `self`, which makes it
-            // a Member Value of "any other form", and § 5.2 says what becomes
-            // of those: the directive is dropped. `eq_ignore_ascii_case` here
-            // called that conforming.
-            // cite(Permissions Policy § 5.2): "The Member Values represent allowlists, and must be one of:"
-            // cite(Permissions Policy § 5.2): "Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps."
-            // cite(RFC 9651 § 3.2): "Member keys cannot contain uppercase characters."
-        } else {
-            // Everything else. § 5.2's list of permitted Member Values is
-            // closed -- a String, the Token `*`, the Token `self`, or an Inner
-            // List of those -- so a bare Token that is neither `*` nor `self`
-            // is not a narrower kind of allowlist, it is not an allowlist at
-            // all. This branch used to accept any syntactically well-formed
-            // token, which let `geolocation=camera` and `geolocation=SELF`
-            // through as conforming when a browser drops both.
-            //
-            // Note the asymmetry with Inner List contents just above, which
-            // stay permissive on purpose: § 5.2 says unknown items *inside* a
-            // list are ignored and the Member Value is processed without them,
-            // so an odd entry there costs one origin. An odd value out here
-            // costs the whole directive.
-            // cite(Permissions Policy § 5.2): "Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present."
-            let shape = if is_valid_token_like(item) {
-                "token"
-            } else {
-                "value"
-            };
-            out.push(format!(
-                "member '{}' has {} '{}', which is not an allowlist: § 5.2 permits a string, \
-                 the token '*', the token 'self', or an inner list of those",
-                feature_part, shape, item
-            ));
-            continue;
-        }
-
-        // Validate parameters (if any): only 'report-to' is checked to be a quoted-string when present.
-        for p in parts.iter().skip(1) {
-            let p = p.trim();
-            if p.is_empty() {
-                return vec![format!("empty parameter for feature '{}'", feature_part)];
-            }
-            if let Some(eqpos) = find_char_outside_quotes(p, '=') {
-                let (pn, pv) = p.split_at(eqpos);
-                let pn = pn.trim();
-                let pv = pv[1..].trim();
-                // Checked before the name is compared to anything, and for
-                // every parameter rather than for all but one. A key cannot
-                // hold an uppercase letter, so `Report-To` is not a differently
-                // spelled `report-to`; it is a member the whole field dies on.
-                // cite(RFC 9651 § 4.2.3.3): "If the first character of input_string is not lcalpha or "*", fail parsing."
-                if !is_valid_sf_key(pn) {
-                    return vec![format!(
-                        "invalid parameter '{}' for feature '{}'",
-                        pn, feature_part
-                    )];
-                }
-                if pn == "report-to" {
-                    // The one per-directive failure among the parameters: the
-                    // value parses as a Structured Field and is refused by this
-                    // field's own definition, not by § 4.2.
-                    if !is_quoted_string(pv) {
-                        out.push(format!(
-                            "parameter 'report-to' for '{}' must be a quoted-string",
-                            feature_part
-                        ));
-                        continue;
-                    }
-                } else {
-                    // Any bare Item, not the three that used to be listed here.
-                    // A byte sequence, a Boolean, a Date and a Display String
-                    // are all parameter values, and § 5.2 says nothing about
-                    // parameters other than `report-to` -- so the only question
-                    // left at this site is the Structured Fields one.
-                    // cite(RFC 9651 § 4.2.3.2): "Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string."
-                    if !is_bare_item(pv) {
-                        return vec![format!(
-                            "invalid parameter '{}' for feature '{}'",
-                            pn, feature_part
-                        )];
-                    }
-                }
-            } else {
-                // bare parameter name
-                if !is_valid_sf_key(p) {
-                    return vec![format!(
-                        "invalid bare parameter '{}' for '{}'",
-                        p, feature_part
-                    )];
-                }
-            }
+    for member in split_commas_outside_quotes(s) {
+        match judge_member(member.trim(), &mut seen_keys) {
+            // The whole field is gone, so there are no surviving directives to
+            // describe and no reason to keep reading.
+            Verdict::FieldDiscarded(message) => return vec![message],
+            Verdict::DirectiveIgnored(message) => ignored.push(message),
+            Verdict::Enforced => {}
         }
     }
-    out
+    ignored
+}
+
+/// What becomes of one Dictionary member.
+///
+/// The distinction is the whole subject of this rule, and it is the
+/// specification's own: a Structured Fields *parse* failure discards the entire
+/// field, so it is one message and the only one; a member that parses and is
+/// then dropped for its form costs one directive, so those accumulate.
+enum Verdict {
+    /// The field fails to parse: every directive in it is discarded.
+    FieldDiscarded(String),
+    /// This directive parses and is then ignored by the processing steps.
+    DirectiveIgnored(String),
+    /// The directive is enforced as written.
+    Enforced,
+}
+
+/// Judge one Dictionary member: its name, its allowlist, and its parameters.
+fn judge_member(member: &str, seen_keys: &mut std::collections::HashSet<String>) -> Verdict {
+    if member.is_empty() {
+        return Verdict::FieldDiscarded("empty directive/member".into());
+    }
+
+    // A member with no `=` is not malformed and this used to say it was.
+    // § 4.2.2 reads a bare key as the Boolean true, which parses -- so the
+    // field survives and this one directive does not: a Boolean is a Member
+    // Value of "any other form", and § 5.2 drops the member for it. The same
+    // finding as the explicit `?1` below, reached by leaving the value out.
+    // cite(RFC 9651 § 4.2.2): "Let value be Boolean true."
+    let Some(eq) = find_char_outside_quotes(member, '=') else {
+        return Verdict::DirectiveIgnored(format!(
+            "member '{}' has no value, which is the Boolean true and not an allowlist: \
+             § 5.2 permits a string, the token '*', the token 'self', or an inner list \
+             of those",
+            member
+        ));
+    };
+    let (left, right) = member.split_at(eq);
+    let value_part = right[1..].trim(); // drop '='
+
+    // The name may carry parameters (`key;param=1`); only the key names the feature.
+    let mut feature = left.trim();
+    if let Some(semicolon) = find_char_outside_quotes(feature, ';') {
+        feature = feature[..semicolon].trim();
+    }
+
+    if !is_valid_feature_identifier(feature) {
+        return Verdict::FieldDiscarded(format!(
+            "invalid feature identifier '{}': a Dictionary member name is an SF key \
+             (lowercase, starting with a letter or '*'), and a key that is not one fails \
+             parsing -- which discards every directive in the field, not just this one",
+            feature
+        ));
+    }
+
+    // A repeated key is not a parse failure and not an error: the parser
+    // keeps the last one and the earlier directive simply stops existing.
+    // That is precisely this rule's subject -- something the server wrote
+    // that will not be enforced -- and it is invisible without being told,
+    // since the header still looks like it says both things. Keys are
+    // compared character for character, which § 4.2.2 says outright and
+    // which the key grammar makes moot anyway.
+    // cite(RFC 9651 § 4.2.2): "Note that when duplicate Dictionary keys are encountered, all but the last instance are ignored."
+    if !seen_keys.insert(feature.to_string()) {
+        return Verdict::DirectiveIgnored(format!(
+            "feature '{}' is given more than once; all but the last are ignored, so the \
+             earlier allowlist has no effect",
+            feature
+        ));
+    }
+
+    let parts = split_semicolons_outside_quotes(value_part);
+    let item = parts.first().map(|s| s.trim()).unwrap_or("");
+    // Nothing after the `=` fails § 4.2.2's parse of a Dictionary member
+    // value, so this is the whole field rather than the one directive.
+    if item.is_empty() {
+        return Verdict::FieldDiscarded(format!("member '{}' has empty value", feature));
+    }
+
+    match judge_allowlist(item, feature) {
+        Verdict::Enforced => judge_parameters(&parts, feature),
+        verdict => verdict,
+    }
+}
+
+/// Judge the Member Value: is it one of the forms § 5.2 permits?
+// cite(Permissions Policy § 5.2): "The Member Values represent allowlists, and must be one of:"
+// cite(Permissions Policy § 5.2): "Member Values of any other form will cause the entire Dictionary Member to be ignored by the processing steps."
+fn judge_allowlist(item: &str, feature: &str) -> Verdict {
+    // A Boolean, a Number and a Byte Sequence each parse and are then dropped
+    // for their form, so each costs its own directive and the scan carries on.
+    let dropped_for_its_form = if item.starts_with('?') {
+        Some("boolean")
+    } else if is_number(item) {
+        Some("numeric")
+    } else if is_byte_sequence(item) {
+        Some("byte-sequence")
+    } else {
+        None
+    };
+    if let Some(form) = dropped_for_its_form {
+        return Verdict::DirectiveIgnored(format!(
+            "member '{}' has {} value not allowed",
+            feature, form
+        ));
+    }
+
+    if let Some(inner) = item.strip_prefix('(') {
+        let Some(inner) = inner.strip_suffix(')') else {
+            return Verdict::FieldDiscarded(format!(
+                "member '{}' has unterminated inner-list",
+                feature
+            ));
+        };
+        // Inner-list contents are permissively accepted — see the asymmetry
+        // noted below — but an empty member is a parse failure.
+        if !inner.trim().is_empty()
+            && split_spaces_outside_quotes(inner)
+                .iter()
+                .any(|m| m.trim().is_empty())
+        {
+            return Verdict::FieldDiscarded(format!(
+                "member '{}' has empty inner-list member",
+                feature
+            ));
+        }
+        return Verdict::Enforced;
+    }
+
+    if item.starts_with('"') {
+        return if is_quoted_string(item) {
+            Verdict::Enforced
+        } else {
+            Verdict::FieldDiscarded(format!("member '{}' has invalid quoted-string", feature))
+        };
+    }
+
+    // § 5.2 names two permitted Tokens, and a Token keeps its case:
+    // RFC 9651 § 4.2.6 consumes each character and appends it to the
+    // output unchanged, and nothing anywhere folds a Token. Compare
+    // § 3.2, which says outright that member *keys* cannot contain
+    // uppercase -- the specification distinguishes the two cases, so
+    // this code should not have folded them together.
+    //
+    // `SELF` is therefore a different Token from `self`, which makes it
+    // a Member Value of "any other form", and § 5.2 says what becomes
+    // of those: the directive is dropped. `eq_ignore_ascii_case` here
+    // called that conforming.
+    // cite(RFC 9651 § 3.2): "Member keys cannot contain uppercase characters."
+    if item == "*" || item == "self" {
+        return Verdict::Enforced;
+    }
+
+    // Everything else. § 5.2's list of permitted Member Values is
+    // closed -- a String, the Token `*`, the Token `self`, or an Inner
+    // List of those -- so a bare Token that is neither `*` nor `self`
+    // is not a narrower kind of allowlist, it is not an allowlist at
+    // all. This branch used to accept any syntactically well-formed
+    // token, which let `geolocation=camera` and `geolocation=SELF`
+    // through as conforming when a browser drops both.
+    //
+    // Note the asymmetry with Inner List contents above, which stay
+    // permissive on purpose: § 5.2 says unknown items *inside* a list are
+    // ignored and the Member Value is processed without them, so an odd entry
+    // there costs one origin. An odd value out here costs the whole directive.
+    // cite(Permissions Policy § 5.2): "Any other items inside of an Inner List will be ignored by the processing steps, and the Member Value will be processed as if they were not present."
+    let shape = if is_valid_token_like(item) {
+        "token"
+    } else {
+        "value"
+    };
+    Verdict::DirectiveIgnored(format!(
+        "member '{}' has {} '{}', which is not an allowlist: § 5.2 permits a string, \
+         the token '*', the token 'self', or an inner list of those",
+        feature, shape, item
+    ))
+}
+
+/// Judge the parameters after the Member Value. Only `report-to` has a shape
+/// this field's own definition constrains; the rest are judged as Structured
+/// Fields and nothing more.
+///
+/// The scan runs to the end even once a `report-to` has been found wanting,
+/// because a parse failure in a *later* parameter discards the whole field and
+/// outranks it. A second bad `report-to` on the same directive adds nothing:
+/// one directive that will not be enforced is one finding.
+fn judge_parameters(parts: &[&str], feature: &str) -> Verdict {
+    let mut ignored: Option<String> = None;
+    for parameter in parts.iter().skip(1) {
+        let parameter = parameter.trim();
+        if parameter.is_empty() {
+            return Verdict::FieldDiscarded(format!("empty parameter for feature '{}'", feature));
+        }
+
+        let Some(eq) = find_char_outside_quotes(parameter, '=') else {
+            // A bare parameter name, which is the Boolean true — a value this
+            // field says nothing about, so only the key grammar is asked.
+            if !is_valid_sf_key(parameter) {
+                return Verdict::FieldDiscarded(format!(
+                    "invalid bare parameter '{}' for '{}'",
+                    parameter, feature
+                ));
+            }
+            continue;
+        };
+        let (name, value) = parameter.split_at(eq);
+        let name = name.trim();
+        let value = value[1..].trim();
+
+        // Checked before the name is compared to anything, and for
+        // every parameter rather than for all but one. A key cannot
+        // hold an uppercase letter, so `Report-To` is not a differently
+        // spelled `report-to`; it is a member the whole field dies on.
+        // cite(RFC 9651 § 4.2.3.3): "If the first character of input_string is not lcalpha or "*", fail parsing."
+        if !is_valid_sf_key(name) {
+            return Verdict::FieldDiscarded(format!(
+                "invalid parameter '{}' for feature '{}'",
+                name, feature
+            ));
+        }
+
+        if name == "report-to" {
+            // The one per-directive failure among the parameters: the value
+            // parses as a Structured Field and is refused by this field's own
+            // definition, not by § 4.2.
+            if !is_quoted_string(value) {
+                ignored.get_or_insert_with(|| {
+                    format!(
+                        "parameter 'report-to' for '{}' must be a quoted-string",
+                        feature
+                    )
+                });
+            }
+        } else if !is_bare_item(value) {
+            // Any bare Item, not the three that used to be listed here.
+            // A byte sequence, a Boolean, a Date and a Display String
+            // are all parameter values, and § 5.2 says nothing about
+            // parameters other than `report-to` -- so the only question
+            // left at this site is the Structured Fields one.
+            // cite(RFC 9651 § 4.2.3.2): "Let param_value be the result of running Parsing a Bare Item (Section 4.2.3.1) with input_string."
+            return Verdict::FieldDiscarded(format!(
+                "invalid parameter '{}' for feature '{}'",
+                name, feature
+            ));
+        }
+    }
+    ignored.map_or(Verdict::Enforced, Verdict::DirectiveIgnored)
 }
 
 // Shared parsing helpers (splitting, quoted-string, byte-seq, key/token-like)
