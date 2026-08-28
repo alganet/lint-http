@@ -212,6 +212,7 @@ fn message_to_info(
         fin,
         rsv,
         masked,
+        timestamp: None,
     }
 }
 

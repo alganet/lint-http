@@ -2264,7 +2264,7 @@ sources:
     - file: lint-http-core/src/protocol_event.rs
       line: 71
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 101
+      line: 103
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 250
   - label: lint-http-proxy/src/proxy/websocket/frame.rs
@@ -2318,7 +2318,7 @@ sources:
     snippet: The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 39
+      line: 41
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 24
   - label: lint-http-proxy/src/proxy/websocket/mod.rs (2)
@@ -2326,7 +2326,7 @@ sources:
     snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 38
+      line: 40
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 110
   - label: lint-http-proxy/src/proxy/websocket/mod.rs (3)
@@ -2334,7 +2334,15 @@ sources:
     snippet: Note that like other HTTP header fields, this header field MAY be split or combined across multiple lines.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 70
+      line: 72
+  - label: lint-http-proxy/src/proxy/websocket/observer.rs
+    section: § 5.5.1
+    snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
+    cited_by:
+    - file: lint-http-proxy/src/proxy/websocket/observer.rs
+      line: 98
+    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
+      line: 210
   - label: lint-http-proxy/src/proxy/websocket/relay.rs
     section: § 5.2
     snippet: '%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong'
@@ -2627,17 +2635,11 @@ sources:
       line: 308
   - label: websocket_frame_opcode_sequence (11)
     section: § 5.5.1
-    snippet: If there is a body, the first two bytes of the body MUST be a 2-byte unsigned integer (in network byte order) representing a status code with value /code/ defined in Section 7.4.
-    cited_by:
-    - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
-      line: 210
-  - label: websocket_frame_opcode_sequence (12)
-    section: § 5.5.1
     snippet: The Close frame MAY contain a body (the "Application data" portion of the frame) that indicates a reason for closing
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 209
-  - label: websocket_frame_opcode_sequence (13)
+  - label: websocket_frame_opcode_sequence (12)
     section: § 5.5.1
     snippet: The Close frame contains an opcode of 0x8.
     cited_by:
@@ -2645,19 +2647,19 @@ sources:
       line: 208
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 270
-  - label: websocket_frame_opcode_sequence (14)
+  - label: websocket_frame_opcode_sequence (13)
     section: § 5.5.1
     snippet: The application MUST NOT send any more data frames after sending a Close frame.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 283
-  - label: websocket_frame_opcode_sequence (15)
+  - label: websocket_frame_opcode_sequence (14)
     section: § 5.6
     snippet: Data frames (e.g., non-control frames) are identified by opcodes where the most significant bit of the opcode is 0.
     cited_by:
     - file: lint-http-rules/src/rules/websocket_frame_opcode_sequence.rs
       line: 249
-  - label: websocket_frame_opcode_sequence (16)
+  - label: websocket_frame_opcode_sequence (15)
     section: § 5.8
     snippet: This specification provides opcodes 0x3 through 0x7 and 0xB through 0xF, the "Extension data" field, and the frame-rsv1, frame-rsv2, and frame-rsv3 bits of the frame header for use by extensions.
     cited_by:

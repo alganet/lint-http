@@ -43,6 +43,11 @@ pub struct WebSocketMessageInfo {
     /// existed would have become one.
     #[serde(default)]
     pub masked: Option<bool>,
+    /// When the frame's header arrived at the relay. `None` in records
+    /// written before this field existed — replay then falls back to the
+    /// session timestamp, which is all those records ever had.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<DateTime<Utc>>,
 }
 
 fn default_fin() -> bool {
@@ -92,9 +97,18 @@ pub struct WebSocketSession {
     pub timestamp: DateTime<Utc>,
     pub duration_ms: u64,
     pub messages: Vec<WebSocketMessageInfo>,
-    /// Close status code from the first Close frame, if any.
+    /// Close status code from the first Close frame, if any — kept for
+    /// records and readers that predate the per-direction fields below; when
+    /// both sides closed, this holds the earlier of the two.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub close_code: Option<u16>,
+    /// Close status code the client sent, if any. Separate from the server's
+    /// because a close handshake has two frames and they may not agree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_close_code: Option<u16>,
+    /// Close status code the server sent, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_close_code: Option<u16>,
     /// Protocol-level violations detected during the session.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub violations: Vec<crate::lint::Violation>,
@@ -116,6 +130,8 @@ impl WebSocketSession {
             duration_ms: 0,
             messages: Vec::new(),
             close_code: None,
+            client_close_code: None,
+            server_close_code: None,
             violations: Vec::new(),
             extensions: crate::protocol_event::NegotiatedExtensions::Unrecorded,
         }
@@ -178,6 +194,7 @@ mod tests {
             fin: true,
             rsv: 0,
             masked: None,
+            timestamp: None,
         });
         session.messages.push(WebSocketMessageInfo {
             direction: MessageDirection::Server,
@@ -186,6 +203,7 @@ mod tests {
             fin: true,
             rsv: 0,
             masked: None,
+            timestamp: None,
         });
         session.messages.push(WebSocketMessageInfo {
             direction: MessageDirection::Client,
@@ -194,6 +212,7 @@ mod tests {
             fin: true,
             rsv: 0,
             masked: None,
+            timestamp: None,
         });
         session.close_code = Some(1000);
         session.duration_ms = 150;
@@ -207,6 +226,48 @@ mod tests {
         assert_eq!(deserialized.messages[0].direction, MessageDirection::Client);
         assert_eq!(deserialized.messages[0].opcode, 1);
         assert_eq!(deserialized.close_code, Some(1000));
+    }
+
+    /// The per-frame timestamp and per-direction close codes are additive:
+    /// an old record reads back without them, and a new record carries them
+    /// through a roundtrip.
+    #[test]
+    fn additive_fields_default_on_old_records_and_roundtrip_on_new_ones() {
+        let json = serde_json::json!({
+            "id": Uuid::new_v4(),
+            "transaction_id": Uuid::new_v4(),
+            "timestamp": Utc::now(),
+            "duration_ms": 12,
+            "messages": [{
+                "direction": "client",
+                "opcode": 1,
+                "payload_length": 3,
+            }],
+        })
+        .to_string();
+        let old: WebSocketSession = serde_json::from_str(&json).expect("an older session");
+        assert_eq!(old.messages[0].timestamp, None);
+        assert_eq!(old.client_close_code, None);
+        assert_eq!(old.server_close_code, None);
+
+        let mut session = WebSocketSession::new(Uuid::new_v4());
+        let stamp = Utc::now();
+        session.messages.push(WebSocketMessageInfo {
+            direction: MessageDirection::Client,
+            opcode: 8,
+            payload_length: 2,
+            fin: true,
+            rsv: 0,
+            masked: Some(true),
+            timestamp: Some(stamp),
+        });
+        session.client_close_code = Some(1000);
+        session.server_close_code = Some(1001);
+        let round: WebSocketSession =
+            serde_json::from_str(&serde_json::to_string(&session).unwrap()).unwrap();
+        assert_eq!(round.messages[0].timestamp, Some(stamp));
+        assert_eq!(round.client_close_code, Some(1000));
+        assert_eq!(round.server_close_code, Some(1001));
     }
 
     #[test]
@@ -225,6 +286,7 @@ mod tests {
             fin: true,
             rsv: 0,
             masked: None,
+            timestamp: None,
         };
         let v: serde_json::Value = serde_json::to_value(&msg).unwrap();
         assert_eq!(v["direction"].as_str(), Some("server"));
