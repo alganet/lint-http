@@ -4,7 +4,7 @@
 
 //! Documentation generator: renders `docs/rules/<id>.md` and the
 //! `docs/rules.md` index from rule metadata
-//! ([`Rule::description`](lint_http_rules::rules::Rule::description),
+//! ([`Rule::description`],
 //! [`specifications`](lint_http_rules::rules::Rule::specifications),
 //! [`examples`](lint_http_rules::rules::Rule::examples),
 //! [`title`](lint_http_rules::rules::Rule::title)) plus the per-rule

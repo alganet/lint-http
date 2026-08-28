@@ -30,11 +30,11 @@
 //! sentence licensing that is § 4's, which forbids *generating* them while
 //! requiring a receiver to parse them — this crate reports on senders.
 //!
-//! cite(RFC 9110 § 10.1.2): "mailbox = <mailbox, see [RFC5322], Section 3.4>"
-//! cite(RFC 5322 § 3.4): "mailbox = name-addr / addr-spec"
-//! cite(RFC 5322 § 3.4): "mailbox-list = (mailbox *("," mailbox)) / obs-mbox-list"
-//! cite(RFC 5322 § 3.2.2): "FWS = ([*WSP CRLF] 1*WSP) / obs-FWS"
-//! cite(RFC 5322 § 4): "Though these syntactic forms MUST NOT be generated according to the grammar in section 3, they MUST be accepted and parsed by a conformant receiver."
+// cite(RFC 9110 § 10.1.2): "mailbox = <mailbox, see [RFC5322], Section 3.4>"
+// cite(RFC 5322 § 3.4): "mailbox = name-addr / addr-spec"
+// cite(RFC 5322 § 3.4): "mailbox-list = (mailbox *("," mailbox)) / obs-mbox-list"
+// cite(RFC 5322 § 3.2.2): "FWS = ([*WSP CRLF] 1*WSP) / obs-FWS"
+// cite(RFC 5322 § 4): "Though these syntactic forms MUST NOT be generated according to the grammar in section 3, they MUST be accepted and parsed by a conformant receiver."
 
 use crate::helpers::headers::describe_char;
 
@@ -49,7 +49,7 @@ pub struct Mailbox {
     /// domain name"* and so has a host-name syntax behind it as well as this
     /// one, and a bracketed literal has an address inside it instead.
     ///
-    /// cite(RFC 5322 § 3.4.1): "In the dot-atom form, this is interpreted as an Internet domain name (either a host name or a mail exchanger name) as described in [RFC1034], [RFC1035], and [RFC1123]."
+    // cite(RFC 5322 § 3.4.1): "In the dot-atom form, this is interpreted as an Internet domain name (either a host name or a mail exchanger name) as described in [RFC1034], [RFC1035], and [RFC1123]."
     pub domain_name: Option<String>,
 }
 

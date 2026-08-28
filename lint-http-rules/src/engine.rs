@@ -7,9 +7,10 @@
 //! [`PreparedEngine`] precomputes the enabled rule set once per [`Config`]
 //! (immutable after startup), then dispatches transactions and protocol events
 //! against it — building each rule's required cross-transaction history lazily
-//! from the [`StateStore`] and collecting the violations. It sits *above* the
+//! from the [`StateStore`](crate::state::StateStore) and collecting the
+//! violations. It sits *above* the
 //! rule catalogue and the query layer (it references both), so it lives in the
-//! rules crate rather than with the [`Violation`](crate::lint::Violation) data
+//! rules crate rather than with the [`Violation`] data
 //! type in core.
 
 use crate::config::Config;
