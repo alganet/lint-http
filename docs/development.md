@@ -105,12 +105,12 @@ impl Rule for MyRule {
         "my_rule_name"
     }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         // Implementation. `ctx.severity` is the configured severity, already
         // resolved — nothing here reads TOML.
     }
@@ -124,6 +124,58 @@ a typed value, and returns it as the `state` of its `ResolvedRule` — the check
 gets it back with `ctx.state::<MyConfig>()`. Validation *is* successful
 preparation: a malformed section fails engine construction by rule name, so
 there is no separate `validate` hook to keep in sync.
+
+#### How many findings
+
+`findings` returns a `Vec`, and the number is a judgment about the specification
+rather than about the code. Ask what the sentence is addressed to:
+
+- **Independent defects are separate findings.** Two configured fields, two
+  Dictionary members, two field sections, the request and the response: each is
+  something a sender did on its own and something an operator fixes on its own.
+  Returning at the first hides the rest, and the one reported is the only one the
+  next run will show — fixing it reveals the next.
+- **One contradiction is one finding, however many values it names.** A message
+  that says `Accept-Ranges` advertises `bytes` and `pages` beside `none` describes
+  a single response saying two things at once. Splitting it would report the same
+  contradiction twice.
+- **A whole-field failure is one finding and the only one.** Where a parse failure
+  discards the field, nothing else in it survived to be described, and the scan
+  stops. Where a member is ignored on its own, the rest of the field is still in
+  force and the scan carries on.
+
+A rule with one finding keeps a `?`-shaped body behind a private `Option` adapter
+and collects it — `Vec::from_iter(finding())`. Tests read one finding through
+`run_rule` and several through `run_rule_all`.
+
+#### Citing the sentence
+
+Findings are built with `self.violation(ctx.severity, message)`, or with
+`self.cited(&SPEC, ctx.severity, message)` where the sentence being enforced is
+known. `cited` takes one of the rule's own `specifications()`, which live as
+named consts above the impl:
+
+```rust
+const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9112",
+    section: Some("6.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
+    note: "Transfer-Encoding — chunked at most once, and chunked last",
+};
+```
+
+`specifications()` is built from exactly those consts, so a citation and the
+generated docs cannot come to name different text. A `debug_assert` in `cited`
+rejects a reference the rule does not declare, and the suite runs in debug.
+
+Attachment is per finding site and opt-in. The `// cite` comment beside the
+statement is the oracle: attach the reference that comment names, and leave the
+site un-cited when the answer needs a decision — where the block quotes several
+sentences and it is not settled which one the finding reports, or where the quote
+is a supporting definition rather than the requirement. `cite` defaults to `None`,
+so an un-cited finding is complete; a *wrongly* cited one is worse than none.
+`citation_coverage_does_not_regress` pins the count so the direction only moves
+one way.
 
 #### Scoping
 
@@ -140,12 +192,12 @@ impl Rule for HostHeader {
     fn id(&self) -> &'static str { "host_header" }
     fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Client }
 
-    fn check_transaction(
+    fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
         history: &crate::transaction_history::TransactionHistory,
         ctx: &crate::rules::RuleContext<'_>,
-    ) -> Option<Violation> {
+    ) -> Vec<Violation> {
         // Check tx
     }
 }
@@ -174,6 +226,13 @@ registration.
 You must include unit tests in your rule file covering:
 - **Positive case**: The rule triggers a violation when expected.
 - **Negative case**: The rule does NOT trigger when the traffic is compliant.
+
+Dispatch through `crate::test_helpers::run_rule`, which prepares the rule under a
+config the way the engine does and hands back the first finding. A rule that can
+report several — see [How many findings](#how-many-findings) — needs
+`run_rule_all` for the case where it does, so that the split is asserted rather
+than assumed: a test reading only the first finding passes just as well when the
+rest were swallowed.
 
 ### 5. Documentation
 
