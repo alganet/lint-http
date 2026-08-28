@@ -1,0 +1,247 @@
+// SPDX-FileCopyrightText: 2026 Alexandre Gomes Gaigalas <alganet@gmail.com>
+//
+// SPDX-License-Identifier: ISC
+
+//! WebSocket upgrade handshake and bidirectional frame relay.
+//!
+//! The module splits along its seams: detection and the extension-negotiation
+//! surface live here, the upgrade handshake in [`handshake`], and the post-101
+//! frame relay in [`relay`].
+
+use hyper::Request;
+
+use super::hop_by_hop::parse_connection_tokens;
+
+mod handshake;
+mod relay;
+
+pub(super) use handshake::handle_websocket_upgrade;
+
+/// Check if a request is a WebSocket upgrade request.
+///
+/// A WebSocket handshake requires `Connection: Upgrade` (as a distinct token,
+/// possibly alongside others) and `Upgrade: websocket`.
+///
+/// Both sentences say "include", not "equal", and that is the whole reason the
+/// two checks are shaped differently. Connection is a token list, so `include`
+/// means membership -- `Connection: keep-alive, Upgrade` is a valid handshake
+/// and a string compare would reject it, which is why this asks
+/// `parse_connection_tokens` rather than looking at the field value. The
+/// keyword and the token are also matched case-insensitively, which the
+/// document establishes elsewhere for each field rather than here.
+///
+// cite(RFC 6455 § 4.1): "The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword."
+// cite(RFC 6455 § 4.1): "The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token."
+pub(super) fn is_websocket_upgrade<B>(req: &Request<B>) -> bool {
+    let connection_tokens = parse_connection_tokens(req.headers().get(hyper::header::CONNECTION));
+    let has_upgrade = connection_tokens.contains("upgrade");
+    let is_websocket = req
+        .headers()
+        .get(hyper::header::UPGRADE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.eq_ignore_ascii_case("websocket"))
+        .unwrap_or(false);
+    has_upgrade && is_websocket
+}
+
+/// The message minus its `Sec-WebSocket-Extensions` field: the extension
+/// negotiation stops at the relay, in both directions.
+///
+/// **The relay is a WebSocket endpoint on each leg, not a tunnel.** Every frame
+/// passes through tungstenite, which implements no extension and returns
+/// `ProtocolError::NonZeroReservedBits` for any frame that sets one — so a
+/// negotiation relayed end-to-end authorises frames the middle cannot read.
+/// That was live: the client's `permessage-deflate` offer reached the origin,
+/// the origin's acceptance reached the client, and the first compressed frame
+/// killed the session (RULECITES P48). An intermediary that cannot read an
+/// extension's frames must not relay its negotiation, so the offer is removed
+/// from the upstream handshake request and the acceptance — which a conforming
+/// origin then never sends, but a broken one still might — from the `101`
+/// forwarded to the client.
+///
+/// **Captures are untouched.** Both the request and the `101` are recorded as
+/// received, offer and acceptance included, before this runs — the rules read
+/// what each party wrote, not what the relay could live with.
+// cite(RFC 6455 § 9.1): "Note that like other HTTP header fields, this header field MAY be split or combined across multiple lines."
+pub(super) fn without_extension_negotiation(headers: &hyper::HeaderMap) -> hyper::HeaderMap {
+    let mut out = headers.clone();
+    // `HeaderMap::remove` takes every value of the name, so a field split
+    // across lines — which § 9.1 permits in as many words — leaves nothing.
+    out.remove("sec-websocket-extensions");
+    out
+}
+
+/// What a `101` settled about extensions, read from the response and not from
+/// the offer.
+///
+/// **Presence is the whole decision, and that is why the value is not parsed
+/// here.** RFC 6455 § 9.1 makes the server's list the extensions in use, and a
+/// client's own field only an offer it may not act on — so a `101` with no such
+/// field is the connection's answer that nothing was accepted, which is what
+/// lets a frame rule read the reserved bits and opcodes at all. A `101` that
+/// carries the field stands those findings down whatever it holds: which
+/// extension defines which bit is that extension's document's business.
+///
+/// **An unreadable value is still a field.** Reading it through a UTF-8 decoder
+/// would turn a `Sec-WebSocket-Extensions` carrying `obs-text` into a handshake
+/// that accepted nothing — a claim about the exchange, and the one direction
+/// that *licenses* findings. The shared as-written reader gives one `char` per
+/// octet and joins the lines the way § 5.2 does, so the record holds what the
+/// server wrote.
+///
+/// The absent case is `NoneAccepted` and never `Unrecorded`: this proxy watched
+/// the handshake, so it knows a difference a capture written elsewhere cannot
+/// state.
+///
+// cite(RFC 6455 § 9.1): "The extensions listed by the server in response represent the extensions actually in use for the connection."
+fn accepted_extensions(headers: &hyper::HeaderMap) -> crate::protocol_event::NegotiatedExtensions {
+    use crate::protocol_event::NegotiatedExtensions;
+    match crate::helpers::headers::combined_field_value_as_written(
+        headers,
+        "sec-websocket-extensions",
+    ) {
+        Some(value) => NegotiatedExtensions::Accepted(value),
+        None => NegotiatedExtensions::NoneAccepted,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bytes::Bytes;
+    use http_body_util::{BodyExt, Full};
+    use rstest::rstest;
+
+    /// The negotiation stops at the relay: the field is removed however many
+    /// lines carried it, and nothing else moves. The frames of an accepted
+    /// extension would be unreadable to tungstenite in the middle, so relaying
+    /// the offer or the acceptance authorised sessions the relay then killed
+    /// (RULECITES P48).
+    #[test]
+    fn extension_negotiation_is_stripped_and_nothing_else_is() {
+        use hyper::header::{HeaderName, HeaderValue};
+        let name = HeaderName::from_static("sec-websocket-extensions");
+
+        let mut headers = hyper::HeaderMap::new();
+        headers.insert(
+            hyper::header::UPGRADE,
+            HeaderValue::from_static("websocket"),
+        );
+        headers.insert(
+            HeaderName::from_static("sec-websocket-key"),
+            HeaderValue::from_static("dGhlIHNhbXBsZSBub25jZQ=="),
+        );
+        headers.append(name.clone(), HeaderValue::from_static("permessage-deflate"));
+        headers.append(name.clone(), HeaderValue::from_static("bbf-usp-protocol"));
+
+        let out = without_extension_negotiation(&headers);
+        assert!(!out.contains_key(&name), "both field lines are gone");
+        assert_eq!(out.len(), 2, "everything else survives");
+        assert!(out.contains_key(hyper::header::UPGRADE));
+        assert!(out.contains_key("sec-websocket-key"));
+    }
+
+    /// The one line that turns a `101` into the fact a frame rule reads.
+    ///
+    /// The absent case is the load-bearing one: it says *the server accepted
+    /// nothing*, which is what licenses `websocket_frame_rsv_bits` to
+    /// report a reserved bit at all. The `obs-text` case is the mirror — a
+    /// field that is there and unreadable must not become "accepted nothing",
+    /// or an unreadable handshake would start licensing findings.
+    #[test]
+    fn accepted_extensions_reads_the_response_field() {
+        use crate::protocol_event::NegotiatedExtensions;
+        use hyper::header::{HeaderName, HeaderValue};
+
+        let name = HeaderName::from_static("sec-websocket-extensions");
+
+        let mut none = hyper::HeaderMap::new();
+        none.insert(
+            hyper::header::UPGRADE,
+            HeaderValue::from_static("websocket"),
+        );
+        assert_eq!(
+            accepted_extensions(&none),
+            NegotiatedExtensions::NoneAccepted
+        );
+
+        let mut one = hyper::HeaderMap::new();
+        one.insert(name.clone(), HeaderValue::from_static("permessage-deflate"));
+        assert_eq!(
+            accepted_extensions(&one),
+            NegotiatedExtensions::Accepted("permessage-deflate".into())
+        );
+
+        // Several field lines in one section are one value.
+        let mut two = hyper::HeaderMap::new();
+        two.append(name.clone(), HeaderValue::from_static("foo"));
+        two.append(name.clone(), HeaderValue::from_static("bar; baz=2"));
+        assert_eq!(
+            accepted_extensions(&two),
+            NegotiatedExtensions::Accepted("foo,bar; baz=2".into())
+        );
+
+        let mut obs = hyper::HeaderMap::new();
+        obs.insert(
+            name,
+            HeaderValue::from_bytes(&[0xff]).expect("obs-text is a field-content"),
+        );
+        assert!(
+            matches!(accepted_extensions(&obs), NegotiatedExtensions::Accepted(_)),
+            "an unreadable value is still a field the server sent"
+        );
+    }
+
+    #[test]
+    fn is_websocket_upgrade_detects_valid_upgrade() {
+        let req = Request::builder()
+            .method("GET")
+            .uri("http://example.com/ws")
+            .header("connection", "Upgrade")
+            .header("upgrade", "websocket")
+            .body(Full::new(Bytes::new()).boxed())
+            .unwrap();
+        assert!(is_websocket_upgrade(&req));
+    }
+
+    #[test]
+    fn is_websocket_upgrade_case_insensitive() {
+        let req = Request::builder()
+            .method("GET")
+            .uri("http://example.com/ws")
+            .header("connection", "upgrade")
+            .header("upgrade", "WebSocket")
+            .body(Full::new(Bytes::new()).boxed())
+            .unwrap();
+        assert!(is_websocket_upgrade(&req));
+    }
+
+    #[rstest]
+    #[case(Some("keep-alive"), Some("websocket"), false)]
+    #[case(Some("Upgrade"), None, false)]
+    #[case(None, Some("websocket"), false)]
+    #[case(None, None, false)]
+    #[case(Some("Upgrade"), Some("h2c"), false)]
+    // Connection contains "upgrade" only as a substring of another token, and
+    // RFC 9110 §7.6.1 makes Connection a list of tokens, not a string to search.
+    // The sentence is cited where the splitting happens, in `parse_connection_tokens`.
+    #[case(Some("super-upgrade"), Some("websocket"), false)]
+    #[case(Some("upgrades"), Some("websocket"), false)]
+    fn is_websocket_upgrade_negative(
+        #[case] connection: Option<&str>,
+        #[case] upgrade: Option<&str>,
+        #[case] expected: bool,
+    ) {
+        let mut builder = Request::builder()
+            .method("GET")
+            .uri("http://example.com/ws");
+        if let Some(c) = connection {
+            builder = builder.header("connection", c);
+        }
+        if let Some(u) = upgrade {
+            builder = builder.header("upgrade", u);
+        }
+        let req = builder.body(Full::new(Bytes::new()).boxed()).unwrap();
+        assert_eq!(is_websocket_upgrade(&req), expected);
+    }
+}
