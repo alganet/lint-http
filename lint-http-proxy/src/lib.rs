@@ -27,6 +27,15 @@ pub use lint_http_rules::{engine, helpers, lint_protocol, queries, rules};
 // from core when the transport surface (`[general]`/`[tls]`) was split away
 // from the rule table; the module path is unchanged for both `lint_http::…`
 // and `crate::…` users.
+// The temp-file guard the tests use, unit and integration alike. Rust gives a
+// unit test and an integration test no module in common — one is compiled into
+// this library, the other into its own binary — so the file is included from
+// where it lives, next to the integration tests that were its first callers. A
+// second copy would be the shape this whole pass exists to remove.
+#[cfg(test)]
+#[path = "../tests/common/temp_files.rs"]
+pub(crate) mod temp_files;
+
 pub mod ca;
 pub mod capture;
 pub mod config;
@@ -37,28 +46,3 @@ pub mod websocket_session;
 
 #[cfg(test)]
 mod test_helpers;
-
-pub fn make_temp_captures_path(prefix: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("{}_{}.jsonl", prefix, uuid::Uuid::new_v4()))
-}
-
-pub fn make_temp_config_path(prefix: &str) -> std::path::PathBuf {
-    std::env::temp_dir().join(format!("{}_{}.toml", prefix, uuid::Uuid::new_v4()))
-}
-
-#[cfg(test)]
-#[test]
-fn make_temp_paths_include_prefix() {
-    let p = make_temp_captures_path("testprefix");
-    assert!(p
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .starts_with("testprefix"));
-    let p2 = make_temp_config_path("cfgprefix");
-    assert!(p2
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .starts_with("cfgprefix"));
-}

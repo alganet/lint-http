@@ -51,22 +51,43 @@ fn build_h3_client(ca_cert_path: &std::path::Path) -> anyhow::Result<quinn::Endp
     Ok(endpoint)
 }
 
-/// Start the proxy with TLS + h3_listen enabled, return handles and addresses.
+/// A tweak applied to the config before the proxy starts.
+///
+/// Named because the type is the other half of what the removed
+/// `#[allow(type_complexity)]` was covering: the allow sat on the function, so
+/// it silenced the parameter as well as the return.
+type ConfigTweak = Box<dyn FnOnce(&mut Config) + Send>;
+
+/// A proxy under test with HTTP/3 enabled, and what a test needs to reach it.
+///
+/// **This was five positional values behind an `#[allow(type_complexity)]`**,
+/// and the allow was the honest signal: two of them were `SocketAddr` and two
+/// were paths, so a call site that swapped a pair would still compile. Every
+/// field is named at the destructuring now, and a test names only the ones it
+/// uses — which is what retired the `_tcp_addr` and `_captures_path`
+/// placeholders the tuple forced on callers that wanted neither, and what
+/// showed that nothing read the TCP address at all.
+struct H3Proxy {
+    handle: tokio::task::JoinHandle<()>,
+    /// The H3/QUIC listen address. The TCP one is *not* here: no test reads
+    /// it, and it was in the tuple only because the function happened to have
+    /// it — which a positional return makes invisible and a named field asks
+    /// out loud.
+    h3_addr: SocketAddr,
+    captures_path: String,
+    /// Where the proxy generated its CA, for a client that must trust it.
+    cert_path: std::path::PathBuf,
+}
+
+/// Start the proxy with TLS + h3_listen enabled.
 ///
 /// Every temporary file this makes belongs to `temp`, including the CA key —
-/// which is why it is no longer returned: it was in the tuple for the teardown
-/// alone, and the teardown is the guard's now.
-#[allow(clippy::type_complexity)]
+/// which is why that one is not returned at all: it was in the tuple for the
+/// teardown alone, and the teardown is the guard's now.
 async fn start_proxy_with_h3(
-    cfg_modifier: Option<Box<dyn FnOnce(&mut Config) + Send>>,
+    cfg_modifier: Option<ConfigTweak>,
     temp: &mut TempFiles,
-) -> anyhow::Result<(
-    tokio::task::JoinHandle<()>,
-    SocketAddr,         // TCP listen address
-    SocketAddr,         // H3/QUIC listen address
-    String,             // captures path
-    std::path::PathBuf, // CA cert path
-)> {
+) -> anyhow::Result<H3Proxy> {
     let mut cfg = tls_config(temp);
     let cert_path = common::ca_cert_path(&cfg);
     let key_path = std::path::PathBuf::from(
@@ -151,7 +172,12 @@ async fn start_proxy_with_h3(
     // Brief pause so the probe connection is cleaned up server-side
     tokio::time::sleep(Duration::from_millis(50)).await;
 
-    Ok((handle, tcp_addr, h3_addr, captures_path, cert_path))
+    Ok(H3Proxy {
+        handle,
+        h3_addr,
+        captures_path,
+        cert_path,
+    })
 }
 
 /// Send a single HTTP/3 GET request via quinn+h3, return status and body.
@@ -273,8 +299,13 @@ async fn h3_happy_path_forwards_request_and_captures() -> anyhow::Result<()> {
         .await;
 
     let mut temp = TempFiles::new();
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) =
-        start_proxy_with_h3(None, &mut temp).await?;
+    let H3Proxy {
+        handle,
+        h3_addr,
+        captures_path,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/hello", mock.address().port());
@@ -315,8 +346,13 @@ async fn h3_happy_path_forwards_request_and_captures() -> anyhow::Result<()> {
 #[tokio::test]
 async fn h3_upstream_error_returns_502_and_records_transaction() -> anyhow::Result<()> {
     let mut temp = TempFiles::new();
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) =
-        start_proxy_with_h3(None, &mut temp).await?;
+    let H3Proxy {
+        handle,
+        h3_addr,
+        captures_path,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     // Port 9 is the discard protocol — very unlikely to have an HTTP server
@@ -355,7 +391,12 @@ async fn h3_suppress_headers_filters_configured_headers() -> anyhow::Result<()> 
         .await;
 
     let mut temp = TempFiles::new();
-    let (handle, _tcp_addr, h3_addr, _captures_path, cert_path) = start_proxy_with_h3(
+    let H3Proxy {
+        handle,
+        h3_addr,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(
         Some(Box::new(|cfg| {
             cfg.tls.suppress_headers = vec!["x-secret".to_string()];
         })),
@@ -403,8 +444,12 @@ async fn h3_hop_by_hop_headers_stripped_from_response() -> anyhow::Result<()> {
         .await;
 
     let mut temp = TempFiles::new();
-    let (handle, _tcp_addr, h3_addr, _captures_path, cert_path) =
-        start_proxy_with_h3(None, &mut temp).await?;
+    let H3Proxy {
+        handle,
+        h3_addr,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/hop", mock.address().port());
@@ -445,8 +490,13 @@ async fn h3_multiple_requests_on_same_connection_increment_sequence() -> anyhow:
         .await;
 
     let mut temp = TempFiles::new();
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) =
-        start_proxy_with_h3(None, &mut temp).await?;
+    let H3Proxy {
+        handle,
+        h3_addr,
+        captures_path,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     let uri = format!("http://127.0.0.1:{}/seq", mock.address().port());
@@ -522,7 +572,13 @@ async fn h3_large_request_body_streams_and_truncates_capture() -> anyhow::Result
         .await;
 
     let mut temp = TempFiles::new();
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) = start_proxy_with_h3(
+    let H3Proxy {
+        handle,
+        h3_addr,
+        captures_path,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(
         Some(Box::new(|cfg| {
             cfg.general.captures_max_body_bytes = 16;
         })),
@@ -576,7 +632,13 @@ async fn h3_response_over_limit_streams_full_and_truncates_capture() -> anyhow::
         .await;
 
     let mut temp = TempFiles::new();
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) = start_proxy_with_h3(
+    let H3Proxy {
+        handle,
+        h3_addr,
+        captures_path,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(
         Some(Box::new(|cfg| {
             cfg.general.captures_max_body_bytes = 16;
         })),
@@ -634,8 +696,13 @@ async fn h3_request_with_host_header_fallback() -> anyhow::Result<()> {
     // authority is resolved from Host and that the request is captured with
     // the correct host value.
     let mut temp = TempFiles::new();
-    let (handle, _tcp_addr, h3_addr, captures_path, cert_path) =
-        start_proxy_with_h3(None, &mut temp).await?;
+    let H3Proxy {
+        handle,
+        h3_addr,
+        captures_path,
+        cert_path,
+        ..
+    } = start_proxy_with_h3(None, &mut temp).await?;
 
     let endpoint = build_h3_client(&cert_path)?;
     // Send a path-only URI with explicit Host header.  The upstream will fail

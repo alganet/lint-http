@@ -171,6 +171,7 @@ mod tests {
             // Generated, and never removed until this guard drops: the pair was
             // written to the temp directory by every run of this test and left
             // there, since there was no teardown at all.
+            let mut temp = crate::temp_files::TempFiles::new();
             let cert_path = temp.path("test_ca", "crt");
             let key_path = temp.path("test_ca", "key");
             let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
@@ -179,7 +180,7 @@ mod tests {
             None
         };
 
-        let (shared, tmp_path, _cw) = make_shared_with_cfg(cfg, ca_arc.clone()).await?;
+        let (shared, tmp_path, _cw) = make_shared_with_cfg(cfg, ca_arc.clone(), &mut temp).await?;
 
         let req = Request::builder()
             .method("CONNECT")

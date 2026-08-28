@@ -27,6 +27,7 @@ use std::path::PathBuf;
 #[derive(Default)]
 pub struct TempFiles {
     paths: Vec<PathBuf>,
+    dirs: Vec<PathBuf>,
 }
 
 impl TempFiles {
@@ -45,6 +46,15 @@ impl TempFiles {
         path
     }
 
+    /// A fresh *directory* path, removed with its contents when this guard
+    /// drops. Kept apart from the files because the removal differs, and
+    /// because a caller that mixes them up should not compile.
+    pub fn dir(&mut self, prefix: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!("{prefix}_{}", uuid::Uuid::new_v4()));
+        self.dirs.push(path.clone());
+        path
+    }
+
     /// Take ownership of a path the caller made for itself.
     pub fn keep(&mut self, path: impl Into<PathBuf>) {
         self.paths.push(path.into());
@@ -57,6 +67,9 @@ impl Drop for TempFiles {
         // whatever thread the test ended on — including one that is panicking.
         for path in &self.paths {
             let _ = std::fs::remove_file(path);
+        }
+        for dir in &self.dirs {
+            let _ = std::fs::remove_dir_all(dir);
         }
     }
 }

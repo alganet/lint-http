@@ -431,7 +431,8 @@ mod tests {
 
     #[tokio::test]
     async fn write_transaction_writes_jsonl() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_capture_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_capture_test", "jsonl");
         let p = tmp
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
@@ -473,8 +474,8 @@ mod tests {
 
     #[tokio::test]
     async fn write_transaction_includes_bodies_when_enabled() -> anyhow::Result<()> {
-        let tmp =
-            std::env::temp_dir().join(format!("lint_capture_bodies_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_capture_bodies_test", "jsonl");
         let p = tmp
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
@@ -528,7 +529,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_captures_reads_jsonl() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_load_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_load_test", "jsonl");
         let p = tmp
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
@@ -567,7 +569,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_capture_records_keeps_all_kinds_in_file_order() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_load_all_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_load_all", "jsonl");
         let p = tmp
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
@@ -596,8 +599,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_captures_skips_malformed_lines() -> anyhow::Result<()> {
-        let tmp =
-            std::env::temp_dir().join(format!("lint_malformed_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_malformed_test", "jsonl");
 
         // Write a mix of valid and invalid transaction JSON
         use crate::test_helpers::{make_test_transaction, make_test_transaction_with_response};
@@ -622,8 +625,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_captures_skips_empty_lines() -> anyhow::Result<()> {
-        let tmp =
-            std::env::temp_dir().join(format!("lint_empty_lines_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_empty_lines_test", "jsonl");
 
         // Write a valid record, then an empty line, then another valid record
         use crate::test_helpers::{make_test_transaction, make_test_transaction_with_response};
@@ -643,7 +646,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_captures_skips_whitespace_lines() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_ws_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_ws_test", "jsonl");
 
         use crate::test_helpers::{make_test_transaction, make_test_transaction_with_response};
         let tx1 = make_test_transaction();
@@ -662,8 +666,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_captures_blank_line_returns_empty() -> anyhow::Result<()> {
-        let tmp =
-            std::env::temp_dir().join(format!("lint_blank_line_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_blank_line_test", "jsonl");
         // Single blank line should be ignored
         fs::write(&tmp, "\n").await?;
 
@@ -676,7 +680,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_captures_empty_file_returns_empty() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_empty_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_empty_test", "jsonl");
         fs::write(&tmp, "").await?;
 
         let records = load_captures(&tmp).await?;
@@ -688,7 +693,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_captures_nonexistent_file_returns_empty() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_nonexistent_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_nonexistent", "jsonl");
 
         // Should not error, just return empty vector
         let records = load_captures(&tmp).await?;
@@ -698,8 +704,8 @@ mod tests {
 
     #[tokio::test]
     async fn write_websocket_session_writes_jsonl() -> anyhow::Result<()> {
-        let tmp =
-            std::env::temp_dir().join(format!("lint_ws_session_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_ws_session_test", "jsonl");
         let p = tmp
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
@@ -741,8 +747,8 @@ mod tests {
 
     #[tokio::test]
     async fn load_captures_skips_websocket_session_records() -> anyhow::Result<()> {
-        let tmp =
-            std::env::temp_dir().join(format!("lint_mixed_records_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_mixed_records_test", "jsonl");
 
         use crate::test_helpers::make_test_transaction_with_response;
         use crate::websocket_session::{MessageDirection, WebSocketMessageInfo, WebSocketSession};
@@ -821,7 +827,8 @@ mod tests {
 
     #[tokio::test]
     async fn subscribe_receives_written_record() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_stream_sub_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_stream_sub", "jsonl");
         let cw = CaptureWriter::new(tmp.clone(), false).await?;
 
         let mut rx = cw.subscribe();
@@ -844,7 +851,8 @@ mod tests {
 
     #[tokio::test]
     async fn write_without_subscriber_still_writes_file() -> anyhow::Result<()> {
-        let tmp = std::env::temp_dir().join(format!("lint_stream_nosub_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_stream_nosub", "jsonl");
         let cw = CaptureWriter::new(tmp.clone(), false).await?;
 
         // No `subscribe()` call: the broadcast tee must be skipped and the
@@ -863,7 +871,8 @@ mod tests {
 
     #[tokio::test]
     async fn capture_new_with_directory_errors() -> anyhow::Result<()> {
-        let dir = std::env::temp_dir().join(format!("lint_capture_dir_{}", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let dir = temp.dir("lint_capture_dir");
         tokio::fs::create_dir(&dir).await?;
         let res = CaptureWriter::new(dir.clone(), false).await;
         assert!(res.is_err());

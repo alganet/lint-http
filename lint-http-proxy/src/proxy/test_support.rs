@@ -10,30 +10,28 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::Request;
 use std::sync::Arc as StdArc;
-use uuid::Uuid;
 
 use crate::ca::CertificateAuthority;
 use crate::capture::CaptureWriter;
 
 use super::Shared;
 
-/// The temp-file guard the integration tests use, reached across the boundary
-/// Rust puts between a unit test and an integration test: they share no module,
-/// so the alternative to this `#[path]` is a second copy of the same guard —
-/// which is the shape this whole pass exists to remove. Test-only, so the
-/// delivered library never compiles it.
-#[path = "../../tests/common/temp_files.rs"]
-mod temp_files;
-pub(super) use temp_files::TempFiles;
+/// The temp-file guard, included once at the crate root — see the note there.
+pub(super) use crate::temp_files::TempFiles;
 
 /// Construct a `Shared` wired to a fresh temp capture file. Returns the Shared,
-/// the temp path (so tests can read/cleanup), and a clone of the writer.
+/// the temp path (so tests can read it), and a clone of the writer.
+///
+/// The capture file is created here, so `temp` owns it. The doc on this
+/// function used to say the path came back "so tests can read/cleanup", and
+/// that second word was the whole defect: the file was made in one place and
+/// removed in forty-eight others, each of which had to remember.
 pub(super) async fn make_shared_with_cfg(
     cfg: StdArc<crate::config::Config>,
     ca: Option<std::sync::Arc<CertificateAuthority>>,
+    temp: &mut TempFiles,
 ) -> anyhow::Result<(StdArc<Shared>, String, CaptureWriter)> {
-    let tmp =
-        std::env::temp_dir().join(format!("lint_proxy_connect_test_{}.jsonl", Uuid::new_v4()));
+    let tmp = temp.path("lint_proxy_connect_test", "jsonl");
     let p = tmp
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?

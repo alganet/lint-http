@@ -441,7 +441,7 @@ mod tests {
     use std::net::SocketAddr;
     use std::sync::Arc as StdArc;
     use tokio::fs;
-    use uuid::Uuid;
+
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
@@ -450,7 +450,8 @@ mod tests {
         cfg.general.h3_listen = Some("127.0.0.1:3443".to_string());
         // TLS is disabled by default
 
-        let tmp = std::env::temp_dir().join(format!("lint_h3_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_h3_test", "jsonl");
         let p = tmp
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("temp path not utf8"))?
@@ -481,7 +482,8 @@ mod tests {
             .await;
 
         let cfg = StdArc::new(crate::config::Config::default());
-        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None).await?;
+        let mut temp = crate::temp_files::TempFiles::new();
+        let (shared, tmp, _cw) = make_shared_with_cfg(cfg, None, &mut temp).await?;
 
         let req = make_request_with_headers("GET", format!("{}/quic-test", mock.uri()), None)?;
 

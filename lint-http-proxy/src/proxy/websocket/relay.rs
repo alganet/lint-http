@@ -228,7 +228,8 @@ mod tests {
         let (proxy_server_side, server_side) = tokio::io::duplex(4096);
 
         let tx_id = Uuid::new_v4();
-        let tmp = std::env::temp_dir().join(format!("lint_ws_relay_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_ws_relay_test", "jsonl");
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone(), false).await?;
 
@@ -336,7 +337,6 @@ mod tests {
         assert_eq!(session["close_code"].as_u64(), Some(1000));
         assert_eq!(session["client_close_code"].as_u64(), Some(1000));
 
-        let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
     }
 
@@ -350,7 +350,8 @@ mod tests {
         let (proxy_server_side, server_side) = tokio::io::duplex(4096);
 
         let tx_id = Uuid::new_v4();
-        let tmp = std::env::temp_dir().join(format!("lint_ws_s2c_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_ws_s2c_test", "jsonl");
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone(), false).await?;
 
@@ -431,7 +432,6 @@ mod tests {
         // Server text + server close + client close.
         assert!(messages.len() >= 2);
 
-        let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
     }
 
@@ -442,8 +442,8 @@ mod tests {
         let (proxy_server_side, server_side) = tokio::io::duplex(4096);
 
         let tx_id = Uuid::new_v4();
-        let tmp =
-            std::env::temp_dir().join(format!("lint_ws_abrupt_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_ws_abrupt_test", "jsonl");
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone(), false).await?;
 
@@ -477,7 +477,6 @@ mod tests {
         let session: serde_json::Value = serde_json::from_str(content.trim())?;
         assert_eq!(session["type"].as_str(), Some("websocket_session"));
 
-        let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
     }
 
@@ -493,8 +492,8 @@ mod tests {
         let _server_side = server_side;
 
         let tx_id = Uuid::new_v4();
-        let tmp =
-            std::env::temp_dir().join(format!("lint_ws_shutdown_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_ws_shutdown_test", "jsonl");
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone(), false).await?;
 
@@ -529,7 +528,6 @@ mod tests {
         let session: serde_json::Value = serde_json::from_str(content.trim())?;
         assert_eq!(session["type"].as_str(), Some("websocket_session"));
 
-        let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
     }
 
@@ -572,8 +570,8 @@ mod tests {
         let (proxy_server_side, mut server_side) = tokio::io::duplex(4096);
 
         let tx_id = Uuid::new_v4();
-        let tmp =
-            std::env::temp_dir().join(format!("lint_ws_reserved_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_ws_reserved_test", "jsonl");
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone(), false).await?;
 
@@ -623,7 +621,6 @@ mod tests {
         assert_eq!(messages[0]["masked"].as_bool(), Some(true));
         assert_eq!(messages[0]["payload_length"].as_u64(), Some(2));
 
-        let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
     }
 
@@ -636,8 +633,8 @@ mod tests {
         let (proxy_server_side, server_side) = tokio::io::duplex(4096);
 
         let tx_id = Uuid::new_v4();
-        let tmp =
-            std::env::temp_dir().join(format!("lint_ws_binary_test_{}.jsonl", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp = temp.path("lint_ws_binary_test", "jsonl");
         let p = tmp.to_str().unwrap().to_string();
         let cw = CaptureWriter::new(p.clone(), false).await?;
 
@@ -734,7 +731,6 @@ mod tests {
             .expect("ping recorded");
         assert_eq!(ping["direction"].as_str(), Some("client"));
 
-        let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
     }
 }

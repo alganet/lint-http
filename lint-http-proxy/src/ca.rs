@@ -160,14 +160,12 @@ impl CertificateAuthority {
 mod tests {
     use super::*;
     use anyhow::Result;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_generate_and_save_ca() -> Result<()> {
-        let temp_dir = std::env::temp_dir();
-        let test_id = Uuid::new_v4();
-        let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
-        let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cert_path = temp.path("test_ca", "crt");
+        let key_path = temp.path("test_ca", "key");
 
         // Generate new CA
         let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
@@ -189,10 +187,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_load_existing_ca() -> Result<()> {
-        let temp_dir = std::env::temp_dir();
-        let test_id = Uuid::new_v4();
-        let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
-        let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cert_path = temp.path("test_ca", "crt");
+        let key_path = temp.path("test_ca", "key");
 
         // First generate a CA
         let ca1 = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
@@ -213,10 +210,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_gen_cert_for_domain() -> Result<()> {
-        let temp_dir = std::env::temp_dir();
-        let test_id = Uuid::new_v4();
-        let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
-        let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cert_path = temp.path("test_ca", "crt");
+        let key_path = temp.path("test_ca", "key");
 
         let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
 
@@ -234,10 +230,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_cert_cache_hit() -> Result<()> {
-        let temp_dir = std::env::temp_dir();
-        let test_id = Uuid::new_v4();
-        let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
-        let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cert_path = temp.path("test_ca", "crt");
+        let key_path = temp.path("test_ca", "key");
 
         let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
 
@@ -258,10 +253,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_domains() -> Result<()> {
-        let temp_dir = std::env::temp_dir();
-        let test_id = Uuid::new_v4();
-        let cert_path = temp_dir.join(format!("test_ca_{}.crt", test_id));
-        let key_path = temp_dir.join(format!("test_ca_{}.key", test_id));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let cert_path = temp.path("test_ca", "crt");
+        let key_path = temp.path("test_ca", "key");
 
         let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
 

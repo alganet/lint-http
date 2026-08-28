@@ -338,7 +338,6 @@ impl Config {
 mod tests {
     use super::*;
     use tokio::fs;
-    use uuid::Uuid;
 
     #[test]
     fn h3_listen_defaults_to_none() {
@@ -354,8 +353,8 @@ mod tests {
 
     #[tokio::test]
     async fn max_body_bytes_parsed_when_present() -> anyhow::Result<()> {
-        let tmp_toml =
-            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp_toml = temp.path("lint-http_cfg_test", "toml");
         let toml = r#"[general]
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
@@ -373,8 +372,8 @@ enabled = false
 
     #[tokio::test]
     async fn h3_listen_parsed_when_present() -> anyhow::Result<()> {
-        let tmp_toml =
-            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp_toml = temp.path("lint-http_cfg_test", "toml");
         let toml = r#"[general]
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
@@ -392,8 +391,8 @@ enabled = true
 
     #[tokio::test]
     async fn h3_listen_without_tls_fails() {
-        let tmp_toml =
-            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp_toml = temp.path("lint-http_cfg_test", "toml");
         let toml = r#"[general]
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
@@ -416,8 +415,8 @@ enabled = false
 
     #[tokio::test]
     async fn h3_listen_absent_is_none() -> anyhow::Result<()> {
-        let tmp_toml =
-            std::env::temp_dir().join(format!("lint-http_cfg_test_{}.toml", Uuid::new_v4()));
+        let mut temp = crate::temp_files::TempFiles::new();
+        let tmp_toml = temp.path("lint-http_cfg_test", "toml");
         let toml = r#"[general]
 listen = "127.0.0.1:3000"
 captures = "captures.jsonl"
