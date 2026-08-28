@@ -10,10 +10,11 @@
 //! the transaction, so callers that go through `commit` cannot reorder the
 //! steps, re-commit, or mutate the transaction after capture. Error exchanges
 //! route through `commit` too (`record_error_transaction`), so they are linted
-//! and recorded like any other traffic. The raw stores and capture writer stay
-//! reachable for the records that are not `HttpTransaction`s (the WebSocket
-//! *session* capture writes directly), so the pipeline centralizes the
-//! invariant rather than making bypass impossible.
+//! and recorded like any other traffic. The WebSocket *session* record goes
+//! through [`ProtocolEventPipeline::commit_session`] — its violations were
+//! already collected frame by frame through `commit`, so the session write is
+//! capture routing, and routing it here means no proxy record reaches the
+//! capture file except through a pipeline.
 
 use std::sync::Arc;
 
@@ -63,11 +64,20 @@ impl TransactionPipeline {
 pub(super) struct ProtocolEventPipeline {
     engine: Arc<PreparedEngine>,
     store: Arc<ProtocolEventStore>,
+    captures: CaptureWriter,
 }
 
 impl ProtocolEventPipeline {
-    pub(super) fn new(engine: Arc<PreparedEngine>, store: Arc<ProtocolEventStore>) -> Self {
-        Self { engine, store }
+    pub(super) fn new(
+        engine: Arc<PreparedEngine>,
+        store: Arc<ProtocolEventStore>,
+        captures: CaptureWriter,
+    ) -> Self {
+        Self {
+            engine,
+            store,
+            captures,
+        }
     }
 
     /// Lint `event`, then record it — in that order. Returns the violations
@@ -76,6 +86,19 @@ impl ProtocolEventPipeline {
         let violations = self.engine.lint_protocol_event(event, &self.store);
         self.store.record_event(event);
         violations
+    }
+
+    /// Write a finished WebSocket session record to the capture file. There is
+    /// no session-level lint to run: every frame was linted through [`commit`]
+    /// as it was relayed and the collected violations ride on the session —
+    /// this is the one place the record reaches the capture, documented as
+    /// routing rather than a bypass.
+    ///
+    /// [`commit`]: ProtocolEventPipeline::commit
+    pub(super) async fn commit_session(&self, session: crate::websocket_session::WebSocketSession) {
+        if let Err(e) = self.captures.write_websocket_session(session).await {
+            warn!(error = %e, "failed to write websocket session capture");
+        }
     }
 }
 
@@ -89,7 +112,11 @@ impl Shared {
     }
 
     pub(super) fn protocol_event_pipeline(&self) -> ProtocolEventPipeline {
-        ProtocolEventPipeline::new(self.engine.clone(), self.protocol_event_store.clone())
+        ProtocolEventPipeline::new(
+            self.engine.clone(),
+            self.protocol_event_store.clone(),
+            self.captures.clone(),
+        )
     }
 }
 

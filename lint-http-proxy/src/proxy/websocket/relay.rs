@@ -9,9 +9,7 @@
 use std::sync::Arc;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
-use tracing::error;
 
-use crate::capture::CaptureWriter;
 use crate::proxy::pipeline::ProtocolEventPipeline;
 
 /// Build the protocol event for a single relayed WebSocket frame, stamped with
@@ -30,16 +28,15 @@ fn ws_frame_event(
 /// Relay WebSocket messages between client and server, recording each message
 /// for capture. Uses tokio-tungstenite for proper RFC 6455 frame parsing.
 ///
-/// The eighth parameter is what the handshake settled about extensions, and it
-/// is passed rather than re-read because the `101` this session came from is
-/// gone by the time the relay runs — the same reason `tx_id` is passed. Its
-/// caller carries the same allow, for the same reason.
+/// The extensions parameter is what the handshake settled, and it is passed
+/// rather than re-read because the `101` this session came from is gone by
+/// the time the relay runs — the same reason `tx_id` is passed. The pipeline
+/// carries lint, the event store, and the capture writer alike.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn relay_websocket(
     client_io: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
     server_io: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
     tx_id: uuid::Uuid,
-    captures: CaptureWriter,
     connection_id: uuid::Uuid,
     extensions: crate::protocol_event::NegotiatedExtensions,
     pipeline: ProtocolEventPipeline,
@@ -100,7 +97,7 @@ pub(super) async fn relay_websocket(
     let msgs_s2c = messages.clone();
     let viols_s2c = violations.clone();
     let close_s2c = close_code.clone();
-    let pipe_s2c = pipeline;
+    let pipe_s2c = pipeline.clone();
     let s2c = async move {
         while let Some(result) = server_read.next().await {
             match result {
@@ -156,9 +153,7 @@ pub(super) async fn relay_websocket(
         Err(arc) => arc.lock().await.clone(),
     };
 
-    if let Err(e) = captures.write_websocket_session(session).await {
-        error!("failed to write websocket session: {}", e);
-    }
+    pipeline.commit_session(session).await;
 }
 
 fn message_to_info(
@@ -223,6 +218,7 @@ fn message_to_info(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capture::CaptureWriter;
     use std::sync::Arc as StdArc;
     use uuid::Uuid;
 
@@ -269,7 +265,7 @@ mod tests {
         assert_eq!(unmasked.masked, Some(false));
     }
 
-    fn test_pe_pipeline() -> ProtocolEventPipeline {
+    fn test_pe_pipeline(captures: &CaptureWriter) -> ProtocolEventPipeline {
         let cfg = crate::config::Config::default();
         let engine = StdArc::new(crate::engine::PreparedEngine::new(&cfg).unwrap());
         ProtocolEventPipeline::new(
@@ -277,6 +273,7 @@ mod tests {
             StdArc::new(crate::protocol_event_store::ProtocolEventStore::new(
                 300, 100,
             )),
+            captures.clone(),
         )
     }
 
@@ -358,10 +355,9 @@ mod tests {
                 proxy_client_side,
                 proxy_server_side,
                 tx_id,
-                cw_clone,
                 uuid::Uuid::new_v4(),
                 crate::protocol_event::NegotiatedExtensions::NoneAccepted,
-                test_pe_pipeline(),
+                test_pe_pipeline(&cw_clone),
                 tokio_util::sync::CancellationToken::new(),
             )
             .await;
@@ -480,10 +476,9 @@ mod tests {
                 proxy_client_side,
                 proxy_server_side,
                 tx_id,
-                cw_clone,
                 uuid::Uuid::new_v4(),
                 crate::protocol_event::NegotiatedExtensions::NoneAccepted,
-                test_pe_pipeline(),
+                test_pe_pipeline(&cw_clone),
                 tokio_util::sync::CancellationToken::new(),
             )
             .await;
@@ -572,10 +567,9 @@ mod tests {
                 proxy_client_side,
                 proxy_server_side,
                 tx_id,
-                cw_clone,
                 uuid::Uuid::new_v4(),
                 crate::protocol_event::NegotiatedExtensions::NoneAccepted,
-                test_pe_pipeline(),
+                test_pe_pipeline(&cw_clone),
                 tokio_util::sync::CancellationToken::new(),
             )
             .await;
@@ -626,10 +620,9 @@ mod tests {
                 proxy_client_side,
                 proxy_server_side,
                 tx_id,
-                cw_clone,
                 uuid::Uuid::new_v4(),
                 crate::protocol_event::NegotiatedExtensions::NoneAccepted,
-                test_pe_pipeline(),
+                test_pe_pipeline(&cw_clone),
                 shutdown_relay,
             )
             .await;
@@ -730,10 +723,9 @@ mod tests {
                 proxy_client_side,
                 proxy_server_side,
                 tx_id,
-                cw_clone,
                 uuid::Uuid::new_v4(),
                 crate::protocol_event::NegotiatedExtensions::NoneAccepted,
-                test_pe_pipeline(),
+                test_pe_pipeline(&cw_clone),
                 tokio_util::sync::CancellationToken::new(),
             )
             .await;

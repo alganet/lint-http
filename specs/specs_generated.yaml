@@ -2294,7 +2294,7 @@ sources:
     snippet: '%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong'
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/relay.rs
-      line: 179
+      line: 174
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 4.1
     snippet: (as a string, not base64-decoded) with the string
