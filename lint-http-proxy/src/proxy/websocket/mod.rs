@@ -20,27 +20,29 @@ pub(super) use handshake::{handle_websocket_upgrade, WsUpgradeRequest};
 /// Check if a request is a WebSocket upgrade request.
 ///
 /// A WebSocket handshake requires `Connection: Upgrade` (as a distinct token,
-/// possibly alongside others) and `Upgrade: websocket`.
+/// possibly alongside others) and an `Upgrade` list containing `websocket`.
 ///
-/// Both sentences say "include", not "equal", and that is the whole reason the
-/// two checks are shaped differently. Connection is a token list, so `include`
-/// means membership -- `Connection: keep-alive, Upgrade` is a valid handshake
-/// and a string compare would reject it, which is why this asks
-/// `parse_connection_tokens` rather than looking at the field value. The
-/// keyword and the token are also matched case-insensitively, which the
-/// document establishes elsewhere for each field rather than here.
+/// Both sentences say "include", not "equal", so both checks are membership
+/// tests -- `Connection: keep-alive, Upgrade` is a valid handshake, and so is
+/// `Upgrade: websocket, h2c`: a client may offer several protocols in
+/// preference order and `websocket` among them is an offer this proxy can
+/// serve. The `Upgrade` field is read through the same list reader the rules
+/// use (joined across however many lines carry it), so the proxy routes
+/// exactly the handshakes the rules would lint as handshakes. The keyword and
+/// the token are matched case-insensitively, which the document establishes
+/// elsewhere for each field rather than here.
 ///
 // cite(RFC 6455 § 4.1): "The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword."
 // cite(RFC 6455 § 4.1): "The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token."
 pub(super) fn is_websocket_upgrade<B>(req: &Request<B>) -> bool {
     let connection_tokens = parse_connection_tokens(req.headers().get(hyper::header::CONNECTION));
     let has_upgrade = connection_tokens.contains("upgrade");
-    let is_websocket = req
-        .headers()
-        .get(hyper::header::UPGRADE)
-        .and_then(|v| v.to_str().ok())
-        .map(|s| s.eq_ignore_ascii_case("websocket"))
-        .unwrap_or(false);
+    let is_websocket =
+        crate::helpers::headers::combined_field_value_as_written(req.headers(), "upgrade")
+            .is_some_and(|upgrade| {
+                crate::helpers::headers::list_members(&upgrade)
+                    .any(|m| m.eq_ignore_ascii_case("websocket"))
+            });
     has_upgrade && is_websocket
 }
 
@@ -227,6 +229,12 @@ mod tests {
     // The sentence is cited where the splitting happens, in `parse_connection_tokens`.
     #[case(Some("super-upgrade"), Some("websocket"), false)]
     #[case(Some("upgrades"), Some("websocket"), false)]
+    // Upgrade is a list too, and § 4.1 says "include": `websocket` among other
+    // offered protocols is a handshake this proxy can serve, whichever position
+    // it holds. A keyword that merely contains "websocket" is not a member.
+    #[case(Some("Upgrade"), Some("websocket, h2c"), true)]
+    #[case(Some("Upgrade"), Some("h2c, websocket"), true)]
+    #[case(Some("Upgrade"), Some("websockets"), false)]
     fn is_websocket_upgrade_negative(
         #[case] connection: Option<&str>,
         #[case] upgrade: Option<&str>,
@@ -243,5 +251,20 @@ mod tests {
         }
         let req = builder.body(Full::new(Bytes::new()).boxed()).unwrap();
         assert_eq!(is_websocket_upgrade(&req), expected);
+    }
+
+    /// An `Upgrade` list split across field lines is one list; the membership
+    /// test reads the joined value the way the rules do.
+    #[test]
+    fn is_websocket_upgrade_reads_a_multi_line_upgrade_field() {
+        let req = Request::builder()
+            .method("GET")
+            .uri("http://example.com/ws")
+            .header("connection", "Upgrade")
+            .header("upgrade", "h2c")
+            .header("upgrade", "websocket")
+            .body(Full::new(Bytes::new()).boxed())
+            .unwrap();
+        assert!(is_websocket_upgrade(&req));
     }
 }

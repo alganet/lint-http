@@ -2264,7 +2264,7 @@ sources:
     - file: lint-http-core/src/protocol_event.rs
       line: 71
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 96
+      line: 98
     - file: lint-http-rules/src/rules/websocket_handshake_valid.rs
       line: 250
   - label: lint-http-proxy/src/proxy/websocket/mod.rs
@@ -2272,7 +2272,7 @@ sources:
     snippet: The request MUST contain a |Connection| header field whose value MUST include the "Upgrade" token.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 34
+      line: 36
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 24
   - label: lint-http-proxy/src/proxy/websocket/mod.rs (2)
@@ -2280,7 +2280,7 @@ sources:
     snippet: The request MUST contain an |Upgrade| header field whose value MUST include the "websocket" keyword.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 33
+      line: 35
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 110
   - label: lint-http-proxy/src/proxy/websocket/mod.rs (3)
@@ -2288,7 +2288,7 @@ sources:
     snippet: Note that like other HTTP header fields, this header field MAY be split or combined across multiple lines.
     cited_by:
     - file: lint-http-proxy/src/proxy/websocket/mod.rs
-      line: 65
+      line: 67
   - label: lint-http-proxy/src/proxy/websocket/relay.rs
     section: § 5.2
     snippet: '%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong'
