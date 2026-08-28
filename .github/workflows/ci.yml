@@ -80,6 +80,15 @@ jobs:
       - name: Run lint
         run: cargo lint
 
+      # The doc comments in this tree are the design record — longer than the
+      # code in places, and the only written account of several decisions. That
+      # made them the one artifact nothing checked: twenty links resolved to
+      # nothing, some still describing the pre-workspace-split layout.
+      - name: Documentation builds without warnings
+        run: cargo doc --workspace --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+
   fmt:
     name: Format
     runs-on: ubuntu-latest
