@@ -562,6 +562,71 @@ mod tests {
         }
     }
 
+    /// The inverse of the pin above, through the relay itself: a reserved
+    /// opcode is forwarded to the peer byte-identical AND lands in the
+    /// capture. Recording it is the relay's job; judging it is the receiving
+    /// endpoint's.
+    #[tokio::test]
+    async fn a_reserved_opcode_reaches_the_capture_and_the_peer() -> anyhow::Result<()> {
+        let (mut client_side, proxy_client_side) = tokio::io::duplex(4096);
+        let (proxy_server_side, mut server_side) = tokio::io::duplex(4096);
+
+        let tx_id = Uuid::new_v4();
+        let tmp =
+            std::env::temp_dir().join(format!("lint_ws_reserved_test_{}.jsonl", Uuid::new_v4()));
+        let p = tmp.to_str().unwrap().to_string();
+        let cw = CaptureWriter::new(p.clone(), false).await?;
+
+        let cw_clone = cw.clone();
+        let relay_handle = tokio::spawn(async move {
+            relay_websocket(
+                proxy_client_side,
+                proxy_server_side,
+                tx_id,
+                uuid::Uuid::new_v4(),
+                crate::protocol_event::NegotiatedExtensions::NoneAccepted,
+                test_pe_pipeline(&cw_clone),
+                tokio_util::sync::CancellationToken::new(),
+            )
+            .await;
+        });
+
+        // A masked frame with reserved opcode 0x5, written raw: tungstenite
+        // could not even construct this, which was the whole problem.
+        let key = [1u8, 2, 3, 4];
+        let mut wire = vec![0x85, 0x82, 1, 2, 3, 4];
+        wire.extend(b"!!".iter().enumerate().map(|(i, b)| b ^ key[i % 4]));
+        client_side.write_all(&wire).await?;
+
+        // The peer receives the same bytes, verbatim.
+        let mut got = vec![0u8; wire.len()];
+        tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            server_side.read_exact(&mut got),
+        )
+        .await??;
+        assert_eq!(got, wire, "the frame is forwarded byte-identical");
+
+        drop(client_side);
+        drop(server_side);
+        tokio::time::timeout(std::time::Duration::from_secs(5), relay_handle)
+            .await
+            .expect("relay did not finish")
+            .expect("relay panicked");
+
+        cw.flush().await?;
+        let content = tokio::fs::read_to_string(&p).await?;
+        let session: serde_json::Value = serde_json::from_str(content.trim())?;
+        let messages = session["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0]["opcode"].as_u64(), Some(5));
+        assert_eq!(messages[0]["masked"].as_bool(), Some(true));
+        assert_eq!(messages[0]["payload_length"].as_u64(), Some(2));
+
+        let _ = tokio::fs::remove_file(&tmp).await;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn relay_websocket_binary_and_ping_messages() -> anyhow::Result<()> {
         use futures_util::{SinkExt, StreamExt};
@@ -629,12 +694,13 @@ mod tests {
             ))
             .await?;
 
-        // Server receives ping (may receive pong auto-response)
+        // The server receives the Ping itself — the relay manufactures no
+        // Pong, so there is nothing else this read could be.
         let msg = server_ws.next().await.unwrap()?;
-        assert!(
-            matches!(msg, tokio_tungstenite::tungstenite::Message::Ping(_))
-                || matches!(msg, tokio_tungstenite::tungstenite::Message::Pong(_))
-        );
+        assert!(matches!(
+            msg,
+            tokio_tungstenite::tungstenite::Message::Ping(_)
+        ));
 
         // Close
         client_ws
