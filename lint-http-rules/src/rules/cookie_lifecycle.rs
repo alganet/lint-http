@@ -36,6 +36,118 @@ const RFC_6265_5_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Path matching",
 };
 
+/// The request a cookie is being sent on, in the three terms a cookie is
+/// matched against.
+struct RequestScope {
+    scheme: String,
+    host: String,
+    path: String,
+}
+
+impl RequestScope {
+    fn of(request_uri: &str) -> Self {
+        Self {
+            scheme: if request_uri.to_ascii_lowercase().starts_with("https://") {
+                "https".into()
+            } else {
+                "http".into()
+            },
+            host: crate::helpers::uri::extract_host_from_request_target(request_uri)
+                .unwrap_or_default(),
+            path: crate::helpers::uri::extract_path_from_request_target(request_uri)
+                .unwrap_or_else(|| "/".into()),
+        }
+    }
+
+    /// Whether a stored cookie would be sent on this request.
+    // cite(RFC 6265 § 5.4): "The user agent MUST use an algorithm equivalent to the following algorithm to compute the "cookie-string" from a cookie store and a request-uri:"
+    fn applies(&self, cookie: &crate::helpers::cookie::Cookie) -> bool {
+        cookie.domain_matches(&self.host)
+            && cookie.path_matches(&self.path)
+            && (!cookie.secure || self.scheme == "https")
+    }
+}
+
+/// Whether a cookie the client sent was ever set, and how closely.
+enum PreviouslySet {
+    /// Never seen set for this request's host — it may predate the capture.
+    Never,
+    /// Seen set for the host, but never for a path this request matches.
+    ForAnotherPath,
+    /// Seen set for host and path, so it was applicable once and is not now.
+    AndApplicable,
+}
+
+/// Search the history for a `Set-Cookie` that would have put `name` in the
+/// store for this request.
+///
+/// The history is walked in whatever order it comes in: `AndApplicable` ends
+/// the walk wherever it is found, and `ForAnotherPath` is true of the whole
+/// history or of none of it, so neither answer depends on the order.
+fn previously_set(
+    history: &crate::transaction_history::TransactionHistory,
+    name: &str,
+    request: &RequestScope,
+) -> PreviouslySet {
+    let mut for_another_path = false;
+    for (past, resp) in history.responses() {
+        for line in crate::helpers::headers::field_lines(&resp.headers, "set-cookie") {
+            let Some(cookie) =
+                crate::helpers::cookie::parse_set_cookie(line, &past.request.uri, past.timestamp)
+            else {
+                continue;
+            };
+            if cookie.name != name || !cookie.domain_matches(&request.host) {
+                continue;
+            }
+            if cookie.path_matches(&request.path) {
+                return PreviouslySet::AndApplicable;
+            }
+            for_another_path = true;
+        }
+    }
+    if for_another_path {
+        PreviouslySet::ForAnotherPath
+    } else {
+        PreviouslySet::Never
+    }
+}
+
+impl CookieLifecycle {
+    /// A cookie marked `Secure` is not sent over an insecure channel.
+    ///
+    /// The stored cookie is matched on name *and value*, not name alone: the
+    /// `Cookie` header omits domain and path, so a name-only match would flag a
+    /// legitimate non-secure cookie whenever a secure one shares its name. The
+    /// stale-value check that follows catches the mismatches this misses.
+    // cite(RFC 6265 § 4.1.2.5): "The Secure attribute limits the scope of the cookie to "secure" channels"
+    fn secure_cookie_stayed_on_https(
+        &self,
+        live: &[crate::helpers::cookie::Cookie],
+        request: &RequestScope,
+        name: &str,
+        value: &str,
+        severity: crate::lint::Severity,
+    ) -> Option<Violation> {
+        if request.scheme == "https" {
+            return None;
+        }
+        let sent_a_secure_cookie = live.iter().any(|c| {
+            c.name == name
+                && c.value == value
+                && c.secure
+                && c.domain_matches(&request.host)
+                && c.path_matches(&request.path)
+        });
+        sent_a_secure_cookie.then(|| {
+            self.violation(
+                severity,
+                format!("Secure cookie '{}' sent over insecure transport", name),
+            )
+        })
+    }
+}
+
 impl Rule for CookieLifecycle {
     fn id(&self) -> &'static str {
         "cookie_lifecycle"
@@ -56,171 +168,73 @@ impl Rule for CookieLifecycle {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // only care about outgoing requests that carry Cookie headers
-            let cookie_headers: Vec<_> = tx.request.headers.get_all("cookie").iter().collect();
-            if cookie_headers.is_empty() {
+            // Only requests that carry cookies say anything about the store.
+            let sent: Vec<(String, String)> =
+                crate::helpers::headers::field_lines(&tx.request.headers, "cookie")
+                    .flat_map(crate::helpers::cookie::parse_cookie_header)
+                    .collect();
+            if sent.is_empty() {
                 return None;
             }
 
-            // parse request host, path, and scheme for matching
-            let req_uri = &tx.request.uri;
-            let scheme = if req_uri.to_ascii_lowercase().starts_with("https://") {
-                "https"
-            } else {
-                "http"
-            };
+            let request = RequestScope::of(&tx.request.uri);
+            // Already filtered to what is unexpired at this request's time.
+            let live = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
 
-            // extract host portion (without port) using shared helper
-            let req_host =
-                crate::helpers::uri::extract_host_from_request_target(req_uri).unwrap_or_default();
-
-            let req_path = crate::helpers::uri::extract_path_from_request_target(req_uri)
-                .unwrap_or_else(|| "/".into());
-
-            // Grab a flat slice of history once so we don't re-allocate every
-            // time we need to walk it.  `TransactionHistory::iter()` yields
-            // &HttpTransaction in oldest-first order, so reversing it gives
-            // newest-first which we later want when scanning for domain/path
-            // reasons.
-            let history_items: Vec<_> = history.iter().collect();
-
-            // Build live cookie store using helper; it already filters out
-            // expired entries up to the current request timestamp.
-            let live_cookies = crate::helpers::cookie::build_cookie_store(history, tx.timestamp);
-
-            // Parse cookie header(s) into name/value pairs.  Multiple header
-            // fields are concatenated per RFC 6265 §4.2.
-            let mut sent_pairs: Vec<(String, String)> = Vec::new();
-            for hv in cookie_headers.iter() {
-                if let Ok(s) = hv.to_str() {
-                    sent_pairs.extend(crate::helpers::cookie::parse_cookie_header(s));
+            for (name, value) in sent {
+                if let Some(v) =
+                    self.secure_cookie_stayed_on_https(&live, &request, &name, &value, ctx.severity)
+                {
+                    return Some(v);
                 }
-            }
 
-            // examine each sent cookie for violations
-            for (name, value) in sent_pairs {
-                // search for the *best* applicable live cookie.  RFC 6265
-                // specifies that user agents should include the cookie with the
-                // most specific path (longest) when multiple match.  Domain
-                // specificity is approximated by longer domain string (more
-                // labels); history order is already taken into account when the
-                // store was built.  Choose the candidate with the highest "score".
-                // §5.4's cookie-string ordering lists the most specific cookie
-                // first; we borrow that ordering here to decide which stored cookie
-                // a bare `name=value` pair (the Cookie header carries no path or
-                // domain) is meant to be — the longest-path, then longest-domain,
-                // candidate is the authoritative value.
+                // The Cookie header carries no domain or path, so which stored
+                // cookie a bare `name=value` pair *is* has to be decided: §5.4's
+                // cookie-string ordering lists the most specific first, and that
+                // ordering is borrowed here to pick the authoritative value —
+                // longest path, then longest domain.
                 // cite(RFC 6265 § 5.4): "Cookies with longer paths are listed before cookies with shorter paths."
-                let mut matching_live: Option<&crate::helpers::cookie::Cookie> = None;
-                for c in &live_cookies {
-                    if c.name == name
-                        && c.domain_matches(&req_host)
-                        && c.path_matches(&req_path)
-                        && (!c.secure || scheme == "https")
-                    {
-                        let better = if let Some(existing) = matching_live {
-                            let existing_score = (existing.path.len(), existing.domain.len());
-                            let this_score = (c.path.len(), c.domain.len());
-                            this_score > existing_score
-                        } else {
-                            true
-                        };
-                        if better {
-                            matching_live = Some(c);
-                        }
-                    }
-                }
+                let applicable = live
+                    .iter()
+                    .filter(|c| request.applies(c) && c.name == name)
+                    // `min_by_key` on the reversed key keeps the *first* of
+                    // equally specific candidates, which is the order the store
+                    // was built in.
+                    .min_by_key(|c| std::cmp::Reverse((c.path.len(), c.domain.len())));
 
-                // check for secure-over-http violation first.  Rather than just
-                // looking for any stored secure cookie with the same name we
-                // also compare the value, because the Cookie header omits
-                // domain/path attributes.  Without the value check a more
-                // specific non-secure cookie could be sent without warning, yet
-                // the rule would still flag because a different secure cookie of
-                // the same name exists.  Matching on (name,value) reduces false
-                // positives; the following stale-value check will catch other
-                // mismatches.
-                if scheme != "https" {
-                    // only flag if the client actually sent the exact same
-                    // name/value pair we know was marked secure and applicable to
-                    // this request.
-                    if live_cookies.iter().any(|c| {
-                        c.name == name
-                            && c.value == value
-                            && c.secure
-                            && c.domain_matches(&req_host)
-                            && c.path_matches(&req_path)
-                    }) {
-                        // cite(RFC 6265 § 4.1.2.5): "The Secure attribute limits the scope of the cookie to "secure" channels"
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!("Secure cookie '{}' sent over insecure transport", name),
-                        ));
-                    }
-                }
-
-                if let Some(c) = matching_live {
-                    // live cookie exists; ensure value matches
-                    if c.value != value {
+                if let Some(applicable) = applicable {
+                    if applicable.value != value {
                         return Some(self.violation(ctx.severity, format!(
                                 "Cookie '{}' value '{}' does not match stored value '{}', likely stale",
-                                name, value, c.value
+                                name, value, applicable.value
                             )));
                     }
-                } else {
-                    // no live cookie.  inspect history to see why it isn't live:
-                    // * expired/removed (domain+path match), or
-                    // * path restriction prevented it while domain still matches.
-                    let mut seen_domain = false;
-                    let mut seen_path = false;
-                    for prev in history_items.iter().rev() {
-                        if let Some(resp) = &prev.response {
-                            for hv in resp.headers.get_all("set-cookie").iter() {
-                                if let Ok(s) = hv.to_str() {
-                                    if let Some(cookie) = crate::helpers::cookie::parse_set_cookie(
-                                        s,
-                                        &prev.request.uri,
-                                        prev.timestamp,
-                                    ) {
-                                        if cookie.name == name && cookie.domain_matches(&req_host) {
-                                            seen_domain = true;
-                                            if cookie.path_matches(&req_path) {
-                                                seen_path = true;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        if seen_path {
-                            break;
-                        }
-                    }
-                    if seen_path {
-                        // there was a matching cookie in the past but it is no longer
-                        // live (either expired, deleted, or replaced by another). A client
-                        // still sending it has a store the user agent was required to have
-                        // emptied.
-                        // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
+                    continue;
+                }
+
+                // Nothing live by that name. Why not?
+                match previously_set(history, &name, &request) {
+                    // It was live once and is not now, so the client is holding
+                    // a store the user agent was required to have emptied.
+                    // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
+                    PreviouslySet::AndApplicable => {
                         return Some(self.cited(&RFC_6265_5_3, ctx.severity, format!(
                                 "Cookie '{}' was previously set but is expired or removed and should not be sent",
                                 name
-                            )));
+                            )))
                     }
-                    if seen_domain {
-                        // a cookie existed for the domain but path did not match
+                    PreviouslySet::ForAnotherPath => {
                         return Some(self.violation(
                             ctx.severity,
                             format!(
                                 "Cookie '{}' is not valid for path '{}' and should not be sent",
-                                name, req_path
+                                name, request.path
                             ),
-                        ));
+                        ))
                     }
+                    // The cookie may predate the capture; assume it is legitimate.
+                    PreviouslySet::Never => {}
                 }
-                // otherwise, the cookie may predate our history; assume it's
-                // legitimate and do not flag.
             }
 
             None

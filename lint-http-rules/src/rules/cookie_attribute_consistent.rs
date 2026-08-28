@@ -42,6 +42,200 @@ const RFC_9110_5_6_7: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HTTP-date (IMF-fixdate) — used for the `Expires` attribute",
 };
 
+impl CookieAttributeConsistent {
+    /// The first defect in one `Set-Cookie` field line, if it has one.
+    ///
+    /// The line is a cookie-pair and then attributes, and those are two
+    /// different grammars: the pair is judged here, each attribute by
+    /// [`Self::attribute_defect`], and the one question that needs both — a
+    /// `SameSite=None` cookie that is not `Secure` — after the walk.
+    fn set_cookie_defect(&self, line: &str, severity: crate::lint::Severity) -> Option<Violation> {
+        let (pair, attributes) = crate::helpers::cookie::split_set_cookie(line);
+        if pair.is_empty() {
+            return Some(self.violation(severity, "Set-Cookie header missing cookie-pair".into()));
+        }
+
+        let name = pair.split('=').next().unwrap_or("").trim();
+        if name.is_empty() {
+            return Some(self.violation(severity, "Set-Cookie cookie name is empty".into()));
+        }
+        // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
+        if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
+            return Some(self.cited(
+                &RFC_6265_4_1_1,
+                severity,
+                format!("Set-Cookie cookie-name contains invalid character: '{}'", c),
+            ));
+        }
+
+        let mut secure_present = false;
+        let mut same_site: Option<String> = None;
+        for attribute in attributes {
+            if let Some(defect) = self.attribute_defect(&attribute, severity) {
+                return Some(defect);
+            }
+            // Past the defect check the values are known good, so what is
+            // recorded here is what the sender successfully asked for.
+            if attribute.is("secure") {
+                secure_present = true;
+            } else if attribute.is("samesite") {
+                same_site = attribute.value.map(|v| v.to_ascii_lowercase());
+            }
+        }
+
+        // `SameSite=None` without `Secure` is not a cookie with a weaker policy — it is
+        // a cookie the user agent throws away. That is why this is a violation and not
+        // a suggestion.
+        // cite(draft-ietf-httpbis-rfc6265bis § 5.7): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
+        if same_site.as_deref() == Some("none") && !secure_present {
+            return Some(self.violation(
+                severity,
+                "Set-Cookie with 'SameSite=None' must also set 'Secure'".into(),
+            ));
+        }
+        None
+    }
+
+    /// What is wrong with one `cookie-av`, if anything.
+    ///
+    /// An attribute this rule does not know is not a defect: the grammar ends
+    /// in `extension-av`, and a user agent ignores what it does not recognise.
+    // cite(RFC 6265 § 4.1.1): "extension-av      = <any CHAR except CTLs or ";">"
+    fn attribute_defect(
+        &self,
+        attribute: &crate::helpers::cookie::Attribute<'_>,
+        severity: crate::lint::Severity,
+    ) -> Option<Violation> {
+        // The two flag attributes: the grammar admits no "=", so the attribute
+        // is its own presence and a value written after it is a defect.
+        // cite(RFC 6265 § 4.1.1): "secure-av         = "Secure""
+        // cite(RFC 6265 § 4.1.1): "httponly-av       = "HttpOnly""
+        for flag in ["Secure", "HttpOnly"] {
+            if attribute.is(flag) {
+                return attribute.has_value().then(|| {
+                    self.cited(
+                        &RFC_6265_4_1_1,
+                        severity,
+                        format!("Set-Cookie attribute '{}' must not have a value", flag),
+                    )
+                });
+            }
+        }
+
+        if attribute.is("SameSite") {
+            let Some(value) = attribute.value else {
+                return Some(self.violation(
+                    severity,
+                    "Set-Cookie attribute 'SameSite' requires a value".into(),
+                ));
+            };
+            // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1): "samesite-value = "Strict" / "Lax" / "None""
+            let known = ["strict", "lax", "none"]
+                .iter()
+                .any(|known| value.eq_ignore_ascii_case(known));
+            return (!known).then(|| {
+                self.violation(
+                    severity,
+                    format!(
+                        "Set-Cookie attribute 'SameSite' has invalid value: '{}'",
+                        value
+                    ),
+                )
+            });
+        }
+
+        if attribute.is("Max-Age") {
+            let Some(value) = attribute.value else {
+                return Some(self.violation(
+                    severity,
+                    "Set-Cookie attribute 'Max-Age' requires a numeric value".into(),
+                ));
+            };
+            // A leading "-" is accepted on purpose: the ABNF says non-zero-digit
+            // *DIGIT, but the parsing algorithm the ABNF is a summary of admits a
+            // sign, and a negative Max-Age is how a cookie is deleted.
+            // `parse::<i64>` enforces both of §5.2.2's processing gates: a
+            // valid first character *and* an all-DIGIT remainder.
+            // cite(RFC 6265 § 5.2.2): "If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av."
+            // cite(RFC 6265 § 5.2.2): "If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av."
+            return value.parse::<i64>().is_err().then(|| {
+                self.cited(
+                    &RFC_6265_5_2_2,
+                    severity,
+                    format!(
+                        "Set-Cookie attribute 'Max-Age' is not a valid integer: '{}'",
+                        value
+                    ),
+                )
+            });
+        }
+
+        if attribute.is("Expires") {
+            let Some(value) = attribute.value else {
+                return Some(self.violation(
+                    severity,
+                    "Set-Cookie attribute 'Expires' requires a HTTP-date value".into(),
+                ));
+            };
+            // cite(RFC 6265 § 4.1.1): "expires-av        = "Expires=" sane-cookie-date"
+            return (!crate::http_date::is_valid_http_date(value)).then(|| {
+                self.cited(
+                    &RFC_6265_4_1_1,
+                    severity,
+                    format!(
+                        "Set-Cookie attribute 'Expires' is not a valid HTTP-date: '{}'",
+                        value
+                    ),
+                )
+            });
+        }
+
+        if attribute.is("Path") {
+            let Some(value) = attribute.value else {
+                return Some(self.violation(
+                    severity,
+                    "Set-Cookie attribute 'Path' requires a value".into(),
+                ));
+            };
+            return (!value.starts_with('/')).then(|| {
+                self.violation(
+                    severity,
+                    format!(
+                        "Set-Cookie attribute 'Path' should start with '/': '{}'",
+                        value
+                    ),
+                )
+            });
+        }
+
+        if attribute.is("Domain") {
+            let Some(value) = attribute.value else {
+                return Some(self.violation(
+                    severity,
+                    "Set-Cookie attribute 'Domain' requires a value".into(),
+                ));
+            };
+            if value.is_empty() {
+                return Some(self.violation(
+                    severity,
+                    "Set-Cookie attribute 'Domain' must not be empty".into(),
+                ));
+            }
+            return value.contains(' ').then(|| {
+                self.violation(
+                    severity,
+                    format!(
+                        "Set-Cookie attribute 'Domain' must not contain spaces: '{}'",
+                        value
+                    ),
+                )
+            });
+        }
+
+        None
+    }
+}
+
 impl Rule for CookieAttributeConsistent {
     fn id(&self) -> &'static str {
         "cookie_attribute_consistent"
@@ -59,243 +253,19 @@ impl Rule for CookieAttributeConsistent {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
-        let finding =
-            || -> Option<Violation> {
-                let resp = tx.response.as_ref()?;
-
-                for hv in resp.headers.get_all("set-cookie").iter() {
-                    let s = match hv.to_str() {
-                        Ok(v) => v,
-                        Err(_) => {
-                            return Some(self.violation(
-                                ctx.severity,
-                                "Set-Cookie header value is not valid UTF-8".into(),
-                            ))
-                        }
-                    };
-
-                    // Split into cookie-pair and attribute segments
-                    let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
-                    if parts.is_empty() || parts[0].is_empty() {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Set-Cookie header missing cookie-pair".into(),
-                        ));
-                    }
-
-                    // Validate cookie-name token
-                    let pair = parts[0];
-                    let mut split = pair.splitn(2, '=');
-                    let name = split.next().unwrap_or("").trim();
-                    if name.is_empty() {
-                        return Some(
-                            self.violation(ctx.severity, "Set-Cookie cookie name is empty".into()),
-                        );
-                    }
-
-                    // cite(RFC 6265 § 4.1.1): "cookie-pair       = cookie-name "=" cookie-value cookie-name       = token"
-                    if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                        return Some(self.cited(
-                            &RFC_6265_4_1_1,
-                            ctx.severity,
-                            format!("Set-Cookie cookie-name contains invalid character: '{}'", c),
-                        ));
-                    }
-
-                    // Track attributes
-                    let mut secure_present = false;
-                    let mut samesite_value: Option<String> = None;
-
-                    for attr in parts.iter().skip(1) {
-                        if attr.is_empty() {
-                            // trailing semicolons or accidental empty attributes
-                            continue;
-                        }
-
-                        // Attribute may be key or key=value
-                        let mut av = attr.splitn(2, '=');
-                        let key = av.next().unwrap().trim();
-                        let val_opt = av.next().map(|v| v.trim());
-
-                        if key.eq_ignore_ascii_case("secure") {
-                            // Secure must be a flag (no '=') per RFC; consider 'Secure=...' invalid.
-                            // The grammar admits no "=" — the attribute is its own presence.
-                            // cite(RFC 6265 § 4.1.1): "secure-av         = "Secure""
-                            if val_opt.is_some() && !val_opt.unwrap().is_empty() {
-                                return Some(self.cited(
-                                    &RFC_6265_4_1_1,
-                                    ctx.severity,
-                                    "Set-Cookie attribute 'Secure' must not have a value".into(),
-                                ));
-                            }
-                            secure_present = true;
-                            continue;
-                        }
-
-                        if key.eq_ignore_ascii_case("httponly") {
-                            // cite(RFC 6265 § 4.1.1): "httponly-av       = "HttpOnly""
-                            if val_opt.is_some() && !val_opt.unwrap().is_empty() {
-                                return Some(self.cited(
-                                    &RFC_6265_4_1_1,
-                                    ctx.severity,
-                                    "Set-Cookie attribute 'HttpOnly' must not have a value".into(),
-                                ));
-                            }
-                            continue;
-                        }
-
-                        if key.eq_ignore_ascii_case("samesite") {
-                            let v = match val_opt {
-                                Some(v) => v,
-                                None => {
-                                    return Some(self.violation(
-                                        ctx.severity,
-                                        "Set-Cookie attribute 'SameSite' requires a value".into(),
-                                    ))
-                                }
-                            };
-                            // Accept Strict, Lax, None (case-insensitive)
-                            // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1): "samesite-value = "Strict" / "Lax" / "None""
-                            let vnorm = v.trim().to_ascii_lowercase();
-                            if vnorm != "strict" && vnorm != "lax" && vnorm != "none" {
-                                return Some(self.violation(
-                                    ctx.severity,
-                                    format!(
-                                        "Set-Cookie attribute 'SameSite' has invalid value: '{}'",
-                                        v
-                                    ),
-                                ));
-                            }
-                            samesite_value = Some(vnorm);
-                            continue;
-                        }
-
-                        if key.eq_ignore_ascii_case("max-age") {
-                            let v = match val_opt {
-                                Some(v) => v,
-                                None => return Some(
-                                    self.violation(
-                                        ctx.severity,
-                                        "Set-Cookie attribute 'Max-Age' requires a numeric value"
-                                            .into(),
-                                    ),
-                                ),
-                            };
-                            // A leading "-" is accepted on purpose: the ABNF says non-zero-digit
-                            // *DIGIT, but the parsing algorithm the ABNF is a summary of admits a
-                            // sign, and a negative Max-Age is how a cookie is deleted.
-                            // `parse::<i64>` enforces both of §5.2.2's processing gates: a
-                            // valid first character *and* an all-DIGIT remainder.
-                            // cite(RFC 6265 § 5.2.2): "If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av."
-                            // cite(RFC 6265 § 5.2.2): "If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av."
-                            if v.parse::<i64>().is_err() {
-                                return Some(self.cited(
-                                    &RFC_6265_5_2_2,
-                                    ctx.severity,
-                                    format!(
-                                    "Set-Cookie attribute 'Max-Age' is not a valid integer: '{}'",
-                                    v
-                                ),
-                                ));
-                            }
-                            continue;
-                        }
-
-                        if key.eq_ignore_ascii_case("expires") {
-                            let v = match val_opt {
-                                Some(v) => v,
-                                None => return Some(
-                                    self.violation(
-                                        ctx.severity,
-                                        "Set-Cookie attribute 'Expires' requires a HTTP-date value"
-                                            .into(),
-                                    ),
-                                ),
-                            };
-                            // cite(RFC 6265 § 4.1.1): "expires-av        = "Expires=" sane-cookie-date"
-                            if !crate::http_date::is_valid_http_date(v) {
-                                return Some(self.cited(
-                                    &RFC_6265_4_1_1,
-                                    ctx.severity,
-                                    format!(
-                                    "Set-Cookie attribute 'Expires' is not a valid HTTP-date: '{}'",
-                                    v
-                                ),
-                                ));
-                            }
-                            continue;
-                        }
-
-                        if key.eq_ignore_ascii_case("path") {
-                            let v = match val_opt {
-                                Some(v) => v,
-                                None => {
-                                    // path with no value is acceptable? flag it
-                                    return Some(self.violation(
-                                        ctx.severity,
-                                        "Set-Cookie attribute 'Path' requires a value".into(),
-                                    ));
-                                }
-                            };
-                            if !v.starts_with('/') {
-                                return Some(self.violation(
-                                    ctx.severity,
-                                    format!(
-                                        "Set-Cookie attribute 'Path' should start with '/': '{}'",
-                                        v
-                                    ),
-                                ));
-                            }
-                            continue;
-                        }
-
-                        if key.eq_ignore_ascii_case("domain") {
-                            let v = match val_opt {
-                                Some(v) => v,
-                                None => {
-                                    return Some(self.violation(
-                                        ctx.severity,
-                                        "Set-Cookie attribute 'Domain' requires a value".into(),
-                                    ))
-                                }
-                            };
-                            if v.is_empty() {
-                                return Some(self.violation(
-                                    ctx.severity,
-                                    "Set-Cookie attribute 'Domain' must not be empty".into(),
-                                ));
-                            }
-                            if v.contains(' ') {
-                                return Some(self.violation(
-                                    ctx.severity,
-                                    format!(
-                                    "Set-Cookie attribute 'Domain' must not contain spaces: '{}'",
-                                    v
-                                ),
-                                ));
-                            }
-                            continue;
-                        }
-
-                        // Unknown attribute: don't flag by default
-                    }
-
-                    // `SameSite=None` without `Secure` is not a cookie with a weaker policy — it is
-                    // a cookie the user agent throws away. That is why this is a violation and not
-                    // a suggestion.
-                    // cite(draft-ietf-httpbis-rfc6265bis § 5.7): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
-                    if let Some(sv) = samesite_value {
-                        if sv == "none" && !secure_present {
-                            return Some(self.violation(
-                                ctx.severity,
-                                "Set-Cookie with 'SameSite=None' must also set 'Secure'".into(),
-                            ));
-                        }
-                    }
-                }
-
-                None
-            };
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
+            resp.headers
+                .get_all("set-cookie")
+                .iter()
+                .find_map(|line| match line.to_str() {
+                    Err(_) => Some(self.violation(
+                        ctx.severity,
+                        "Set-Cookie header value is not valid UTF-8".into(),
+                    )),
+                    Ok(line) => self.set_cookie_defect(line, ctx.severity),
+                })
+        };
         Vec::from_iter(finding())
     }
 
