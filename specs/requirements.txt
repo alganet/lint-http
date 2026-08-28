@@ -21,6 +21,14 @@
 # which is exactly the review the unpinned form skipped. APYCITE.md's A10 is the
 # precedent: 0.8.0 fixed one extraction defect and shipped another in the same
 # tag, so for one release the tool lost section labels it had just gained.
+#
+# 0.10.0/0.6.0 regenerates nothing, and that is worth stating because the
+# paragraph above leads you to expect otherwise: this pair adds a check rather
+# than changing what extraction writes down, so specs_generated.yaml is
+# byte-identical and `extract --frozen` passes across the bump. What it adds is
+# the nightly job's `Document supersession` row — whether each cited document is
+# still the one in force. Six of ours are not; see .github/workflows/citations.yml
+# for why that is a warning and not a failure.
 
-apycite==0.5.0
-apysource==0.9.0
+apycite==0.6.0
+apysource==0.10.0
