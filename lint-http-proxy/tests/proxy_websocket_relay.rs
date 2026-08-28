@@ -360,3 +360,129 @@ async fn websocket_upgrade_through_connect_mitm_tunnel() -> anyhow::Result<()> {
     let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
+
+/// An origin that writes a frame in the same packet as its 101: hyper may
+/// have already buffered those bytes when the upgrade completes, and the
+/// relay must still see them — `TokioIo` yields them through the first read,
+/// so the frame reaches both the client and the capture.
+#[tokio::test]
+async fn a_frame_sent_with_the_101_is_relayed_and_recorded() -> anyhow::Result<()> {
+    // Raw origin: read the handshake, answer 101 + an unmasked text frame
+    // ("hi") in ONE write.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let origin_addr = listener.local_addr()?;
+    tokio::spawn(async move {
+        if let Ok((mut sock, _)) = listener.accept().await {
+            let mut buf = [0u8; 4096];
+            let mut req = Vec::new();
+            loop {
+                let n = sock.read(&mut buf).await.unwrap_or(0);
+                if n == 0 {
+                    return;
+                }
+                req.extend_from_slice(&buf[..n]);
+                if req.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let key = String::from_utf8_lossy(&req)
+                .lines()
+                .find_map(|l| {
+                    l.to_ascii_lowercase()
+                        .starts_with("sec-websocket-key:")
+                        .then(|| l.split(':').nth(1).unwrap().trim().to_string())
+                })
+                .unwrap_or_default();
+            let accept = {
+                use base64::Engine;
+                use sha1::{Digest, Sha1};
+                let mut h = Sha1::new();
+                h.update(key.as_bytes());
+                h.update(b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+                base64::engine::general_purpose::STANDARD.encode(h.finalize())
+            };
+            let mut one_write = format!(
+                "HTTP/1.1 101 Switching Protocols\r\n\
+                 Upgrade: websocket\r\n\
+                 Connection: Upgrade\r\n\
+                 Sec-WebSocket-Accept: {accept}\r\n\r\n"
+            )
+            .into_bytes();
+            one_write.extend([0x81, 0x02, b'h', b'i']);
+            let _ = sock.write_all(&one_write).await;
+            // Keep the socket open long enough for the relay to read it.
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+    });
+
+    let cfg = Config::default();
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+
+    let mut tcp = tokio::net::TcpStream::connect(proxy_addr).await?;
+    let ws_key = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        uuid::Uuid::new_v4().as_bytes(),
+    );
+    let req = format!(
+        "GET http://{origin}/ws HTTP/1.1\r\n\
+         Host: {origin}\r\n\
+         Connection: Upgrade\r\n\
+         Upgrade: websocket\r\n\
+         Sec-WebSocket-Version: 13\r\n\
+         Sec-WebSocket-Key: {ws_key}\r\n\r\n",
+        origin = origin_addr,
+    );
+    tcp.write_all(req.as_bytes()).await?;
+
+    // Read the 101 head, then the frame the origin sent alongside it.
+    let mut buf = Vec::new();
+    let mut tmp = [0u8; 4096];
+    let frame_bytes = loop {
+        let n = tcp.read(&mut tmp).await?;
+        anyhow::ensure!(n > 0, "proxy closed before delivering the frame");
+        buf.extend_from_slice(&tmp[..n]);
+        if let Some(head_end) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+            let body = &buf[head_end + 4..];
+            if body.len() >= 4 {
+                break body.to_vec();
+            }
+        }
+    };
+    assert!(String::from_utf8_lossy(&buf).contains("101"));
+    assert_eq!(&frame_bytes[..4], &[0x81, 0x02, b'h', b'i'][..]);
+
+    // Close the client leg: the session record is written when both
+    // directions have ended, and the origin's side drops on its own.
+    drop(tcp);
+
+    // The frame the origin folded into the 101 packet is in the record.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let found = loop {
+        let content = tokio::fs::read_to_string(&captures_path)
+            .await
+            .unwrap_or_default();
+        let found = content.lines().any(|l| {
+            serde_json::from_str::<serde_json::Value>(l)
+                .map(|v| {
+                    v["type"] == "websocket_session"
+                        && v["messages"].as_array().is_some_and(|m| {
+                            m.iter().any(|f| {
+                                f["direction"] == "server"
+                                    && f["opcode"].as_u64() == Some(1)
+                                    && f["payload_length"].as_u64() == Some(2)
+                            })
+                        })
+                })
+                .unwrap_or(false)
+        });
+        if found || std::time::Instant::now() > deadline {
+            break found;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    };
+    assert!(found, "the with-101 frame never reached the capture");
+
+    handle.abort();
+    let _ = tokio::fs::remove_file(&captures_path).await;
+    Ok(())
+}

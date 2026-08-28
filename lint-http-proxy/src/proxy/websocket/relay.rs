@@ -2,217 +2,200 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! The post-101 frame relay: both upgraded legs wrapped in tungstenite
-//! streams, each relayed message committed as a protocol event and recorded
-//! into the session capture.
+//! The post-101 relay: a transparent byte pump per direction, each observed
+//! by a passive frame scanner.
+//!
+//! The relay forwards the bytes it reads, unmodified — no re-masking, no
+//! manufactured Pongs, no frames of its own — so what the origin receives is
+//! byte-identical to what the client sent, and the capture is a record of
+//! the wire rather than of the proxy. Invalid frames are recorded, linted,
+//! and forwarded: RFC 6455 obliges the *receiving endpoint* to fail the
+//! connection, and the EOF that follows is what ends the relay. Each
+//! direction owns its observer outright; the session record is merged from
+//! the two outcomes after both pumps finish, with no shared state to lock.
 
-use std::sync::Arc;
+use std::future::Future;
+use std::pin::Pin;
+use std::time::Duration;
+
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
+use tracing::debug;
 
 use crate::proxy::pipeline::ProtocolEventPipeline;
+use crate::websocket_session::{MessageDirection, WebSocketSession};
 
-/// Build the protocol event for a single relayed WebSocket frame, stamped with
-/// its arrival time. Thin wrapper over the shared
-/// [`WebSocketMessageInfo::frame_event`] mapping so live and offline replay
-/// can't drift.
-fn ws_frame_event(
-    connection_id: uuid::Uuid,
-    session_id: uuid::Uuid,
-    info: &crate::websocket_session::WebSocketMessageInfo,
-    extensions: &crate::protocol_event::NegotiatedExtensions,
-) -> crate::protocol_event::ProtocolEvent {
-    info.frame_event(chrono::Utc::now(), connection_id, session_id, extensions)
-}
+use super::observer::{DirectionObserver, DirectionOutcome};
 
-/// Relay WebSocket messages between client and server, recording each message
-/// for capture. Uses tokio-tungstenite for proper RFC 6455 frame parsing.
+/// One read in flight per direction; the read awaits the forward write, so
+/// backpressure propagates through the relay instead of pooling in it.
+const READ_BUF_BYTES: usize = 16 * 1024;
+
+/// How long the surviving direction may keep draining after the other ends.
+/// A conforming peer reaches its own EOF well inside this (the pump shuts
+/// down the peer's write half, completing the close handshake); the grace
+/// timer only guards a peer that ignores the FIN.
+const DRAIN_GRACE: Duration = Duration::from_secs(30);
+
+/// Relay bytes between client and server until both directions end, then
+/// write the merged session record through the pipeline.
 ///
 /// The extensions parameter is what the handshake settled, and it is passed
 /// rather than re-read because the `101` this session came from is gone by
 /// the time the relay runs — the same reason `tx_id` is passed. The pipeline
 /// carries lint, the event store, and the capture writer alike.
-#[allow(clippy::too_many_arguments)]
 pub(super) async fn relay_websocket(
-    client_io: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
-    server_io: impl tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send,
+    client_io: impl AsyncRead + AsyncWrite + Unpin + Send,
+    server_io: impl AsyncRead + AsyncWrite + Unpin + Send,
     tx_id: uuid::Uuid,
     connection_id: uuid::Uuid,
     extensions: crate::protocol_event::NegotiatedExtensions,
     pipeline: ProtocolEventPipeline,
     shutdown: CancellationToken,
 ) {
-    use crate::websocket_session::{MessageDirection, WebSocketMessageInfo, WebSocketSession};
-    use futures_util::{SinkExt, StreamExt};
-    use tokio_tungstenite::tungstenite::protocol::Role;
-
-    let client_ws =
-        tokio_tungstenite::WebSocketStream::from_raw_socket(client_io, Role::Server, None).await;
-    let server_ws =
-        tokio_tungstenite::WebSocketStream::from_raw_socket(server_io, Role::Client, None).await;
-
-    let (mut client_write, mut client_read) = client_ws.split();
-    let (mut server_write, mut server_read) = server_ws.split();
-
-    let session_id = uuid::Uuid::new_v4();
-    let messages = Arc::new(tokio::sync::Mutex::new(Vec::<WebSocketMessageInfo>::new()));
-    let violations = Arc::new(tokio::sync::Mutex::new(Vec::<crate::lint::Violation>::new()));
-    let close_code = Arc::new(tokio::sync::Mutex::new(None::<u16>));
+    // The session is created as the relay starts, so its timestamp is the
+    // session's beginning — the fact replay uses as a frame's fallback time.
+    let mut session = WebSocketSession::new(tx_id);
+    let session_id = session.id;
+    session.extensions = extensions.clone();
     let start = Instant::now();
 
-    let ext_c2s = extensions.clone();
-    let ext_s2c = extensions.clone();
-    let msgs_c2s = messages.clone();
-    let viols_c2s = violations.clone();
-    let close_c2s = close_code.clone();
-    let pipe_c2s = pipeline.clone();
-    let c2s = async move {
-        while let Some(result) = client_read.next().await {
-            match result {
-                Ok(msg) => {
-                    let info = message_to_info(&msg, MessageDirection::Client);
-                    if let tokio_tungstenite::tungstenite::Message::Close(Some(ref frame)) = msg {
-                        let mut cc = close_c2s.lock().await;
-                        if cc.is_none() {
-                            *cc = Some(frame.code.into());
-                        }
-                    }
-                    // Emit protocol event and lint it
-                    let pe = ws_frame_event(connection_id, session_id, &info, &ext_c2s);
-                    let v = pipe_c2s.commit(&pe);
-                    if !v.is_empty() {
-                        viols_c2s.lock().await.extend(v);
-                    }
+    let (client_read, client_write) = tokio::io::split(client_io);
+    let (server_read, server_write) = tokio::io::split(server_io);
 
-                    msgs_c2s.lock().await.push(info);
-                    if server_write.send(msg).await.is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
+    // Cancelled when the drain grace expires, so the surviving pump returns
+    // its observer's outcome instead of being dropped mid-record.
+    let drain_now = CancellationToken::new();
+
+    let c2s = pump(
+        client_read,
+        server_write,
+        DirectionObserver::new(
+            MessageDirection::Client,
+            connection_id,
+            session_id,
+            extensions.clone(),
+            pipeline.clone(),
+        ),
+        shutdown.clone(),
+        drain_now.clone(),
+    );
+    let s2c = pump(
+        server_read,
+        client_write,
+        DirectionObserver::new(
+            MessageDirection::Server,
+            connection_id,
+            session_id,
+            extensions,
+            pipeline.clone(),
+        ),
+        shutdown.clone(),
+        drain_now.clone(),
+    );
+    tokio::pin!(c2s);
+    tokio::pin!(s2c);
+
+    // Whichever direction ends first, the other keeps draining under the
+    // grace timer — frames already in flight on the surviving leg are still
+    // relayed and recorded, where a plain select! would have dropped them.
+    let (client_out, server_out) = tokio::select! {
+        client_out = &mut c2s => {
+            let server_out = finish_remaining(s2c, &drain_now).await;
+            (client_out, server_out)
+        }
+        server_out = &mut s2c => {
+            let client_out = finish_remaining(c2s, &drain_now).await;
+            (client_out, server_out)
         }
     };
 
-    let msgs_s2c = messages.clone();
-    let viols_s2c = violations.clone();
-    let close_s2c = close_code.clone();
-    let pipe_s2c = pipeline.clone();
-    let s2c = async move {
-        while let Some(result) = server_read.next().await {
-            match result {
-                Ok(msg) => {
-                    let info = message_to_info(&msg, MessageDirection::Server);
-                    if let tokio_tungstenite::tungstenite::Message::Close(Some(ref frame)) = msg {
-                        let mut cc = close_s2c.lock().await;
-                        if cc.is_none() {
-                            *cc = Some(frame.code.into());
-                        }
-                    }
-                    // Emit protocol event and lint it
-                    let pe = ws_frame_event(connection_id, session_id, &info, &ext_s2c);
-                    let v = pipe_s2c.commit(&pe);
-                    if !v.is_empty() {
-                        viols_s2c.lock().await.extend(v);
-                    }
-
-                    msgs_s2c.lock().await.push(info);
-                    if client_write.send(msg).await.is_err() {
-                        break;
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-    };
-
-    // Run both directions concurrently; when either finishes, the session is
-    // done. On shutdown, break promptly (dropping the IO halves closes both
-    // sides) and still record the session below.
-    tokio::select! {
-        _ = c2s => {},
-        _ = s2c => {},
-        _ = shutdown.cancelled() => {},
-    }
-
-    let duration_ms = start.elapsed().as_millis() as u64;
-    let mut session = WebSocketSession::new(tx_id);
-    session.id = session_id;
-    session.extensions = extensions;
-    session.duration_ms = duration_ms;
-    session.messages = match Arc::try_unwrap(messages) {
-        Ok(mutex) => mutex.into_inner(),
-        Err(arc) => arc.lock().await.clone(),
-    };
-    session.close_code = match Arc::try_unwrap(close_code) {
-        Ok(mutex) => mutex.into_inner(),
-        Err(arc) => *arc.lock().await,
-    };
-    session.violations = match Arc::try_unwrap(violations) {
-        Ok(mutex) => mutex.into_inner(),
-        Err(arc) => arc.lock().await.clone(),
-    };
+    session.duration_ms = start.elapsed().as_millis() as u64;
+    session.messages = merge_frames(&client_out, &server_out);
+    session.violations = client_out.violations;
+    session
+        .violations
+        .extend(server_out.violations.iter().cloned());
+    session.client_close_code = client_out.close_code;
+    session.server_close_code = server_out.close_code;
+    // The legacy single close code: the code of whichever direction's Close
+    // frame came first in wire time, falling back to whichever direction has
+    // one at all (a first Close with an empty payload carries no code).
+    session.close_code = session
+        .messages
+        .iter()
+        .find(|m| m.opcode == 8)
+        .and_then(|m| match m.direction {
+            MessageDirection::Client => client_out.close_code,
+            MessageDirection::Server => server_out.close_code,
+        })
+        .or(client_out.close_code)
+        .or(server_out.close_code);
 
     pipeline.commit_session(session).await;
 }
 
-fn message_to_info(
-    msg: &tokio_tungstenite::tungstenite::Message,
-    direction: crate::websocket_session::MessageDirection,
-) -> crate::websocket_session::WebSocketMessageInfo {
-    use crate::websocket_session::WebSocketMessageInfo;
+/// Both directions' rows in wire order: merged by each frame's arrival time,
+/// stably, so simultaneous stamps keep client-before-server order.
+fn merge_frames(
+    client_out: &DirectionOutcome,
+    server_out: &DirectionOutcome,
+) -> Vec<crate::websocket_session::WebSocketMessageInfo> {
+    let mut frames = client_out.frames.clone();
+    frames.extend(server_out.frames.iter().cloned());
+    frames.sort_by_key(|f| f.timestamp);
+    frames
+}
 
-    // These numbers are the wire format, not tungstenite's enum discriminants,
-    // and this match is the only place the mapping is written down -- so it is
-    // the opcode table, restated in Rust.
-    //
-    // Quoted as one extract rather than per arm, for a plain reason: "%x9 denotes
-    // a ping" is eighteen characters and the extractor's floor is twenty. Ping and
-    // pong cannot be quoted alone, so the list is quoted whole and each arm reads
-    // its own line out of it.
-    //
-    // cite(RFC 6455 § 5.2): "%x0 denotes a continuation frame * %x1 denotes a text frame * %x2 denotes a binary frame * %x3-7 are reserved for further non-control frames * %x8 denotes a connection close * %x9 denotes a ping * %xA denotes a pong"
-    let (opcode, payload_length, fin, rsv, masked) = match msg {
-        // Assembled messages: tungstenite has already defragmented, so FIN is
-        // implicitly true and the RSV and MASK bits are not available. `None`
-        // is the honest record for the mask -- an assembled message has no
-        // header, and *not recorded* is not *not masked*, which is the value
-        // RFC 6455 § 5.1 makes a client's defect.
-        tokio_tungstenite::tungstenite::Message::Text(s) => (1, s.len() as u64, true, 0u8, None),
-        tokio_tungstenite::tungstenite::Message::Binary(b) => (2, b.len() as u64, true, 0, None),
-        tokio_tungstenite::tungstenite::Message::Ping(b) => (9, b.len() as u64, true, 0, None),
-        tokio_tungstenite::tungstenite::Message::Pong(b) => (10, b.len() as u64, true, 0, None),
-        tokio_tungstenite::tungstenite::Message::Close(frame) => {
-            let len = frame
-                .as_ref()
-                .map(|f| 2 + f.reason.len() as u64)
-                .unwrap_or(0);
-            (8, len, true, 0, None)
+/// Forward one direction: read a chunk, observe it, write it through. Ends
+/// on EOF or io error from either side, on shutdown, or when the relay's
+/// drain grace expires; the peer's write half is shut down on the way out so
+/// the FIN (or TLS close_notify) propagates.
+async fn pump<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
+    mut read: R,
+    mut write: W,
+    mut observer: DirectionObserver,
+    shutdown: CancellationToken,
+    drain_now: CancellationToken,
+) -> DirectionOutcome {
+    let mut buf = [0u8; READ_BUF_BYTES];
+    loop {
+        let n = tokio::select! {
+            r = read.read(&mut buf) => match r {
+                Ok(0) | Err(_) => break,
+                Ok(n) => n,
+            },
+            _ = shutdown.cancelled() => break,
+            _ = drain_now.cancelled() => break,
+        };
+        // Synchronous observation: nothing awaits between the read and the
+        // forward write, so the record cannot reorder against the wire.
+        observer.observe(&buf[..n]);
+        if write.write_all(&buf[..n]).await.is_err() {
+            break;
         }
-        // Raw Frame variant: the header is there, so FIN, the RSV bits and the
-        // MASK bit are all read from it. `is_masked` is the bit rather than the
-        // key: § 5.2 defines the bit as *whether the payload data is masked*,
-        // and a key is present exactly when it is set.
-        tokio_tungstenite::tungstenite::Message::Frame(f) => {
-            let hdr = f.header();
-            let rsv_bits = ((hdr.rsv1 as u8) << 2) | ((hdr.rsv2 as u8) << 1) | (hdr.rsv3 as u8);
-            (
-                u8::from(hdr.opcode),
-                f.payload().len() as u64,
-                hdr.is_final,
-                rsv_bits,
-                Some(hdr.mask.is_some()),
-            )
+    }
+    if observer.mid_frame() {
+        debug!("websocket direction ended mid-frame");
+    }
+    let _ = write.shutdown().await;
+    observer.into_outcome()
+}
+
+/// Await the still-running direction under the drain grace; when the grace
+/// expires, cancel the drain token so the pump breaks out of its read and
+/// returns its outcome — the observer's record survives either way.
+async fn finish_remaining<F: Future<Output = DirectionOutcome>>(
+    mut remaining: Pin<&mut F>,
+    drain_now: &CancellationToken,
+) -> DirectionOutcome {
+    match tokio::time::timeout(DRAIN_GRACE, remaining.as_mut()).await {
+        Ok(outcome) => outcome,
+        Err(_) => {
+            drain_now.cancel();
+            remaining.await
         }
-    };
-    WebSocketMessageInfo {
-        direction,
-        opcode,
-        payload_length,
-        fin,
-        rsv,
-        masked,
-        timestamp: None,
     }
 }
 
@@ -222,49 +205,6 @@ mod tests {
     use crate::capture::CaptureWriter;
     use std::sync::Arc as StdArc;
     use uuid::Uuid;
-
-    /// The MASK bit reaches the event only from the raw frame path, and an
-    /// assembled message records `None` rather than `false`.
-    ///
-    /// The distinction is the whole of `websocket_frame_masking`'s
-    /// decline: `false` is RFC 6455 § 5.1's finding against a client, and an
-    /// assembled `Text` has no header to have read it from.
-    #[test]
-    fn message_to_info_records_the_mask_bit_only_where_a_header_carried_one() {
-        use crate::websocket_session::MessageDirection;
-        use tokio_tungstenite::tungstenite::protocol::frame::{
-            coding::{Data, OpCode},
-            Frame, FrameHeader,
-        };
-        use tokio_tungstenite::tungstenite::Message;
-
-        let assembled = message_to_info(&Message::text("hi"), MessageDirection::Client);
-        assert_eq!(assembled.masked, None, "an assembled message has no header");
-
-        let header = FrameHeader {
-            is_final: true,
-            opcode: OpCode::Data(Data::Text),
-            mask: Some([1, 2, 3, 4]),
-            ..Default::default()
-        };
-        let masked = message_to_info(
-            &Message::Frame(Frame::from_payload(header, b"hi"[..].into())),
-            MessageDirection::Client,
-        );
-        assert_eq!(masked.masked, Some(true));
-
-        let header = FrameHeader {
-            is_final: true,
-            opcode: OpCode::Data(Data::Text),
-            mask: None,
-            ..Default::default()
-        };
-        let unmasked = message_to_info(
-            &Message::Frame(Frame::from_payload(header, b"hi"[..].into())),
-            MessageDirection::Client,
-        );
-        assert_eq!(unmasked.masked, Some(false));
-    }
 
     fn test_pe_pipeline(captures: &CaptureWriter) -> ProtocolEventPipeline {
         let cfg = crate::config::Config::default();
@@ -276,63 +216,6 @@ mod tests {
             )),
             captures.clone(),
         )
-    }
-
-    #[test]
-    fn message_to_info_text() {
-        use crate::websocket_session::MessageDirection;
-        let msg = tokio_tungstenite::tungstenite::Message::Text("hello".into());
-        let info = message_to_info(&msg, MessageDirection::Client);
-        assert_eq!(info.opcode, 1);
-        assert_eq!(info.payload_length, 5);
-        assert_eq!(info.direction, MessageDirection::Client);
-    }
-
-    #[test]
-    fn message_to_info_binary() {
-        use crate::websocket_session::MessageDirection;
-        let msg = tokio_tungstenite::tungstenite::Message::Binary(vec![1, 2, 3].into());
-        let info = message_to_info(&msg, MessageDirection::Server);
-        assert_eq!(info.opcode, 2);
-        assert_eq!(info.payload_length, 3);
-        assert_eq!(info.direction, MessageDirection::Server);
-    }
-
-    #[test]
-    fn message_to_info_ping_pong() {
-        use crate::websocket_session::MessageDirection;
-        let ping = tokio_tungstenite::tungstenite::Message::Ping(vec![0; 4].into());
-        let info = message_to_info(&ping, MessageDirection::Client);
-        assert_eq!(info.opcode, 9);
-        assert_eq!(info.payload_length, 4);
-
-        let pong = tokio_tungstenite::tungstenite::Message::Pong(vec![0; 2].into());
-        let info = message_to_info(&pong, MessageDirection::Server);
-        assert_eq!(info.opcode, 10);
-        assert_eq!(info.payload_length, 2);
-    }
-
-    #[test]
-    fn message_to_info_close_with_frame() {
-        use crate::websocket_session::MessageDirection;
-        use tokio_tungstenite::tungstenite::protocol::CloseFrame;
-        let msg = tokio_tungstenite::tungstenite::Message::Close(Some(CloseFrame {
-            code: tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode::Normal,
-            reason: "bye".into(),
-        }));
-        let info = message_to_info(&msg, MessageDirection::Client);
-        assert_eq!(info.opcode, 8);
-        // 2 bytes for code + 3 bytes for "bye"
-        assert_eq!(info.payload_length, 5);
-    }
-
-    #[test]
-    fn message_to_info_close_without_frame() {
-        use crate::websocket_session::MessageDirection;
-        let msg = tokio_tungstenite::tungstenite::Message::Close(None);
-        let info = message_to_info(&msg, MessageDirection::Server);
-        assert_eq!(info.opcode, 8);
-        assert_eq!(info.payload_length, 0);
     }
 
     #[tokio::test]
@@ -364,24 +247,22 @@ mod tests {
             .await;
         });
 
-        // Client side: wrap in WebSocket (client role)
+        // Real endpoints on both ends of the transparent pipe.
         let mut client_ws =
             tokio_tungstenite::WebSocketStream::from_raw_socket(client_side, Role::Client, None)
                 .await;
-
-        // Server side: wrap in WebSocket (server role)
         let mut server_ws =
             tokio_tungstenite::WebSocketStream::from_raw_socket(server_side, Role::Server, None)
                 .await;
 
-        // Client sends a text message
+        // Client sends a text message; the server receives it byte-identical
+        // (the relay no longer re-masks, so the peer parses the client's own
+        // masked frame).
         client_ws
             .send(tokio_tungstenite::tungstenite::Message::Text(
                 "hello".into(),
             ))
             .await?;
-
-        // Server should receive it
         let msg = server_ws.next().await.unwrap()?;
         assert_eq!(
             msg,
@@ -394,15 +275,13 @@ mod tests {
                 "world".into(),
             ))
             .await?;
-
-        // Client should receive it
         let msg = client_ws.next().await.unwrap()?;
         assert_eq!(
             msg,
             tokio_tungstenite::tungstenite::Message::Text("world".into())
         );
 
-        // Client sends close
+        // Client closes; the server peer answers the close handshake.
         client_ws
             .send(tokio_tungstenite::tungstenite::Message::Close(Some(
                 tokio_tungstenite::tungstenite::protocol::CloseFrame {
@@ -412,28 +291,25 @@ mod tests {
                 },
             )))
             .await?;
-
-        // Server receives close and sends close back
         let msg = server_ws.next().await.unwrap()?;
         assert!(matches!(
             msg,
             tokio_tungstenite::tungstenite::Message::Close(_)
         ));
         server_ws.close(None).await.ok();
-
-        // Close client side
         client_ws.close(None).await.ok();
 
-        // Wait for relay to finish
+        // Drop both endpoints: EOF on both legs ends the relay.
+        drop(client_ws);
+        drop(server_ws);
+
         tokio::time::timeout(std::time::Duration::from_secs(5), relay_handle)
             .await
             .expect("relay did not finish")
             .expect("relay panicked");
 
-        // Flush captures
         cw.flush().await?;
 
-        // Read the capture file and verify the WebSocket session was written
         let content = tokio::fs::read_to_string(&p).await?;
         assert!(!content.is_empty(), "capture file should not be empty");
         let session: serde_json::Value = serde_json::from_str(content.trim())?;
@@ -444,14 +320,21 @@ mod tests {
         );
         let messages = session["messages"].as_array().unwrap();
         assert!(messages.len() >= 2, "should have at least 2 messages");
-        // First message should be client text
+        // First message is the client text, with the real header bits: the
+        // MASK bit a client must set, FIN, and a per-frame timestamp.
         assert_eq!(messages[0]["direction"].as_str(), Some("client"));
         assert_eq!(messages[0]["opcode"].as_u64(), Some(1));
-        // Second message should be server text
+        assert_eq!(messages[0]["masked"].as_bool(), Some(true));
+        assert_eq!(messages[0]["fin"].as_bool(), Some(true));
+        assert!(messages[0]["timestamp"].is_string());
+        // Second is the server text, unmasked as a server must send.
         assert_eq!(messages[1]["direction"].as_str(), Some("server"));
         assert_eq!(messages[1]["opcode"].as_u64(), Some(1));
-        // Should have a close code
+        assert_eq!(messages[1]["masked"].as_bool(), Some(false));
+        // Both directions' Close frames are recorded, and the client's code
+        // is readable per direction.
         assert_eq!(session["close_code"].as_u64(), Some(1000));
+        assert_eq!(session["client_close_code"].as_u64(), Some(1000));
 
         let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
@@ -540,10 +423,12 @@ mod tests {
         let content = tokio::fs::read_to_string(&p).await?;
         let session: serde_json::Value = serde_json::from_str(content.trim())?;
         assert_eq!(session["type"].as_str(), Some("websocket_session"));
-        // Close was from server direction
+        // The server's Close carried 1000, and it came first, so the legacy
+        // field holds it; the per-direction field says which side said it.
         assert_eq!(session["close_code"].as_u64(), Some(1000));
+        assert_eq!(session["server_close_code"].as_u64(), Some(1000));
         let messages = session["messages"].as_array().unwrap();
-        // Should have server text + server close + possibly client close
+        // Server text + server close + client close.
         assert!(messages.len() >= 2);
 
         let _ = tokio::fs::remove_file(&tmp).await;
@@ -648,38 +533,12 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn message_to_info_frame_variant() {
-        use crate::websocket_session::MessageDirection;
-        use tokio_tungstenite::tungstenite::protocol::frame::coding::OpCode;
-        use tokio_tungstenite::tungstenite::protocol::frame::{Frame, FrameHeader};
-        let header = FrameHeader {
-            is_final: true,
-            rsv1: false,
-            rsv2: false,
-            rsv3: false,
-            opcode: OpCode::Data(
-                tokio_tungstenite::tungstenite::protocol::frame::coding::Data::Text,
-            ),
-            mask: None,
-        };
-        let frame = Frame::from_payload(header, vec![b'h', b'i'].into());
-        let msg = tokio_tungstenite::tungstenite::Message::Frame(frame);
-        let info = message_to_info(&msg, MessageDirection::Client);
-        assert_eq!(info.opcode, 1); // Text opcode
-        assert_eq!(info.payload_length, 2);
-    }
-
-    /// The dependency on the capture path, pinned: a reserved opcode never
-    /// reaches `message_to_info`, because the frame reader refuses it in the
-    /// header parser before any of the rest of the header is used. Two ranges,
-    /// and everything the document defines still parses.
-    ///
-    /// `websocket_frame_opcode_sequence` reports reserved opcodes, and
-    /// this is why its `description()` says those findings arrive through
-    /// `lint` over a capture file some other tool wrote rather than off this
-    /// proxy's own relay. When this test fails, that paragraph is what has gone
-    /// stale.
+    /// The dependency's behavior, pinned — in the old direction: a reserved
+    /// opcode never survived tungstenite's header parser, which is exactly
+    /// why the relay stopped decoding through tungstenite. This keeps the
+    /// rationale checkable against the real dependency; the relay-side proof
+    /// that reserved opcodes now DO reach the capture lives in the scanner's
+    /// and observer's own tests.
     #[test]
     fn the_frame_reader_refuses_a_reserved_opcode_before_the_capture_path() {
         use std::io::Cursor;
@@ -705,7 +564,6 @@ mod tests {
 
     #[tokio::test]
     async fn relay_websocket_binary_and_ping_messages() -> anyhow::Result<()> {
-        // Test relay with binary and ping/pong messages to cover more message_to_info paths
         use futures_util::{SinkExt, StreamExt};
         use tokio_tungstenite::tungstenite::protocol::Role;
 
@@ -795,12 +653,20 @@ mod tests {
 
         let content = tokio::fs::read_to_string(&p).await?;
         let session: serde_json::Value = serde_json::from_str(content.trim())?;
+        assert_eq!(session["type"].as_str(), Some("websocket_session"));
         let messages = session["messages"].as_array().unwrap();
-        // Should have binary c2s, binary s2c, ping, and close messages
+        // Binary both ways and the client ping, all with real header bits.
         assert!(messages.len() >= 3);
-
-        // Verify binary opcode (2) appears
-        assert!(messages.iter().any(|m| m["opcode"].as_u64() == Some(2)));
+        let client_binary = messages
+            .iter()
+            .find(|m| m["opcode"].as_u64() == Some(2) && m["direction"] == "client")
+            .expect("client binary recorded");
+        assert_eq!(client_binary["masked"].as_bool(), Some(true));
+        let ping = messages
+            .iter()
+            .find(|m| m["opcode"].as_u64() == Some(9))
+            .expect("ping recorded");
+        assert_eq!(ping["direction"].as_str(), Some("client"));
 
         let _ = tokio::fs::remove_file(&tmp).await;
         Ok(())
