@@ -168,6 +168,12 @@ const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
 generated docs cannot come to name different text. A `debug_assert` in `cited`
 rejects a reference the rule does not declare, and the suite runs in debug.
 
+The `.html` in that URL is not a style preference, and
+`spec_refs_use_the_source_registry` insists on it: it is the document apysource
+fetches and checks every `// cite` quote against. The link a reader clicks and
+the document the quote was verified in are the same string, which is the whole
+reason the gate can be strict about it.
+
 Attachment is per finding site and opt-in. The `// cite` comment beside the
 statement is the oracle: attach the reference that comment names, and leave the
 site un-cited when the answer needs a decision — where the block quotes several
