@@ -40,8 +40,8 @@ pub(in crate::proxy) struct WsUpgradeRequest {
     pub client_on_upgrade: hyper::upgrade::OnUpgrade,
 }
 
-/// Handle a WebSocket upgrade request: connect directly to upstream, relay
-/// frames via tokio-tungstenite, and capture the session.
+/// Handle a WebSocket upgrade request: connect directly to upstream, hand
+/// both completed upgrades to the transparent relay, and capture the session.
 pub(in crate::proxy) async fn handle_websocket_upgrade(
     req: WsUpgradeRequest,
     shared: Arc<Shared>,
