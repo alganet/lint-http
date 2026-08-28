@@ -64,7 +64,8 @@ impl Rule for BasicAuthBase64Valid {
                             if let Err(msg) =
                                 crate::helpers::auth::validate_basic_credentials(creds)
                             {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_7617_2,
                                     ctx.severity,
                                     format!("Invalid Basic credentials: {} (RFC 7617)", msg),
                                 ));

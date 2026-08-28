@@ -149,7 +149,7 @@ impl Rule for Status426UpgradeValid {
                     .as_ref()
                     .is_some_and(|trailers| trailers.contains_key("upgrade"));
 
-                return Some(self.violation(
+                return Some(self.cited(&RFC_9110_6_5_1,
                     ctx.severity,
                     format!(
                         "426 Upgrade Required with no Upgrade header field. The status says the server \

@@ -109,7 +109,8 @@ impl Rule for CharsetPresent {
                         // not have.
                         // cite(MDN Content-Type): "Indicates the character encoding standard used. The value is case insensitive but lowercase is preferred."
                         if !has_charset {
-                            return Some(self.violation(
+                            return Some(self.cited(
+                                &MDN_CONTENT_TYPE,
                                 ctx.severity,
                                 "Text-based Content-Type header missing charset parameter.".into(),
                             ));

@@ -321,7 +321,7 @@ impl Rule for ContentLocationAndUriConsistent {
                     // cite(RFC 9110 § 8.7): "For a response to a GET or HEAD request, this is an indication that the target URI refers to a resource that is subject to content negotiation and the Content-Location field value is a more specific identifier for the selected representation."
                     // cite(RFC 9110 § 8.7): "Such a claim can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP."
                     if !matches {
-                        return Some(self.violation(ctx.severity, "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into()));
+                        return Some(self.cited(&RFC_9110_8_7, ctx.severity, "Content-Location identifies a different resource than the request target; RFC 9110 §8.7 permits this (a negotiated variant, a 201 pointing at the created resource, or a report on a POST), so confirm it is deliberate".into()));
                     }
                 }
             }

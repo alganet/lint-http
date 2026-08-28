@@ -83,7 +83,7 @@ impl Rule for ConditionalHeadersConsistent {
                 // If-Range exists
                 // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field."
                 if req.headers.get("range").is_none() {
-                    return Some(self.violation(ctx.severity, "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into()));
+                    return Some(self.cited(&RFC_9110_13_1_5, ctx.severity, "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into()));
                 }
 
                 // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak.
@@ -93,7 +93,8 @@ impl Rule for ConditionalHeadersConsistent {
                     let trimmed = s.trim();
                     // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
                     if trimmed.starts_with("W/") {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_9110_13_1_5,
                             ctx.severity,
                             "If-Range MUST not contain a weak entity-tag (W/...)".into(),
                         ));

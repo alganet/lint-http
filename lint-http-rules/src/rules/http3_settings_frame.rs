@@ -114,7 +114,8 @@ impl ProtocolRule for Http3SettingsFrame {
             // cite(RFC 9114 § 7.2.4.1): "These reserved settings MUST NOT be sent, and their receipt MUST be treated as a connection error of type H3_SETTINGS_ERROR"
             for &(id, _) in settings {
                 if RESERVED_SETTING_IDS.contains(&id) {
-                    return Some(self.violation(
+                    return Some(self.cited(
+                        &RFC_9114_7_2_4_1,
                         ctx.severity,
                         format!(
                             "HTTP/3 SETTINGS contains reserved HTTP/2 setting identifier \
@@ -132,7 +133,8 @@ impl ProtocolRule for Http3SettingsFrame {
             // cite(RFC 9114 § 7.2.4): "The same setting identifier MUST NOT occur more than once in the SETTINGS frame"
             for (i, &(id, _)) in settings.iter().enumerate() {
                 if settings[..i].iter().any(|&(prev_id, _)| prev_id == id) {
-                    return Some(self.violation(
+                    return Some(self.cited(
+                        &RFC_9114_7_2_4,
                         ctx.severity,
                         format!(
                             "HTTP/3 SETTINGS contains setting identifier 0x{:02X} more \

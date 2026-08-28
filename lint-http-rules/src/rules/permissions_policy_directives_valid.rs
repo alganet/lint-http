@@ -65,7 +65,8 @@ impl Rule for PermissionsPolicyDirectivesValid {
             // is consulted -- so the whole field goes.
             // cite(RFC 9651 § 4.2): "Convert input_bytes into an ASCII string input_string; if conversion fails, fail parsing."
             let Ok(v) = hv.to_str() else {
-                return vec![self.violation(
+                return vec![self.cited(
+                    &RFC_9651_4_2,
                     ctx.severity,
                     "Permissions-Policy contains a byte outside ASCII, so the field \
                                   fails Structured Fields parsing and every directive in it is \

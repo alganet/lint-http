@@ -494,7 +494,7 @@ impl Rule for AltSvcHeaderSyntax {
             // for this state: `clear` is the whole field value or it is nothing.
             // cite(RFC 7838 § 3): "A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services)."
             if members.contains(&CLEAR) {
-                return Some(self.violation(
+                return Some(self.cited(&RFC_7838_3,
                     severity,
                     format!(
                         "Alt-Svc response carries both the keyword `clear` and alternative services ('{}'). `Alt-Svc = clear / 1#alt-value` is an alternation, so a value holding both derives from neither half -- the document calls this an invalid reply and has a client invalidate the alternatives named beside the keyword",

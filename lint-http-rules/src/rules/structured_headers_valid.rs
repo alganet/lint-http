@@ -70,7 +70,8 @@ impl StructuredHeadersValid {
         msg: &str,
         severity: crate::lint::Severity,
     ) -> Violation {
-        self.violation(
+        self.cited(
+            &RFC_9651_4_2,
             severity,
             format!(
                 "The {} header '{}' fails Structured Fields parsing, so a recipient discards \

@@ -63,7 +63,8 @@ impl Rule for BearerTokenSyntax {
                     // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
                     let creds = parts.next().map(|r| r.trim()).unwrap_or("");
                     if creds.is_empty() {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_6750_2_1,
                             ctx.severity,
                             "Authorization: Bearer missing token".into(),
                         ));

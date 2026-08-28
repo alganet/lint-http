@@ -135,7 +135,8 @@ impl Rule for Status103EarlyHintsBeforeFinal {
                 Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
             ) {
                 return Some(
-                    self.violation(
+                    self.cited(
+                        &RFC_9110_15_2,
                         ctx.severity,
                         "103 (Early Hints) answering an HTTP/1.0 request: HTTP/1.0 defined no \
                               1xx status codes, so a server must not send one to that client"

@@ -72,7 +72,7 @@ impl Rule for Http3StatusCodeValid {
             // § 4.5 is the only place RFC 9114 mentions 101 at all.
             // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
             if resp.status == 101 {
-                return Some(self.violation(ctx.severity, "HTTP/3 does not support 101 (Switching Protocols); use extended CONNECT instead"
+                return Some(self.cited(&RFC_9114_4_5, ctx.severity, "HTTP/3 does not support 101 (Switching Protocols); use extended CONNECT instead"
                             .into()));
             }
 

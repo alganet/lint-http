@@ -155,7 +155,7 @@ impl Rule for CacheValidationChain {
                             .as_deref()
                             .unwrap_or("<non-UTF8 If-None-Match>");
                         // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
-                        return Some(self.violation(ctx.severity, format!(
+                        return Some(self.cited(&RFC_9111_4_3_1, ctx.severity, format!(
                                 "Conditional request uses If-None-Match '{}' which does not match most recent validator '{}' from history; cache validation chain may be broken",
                                 reported.trim(),
                                 etag
@@ -190,7 +190,7 @@ impl Rule for CacheValidationChain {
                         // a stale Last-Modified signals a broken chain.
                         // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
                         if mismatch {
-                            return Some(self.violation(ctx.severity, format!(
+                            return Some(self.cited(&RFC_9111_4_3_1, ctx.severity, format!(
                                     "Conditional request uses If-Modified-Since '{}' which does not match most recent Last-Modified '{}' from history; cache validation chain may be broken",
                                     ims_str,
                                     lm_str

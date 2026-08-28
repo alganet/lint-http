@@ -981,6 +981,43 @@ severity = "warn"
         Ok(())
     }
 
+    /// A ratchet on citation coverage, not a target: `cite` is optional by
+    /// design, and a finding whose sentence nobody has read yet is meant to
+    /// carry none rather than a guess. What this pins is the direction —
+    /// attaching a citation is progress that cannot be undone by accident, and
+    /// the number tells whoever reads the catalogue next how much is left.
+    ///
+    /// Raise the floor when a batch lands. If this fails downward, a `cited()`
+    /// site became a `violation()` one: say why in the commit or put it back.
+    #[test]
+    fn citation_coverage_does_not_regress() {
+        /// Finding sites that name the specification sentence they enforce, out
+        /// of 583. The rest are the per-rule reading that has not happened yet.
+        const FLOOR: usize = 173;
+
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
+        let mut cited = 0;
+        let mut uncited = 0;
+        for entry in std::fs::read_dir(&dir).expect("cannot read src/rules") {
+            let path = entry.expect("a directory entry").path();
+            if path.extension().is_none_or(|e| e != "rs")
+                || path.file_name().is_some_and(|n| n == "mod.rs")
+            {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path).expect("a rule file");
+            // Before the test module: a fixture is not a finding site.
+            let body = src.split("#[cfg(test)]").next().unwrap_or(&src);
+            cited += body.matches("self.cited(").count();
+            uncited += body.matches("self.violation(").count();
+        }
+        assert!(
+            cited >= FLOOR,
+            "citation coverage fell to {cited}/{} findings, below the floor of {FLOOR}",
+            cited + uncited
+        );
+    }
+
     #[test]
     fn every_rule_file_is_registered() {
         // Deleting the hand-maintained `RULES` const removed the single place

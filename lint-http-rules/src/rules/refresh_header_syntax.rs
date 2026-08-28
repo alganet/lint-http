@@ -290,7 +290,8 @@ impl Rule for RefreshHeaderSyntax {
             // for the `meta` pragma's content attribute; this is the sentence that
             // makes it this field's requirement too.
             refresh_value_error(value).map(|why| {
-                self.violation(
+                self.cited(
+                    &HTML_SPECULATIVE_LOADING_7_8,
                     ctx.severity,
                     format!("Refresh header value '{value}': {why}"),
                 )

@@ -125,7 +125,7 @@ impl Rule for AcceptRangesValuesValid {
                 // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
                 // cite(RFC 9110 § 5.6.2, label: tchar grammar): "tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA ; any VCHAR, except delimiters"
                 let Ok(value) = hv.to_str() else {
-                    out.push(self.violation(ctx.severity, "Accept-Ranges holds an octet no range-unit admits: a range unit name is a token, whose characters are all visible US-ASCII".into()));
+                    out.push(self.cited(&RFC_9110_5_6_2, ctx.severity, "Accept-Ranges holds an octet no range-unit admits: a range unit name is a token, whose characters are all visible US-ASCII".into()));
                     unreadable = true;
                     break;
                 };

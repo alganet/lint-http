@@ -93,7 +93,8 @@ impl Rule for RequestOriginHeaderPresentForCors {
                             if crate::helpers::headers::get_header_str(headers, "origin").is_none()
                             {
                                 return Some(
-                                    self.violation(
+                                    self.cited(
+                                        &FETCH_3_2,
                                         ctx.severity,
                                         "Cross-origin absolute-form request missing Origin header"
                                             .into(),

@@ -194,7 +194,7 @@ impl Rule for RangeRequestAndCaching {
             }
 
             let Some(raw_if_range) = req.headers.get("if-range") else {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9111_4_3_1, ctx.severity, format!(
                         "Range request for a resource this client holds a 206 of, whose stored entity tag is {stored_etag}, carries none of If-Range, If-Match or If-None-Match; the entity tags of the stored response being validated have to be sent in one of those three"
                     )));
             };
@@ -227,14 +227,14 @@ impl Rule for RangeRequestAndCaching {
                 // The client was given an entity tag for this representation, so the
                 // date is the one validator it was not permitted to choose.
                 // cite(RFC 9110 § 13.1.5): "Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2."
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9110_13_1_5, ctx.severity, format!(
                         "If-Range carries the date '{if_range}' although entity tag {stored_etag} was provided for this representation; a date is only permitted there when the client has no entity tag"
                     )));
             }
 
             // cite(RFC 9110 § 13.1.5): "Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional."
             if if_range != stored_etag {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9110_13_1_5, ctx.severity, format!(
                         "If-Range entity tag {if_range} is not {stored_etag}, the tag most recently provided for this representation; a server still holding that tag will ignore Range and send the whole representation"
                     )));
             }

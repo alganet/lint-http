@@ -74,7 +74,11 @@ impl Rule for SecFetchDestValueValid {
             // An empty value cannot be a token.
             // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
             if val.is_empty() {
-                return Some(self.violation(ctx.severity, "Sec-Fetch-Dest header is empty".into()));
+                return Some(self.cited(
+                    &FETCH_METADATA_2_1,
+                    ctx.severity,
+                    "Sec-Fetch-Dest header is empty".into(),
+                ));
             }
 
             // Token must not contain invalid token chars. This checks the HTTP `token`
@@ -83,7 +87,8 @@ impl Rule for SecFetchDestValueValid {
             // message a bad value gets.
             // cite(Fetch Metadata § 2.1): "It is a Structured Field whose value MUST be a token."
             if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &FETCH_METADATA_2_1,
                     ctx.severity,
                     format!(
                         "Sec-Fetch-Dest header contains invalid token character: '{}'",

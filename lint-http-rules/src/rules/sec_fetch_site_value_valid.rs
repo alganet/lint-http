@@ -72,7 +72,11 @@ impl Rule for SecFetchSiteValueValid {
             // sibling sections carry, but the constraint is the same).
             // cite(Fetch Metadata § 2.3): "It is a Structured Field whose value is a token."
             if val.is_empty() {
-                return Some(self.violation(ctx.severity, "Sec-Fetch-Site header is empty".into()));
+                return Some(self.cited(
+                    &FETCH_METADATA_2_3,
+                    ctx.severity,
+                    "Sec-Fetch-Site header is empty".into(),
+                ));
             }
 
             // Token must not contain invalid token chars. This checks the HTTP `token`
@@ -81,7 +85,8 @@ impl Rule for SecFetchSiteValueValid {
             // message a bad value gets.
             // cite(Fetch Metadata § 2.3): "It is a Structured Field whose value is a token."
             if let Some(c) = crate::helpers::token::find_invalid_token_char(val) {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &FETCH_METADATA_2_3,
                     ctx.severity,
                     format!(
                         "Sec-Fetch-Site header contains invalid token character: '{}'",

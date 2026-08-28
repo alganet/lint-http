@@ -113,7 +113,7 @@ impl ProtocolRule for WebsocketFrameRsvBits {
             //
             // cite(RFC 6455 § 5.2): "RSV1, RSV2, RSV3:  1 bit each"
             if *rsv > 0b111 {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_6455_5_2, ctx.severity, format!(
                         "A WebSocket frame the {sender} sent records the reserved bits as {rsv:#05b}, \
                          and the frame header holds three of them — one bit each — so no frame on any \
                          wire carried this value"

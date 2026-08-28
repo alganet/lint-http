@@ -305,7 +305,7 @@ impl Rule for Http2PseudoHeadersValid {
                     // cite(RFC 9113 § 8.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of '/'."
                     // cite(RFC 9113 § 8.3.1): "All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5)."
                     if crate::helpers::uri::extract_path_from_request_target(target).is_none() {
-                        return Some(self.violation(ctx.severity, format!(
+                        return Some(self.cited(&RFC_9113_8_3_1, ctx.severity, format!(
                                 "Request target '{}' carries no path, and every non-CONNECT request \
                                  sends exactly one ':path': an 'http' or 'https' URI with no path \
                                  component sends '/'",
@@ -330,7 +330,8 @@ impl Rule for Http2PseudoHeadersValid {
                 // anybody serves: this pseudo-header is deliberately open.
                 // cite(RFC 9113 § 8.3.1): "":scheme" is not restricted to "http" and "https" schemed URIs."
                 if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(target) {
-                    return Some(self.violation(
+                    return Some(self.cited(
+                        &RFC_9113_8_3_1,
                         ctx.severity,
                         format!("Request target's scheme is not a scheme name: {msg}"),
                     ));
@@ -368,7 +369,7 @@ impl Rule for Http2PseudoHeadersValid {
                 {
                     let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
                         .unwrap_or_else(|| authority.to_string());
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(self.cited(&RFC_9113_8_3_1, ctx.severity, format!(
                             "Authority '{}' of an '{scheme}' target carries the deprecated userinfo \
                              subcomponent and its '@' delimiter",
                             crate::helpers::headers::shown_in_finding(&shown)

@@ -80,7 +80,8 @@ impl Rule for FormDataContentDispositionValid {
                 // value is a linter judgement rather than a quoted requirement.
                 // cite(RFC 7578 § 4.2): "The Content-Disposition header field MUST also contain an additional parameter of "name"; the value of the "name" parameter is the original field name from the form"
                 if params_part.is_empty() {
-                    return Some(self.violation(
+                    return Some(self.cited(
+                        &RFC_7578_4_2,
                         ctx.severity,
                         "Content-Disposition: 'form-data' missing 'name' parameter".into(),
                     ));

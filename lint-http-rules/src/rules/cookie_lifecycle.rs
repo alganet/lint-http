@@ -203,7 +203,7 @@ impl Rule for CookieLifecycle {
                         // still sending it has a store the user agent was required to have
                         // emptied.
                         // cite(RFC 6265 § 5.3): "The user agent MUST evict all expired cookies from the cookie store if, at any time, an expired cookie exists in the cookie store."
-                        return Some(self.violation(ctx.severity, format!(
+                        return Some(self.cited(&RFC_6265_5_3, ctx.severity, format!(
                                 "Cookie '{}' was previously set but is expired or removed and should not be sent",
                                 name
                             )));

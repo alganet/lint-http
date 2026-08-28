@@ -78,7 +78,8 @@ impl Rule for OriginIsolatedHeaderValid {
             // Must not be a comma-separated list
             // cite(HTML § 7.1.2): "This header is a structured header whose value must be a boolean."
             if crate::helpers::headers::list_members(val).count() != 1 {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &HTML_7_1_2,
                     ctx.severity,
                     "Origin-Agent-Cluster must be a single value".into(),
                 ));
@@ -93,7 +94,7 @@ impl Rule for OriginIsolatedHeaderValid {
                 return None;
             }
 
-            Some(self.violation(ctx.severity, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val)))
+            Some(self.cited(&HTML_7_1_2, ctx.severity, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val)))
         };
         Vec::from_iter(finding())
     }

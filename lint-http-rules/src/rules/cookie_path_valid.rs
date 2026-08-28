@@ -80,7 +80,8 @@ impl Rule for CookiePathValid {
                         let v = match val_opt {
                             Some(v) => v,
                             None => {
-                                return Some(self.violation(
+                                return Some(self.cited(
+                                    &RFC_6265_5_2_4,
                                     ctx.severity,
                                     "Set-Cookie attribute 'Path' requires a value".into(),
                                 ))

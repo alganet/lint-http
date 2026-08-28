@@ -77,7 +77,8 @@ impl Rule for ContentDispositionTokenValid {
                 // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
                 let s = val.trim();
                 if s.is_empty() {
-                    return Some(self.violation(
+                    return Some(self.cited(
+                        &RFC_6266_4_1,
                         ctx.severity,
                         format!("{} header value must not be empty", hdr_name),
                     ));
@@ -90,7 +91,8 @@ impl Rule for ContentDispositionTokenValid {
                 let dispo = s.split(';').next().unwrap().trim();
                 // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
                 if dispo.is_empty() {
-                    return Some(self.violation(
+                    return Some(self.cited(
+                        &RFC_6266_4_1,
                         ctx.severity,
                         format!("{} header disposition-type must not be empty", hdr_name),
                     ));

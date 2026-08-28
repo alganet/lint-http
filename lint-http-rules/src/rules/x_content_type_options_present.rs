@@ -118,7 +118,7 @@ impl Rule for XContentTypeOptionsPresent {
             {
                 let first = xcto.split(',').next().unwrap_or("").trim();
                 if !first.eq_ignore_ascii_case("nosniff") {
-                    return Some(self.violation(config.severity, format!(
+                    return Some(self.cited(&FETCH_3_6, config.severity, format!(
                             "X-Content-Type-Options value '{}' does not enable nosniff (the value must be `nosniff`, case-insensitive)",
                             xcto.trim()
                         )));

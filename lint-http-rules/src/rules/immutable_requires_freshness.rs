@@ -121,7 +121,7 @@ impl Rule for ImmutableRequiresFreshness {
             // cite(RFC 8246 § 2): "The immutable extension only applies during the freshness lifetime of the stored response."
             // cite(RFC 8246 § 2): "Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload)."
             if let (true, Some(conflict)) = (found_immutable, conflicting) {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_8246_2, ctx.severity, format!(
                         "Cache-Control pairs 'immutable' with '{}', which leaves the response no freshness lifetime; 'immutable' only applies during one, so it has no effect here",
                         conflict
                     )));

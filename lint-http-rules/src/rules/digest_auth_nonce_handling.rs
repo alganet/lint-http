@@ -203,7 +203,8 @@ impl Rule for DigestAuthNonceHandling {
                 {
                     if o != expected {
                         return Some(
-                            self.violation(
+                            self.cited(
+                                &RFC_7616_3_3,
                                 ctx.severity,
                                 "Digest Authorization opaque does not match most recent challenge"
                                     .into(),
@@ -254,7 +255,8 @@ impl Rule for DigestAuthNonceHandling {
                     // signature of a replay, which nc exists to let the server detect.
                     // cite(RFC 7616 § 3.4): "if the same nc value is seen twice, then the request is a replay."
                     if current_nc <= highest {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_7616_3_4,
                             ctx.severity,
                             "Digest Authorization nonce-count did not increase".into(),
                         ));
@@ -270,7 +272,7 @@ impl Rule for DigestAuthNonceHandling {
                         && highest == 0
                         && current_nc != 1
                     {
-                        return Some(self.violation(ctx.severity, "Digest Authorization with new nonce after stale challenge must reset nc to 00000001".into()));
+                        return Some(self.cited(&RFC_7616_3_3, ctx.severity, "Digest Authorization with new nonce after stale challenge must reset nc to 00000001".into()));
                     }
                 }
             }

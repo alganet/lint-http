@@ -139,7 +139,8 @@ impl Rule for RangeHeaderSyntax {
             //
             // cite(RFC 9110 § 14.1.1): "A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit."
             if let Err(e) = validate_range_set(&unit, range_set) {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &RFC_9110_14_1_1,
                     ctx.severity,
                     format!("Invalid Range header '{}': {}", value, e),
                 ));

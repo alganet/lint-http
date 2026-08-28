@@ -162,7 +162,7 @@ impl Rule for AltSvcH3AdvertisementValid {
                 // valid advertisement of the shipped protocol.
                 // cite(RFC 9114 § 3.1.1): "An HTTP origin can advertise the availability of an equivalent HTTP/3 endpoint via the Alt-Svc HTTP response header field or the HTTP/2 ALTSVC frame ([ALTSVC]) using the "h3" ALPN token."
                 if proto_lower.starts_with("h3-") {
-                    return Some(self.violation(
+                    return Some(self.cited(&RFC_9114_3_1_1,
                         ctx.severity,
                         format!(
                             "Alt-Svc uses draft HTTP/3 protocol identifier '{}'; use the final 'h3' token instead (RFC 9114 §3.1.1)",

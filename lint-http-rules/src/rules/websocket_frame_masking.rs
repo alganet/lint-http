@@ -114,7 +114,11 @@ impl ProtocolRule for WebsocketFrameMasking {
                 _ => return None,
             };
 
-            Some(self.violation(ctx.severity, format!("A WebSocket frame where {defect}")))
+            Some(self.cited(
+                &RFC_6455_5_1,
+                ctx.severity,
+                format!("A WebSocket frame where {defect}"),
+            ))
         };
         Vec::from_iter(finding())
     }

@@ -85,7 +85,8 @@ impl Rule for Http3PseudoHeadersValid {
             // cite(RFC 9114 § 4.3.1): "All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4."
             let method = tx.request.method.trim();
             if method.is_empty() {
-                return Some(self.violation(
+                return Some(self.cited(
+                    &RFC_9114_4_3_1,
                     ctx.severity,
                     "HTTP/3 request missing required ':method' pseudo-header".into(),
                 ));
@@ -100,7 +101,7 @@ impl Rule for Http3PseudoHeadersValid {
                 // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
                 let uri_trimmed = tx.request.uri.trim();
                 if uri_trimmed.is_empty() {
-                    return Some(self.violation(ctx.severity, "HTTP/3 CONNECT request missing required ':authority' pseudo-header or Host header"
+                    return Some(self.cited(&RFC_9114_4_4, ctx.severity, "HTTP/3 CONNECT request missing required ':authority' pseudo-header or Host header"
                                 .into()));
                 }
                 let authority =
@@ -140,7 +141,7 @@ impl Rule for Http3PseudoHeadersValid {
                 {
                     let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
                         .unwrap_or(authority);
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(self.cited(&RFC_9114_4_4, ctx.severity, format!(
                             "HTTP/3 CONNECT ':authority' '{}' carries a userinfo subcomponent and its '@' delimiter: the field is only the host and port to connect to",
                             crate::helpers::headers::shown_in_finding(&shown)
                         )));
@@ -154,7 +155,7 @@ impl Rule for Http3PseudoHeadersValid {
                 let uri_trimmed = tx.request.uri.trim();
                 if uri_trimmed == "*" {
                     if !method.eq_ignore_ascii_case("OPTIONS") {
-                        return Some(self.violation(ctx.severity, "Asterisk ('*') request-target is only permitted with OPTIONS method"
+                        return Some(self.cited(&RFC_9110_7_1, ctx.severity, "Asterisk ('*') request-target is only permitted with OPTIONS method"
                                     .into()));
                     }
                 } else {
@@ -163,7 +164,8 @@ impl Rule for Http3PseudoHeadersValid {
                         crate::helpers::uri::extract_path_from_request_target(uri_trimmed)
                             .is_some();
                     if !has_path {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_9114_4_3_1,
                             ctx.severity,
                             "HTTP/3 request missing required ':path' pseudo-header".into(),
                         ));
@@ -179,7 +181,8 @@ impl Rule for Http3PseudoHeadersValid {
                 let has_host = tx.request.headers.contains_key("host");
                 if authority.is_none() && !has_host {
                     return Some(
-                        self.violation(
+                        self.cited(
+                            &RFC_9114_4_3_1,
                             ctx.severity,
                             "HTTP/3 request must include ':authority' pseudo-header or Host header"
                                 .into(),
@@ -206,7 +209,7 @@ impl Rule for Http3PseudoHeadersValid {
                         {
                             let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
                                 .unwrap_or(authority);
-                            return Some(self.violation(ctx.severity, format!(
+                            return Some(self.cited(&RFC_9114_4_3_1, ctx.severity, format!(
                                     "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter",
                                     crate::helpers::headers::shown_in_finding(&shown)
                                 )));

@@ -74,13 +74,15 @@ impl Rule for DateAndTimeHeadersConsistent {
                     // rule's concern. This rule's own claim is only what Date *is*:
                     // cite(RFC 9110 § 6.6.1): "The "Date" header field represents the date and time at which the message was originated"
                     if crate::http_date::parse_http_date_to_datetime(s).is_err() {
-                        return Some(self.violation(
+                        return Some(self.cited(
+                            &RFC_9110_6_6_1,
                             ctx.severity,
                             "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
                         ));
                     }
                 } else {
-                    return Some(self.violation(
+                    return Some(self.cited(
+                        &RFC_9110_6_6_1,
                         ctx.severity,
                         "Date header contains non-UTF8 bytes and is invalid".into(),
                     ));
@@ -93,7 +95,8 @@ impl Rule for DateAndTimeHeadersConsistent {
                 if let Some(hv) = resp.headers.get_all("date").iter().next() {
                     if let Ok(s) = hv.to_str() {
                         if crate::http_date::parse_http_date_to_datetime(s).is_err() {
-                            return Some(self.violation(
+                            return Some(self.cited(
+                                &RFC_9110_6_6_1,
                                 ctx.severity,
                                 "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
                             ));
@@ -147,7 +150,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                                 Ok(s) => match crate::http_date::parse_http_date_to_datetime(s) {
                                     Ok(sunset_dt) => {
                                         if sunset_dt <= date_dt - skew {
-                                            return Some(self.violation(ctx.severity, format!(
+                                            return Some(self.cited(&RFC_8594_3, ctx.severity, format!(
                                                     "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
                                                     s, date_str
                                                 )));

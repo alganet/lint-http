@@ -125,7 +125,7 @@ impl Rule for ImmutableCacheNeverStale {
             // cite(RFC 8246 § 2): "Clients SHOULD NOT issue a conditional request during the response's freshness lifetime (e.g., upon a reload) unless explicitly overridden by the user (e.g., a force reload)."
             // cite(RFC 8246 § 2): "The immutable extension only applies during the freshness lifetime of the stored response."
             if has_conditional && current_age < freshness_lifetime {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_8246_2, ctx.severity, format!(
                         "Unnecessary revalidation of immutable response while still fresh (age {} < freshness {})",
                         current_age, freshness_lifetime
                     )));

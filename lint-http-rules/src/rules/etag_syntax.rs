@@ -73,7 +73,7 @@ impl Rule for EtagSyntax {
                 // the conditional fields that do take it.
                 // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
                 if t == "*" {
-                    return Some(self.violation(ctx.severity, "ETag header value '*' is invalid for responses; ETag must be an entity-tag"
+                    return Some(self.cited(&RFC_9110_8_8_3, ctx.severity, "ETag header value '*' is invalid for responses; ETag must be an entity-tag"
                                 .into()));
                 }
 
@@ -90,7 +90,7 @@ impl Rule for EtagSyntax {
             // exception does not apply, and a sender must emit at most one ETag field line.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if count > 1 {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(self.cited(&RFC_9110_5_3, ctx.severity, format!(
                         "Multiple ETag header fields present ({}); ETag must be a single entity-tag",
                         count
                     )));

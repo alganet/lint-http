@@ -248,7 +248,7 @@ impl Rule for RequestMethodTokenValid {
                     // is worth saying at all: the request does not fail to parse, it simply
                     // asks for a method nobody defined.
                     // cite(RFC 9110 § 9.1): "An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code."
-                    return Some(self.violation(
+                    return Some(self.cited(&RFC_9110_9_1,
                         config.severity,
                         format!(
                             "Method token '{m}' is '{folded}' written in another case. The method token is case-sensitive, so a server matching method names sees an unrecognized method here rather than '{folded}', and ought to answer 501 (Not Implemented); by convention a standardized method is defined in all-uppercase US-ASCII letters"
