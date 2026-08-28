@@ -148,7 +148,6 @@ mod tests {
     use rstest::rstest;
     use std::sync::Arc as StdArc;
     use tokio::fs;
-    use uuid::Uuid;
 
     #[rstest]
     #[case(false, false, 405u16)]
@@ -167,9 +166,13 @@ mod tests {
         }
         let cfg = StdArc::new(cfg);
 
+        let mut temp = crate::proxy::test_support::TempFiles::new();
         let ca_arc = if ca_present {
-            let cert_path = std::env::temp_dir().join(format!("test_ca_{}.crt", Uuid::new_v4()));
-            let key_path = std::env::temp_dir().join(format!("test_ca_{}.key", Uuid::new_v4()));
+            // Generated, and never removed until this guard drops: the pair was
+            // written to the temp directory by every run of this test and left
+            // there, since there was no teardown at all.
+            let cert_path = temp.path("test_ca", "crt");
+            let key_path = temp.path("test_ca", "key");
             let ca = CertificateAuthority::load_or_generate(&cert_path, &key_path).await?;
             Some(ca)
         } else {

@@ -10,7 +10,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use lint_http::config::Config;
 
 mod common;
-use common::start_run_proxy_and_wait;
+use common::{start_run_proxy_and_wait, tls_config, TempFiles};
 
 /// Start a minimal WebSocket echo server on a random port.
 /// Returns the address it's listening on.
@@ -50,7 +50,8 @@ async fn websocket_upgrade_through_proxy_captures_session() -> anyhow::Result<()
 
     // Start the proxy
     let cfg = Config::default();
-    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // Connect to the proxy and perform WebSocket handshake via HTTP upgrade
     // Connect TCP to proxy5
@@ -198,7 +199,6 @@ async fn websocket_upgrade_through_proxy_captures_session() -> anyhow::Result<()
 
     // Cleanup
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
     Ok(())
 }
 
@@ -213,14 +213,11 @@ async fn websocket_upgrade_through_connect_mitm_tunnel() -> anyhow::Result<()> {
 
     let ws_addr = start_ws_echo_server().await;
 
-    let mut cfg = Config::default();
-    cfg.tls.enabled = true;
-    let cert_path = std::env::temp_dir().join(format!("test_ca_{}.crt", uuid::Uuid::new_v4()));
-    let key_path = std::env::temp_dir().join(format!("test_ca_{}.key", uuid::Uuid::new_v4()));
-    cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
-    cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
+    let mut temp = TempFiles::new();
+    let cfg = tls_config(&mut temp);
+    let cert_path = common::ca_cert_path(&cfg);
 
-    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // CONNECT to the proxy; the authority names the MITM certificate's domain.
     let mut tcp = tokio::net::TcpStream::connect(proxy_addr).await?;
@@ -355,9 +352,6 @@ async fn websocket_upgrade_through_connect_mitm_tunnel() -> anyhow::Result<()> {
     assert!(found_session, "no websocket session captured: {content}");
 
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
-    let _ = tokio::fs::remove_file(&cert_path).await;
-    let _ = tokio::fs::remove_file(&key_path).await;
     Ok(())
 }
 
@@ -416,7 +410,8 @@ async fn a_frame_sent_with_the_101_is_relayed_and_recorded() -> anyhow::Result<(
     });
 
     let cfg = Config::default();
-    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let mut tcp = tokio::net::TcpStream::connect(proxy_addr).await?;
     let ws_key = base64::Engine::encode(
@@ -483,7 +478,6 @@ async fn a_frame_sent_with_the_101_is_relayed_and_recorded() -> anyhow::Result<(
     assert!(found, "the with-101 frame never reached the capture");
 
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
     Ok(())
 }
 
@@ -569,7 +563,8 @@ async fn defective_frames_produce_live_findings() -> anyhow::Result<()> {
         ]),
         ..Default::default()
     };
-    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let mut tcp = tokio::net::TcpStream::connect(proxy_addr).await?;
     let ws_key = base64::Engine::encode(
@@ -664,7 +659,6 @@ async fn defective_frames_produce_live_findings() -> anyhow::Result<()> {
     );
 
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
     Ok(())
 }
 
@@ -736,7 +730,8 @@ async fn extension_negotiation_flows_end_to_end() -> anyhow::Result<()> {
         ]),
         ..Default::default()
     };
-    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (handle, proxy_addr, captures_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     let mut tcp = tokio::net::TcpStream::connect(proxy_addr).await?;
     let ws_key = base64::Engine::encode(
@@ -825,6 +820,5 @@ async fn extension_negotiation_flows_end_to_end() -> anyhow::Result<()> {
     );
 
     handle.abort();
-    let _ = tokio::fs::remove_file(&captures_path).await;
     Ok(())
 }

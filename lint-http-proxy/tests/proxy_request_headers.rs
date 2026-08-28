@@ -17,7 +17,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use lint_http::config::Config;
 
 mod common;
-use common::start_run_proxy_and_wait;
+use common::{start_run_proxy_and_wait, TempFiles};
 
 #[tokio::test]
 async fn request_side_hop_by_hop_headers_are_stripped() -> anyhow::Result<()> {
@@ -30,7 +30,8 @@ async fn request_side_hop_by_hop_headers_are_stripped() -> anyhow::Result<()> {
 
     let mut cfg = Config::default();
     cfg.tls.enabled = false;
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg).await?;
+    let mut temp = TempFiles::new();
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg, &mut temp).await?;
 
     // Drive a plaintext forward-proxy request carrying a static hop-by-hop
     // header (`Proxy-Authorization`), a dynamically-marked one (`X-Custom`, named
@@ -79,6 +80,5 @@ async fn request_side_hop_by_hop_headers_are_stripped() -> anyhow::Result<()> {
     );
 
     handle.abort();
-    let _ = tokio::fs::remove_file(&cap_path).await;
     Ok(())
 }

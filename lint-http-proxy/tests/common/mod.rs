@@ -5,7 +5,16 @@
 // Shared integration-test helpers; each test binary uses a different subset.
 #![allow(dead_code)]
 
+// `TempFiles` is its own file because the crate's *unit* tests need it too, and
+// Rust gives a unit test and an integration test no module in common: one is
+// compiled into the library, the other into its own binary. A `#[path]` include
+// from `src/proxy/test_support.rs` is what bridges that, and it is why this
+// file depends on nothing else here.
+mod temp_files;
+pub use temp_files::TempFiles;
+
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -15,6 +24,33 @@ use tokio::time::sleep;
 use lint_http::capture::CaptureWriter;
 use lint_http::config::Config;
 use lint_http::proxy::run_proxy;
+
+/// A `Config` with TLS enabled and a CA the proxy will generate into the temp
+/// directory, both files owned by `temp`.
+///
+/// The five lines this replaces were written out at every TLS test, and the
+/// two paths in them were exactly the two the teardown had to remember.
+pub fn tls_config(temp: &mut TempFiles) -> Config {
+    let mut cfg = Config::default();
+    cfg.tls.enabled = true;
+    cfg.tls.ca_cert_path = Some(temp.path("test_ca", "crt").to_string_lossy().to_string());
+    cfg.tls.ca_key_path = Some(temp.path("test_ca", "key").to_string_lossy().to_string());
+    cfg
+}
+
+/// Where `cfg` says the proxy's CA certificate is.
+///
+/// The config is the one place that knows, which is why the tests that need to
+/// trust that CA read it back from there rather than keeping a second binding
+/// alongside — a second binding is how the path and the config drift apart.
+pub fn ca_cert_path(cfg: &Config) -> PathBuf {
+    PathBuf::from(
+        cfg.tls
+            .ca_cert_path
+            .clone()
+            .expect("tls_config always names a CA certificate path"),
+    )
+}
 
 /// Deadline budget for the integration-test startup polls. Generous by default
 /// because startup races a saturated CI/dev CPU (the spawned proxy task may not
@@ -29,11 +65,15 @@ pub fn startup_timeout() -> Duration {
 }
 
 // Minimal helper: start run_proxy and wait until it is accepting and CA files exist
+/// The captures file is created here, so `temp` owns it: whoever makes a
+/// temporary file is who knows to remove it, and the split — helper creates,
+/// test body removes — is how the removals came to be missed.
 pub async fn start_run_proxy_and_wait(
     cfg: Config,
+    temp: &mut TempFiles,
 ) -> anyhow::Result<(tokio::task::JoinHandle<()>, SocketAddr, String)> {
     // prepare capture file
-    let tmp = std::env::temp_dir().join(format!("lint_integ_{}.jsonl", uuid::Uuid::new_v4()));
+    let tmp = temp.path("lint_integ", "jsonl");
     let p = tmp
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("tmp path not utf8"))?

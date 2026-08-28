@@ -10,9 +10,7 @@ use tokio_rustls::TlsConnector;
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 mod common;
-use common::start_run_proxy_and_wait;
-
-use lint_http::config::Config;
+use common::{start_run_proxy_and_wait, tls_config, TempFiles};
 
 // Unified helper: perform CONNECT, do TLS handshake trusting `ca_cert_path`, optionally advertise ALPNs, optionally send an inner request.
 // Returns (negotiated_alpn, optional_response_bytes).
@@ -164,15 +162,12 @@ async fn connect_tls_full_forwarding() -> anyhow::Result<()> {
         .await;
 
     // 2) Build config with TLS enabled and temp CA paths
-    let mut cfg = Config::default();
-    cfg.tls.enabled = true;
-    let cert_path = std::env::temp_dir().join(format!("test_ca_{}.crt", uuid::Uuid::new_v4()));
-    let key_path = std::env::temp_dir().join(format!("test_ca_{}.key", uuid::Uuid::new_v4()));
-    cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
-    cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
+    let mut temp = TempFiles::new();
+    let cfg = tls_config(&mut temp);
+    let cert_path = common::ca_cert_path(&cfg);
 
     // 3) Start proxy and wait
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg.clone(), &mut temp).await?;
 
     // 4) Perform CONNECT + TLS + inner request
     let host = "example.com";
@@ -214,9 +209,6 @@ async fn connect_tls_full_forwarding() -> anyhow::Result<()> {
     let _ = handle.await;
 
     // remove temp files
-    let _ = tokio::fs::remove_file(cert_path).await;
-    let _ = tokio::fs::remove_file(key_path).await;
-    let _ = tokio::fs::remove_file(&cap_path).await;
 
     Ok(())
 }
@@ -232,15 +224,12 @@ async fn connect_tls_alpn_client_selects_http1() -> anyhow::Result<()> {
         .await;
 
     // 2) Build config with TLS enabled and temp CA paths
-    let mut cfg = Config::default();
-    cfg.tls.enabled = true;
-    let cert_path = std::env::temp_dir().join(format!("test_ca_{}.crt", uuid::Uuid::new_v4()));
-    let key_path = std::env::temp_dir().join(format!("test_ca_{}.key", uuid::Uuid::new_v4()));
-    cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
-    cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
+    let mut temp = TempFiles::new();
+    let cfg = tls_config(&mut temp);
+    let cert_path = common::ca_cert_path(&cfg);
 
     // 3) Start proxy and wait
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg.clone(), &mut temp).await?;
 
     // 4) Perform CONNECT + TLS + inner request, advertising http/1.1
     let host = "example.com";
@@ -281,9 +270,6 @@ async fn connect_tls_alpn_client_selects_http1() -> anyhow::Result<()> {
     let _ = handle.await;
 
     // remove temp files
-    let _ = tokio::fs::remove_file(cert_path).await;
-    let _ = tokio::fs::remove_file(key_path).await;
-    let _ = tokio::fs::remove_file(&cap_path).await;
 
     Ok(())
 }
@@ -299,15 +285,12 @@ async fn connect_tls_alpn_mismatch_fails_handshake() -> anyhow::Result<()> {
         .await;
 
     // 2) Build config with TLS enabled and temp CA paths
-    let mut cfg = Config::default();
-    cfg.tls.enabled = true;
-    let cert_path = std::env::temp_dir().join(format!("test_ca_{}.crt", uuid::Uuid::new_v4()));
-    let key_path = std::env::temp_dir().join(format!("test_ca_{}.key", uuid::Uuid::new_v4()));
-    cfg.tls.ca_cert_path = Some(cert_path.to_string_lossy().to_string());
-    cfg.tls.ca_key_path = Some(key_path.to_string_lossy().to_string());
+    let mut temp = TempFiles::new();
+    let cfg = tls_config(&mut temp);
+    let cert_path = common::ca_cert_path(&cfg);
 
     // 3) Start proxy and wait
-    let (handle, addr, cap_path) = start_run_proxy_and_wait(cfg.clone()).await?;
+    let (handle, addr, _cap_path) = start_run_proxy_and_wait(cfg.clone(), &mut temp).await?;
 
     // 4) Perform CONNECT + TLS + inner request, advertising only 'h3' which does not match server
     let host = "example.com";
@@ -342,9 +325,6 @@ async fn connect_tls_alpn_mismatch_fails_handshake() -> anyhow::Result<()> {
     let _ = handle.await;
 
     // remove temp files
-    let _ = tokio::fs::remove_file(cert_path).await;
-    let _ = tokio::fs::remove_file(key_path).await;
-    let _ = tokio::fs::remove_file(&cap_path).await;
 
     Ok(())
 }
