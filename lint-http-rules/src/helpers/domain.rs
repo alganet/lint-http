@@ -13,12 +13,88 @@
 //! which hands the `dot-atom` form of an `addr-spec`'s domain to RFC 1034,
 //! RFC 1035 and RFC 1123 by name.
 
+/// The ways RFC 1035's *preferred name syntax* is not met.
+///
+/// Typed because this function has two callers reading two different documents
+/// — a cookie's `Domain` attribute and the `dot-atom` half of an `addr-spec` —
+/// and a shared answer that hands back prose forces both to embed a sentence
+/// written for neither. Naming the defects lets each caller word its own
+/// finding while agreeing about what went wrong.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreferredNameDefect {
+    /// More than 255 octets in the name as a whole.
+    // cite(RFC 1035 § 2.3.4): "names 255 octets or less"
+    TooLong,
+    /// A `.` with nothing between it and its neighbour.
+    EmptyLabel,
+    /// A single label over 63 octets.
+    // cite(RFC 1035 § 2.3.1): "Labels must be 63 characters or less."
+    LabelTooLong,
+    /// A label opening or closing on `-`. Only the hyphen is checked at the
+    /// ends: § 2.3.1 wanted a letter first, and RFC 1123 § 2 relaxed that to a
+    /// letter *or a digit*, so `1.example.com` is not this function's to refuse.
+    LabelHyphenAtEdge,
+    /// A label octet outside letters, digits and hyphen.
+    LabelBadCharacter,
+}
+
+impl PreferredNameDefect {
+    /// The finding fragment. Every caller embeds this after naming the field it
+    /// read the name out of.
+    pub fn message(self) -> &'static str {
+        match self {
+            Self::TooLong => "domain total length exceeds 255 characters",
+            Self::EmptyLabel => "domain contains empty label",
+            Self::LabelTooLong => "domain label exceeds 63 characters",
+            Self::LabelHyphenAtEdge => "domain label must not start or end with '-'",
+            Self::LabelBadCharacter => "domain label contains invalid character",
+        }
+    }
+}
+
+/// The ways a cookie `Domain` attribute fails.
+///
+/// The first five are this attribute's own rules; [`PreferredName`](Self::PreferredName)
+/// is the shared syntax underneath, kept as a distinct variant so a caller can
+/// tell "you sent an IP address, which a `Domain` may never be" apart from "this
+/// is a domain name and it is malformed".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CookieDomainDefect {
+    /// Nothing there after trimming.
+    Empty,
+    /// Only the tolerated leading dot was there.
+    EmptyAfterLeadingDot,
+    /// Whitespace or a control character anywhere in the value.
+    WhitespaceOrControl,
+    /// A bracketed IPv6 literal.
+    Ipv6Literal,
+    /// Four or more dot-separated all-digit labels — an IPv4 address. The
+    /// four-label floor is what keeps `1.2` from being read as one.
+    Ipv4Address,
+    /// A well-formed-looking domain that fails the preferred name syntax.
+    PreferredName(PreferredNameDefect),
+}
+
+impl CookieDomainDefect {
+    /// The finding fragment.
+    pub fn message(self) -> &'static str {
+        match self {
+            Self::Empty => "empty domain",
+            Self::EmptyAfterLeadingDot => "domain empty after removing leading dot",
+            Self::WhitespaceOrControl => "domain contains whitespace or control characters",
+            Self::Ipv6Literal => "domain must not be an IPv6 literal",
+            Self::Ipv4Address => "domain must not be an IPv4 address",
+            Self::PreferredName(defect) => defect.message(),
+        }
+    }
+}
+
 /// Validate a domain name suitable for a cookie `Domain` attribute.
-/// Returns Ok(()) when syntactically valid, or Err(reason) describing why invalid.
-pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
+/// Returns Ok(()) when syntactically valid, or the named defect.
+pub fn validate_cookie_domain(s: &str) -> Result<(), CookieDomainDefect> {
     let s = s.trim();
     if s.is_empty() {
-        return Err("empty domain".into());
+        return Err(CookieDomainDefect::Empty);
     }
 
     // Leading dot is historically allowed; tolerate and remove it for validation
@@ -29,17 +105,17 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
     };
 
     if s.is_empty() {
-        return Err("domain empty after removing leading dot".into());
+        return Err(CookieDomainDefect::EmptyAfterLeadingDot);
     }
 
     // No whitespace or control characters
     if s.chars().any(|c| c.is_control() || c.is_whitespace()) {
-        return Err("domain contains whitespace or control characters".into());
+        return Err(CookieDomainDefect::WhitespaceOrControl);
     }
 
     // Reject bracketed IPv6 literal
     if s.starts_with('[') && s.ends_with(']') {
-        return Err("domain must not be an IPv6 literal".into());
+        return Err(CookieDomainDefect::Ipv6Literal);
     }
 
     // Quick IPv4-like check: only digits and dots and at least one dot
@@ -47,12 +123,12 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
     if maybe_ipv4 {
         // To avoid false positives like '1.2', require at least 4 dot-separated labels
         if s.split('.').count() >= 4 {
-            return Err("domain must not be an IPv4 address".into());
+            return Err(CookieDomainDefect::Ipv4Address);
         }
     }
 
     match preferred_name_syntax_defect(s) {
-        Some(defect) => Err(defect),
+        Some(defect) => Err(CookieDomainDefect::PreferredName(defect)),
         None => Ok(()),
     }
 }
@@ -77,19 +153,19 @@ pub fn validate_cookie_domain(s: &str) -> Result<(), String> {
 /// than this function: RFC 1035 § 2.3.1 offers the syntax as the one that *"will
 /// result in fewer problems"*, so a name outside it can still be a conforming
 /// `dot-atom`.
-pub fn preferred_name_syntax_defect(s: &str) -> Option<String> {
+pub fn preferred_name_syntax_defect(s: &str) -> Option<PreferredNameDefect> {
     // cite(RFC 1035 § 2.3.4): "names 255 octets or less"
     if s.len() > 255 {
-        return Some("domain total length exceeds 255 characters".into());
+        return Some(PreferredNameDefect::TooLong);
     }
 
     for label in s.split('.') {
         if label.is_empty() {
-            return Some("domain contains empty label".into());
+            return Some(PreferredNameDefect::EmptyLabel);
         }
         // cite(RFC 1035 § 2.3.1): "Labels must be 63 characters or less."
         if label.len() > 63 {
-            return Some("domain label exceeds 63 characters".into());
+            return Some(PreferredNameDefect::LabelTooLong);
         }
         let first = label.chars().next().expect("label verified non-empty");
         let last = label.chars().next_back().expect("label verified non-empty");
@@ -101,10 +177,10 @@ pub fn preferred_name_syntax_defect(s: &str) -> Option<String> {
         // cite(RFC 1035 § 2.3.1): "end with a letter or digit, and have as interior characters only letters, digits, and hyphen."
         // cite(RFC 1123 § 2): "the restriction on the first character is relaxed to allow either a letter or a digit."
         if first == '-' || last == '-' {
-            return Some("domain label must not start or end with '-'".into());
+            return Some(PreferredNameDefect::LabelHyphenAtEdge);
         }
         if !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return Some("domain label contains invalid character".into());
+            return Some(PreferredNameDefect::LabelBadCharacter);
         }
     }
 
@@ -157,8 +233,8 @@ mod tests {
     fn a_label_over_63_characters_is_a_defect() {
         let long = format!("{}.example", "a".repeat(64));
         assert_eq!(
-            preferred_name_syntax_defect(&long).as_deref(),
-            Some("domain label exceeds 63 characters")
+            preferred_name_syntax_defect(&long),
+            Some(PreferredNameDefect::LabelTooLong)
         );
     }
 

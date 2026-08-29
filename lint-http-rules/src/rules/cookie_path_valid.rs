@@ -85,10 +85,13 @@ impl Rule for CookiePathValid {
                             }
                         };
 
-                        if let Err(e) = crate::helpers::cookie::validate_cookie_path(v) {
+                        if let Err(defect) = crate::helpers::cookie::validate_cookie_path(v) {
                             return Some(self.violation(
                                 ctx.severity,
-                                format!("Set-Cookie attribute 'Path' invalid: {}", e),
+                                format!(
+                                    "Set-Cookie attribute 'Path' invalid: {}",
+                                    defect.message()
+                                ),
                             ));
                         }
                     }
@@ -180,12 +183,22 @@ mod tests {
         assert!(v.unwrap().message.contains("requires a value"));
     }
 
+    /// The rule still reports through a message, so the message is asserted —
+    /// but the defect underneath is now named, and that is what this checks.
+    /// It read `contains("should start with '/'") || contains("invalid")`, an
+    /// `||` that passed if *any* defect fired, including one about a control
+    /// character. A `String` gave it nothing better to ask.
     #[test]
     fn not_starting_with_slash_reports() {
+        use crate::helpers::cookie::{validate_cookie_path, CookiePathDefect};
+        assert_eq!(
+            validate_cookie_path("login"),
+            Err(CookiePathDefect::NotAbsolute("login"))
+        );
+
         let v = check_set_cookie("SID=1; Path=login");
         assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("should start with '/'") || msg.contains("invalid"));
+        assert!(v.unwrap().message.contains("should start with '/'"));
     }
 
     #[test]

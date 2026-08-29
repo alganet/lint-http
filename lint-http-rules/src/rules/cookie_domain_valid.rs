@@ -85,7 +85,11 @@ impl Rule for CookieDomainValid {
                                 return Some(self.cited(
                                     &RFC_6265_5_2_3,
                                     ctx.severity,
-                                    format!("Invalid Set-Cookie Domain attribute '{}': {}", val, e),
+                                    format!(
+                                        "Invalid Set-Cookie Domain attribute '{}': {}",
+                                        val,
+                                        e.message()
+                                    ),
                                 ));
                             }
                         }
