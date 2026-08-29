@@ -127,7 +127,7 @@ mod tests {
         // timestamp than tx2.  This avoids debug assertions in debug builds.
         tx1.timestamp = tx2.timestamp + chrono::Duration::seconds(1);
 
-        let h = TransactionHistory::from_transactions(vec![tx1.clone(), tx2.clone()]);
+        let h = TransactionHistory::from_transactions(vec![tx1.clone(), tx2]);
 
         assert!(!h.is_empty());
         assert_eq!(h.len(), 2);

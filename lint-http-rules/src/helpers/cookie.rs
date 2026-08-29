@@ -597,10 +597,8 @@ mod tests {
         let mut t2 = t2;
         t2.timestamp = ts - chrono::Duration::seconds(10);
         // history newest first order is provided by constructor
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
-            t2.clone(),
-            t1.clone(),
-        ]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![t2, t1]);
         let store = build_cookie_store(&history, ts);
         assert_eq!(store.len(), 1);
         assert_eq!(store[0].value, "two");

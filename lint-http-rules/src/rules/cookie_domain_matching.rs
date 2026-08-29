@@ -297,10 +297,8 @@ mod tests {
         );
         let mut tx = make_tx_with_req("https://other.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
-            prev2.clone(),
-            prev1.clone(),
-        ]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2, prev1]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,

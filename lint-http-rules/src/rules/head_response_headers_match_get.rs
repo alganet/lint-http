@@ -469,7 +469,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag", "content-type", "content-length"]),
         );
         assert!(v.is_none());
@@ -485,7 +485,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_some());
@@ -502,7 +502,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["x-foo"]),
         );
         assert!(v.is_some());
@@ -522,7 +522,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
         assert!(v.is_some());
@@ -539,7 +539,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
         assert!(v.is_none());
@@ -555,7 +555,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["vary"]),
         );
         assert!(v.is_none());
@@ -608,7 +608,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_none());
@@ -625,7 +625,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_none());
@@ -651,7 +651,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_none());
@@ -929,7 +929,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_none());
@@ -945,7 +945,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["transfer-encoding"]),
         );
         assert!(v.is_none());
@@ -961,7 +961,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["transfer-encoding"]),
         );
         assert!(v.is_none());
@@ -977,7 +977,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
         assert!(v.is_none());
@@ -993,7 +993,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["vary"]),
         );
         assert!(v.is_none());
@@ -1009,7 +1009,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["vary"]),
         );
         assert!(v.is_some());
@@ -1056,7 +1056,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_none());
@@ -1072,7 +1072,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag", "content-type"]),
         );
         assert!(v.is_some());
@@ -1089,7 +1089,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["accept-encoding"]),
         );
         assert!(v.is_some());
@@ -1168,7 +1168,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_none());
@@ -1185,7 +1185,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["content-length"]),
         );
         assert!(v.is_none());
@@ -1201,7 +1201,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &head,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &make_cfg_with_headers(vec!["etag"]),
         );
         assert!(v.is_none());

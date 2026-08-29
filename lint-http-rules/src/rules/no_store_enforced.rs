@@ -386,10 +386,8 @@ mod tests {
         tx.request.uri = "/resource".to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-none-match", "\"a\"")]);
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
-            prev2.clone(),
-            prev1.clone(),
-        ]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2, prev1]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -420,10 +418,8 @@ mod tests {
         tx.request.uri = "/resource".to_string();
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("if-modified-since", lm)]);
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
-            prev2.clone(),
-            prev1.clone(),
-        ]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2, prev1]);
         assert!(crate::test_helpers::run_rule(
             &rule,
             &tx,

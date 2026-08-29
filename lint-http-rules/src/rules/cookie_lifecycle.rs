@@ -423,10 +423,8 @@ mod tests {
         );
         let mut tx = make_tx_with_req("https://example.com/", Some("a=1"));
         tx.timestamp = ts + chrono::Duration::seconds(20);
-        let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
-            prev2.clone(),
-            prev1.clone(),
-        ]);
+        let history =
+            crate::transaction_history::TransactionHistory::from_transactions(vec![prev2, prev1]);
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
@@ -477,8 +475,8 @@ mod tests {
         let mut tx = make_tx_with_req("http://example.com/specific", Some("a=2"));
         tx.timestamp = ts + chrono::Duration::seconds(10);
         let history = crate::transaction_history::TransactionHistory::from_transactions(vec![
-            prev_nonsecure.clone(),
-            prev_secure.clone(),
+            prev_nonsecure,
+            prev_secure,
         ]);
         let v = crate::test_helpers::run_rule(
             &rule,

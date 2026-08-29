@@ -354,9 +354,7 @@ mod tests {
         let v4 = crate::test_helpers::run_rule(
             &rule,
             &tx4,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![
-                prev_empty.clone()
-            ]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev_empty]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "conditional_request_handling",
             ]),
@@ -377,7 +375,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "conditional_request_handling",
             ]),
@@ -394,7 +392,7 @@ mod tests {
         let v2 = crate::test_helpers::run_rule(
             &rule,
             &tx2,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev2.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev2]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "conditional_request_handling",
             ]),
@@ -417,7 +415,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "conditional_request_handling",
             ]),
@@ -446,7 +444,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "conditional_request_handling",
             ]),
@@ -483,7 +481,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "conditional_request_handling",
             ]),
@@ -509,7 +507,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "conditional_request_handling",
             ]),
@@ -530,7 +528,7 @@ mod tests {
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
-            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev.clone()]),
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[
                 "conditional_request_handling",
             ]),

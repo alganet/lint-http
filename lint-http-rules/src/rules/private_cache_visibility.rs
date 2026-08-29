@@ -244,7 +244,7 @@ mod tests {
 
         let prev = make_prev(client.clone(), Some("private"), Some("\"a\""), None, ts);
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.client = client.clone();
+        tx.client = client;
         tx.request
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
@@ -268,9 +268,9 @@ mod tests {
         let mut client2 = client1.clone();
         client2.user_agent = "other".to_string();
 
-        let prev = make_prev(client2.clone(), Some("private"), Some("\"a\""), None, ts);
+        let prev = make_prev(client2, Some("private"), Some("\"a\""), None, ts);
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.client = client1.clone();
+        tx.client = client1;
         tx.request
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
@@ -296,9 +296,9 @@ mod tests {
         client2.user_agent = "other".to_string();
 
         let lm = "Wed, 21 Oct 2015 07:28:00 GMT";
-        let prev = make_prev(client2.clone(), Some("private"), None, Some(lm), ts);
+        let prev = make_prev(client2, Some("private"), None, Some(lm), ts);
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.client = client1.clone();
+        tx.client = client1;
         tx.request
             .headers
             .append("if-modified-since", lm.parse().unwrap());
@@ -322,9 +322,9 @@ mod tests {
         let mut client2 = client1.clone();
         client2.user_agent = "other".to_string();
 
-        let prev = make_prev(client2.clone(), None, Some("\"a\""), None, ts);
+        let prev = make_prev(client2, None, Some("\"a\""), None, ts);
         let mut tx = crate::test_helpers::make_test_transaction();
-        tx.client = client1.clone();
+        tx.client = client1;
         tx.request
             .headers
             .append("if-none-match", "\"a\"".parse().unwrap());
