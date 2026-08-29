@@ -6911,9 +6911,9 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 314
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 45
+      line: 47
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 177
+      line: 192
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 417
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -6927,11 +6927,11 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 250
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 44
+      line: 46
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 82
+      line: 84
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 175
+      line: 190
     - file: lint-http-rules/src/helpers/word.rs
       line: 82
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -7167,13 +7167,13 @@ sources:
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
     cited_by:
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 178
+      line: 193
   - label: lint-http-rules/src/helpers/quoted_string.rs (2)
     section: § 5.6.4
     snippet: qdtext         = HTAB / SP / %x21 / %x23-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/quoted_string.rs
-      line: 176
+      line: 191
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 32
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
