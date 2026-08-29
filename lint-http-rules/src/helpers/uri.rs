@@ -349,7 +349,7 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
         // the two validators cannot drift apart on what an origin is. A lack of
         // host reports the same generic reason, so callers that inspect the
         // string do not need to handle multiple error forms.
-        if !crate::helpers::headers::is_valid_serialized_origin(s_trim) {
+        if !crate::helpers::uri::is_valid_serialized_origin(s_trim) {
             return Some("Origin is not a valid serialized origin".into());
         }
         return None;
@@ -1124,6 +1124,126 @@ pub fn validate_host_and_optional_port(value: &str) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+// ── The serialized origin ────────────────────────────────────────────
+//
+// Moved here from `helpers/headers.rs`, which is where it had been filed for
+// being reachable from a header field. Two of its neighbours were already here
+// — `extract_origin_if_absolute` and `validate_origin_value` — and this module
+// was already reaching across for it, which is the shape a helper makes when
+// it is shelved by the field that carries it rather than by what it asks.
+
+/// Validate a serialized-origin as defined by RFC 6454: scheme "://" host [":" port]
+/// The grammar has no path component, so nothing may follow the authority — not
+/// even a bare trailing slash, which a byte-for-byte origin comparison rejects.
+///
+/// **Each of the three parts is read by the function that owns its production**,
+/// and none of them is transcribed here: [`validate_scheme_name`]
+/// for `scheme`, [`validate_uri_host`] for `host`, and
+/// [`port_number`] for `port`. What is left is the
+/// composition — the `://` between the first two, and that the authority is the
+/// whole of what follows it.
+///
+/// **It measured where the authority ended and nothing about what it held.** The
+/// host was checked for emptiness, a space, a tab and an at-sign, so
+/// `https://exa|mple.com`, `https://a<b>c` and `https://a^b` were serialized
+/// origins — none of `|`, `<`, `>`, `^`, `` ` ``, `\`, `"`, `{`, `}` or any octet
+/// at or above %x80 is in `unreserved`, `sub-delims` or a `pct-encoded`, so none
+/// is in any `reg-name`. Two more went with it: `%zz` and `%4` passed because
+/// nothing asked `check_percent_encoding`, and `https://[foo]` passed because
+/// `helpers::ipv6::parse_bracketed_ipv6` handed its bracketed content back
+/// unexamined — which its own doc comment said in as many words, and which was
+/// what condemned it: this was its last caller and the function is gone.
+///
+/// **The conservatism that remains is about IDNA and label syntax**, which is a
+/// different question from the alphabet: a `reg-name` is a character set and no
+/// more, so `a..b` and a 300-character label are registered names here and are
+/// not domains anywhere.
+///
+/// **"Nothing may follow the authority" is § 3.2's sentence, and it names three
+/// characters.** This function used to enumerate one of them — a
+/// `rest.contains('/')` — so `https://example.com?x=1` and
+/// `https://example.com#f` were serialized origins to every caller. The
+/// terminators are not re-enumerated here now:
+/// [`authority_component`] is where that sentence is read
+/// and cited, and what this function adds is the *grammar's* half — a
+/// serialized-origin ends where its authority does, so any character that
+/// function stopped at is a character the production does not generate.
+// Both callers (Timing-Allow-Origin, Access-Control-Allow-Origin) take their value
+// grammar from Fetch, whose production supplants RFC 6454's. The two agree on the
+// shape checked here — an authority and nothing after it — so both are quoted.
+// cite(Fetch § 3.2): "serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]"
+// cite(Fetch § 3.2): "This supplants the definition in The Web Origin Concept"
+// cite(RFC 6454 § 7.1): "serialized-origin = scheme "://" host [ ":" port ]"
+// Where they differ, Fetch is the stricter of the two, which is the direction this
+// validator is deliberately permissive in: it accepts host shapes (IDNA, label
+// syntax) that Fetch's serialization would reject.
+// cite(Fetch § 3.2): "The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways."
+pub fn is_valid_serialized_origin(val: &str) -> bool {
+    let s = val.trim();
+    if s.is_empty() {
+        return false;
+    }
+
+    // The `://` is located rather than split on, because a `://` further along
+    // is data rather than a delimiter: `scheme_authority_marker` is that
+    // question's one answer and argues at its own site why `find("://")` is not.
+    let Some(marker) = scheme_authority_marker(s) else {
+        return false;
+    };
+    let scheme = &s[..marker];
+
+    // `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )` was written out here
+    // a third time, and `validate_scheme_name`'s own doc comment already counts
+    // the two copies it was extracted from. This one was missed because it sits
+    // in `helpers::headers`, on the shelf keyed by the field rather than by the
+    // question — the same reason the sixteen-bit port predicate was missed.
+    if validate_scheme_name(scheme).is_err() {
+        return false;
+    }
+
+    // Where the authority ends is § 3.2's sentence and not this function's; the
+    // grammar above is what makes stopping short of the value's end a defect,
+    // since a serialized-origin is a scheme, a `://` and an authority and
+    // nothing else. Enumerating the terminators here instead is how `?` and `#`
+    // stayed acceptable for as long as `/` did not.
+    let Some(rest) = authority_component(s) else {
+        return false;
+    };
+    if rest != &s[marker + "://".len()..] {
+        return false;
+    }
+
+    // `authority = [ userinfo "@" ] host [ ":" port ]` is the production this
+    // one is *not*: the origin grammars above write `host [ ":" port ]` and no
+    // userinfo, so the at-sign that would delimit one is a character no
+    // `reg-name` holds and `validate_uri_host` refuses it as such. The split is
+    // at the first colon and bracket-aware, which is why an `IP-literal`'s own
+    // colons do not become a port.
+    // cite(RFC 3986 § 3.2, label: authority grammar): "authority   = [ userinfo "@" ] host [ ":" port ]"
+    let (host, port) = split_host_and_port(rest);
+
+    // `reg-name = *( unreserved / pct-encoded / sub-delims )` derives the empty
+    // string, so this is not the grammar's line. An origin naming no host names
+    // nothing to compare against, and every caller here is comparing origins.
+    if host.is_empty() {
+        return false;
+    }
+    if validate_uri_host(host).is_err() {
+        return false;
+    }
+
+    // Sixteen bits, and the licence to ask that of *this* value is the URL
+    // Standard's rather than a transport's: an origin's port is not a run of
+    // digits that happens to reach a TCP port, it is declared to be an integer
+    // of that width. `0` is one of them, so an origin naming it is a serialized
+    // origin; the shared reader rejected it until this was read.
+    // cite(URL § 4.1): "A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port."
+    match port {
+        Some(port) => port_number(port).is_some(),
+        None => true,
+    }
 }
 
 #[cfg(test)]
@@ -2088,5 +2208,127 @@ mod tests {
         // missing authority, rather than a specialized one; callers that care
         // about details should inspect the string content appropriately.
         assert!(m.contains("not a valid serialized origin"));
+    }
+
+    #[test]
+    fn test_is_valid_serialized_origin() {
+        const CASES: &[(&str, bool)] = &[
+            ("https://example.com", true),
+            ("http://example.com:8080", true),
+            ("https://localhost", true),
+            ("https://[::1]:8080", true),
+            ("https://[::1]", true),
+            // Port range & formatting.
+            ("http://example.com:1", true),
+            ("http://example.com:65535", true),
+            ("http://example.com:080", true), // leading zero allowed -> 80
+            // `0` is a 16-bit unsigned integer and RFC 6335 §6 calls it a value
+            // *inside* the namespace, reserved rather than invalid. This asserted
+            // the opposite until the port reading was shared with the two rules
+            // that had already audited the bound.
+            ("http://example.com:0", true),
+            ("http://example.com:65536", false), // out of range
+            ("http://example.com:999999999999", false), // too large
+            // The grammar has no path component, and a browser compares the value
+            // byte-for-byte against a serialized origin, which never carries one.
+            ("https://example.com/", false),
+            ("https://example.com/path", false),
+            ("https://example.com:8080/", false),
+            ("https://[::1]/path", false),
+            // § 3.2 ends the authority at three characters and the slash is one of
+            // them. The other two were accepted here until the terminator sentence
+            // stopped being enumerated by hand — and only in the shape below,
+            // because a port or a bracketed literal put the trailing junk in front
+            // of a reader that was already strict about it.
+            ("https://example.com?x=1", false),
+            ("https://example.com#frag", false),
+            ("https://example.com?", false),
+            ("https://example.com#", false),
+            ("https://example.com:8080?x=1", false),
+            ("https://[::1]#frag", false),
+            ("example.com", false),
+            ("https:///foo", false),
+            ("https://", false),
+            ("http://host:notaport", false),
+            ("https://user@example.com", false),
+            ("https://[::1", false),
+            ("", false),
+        ];
+
+        for (value, is_origin) in CASES {
+            assert_eq!(
+                is_valid_serialized_origin(value),
+                *is_origin,
+                "for {value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_origins_host_is_measured_against_its_own_production() {
+        // **The host's own alphabet, which nothing here used to ask.** None of
+        // these is in `unreserved`, `sub-delims` or a `pct-encoded`, so none is
+        // in any `reg-name` — and each was a serialized origin to all three
+        // callers while the host was checked for emptiness, a space, a tab and
+        // an at-sign and for nothing else.
+        for c in [
+            '|', '<', '>', '"', '{', '}', '\\', '^', '`', '\u{80}', '\u{ff}',
+        ] {
+            assert!(
+                !is_valid_serialized_origin(&format!("https://exa{c}mple.com")),
+                "for {c:?}"
+            );
+            assert!(
+                !is_valid_serialized_origin(&format!("https://exa{c}mple.com:8080")),
+                "for {c:?} with a port"
+            );
+        }
+
+        // A `pct-encoded` is three characters and the last two are `HEXDIG`. The
+        // alphabet walk alone would admit these, which is why `validate_uri_host`
+        // asks `check_percent_encoding` before it.
+        assert!(!is_valid_serialized_origin("https://a%zzb.example"));
+        assert!(!is_valid_serialized_origin("https://a%4"));
+        assert!(is_valid_serialized_origin("https://a%41b.example"));
+
+        // `IP-literal = "[" ( IPv6address / IPvFuture ) "]"`, and the inner text
+        // used to be handed back unexamined — so a bracketed anything was a
+        // host. `[v7.abc]` passed then for no reason and passes now for the
+        // production's.
+        assert!(!is_valid_serialized_origin("https://[foo]"));
+        assert!(!is_valid_serialized_origin("https://[]"));
+        assert!(is_valid_serialized_origin("https://[v7.abc]"));
+
+        // A `reg-name` holds no colon, so the second one is not a port
+        // delimiter; the split is at the first colon and this used to be read
+        // right to left, which made `a:b` a host and `80` its port.
+        assert!(!is_valid_serialized_origin("https://a:b:80"));
+
+        // The explicit space and tab checks went with the host's own production,
+        // which admits neither -- and `port_number` refuses a non-digit, so the
+        // other half of the authority is covered by the reader that owns it.
+        assert!(!is_valid_serialized_origin("https://exa mple.com"));
+        assert!(!is_valid_serialized_origin("https://exa\tmple.com"));
+        assert!(!is_valid_serialized_origin("https://example.com: 80"));
+        assert!(!is_valid_serialized_origin("https://example.com:8 0"));
+    }
+
+    /// Each row is a value that is not a serialized origin. A table rather
+    /// than thirty `assert!` lines, so a failure names the value that failed.
+    ///
+    /// **The authority's contents, which this predicate measures nothing of.**
+    /// It asks the host for emptiness, a space, a tab and an at-sign; the host
+    /// has a production, and each of these values fails it.
+    #[rstest::rstest]
+    #[case("ht$tp://example.com")]
+    #[case("http://example.com:")]
+    #[case("http://:80")]
+    fn invalid_serialized_origin_cases(#[case] input: &str) {
+        assert!(!is_valid_serialized_origin(input));
+    }
+
+    #[test]
+    fn scheme_first_char_not_alpha_is_invalid() {
+        assert!(!is_valid_serialized_origin("1http://example.com"));
     }
 }

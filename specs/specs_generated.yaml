@@ -37,24 +37,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_resource_policy_valid.rs
       line: 90
-  - label: lint-http-rules/src/helpers/headers.rs
+  - label: lint-http-rules/src/helpers/uri.rs
     section: § 3.2
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 2217
-  - label: lint-http-rules/src/helpers/headers.rs (2)
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 1182
+  - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 3.2
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 2212
-  - label: lint-http-rules/src/helpers/headers.rs (3)
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 1177
+  - label: lint-http-rules/src/helpers/uri.rs (3)
     section: § 3.2
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 2211
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 1176
   - label: origin_matching_for_cors
     section: § 4.10
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
@@ -337,12 +337,12 @@ sources:
   url: https://url.spec.whatwg.org/
   type: text/html
   fragments:
-  - label: lint-http-rules/src/helpers/headers.rs
+  - label: lint-http-rules/src/helpers/uri.rs
     section: § 4.1
     snippet: A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port.
     cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 2277
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 1242
   - label: refresh_header_syntax
     section: § 1.1
     snippet: A code point is found that is not a URL unit.
@@ -1123,14 +1123,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 157
-  - label: authority grammar
-    section: § 3.2
-    snippet: authority   = [ userinfo "@" ] host [ ":" port ]
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 2259
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 170
   - label: lint-http-rules/src/helpers/ipv6.rs
     section: § 3.2.2
     snippet: A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]").
@@ -1295,6 +1287,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 231
+  - label: authority grammar
+    section: § 3.2
+    snippet: authority   = [ userinfo "@" ] host [ ":" port ]
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 170
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 1224
   - label: lint-http-rules/src/helpers/uri.rs (18)
     section: § 3.2.1
     snippet: Applications should not render as clear text any data after the first colon (":") character found within a userinfo subcomponent unless the data after the colon is the empty string (indicating no password).
@@ -2247,20 +2247,20 @@ sources:
 - label: RFC 6454
   url: https://www.rfc-editor.org/rfc/rfc6454.html
   fragments:
-  - label: lint-http-rules/src/helpers/headers.rs
-    section: § 7.1
-    snippet: serialized-origin = scheme "://" host [ ":" port ]
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 2213
-    - file: lint-http-rules/src/helpers/uri.rs
-      line: 320
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 313
+  - label: lint-http-rules/src/helpers/uri.rs (2)
+    section: § 7.1
+    snippet: serialized-origin = scheme "://" host [ ":" port ]
+    cited_by:
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 320
+    - file: lint-http-rules/src/helpers/uri.rs
+      line: 1178
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.html
   fragments:

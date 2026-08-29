@@ -97,7 +97,7 @@ impl Rule for AccessControlAllowOriginValid {
                 return None;
             }
 
-            if !crate::helpers::headers::is_valid_serialized_origin(&member) {
+            if !crate::helpers::uri::is_valid_serialized_origin(&member) {
                 return Some(self.violation(
                     ctx.severity,
                     format!(

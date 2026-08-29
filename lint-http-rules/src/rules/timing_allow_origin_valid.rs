@@ -119,7 +119,7 @@ impl Rule for TimingAllowOriginValid {
 
                     // Anything else must be a serialized origin; the helper owns the
                     // grammar it is validated against.
-                    if !crate::helpers::headers::is_valid_serialized_origin(m) {
+                    if !crate::helpers::uri::is_valid_serialized_origin(m) {
                         return Some(self.violation(
                             ctx.severity,
                             format!("Timing-Allow-Origin contains invalid origin: '{}'", m),
