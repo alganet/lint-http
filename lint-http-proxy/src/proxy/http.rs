@@ -689,6 +689,10 @@ mod tests {
         let port = listener.local_addr()?.port();
         let server_task = tokio::spawn(async move {
             if let Ok((socket, _)) = listener.accept().await {
+                // Load-bearing: the origin holds the connection open long
+                // enough for the client to start sending, then drops it
+                // mid-stream. The delay *is* the condition under test, not a
+                // wait for one — there is nothing to poll for.
                 tokio::time::sleep(std::time::Duration::from_millis(200)).await;
                 drop(socket);
             }
@@ -1234,15 +1238,13 @@ mod tests {
         // Verify upgrade headers are forwarded
         assert!(resp.headers().get("upgrade").is_some());
 
-        // Give the relay task time to start and check captures
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-
-        _cw.flush().await?;
-        let content = tokio::fs::read_to_string(&tmp).await?;
-        assert!(!content.is_empty());
-        // The 101 transaction should be recorded
-        let first_line = content.lines().next().unwrap();
-        let v: serde_json::Value = serde_json::from_str(first_line)?;
+        // The 101's commit is detached, like a streamed body's, so wait for the
+        // record rather than for 200ms and hope. The sleep this replaces was
+        // followed by a `flush()`, which cannot help: flushing writes what is
+        // already queued, and the question here is whether the relay task has
+        // queued anything yet.
+        let entries = read_captures_after_stream(&_cw, &tmp).await?;
+        let v = &entries[0];
         assert_eq!(v["response"]["status"].as_u64(), Some(101));
         assert_eq!(v["was_upgraded"].as_bool(), Some(true));
         assert_eq!(v["upgrade_protocol"].as_str(), Some("websocket"));

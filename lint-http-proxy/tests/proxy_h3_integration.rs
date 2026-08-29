@@ -180,6 +180,38 @@ async fn start_proxy_with_h3(
     })
 }
 
+/// Read the capture file once at least `want` record(s) have reached it,
+/// polling to a deadline rather than sleeping a guessed interval.
+///
+/// The two callers below used `sleep(200ms)`, which is two failures in one: it
+/// costs 200ms on a fast machine that was ready immediately, and it races on a
+/// loaded CI runner that was not. The writer flushes on its own schedule, so
+/// the only honest wait is for the record itself. Both sibling suites —
+/// `proxy_websocket_relay` and `proxy_upstream_h3_integration` — already do
+/// this; this file was the one left guessing.
+async fn read_captures_when_ready(
+    path: impl AsRef<std::path::Path>,
+    want: usize,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    let deadline = std::time::Instant::now() + startup_timeout();
+    loop {
+        let content = tokio::fs::read_to_string(path.as_ref())
+            .await
+            .unwrap_or_default();
+        let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
+        if lines.len() >= want {
+            return lines.iter().map(|l| Ok(serde_json::from_str(l)?)).collect();
+        }
+        if std::time::Instant::now() > deadline {
+            return Err(anyhow::anyhow!(
+                "timed out waiting for {want} capture record(s); saw {}",
+                lines.len()
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+}
+
 /// Send a single HTTP/3 GET request via quinn+h3, return status and body.
 ///
 /// The H3 connection driver is awaited before returning so no background tasks
@@ -317,15 +349,8 @@ async fn h3_happy_path_forwards_request_and_captures() -> anyhow::Result<()> {
     // x-custom should be forwarded (not a hop-by-hop header)
     assert!(headers.iter().any(|(k, v)| k == "x-custom" && v == "value"));
 
-    // Give captures time to flush
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    // Verify captures file
-    let content = tokio::fs::read_to_string(&captures_path).await?;
-    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert!(!lines.is_empty(), "captures file should not be empty");
-
-    let v: serde_json::Value = serde_json::from_str(lines[0])?;
+    let entries = read_captures_when_ready(&captures_path, 1).await?;
+    let v = &entries[0];
     assert_eq!(v["response"]["status"].as_u64(), Some(200));
     assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3.0"));
     // connection_id and sequence_number should be set
@@ -362,15 +387,10 @@ async fn h3_upstream_error_returns_502_and_records_transaction() -> anyhow::Resu
 
     assert_eq!(status, 502);
 
-    // Give captures time to flush
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    // The error transaction should still be recorded
-    let content = tokio::fs::read_to_string(&captures_path).await?;
-    let lines: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
-    assert!(!lines.is_empty(), "error transaction should be captured");
-
-    let v: serde_json::Value = serde_json::from_str(lines[0])?;
+    // The error transaction is still recorded, so waiting for one record is
+    // waiting for exactly the thing under test.
+    let entries = read_captures_when_ready(&captures_path, 1).await?;
+    let v = &entries[0];
     assert_eq!(v["response"]["status"].as_u64(), Some(502));
     assert_eq!(v["request"]["version"].as_str(), Some("HTTP/3.0"));
     assert!(v["connection_id"].as_str().is_some());
