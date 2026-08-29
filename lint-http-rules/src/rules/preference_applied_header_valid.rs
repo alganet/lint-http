@@ -4,8 +4,9 @@
 
 use crate::helpers::headers::{
     combined_field_value_as_written, list_members_as_written, parse_token_bws_word,
-    quoting_is_balanced, shown_in_finding, split_semicolons_respecting_quotes,
+    quoting_is_balanced, split_semicolons_respecting_quotes,
 };
+use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::Rule;
 use std::collections::HashMap;

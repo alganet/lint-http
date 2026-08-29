@@ -166,7 +166,7 @@ fn judge(direction: &str, value: &str) -> Option<String> {
     // The value is escaped into the message for the same reason a field value
     // is: a capture read back from another tool can hold octets that would
     // corrupt the finding rather than appear in it.
-    let shown = crate::helpers::headers::shown_in_finding(value);
+    let shown = crate::helpers::shown::shown_in_finding(value);
     Some(format!(
         "The {direction}'s HTTP version, '{shown}', is not an HTTP-version -- {why}. \
          The production is the name 'HTTP', a '/', a decimal digit, a '.', and a decimal \

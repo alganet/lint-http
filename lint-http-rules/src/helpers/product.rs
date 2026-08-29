@@ -16,7 +16,7 @@
 // cite(RFC 9110 § 10.2.4): "Each product identifier consists of a name and optional version, as defined in Section 10.1.5."
 
 use crate::helpers::comment::scan_comment;
-use crate::helpers::headers::describe_octet as describe;
+use crate::helpers::shown::describe_octet as describe;
 use crate::helpers::token::is_tchar_byte;
 
 /// Consume the `product` starting at `start`.

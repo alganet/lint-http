@@ -2,9 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{
-    combined_field_value_as_written, describe_char, shown_in_finding, trim_ows,
-};
+use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
+use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::uri::{
     authority_component, check_percent_encoding, find_non_uri_char, scheme_authority_marker,
     scheme_prefix, split_host_and_port, split_userinfo, validate_host_and_optional_port,

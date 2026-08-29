@@ -52,6 +52,7 @@ pub mod language;
 pub mod mailbox;
 pub mod product;
 pub mod rule_config;
+pub mod shown;
 pub mod status;
 pub mod structured_fields;
 pub mod token;

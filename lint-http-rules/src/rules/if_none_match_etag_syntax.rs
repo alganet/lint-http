@@ -109,7 +109,7 @@ impl Rule for IfNoneMatchEtagSyntax {
                         ctx.severity,
                         format!(
                             "If-None-Match header has invalid member '{}': {}",
-                            crate::helpers::headers::shown_in_finding(member),
+                            crate::helpers::shown::shown_in_finding(member),
                             msg
                         ),
                     ));

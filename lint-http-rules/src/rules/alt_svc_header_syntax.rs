@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, describe_char, list_members_as_written, quoting_is_balanced,
-    shown_in_finding, split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows,
-    unescape_quoted_string, WordDefect,
+    combined_field_value_as_written, list_members_as_written, quoting_is_balanced,
+    split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows, unescape_quoted_string,
+    WordDefect,
 };
+use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::lint::Violation;
 use crate::rules::Rule;
 
@@ -140,7 +141,7 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
     if let Some(c) = inner.chars().find(|c| !c.is_ascii()) {
         return Some(format!(
                 "Alt-Svc alternative '{shown}' has the octet {} inside its alt-authority. Every production the content derives from is US-ASCII, and an internationalized domain name here is written as A-labels",
-                crate::helpers::headers::describe_octet(c as u32 as u8)
+                crate::helpers::shown::describe_octet(c as u32 as u8)
             ));
     }
 

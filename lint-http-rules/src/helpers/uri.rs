@@ -340,7 +340,7 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
         if let Some(c) = find_non_uri_char(s_trim) {
             return Some(format!(
                 "Origin holds {}, which no part of a URI is composed from",
-                crate::helpers::headers::describe_char(c)
+                crate::helpers::shown::describe_char(c)
             ));
         }
         // The authority itself — host present, bracketed IPv6 well formed, port
