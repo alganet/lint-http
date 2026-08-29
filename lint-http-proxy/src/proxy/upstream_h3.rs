@@ -29,7 +29,7 @@ use std::collections::{HashMap, HashSet};
 use std::future::poll_fn;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Weak};
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -39,6 +39,7 @@ use http_body_util::BodyExt;
 use hyper::body::{Body, Frame};
 use hyper::http::uri::{PathAndQuery, Scheme};
 use hyper::{HeaderMap, Request, Response, Uri, Version};
+use parking_lot::Mutex;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::CertificateDer;
 use tracing::warn;
@@ -175,6 +176,19 @@ pub(super) struct H3UpstreamClient {
     response_timeout: Duration,
     /// Base backoff window for the negative cache.
     negative_ttl: Duration,
+    //
+    // The three maps below are `parking_lot::Mutex`, matching the stores in
+    // `lint-http-core`. They were `std::sync::Mutex` behind twelve
+    // `.lock().unwrap()`s, and the unwrap is the part that mattered: a panic
+    // anywhere under one of these locks poisons it, and every later acquisition
+    // panics too. A single bad request would have taken H3 upstream down for
+    // the life of the process, with each subsequent request re-panicking on a
+    // lock rather than on anything wrong with itself.
+    //
+    // parking_lot does not poison, so the failure mode after such a panic is a
+    // possibly-stale entry instead of a dead subsystem. For a negative cache, a
+    // discovery cache and a connection pool that is the right trade: every
+    // entry here is already expiring, evictable, or revalidated on use.
     /// Authorities whose H3 connect/handshake recently failed, suppressed from
     /// H3 attempts until their backoff window elapses.
     negative: Mutex<HashMap<String, NegEntry>>,
@@ -296,7 +310,7 @@ impl H3UpstreamClient {
         let Some(key) = normalize_authority(authority) else {
             return false;
         };
-        let map = self.negative.lock().unwrap();
+        let map = self.negative.lock();
         map.get(&key).is_some_and(|e| e.until > Instant::now())
     }
 
@@ -307,7 +321,7 @@ impl H3UpstreamClient {
             return;
         };
         let now = Instant::now();
-        let mut map = self.negative.lock().unwrap();
+        let mut map = self.negative.lock();
         if map.len() >= NEGATIVE_CACHE_CAP {
             map.retain(|_, e| e.until > now);
         }
@@ -330,7 +344,7 @@ impl H3UpstreamClient {
     /// exchange, so a recovered origin resumes H3 immediately.
     pub(super) fn record_success(&self, authority: &str) {
         if let Some(key) = normalize_authority(authority) {
-            self.negative.lock().unwrap().remove(&key);
+            self.negative.lock().remove(&key);
         }
     }
 
@@ -366,7 +380,7 @@ impl H3UpstreamClient {
 
     /// Return a fresh discovered H3 endpoint for `authority`, if any.
     fn discovered(&self, authority: &str) -> Option<(String, u16)> {
-        let map = self.discovery.lock().unwrap();
+        let map = self.discovery.lock();
         let entry = map.get(authority)?;
         if entry.expiry <= Instant::now() {
             return None;
@@ -393,14 +407,14 @@ impl H3UpstreamClient {
             let Ok(s) = hv.to_str() else { continue };
             match parse_alt_svc(s, origin_host) {
                 Some(AltSvc::Clear) => {
-                    self.discovery.lock().unwrap().remove(authority);
+                    self.discovery.lock().remove(authority);
                 }
                 Some(AltSvc::Advertise { endpoints, ma }) => {
                     let now = Instant::now();
                     let expiry = now
                         .checked_add(Duration::from_secs(ma))
                         .unwrap_or_else(|| now + Duration::from_secs(DEFAULT_ALT_SVC_MA_SECS));
-                    let mut map = self.discovery.lock().unwrap();
+                    let mut map = self.discovery.lock();
                     // Bound the map: drop stale mappings before admitting a new
                     // authority (refreshing an existing key never grows it).
                     if map.len() >= DISCOVERY_CACHE_CAP && !map.contains_key(authority) {
@@ -478,12 +492,12 @@ impl H3UpstreamClient {
         shared: &Arc<Shared>,
     ) -> anyhow::Result<(Arc<PooledConn>, bool)> {
         if !force_fresh {
-            let mut pool = self.pool.lock().unwrap();
+            let mut pool = self.pool.lock();
             if let Some(conn) = pool.get(&route.authority) {
-                let fresh = conn.last_used.lock().unwrap().elapsed() < self.pool_idle
-                    && !conn.driver.is_finished();
+                let fresh =
+                    conn.last_used.lock().elapsed() < self.pool_idle && !conn.driver.is_finished();
                 if fresh {
-                    *conn.last_used.lock().unwrap() = Instant::now();
+                    *conn.last_used.lock() = Instant::now();
                     tracing::debug!(authority = %route.authority, "h3 upstream reusing pooled connection");
                     return Ok((conn.clone(), true));
                 }
@@ -495,11 +509,11 @@ impl H3UpstreamClient {
         // connections to the same origin — acceptable (§3.3 is SHOULD NOT).
         tracing::debug!(authority = %route.authority, dial = %format!("{}:{}", route.dial_host, route.dial_port), "h3 upstream opening fresh connection");
         let conn = Arc::new(self.connect(route, shared).await?);
-        let mut pool = self.pool.lock().unwrap();
+        let mut pool = self.pool.lock();
         if pool.len() >= self.pool_max && !pool.contains_key(&route.authority) {
             if let Some(lru) = pool
                 .iter()
-                .min_by_key(|(_, c)| *c.last_used.lock().unwrap())
+                .min_by_key(|(_, c)| *c.last_used.lock())
                 .map(|(k, _)| k.clone())
             {
                 pool.remove(&lru);
@@ -513,7 +527,7 @@ impl H3UpstreamClient {
     /// `authority` (a newer replacement is left untouched). In-flight response
     /// bodies holding a clone keep it alive until they finish.
     fn invalidate(&self, authority: &str, conn: &Arc<PooledConn>) {
-        let mut pool = self.pool.lock().unwrap();
+        let mut pool = self.pool.lock();
         if pool.get(authority).is_some_and(|c| Arc::ptr_eq(c, conn)) {
             pool.remove(authority);
         }
@@ -524,15 +538,15 @@ impl H3UpstreamClient {
     /// to assert where those events land.
     #[cfg(test)]
     pub(super) fn pooled_connection_id(&self, authority: &str) -> Option<Uuid> {
-        Some(self.pool.lock().unwrap().get(authority)?.connection_id)
+        Some(self.pool.lock().get(authority)?.connection_id)
     }
 
     /// Evict pooled connections that are idle past `pool_idle` or whose driver
     /// has ended. Meant to be called periodically from the maintenance loop.
     pub(super) fn sweep_idle(&self) {
-        let mut pool = self.pool.lock().unwrap();
+        let mut pool = self.pool.lock();
         pool.retain(|_, c| {
-            c.last_used.lock().unwrap().elapsed() < self.pool_idle && !c.driver.is_finished()
+            c.last_used.lock().elapsed() < self.pool_idle && !c.driver.is_finished()
         });
     }
 
@@ -1299,7 +1313,7 @@ mod tests {
 
         // Force the entry's expiry into the past: it must no longer be consulted.
         {
-            let mut map = client.discovery.lock().unwrap();
+            let mut map = client.discovery.lock();
             let entry = map.get_mut(auth).unwrap();
             entry.expiry = Instant::now() - Duration::from_secs(1);
         }

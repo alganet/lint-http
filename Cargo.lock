@@ -1051,6 +1051,7 @@ dependencies = [
  "hyper-util",
  "lint-http-core",
  "lint-http-rules",
+ "parking_lot",
  "quinn",
  "rcgen",
  "rstest",
