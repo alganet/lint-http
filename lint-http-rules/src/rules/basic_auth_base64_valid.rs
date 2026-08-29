@@ -61,13 +61,16 @@ impl Rule for BasicAuthBase64Valid {
                             // Base64 alphabet, the ":" separator, control characters — is owned
                             // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
                             // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
-                            if let Err(msg) =
+                            if let Err(defect) =
                                 crate::helpers::auth::validate_basic_credentials(creds)
                             {
                                 return Some(self.cited(
                                     &RFC_7617_2,
                                     ctx.severity,
-                                    format!("Invalid Basic credentials: {} (RFC 7617)", msg),
+                                    format!(
+                                        "Invalid Basic credentials: {} (RFC 7617)",
+                                        defect.message()
+                                    ),
                                 ));
                             }
                         }
