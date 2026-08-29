@@ -768,7 +768,7 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
                     return Err(format!(
                         "writes hreflang='{}', which does not derive from Language-Tag: {}",
                         shown_in_finding(value),
-                        why
+                        why.message()
                     ));
                 }
             }

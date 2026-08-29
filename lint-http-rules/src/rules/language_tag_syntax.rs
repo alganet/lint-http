@@ -91,7 +91,7 @@ impl Rule for LanguageTagSyntax {
                     return Some(self.cited(
                         &RFC_9110_8_5_1,
                         ctx.severity,
-                        format!("Invalid language tag '{}' in {}: {}", tag, hdr, e),
+                        format!("Invalid language tag '{}' in {}: {}", tag, hdr, e.message()),
                     ));
                 }
                 None
