@@ -167,18 +167,18 @@ fn check_pragma_value(s: &str) -> Option<String> {
             // The `( token / quoted-string )` alternation is read by the shared
             // helper that owns it; what stays here is what this field says about
             // each answer.
-            match crate::helpers::headers::token_or_quoted_string(vpart) {
+            match crate::helpers::word::token_or_quoted_string(vpart) {
                 Ok(_) => {}
                 // A bare `directive=` (the `=` present with no value) is more permissive than the
                 // grammar, which requires a `token` or `quoted-string` after `=`; accepted as a
                 // deliberate tolerance for this deprecated field. Written as an
                 // arm rather than as a pre-check, because it is a verdict this
                 // rule reaches and not a step of reading the value.
-                Err(crate::helpers::headers::WordDefect::Empty) => continue,
-                Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
+                Err(crate::helpers::word::WordDefect::Empty) => continue,
+                Err(crate::helpers::word::WordDefect::NotQuotedString(e)) => {
                     return Some(format!("Invalid quoted-string in directive value: {}", e));
                 }
-                Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
+                Err(crate::helpers::word::WordDefect::NotToken(c)) => {
                     return Some(format!(
                         "Directive value contains invalid character: '{}'",
                         c

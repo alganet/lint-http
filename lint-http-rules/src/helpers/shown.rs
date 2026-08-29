@@ -67,7 +67,7 @@ pub fn shown_in_finding(s: &str) -> String {
 
 /// [`describe_octet`] for a `char` that came from an octet.
 ///
-/// Every input to [`parse_token_bws_word`](crate::helpers::headers::parse_token_bws_word)
+/// Every input to [`parse_token_bws_word`](crate::helpers::word::parse_token_bws_word)
 /// is one `char` per octet, so the cast
 /// is exact; the fallback exists only so a caller that decoded some other way
 /// still gets a finding rather than a panic.

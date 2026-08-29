@@ -86,7 +86,7 @@ pub fn quoted_string_interior(val: &str) -> Option<&str> {
 
 /// What a `quoted-string`'s interior can fail to be.
 ///
-/// Data rather than a sentence for the same reason [`WordDefect`](crate::helpers::headers::WordDefect) is: the two
+/// Data rather than a sentence for the same reason [`WordDefect`](crate::helpers::word::WordDefect) is: the two
 /// functions that read this interior word their failures against the whole
 /// value, and the walk sees only the inside of it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

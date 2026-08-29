@@ -220,7 +220,7 @@ impl Rule for AcceptAndContentTypeNegotiation {
                 // cite(RFC 9110 § 12.4.2): "The weight is normalized to a real number in the range 0 through 1, where 0.001 is the least preferred and 1 is the most preferred; a value of 0 means "not acceptable"."
                 // cite(RFC 9110 § 12.4.2): "If no "q" parameter is present, the default weight is 1."
                 if let Some(q) = qval {
-                    if crate::helpers::headers::valid_qvalue(q)
+                    if crate::helpers::qvalue::valid_qvalue(q)
                         && q.parse::<f32>().is_ok_and(|n| n == 0.0)
                     {
                         continue;

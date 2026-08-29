@@ -139,7 +139,7 @@ impl Rule for AcceptLanguageWeightValid {
                         };
 
                         // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
-                        if !crate::helpers::headers::valid_qvalue(val) {
+                        if !crate::helpers::qvalue::valid_qvalue(val) {
                             return Some(self.cited(
                                 &RFC_9110_12_4_2,
                                 ctx.severity,

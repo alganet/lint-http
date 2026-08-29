@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{combined_field_value_as_written, trim_ows, valid_qvalue};
+use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::{list_members_as_written, split_semicolons_respecting_quotes};
 use crate::helpers::quoted_string::validate_quoted_string;
+use crate::helpers::qvalue::valid_qvalue;
 use crate::lint::Violation;
 use crate::rules::Rule;
 
@@ -174,7 +175,8 @@ impl TeHeaderValid {
         // cite(RFC 9110 § 10.1.4): "A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field."
         // cite(RFC 9112 § 7.4): "Since the TE header field only applies to the immediate connection, a sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1 of [HTTP]) in order to prevent the TE header field from being forwarded by intermediaries that do not support its semantics."
         let connection = combined_field_value_as_written(&tx.request.headers, "connection");
-        if crate::helpers::headers::is_nominated_by_connection("te", connection.as_deref()) {
+        if crate::helpers::field_placement::is_nominated_by_connection("te", connection.as_deref())
+        {
             return None;
         }
 
@@ -933,7 +935,7 @@ mod tests {
     #[case("0.1234", false)]
     #[case(" 0.5 ", true)]
     fn check_qvalue_cases(#[case] s: &str, #[case] expected: bool) {
-        assert_eq!(crate::helpers::headers::valid_qvalue(s), expected);
+        assert_eq!(crate::helpers::qvalue::valid_qvalue(s), expected);
     }
 
     /// Nothing ran a published snippet through the rule that published it, and one of

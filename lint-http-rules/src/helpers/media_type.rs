@@ -17,8 +17,9 @@
 //! separate because a caller reporting on a registered type and a caller
 //! reporting on a malformed one want different sentences from the same value.
 
-use crate::helpers::headers::{token_or_quoted_string, trim_ows, WordDefect};
+use crate::helpers::headers::trim_ows;
 use crate::helpers::parameter::{parameters, ParameterDefect};
+use crate::helpers::word::{token_or_quoted_string, WordDefect};
 
 /// Represents a parsed Media Type (e.g. "text/html; charset=utf-8").
 #[derive(Debug, PartialEq, Eq)]

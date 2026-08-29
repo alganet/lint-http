@@ -166,7 +166,7 @@ impl Rule for ContentDispositionParameterValid {
                         // ext-value, whose grammar `validate_ext_value` owns. The pointer
                         // here said RFC 5987; RFC 8187 obsoletes it and moved it to
                         // Historic, though the production itself is byte-for-byte the same.
-                        if let Err(e) = crate::helpers::headers::validate_ext_value(val) {
+                        if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
                             return Some(self.violation(
                                 ctx.severity,
                                 format!("{} filename* extended value invalid: {}", hdr_name, e),
@@ -204,7 +204,7 @@ impl Rule for ContentDispositionParameterValid {
                         // Generic parameter: value should be token or quoted-string; ext-parameters already handled
                         if is_ext {
                             // extended parameter value must be ext-value
-                            if let Err(e) = crate::helpers::headers::validate_ext_value(val) {
+                            if let Err(e) = crate::helpers::parameter::validate_ext_value(val) {
                                 return Some(self.violation(
                                     ctx.severity,
                                     format!(
