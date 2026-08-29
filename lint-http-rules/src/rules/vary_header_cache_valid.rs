@@ -184,8 +184,8 @@ impl Rule for VaryHeaderCacheValid {
             // is the one answer all three rules that ask this now share.
             //
             // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
-            let crate::helpers::headers::VaryNomination::Fields(vary_fields) =
-                crate::helpers::headers::vary_nomination(&past.response.as_ref().unwrap().headers)
+            let crate::helpers::vary::VaryNomination::Fields(vary_fields) =
+                crate::helpers::vary::vary_nomination(&past.response.as_ref().unwrap().headers)
             else {
                 return None;
             };

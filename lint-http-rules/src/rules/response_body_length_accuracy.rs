@@ -68,7 +68,7 @@ impl Rule for ResponseBodyLengthAccuracy {
             // this rule declines and the syntax rule reports.
             // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
             let declared =
-                crate::helpers::headers::validate_content_length(&resp.headers).ok()??;
+                crate::helpers::content_length::validate_content_length(&resp.headers).ok()??;
 
             // § 6.3's list is in precedence order, and the first two items are
             // about responses that cannot carry a body at all. This rule started at

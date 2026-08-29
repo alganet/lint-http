@@ -154,7 +154,7 @@ impl Rule for Status200Vs204BodyConsistent {
             if !resp.headers.contains_key("transfer-encoding") {
                 // cite(RFC 9112 § 6.3): "If a valid Content-Length header field is present without Transfer-Encoding, its decimal value defines the expected message body length in octets."
                 // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
-                match crate::helpers::headers::validate_content_length(&resp.headers) {
+                match crate::helpers::content_length::validate_content_length(&resp.headers) {
                     // Zero octets, said by the sender rather than counted by the capture.
                     Ok(Some(0)) => return Some(self.report(ctx.severity, "Content-Length: 0")),
                     // A declared length above zero is content, and the expectation quoted

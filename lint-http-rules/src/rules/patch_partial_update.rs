@@ -109,7 +109,7 @@ impl Rule for PatchPartialUpdate {
             // count first, falling back to the sender's declared length only where
             // nothing was captured.
             // cite(RFC 9110 § 8.3): "A sender that generates a message containing content SHOULD generate a Content-Type header field in that message unless the intended media type of the enclosed representation is unknown to the sender."
-            let evidence = crate::helpers::headers::content_evidence(
+            let evidence = crate::helpers::content_length::content_evidence(
                 &tx.request.headers,
                 tx.request.body_length,
             )?;

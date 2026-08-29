@@ -33,7 +33,7 @@ pub struct RequestVersionMethodValid;
 // is § 6.4's octet stream, measured once for every rule that asks this
 // question — `trace_method_echo` asks it of the same paragraph family.
 fn request_carries_content(req: &crate::http_transaction::RequestInfo) -> bool {
-    crate::helpers::headers::content_evidence(&req.headers, req.body_length).is_some()
+    crate::helpers::content_length::content_evidence(&req.headers, req.body_length).is_some()
 }
 
 /// Whether the request message declares content in its header section.
@@ -46,7 +46,8 @@ fn request_carries_content(req: &crate::http_transaction::RequestInfo) -> bool {
 // cite(RFC 9110 § 9.3.6): "The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use."
 fn request_declares_content(req: &crate::http_transaction::RequestInfo) -> bool {
     req.headers.contains_key("transfer-encoding")
-        || crate::helpers::headers::declared_content_length(&req.headers).is_some_and(|n| n > 0)
+        || crate::helpers::content_length::declared_content_length(&req.headers)
+            .is_some_and(|n| n > 0)
 }
 
 /// The specification references this rule declares, each named so a finding
