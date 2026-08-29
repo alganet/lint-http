@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, list_members_as_written, quoting_is_balanced,
-    response_field_sections, split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows,
+    combined_field_value_as_written, response_field_sections, token_or_quoted_string, trim_ows,
     WordDefect,
+};
+use crate::helpers::list::{
+    list_members_as_written, quoting_is_balanced, split_semicolons_respecting_quotes,
 };
 use crate::helpers::quoted_string::quoted_string_end;
 use crate::helpers::shown::{describe_char, shown_in_finding};

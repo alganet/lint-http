@@ -90,7 +90,7 @@ fn normalized_media_type(val: &str) -> Option<String> {
 fn advertised_formats(headers: &hyper::HeaderMap) -> Option<Vec<String>> {
     let joined = crate::helpers::headers::combined_field_value_as_written(headers, "accept-patch")?;
     Some(
-        crate::helpers::headers::split_commas_respecting_quotes(&joined)
+        crate::helpers::list::split_commas_respecting_quotes(&joined)
             .into_iter()
             .filter_map(normalized_media_type)
             .collect(),

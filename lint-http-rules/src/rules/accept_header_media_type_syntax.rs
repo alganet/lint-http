@@ -79,7 +79,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                 // quoted-string the splitting had just created. An unbalanced quote
                 // is still reported, and reported here: this is the rule that owns
                 // a malformed Accept, so it names the defect rather than declining.
-                for member in crate::helpers::headers::split_commas_respecting_quotes(val) {
+                for member in crate::helpers::list::split_commas_respecting_quotes(val) {
                     // An empty list element is legal for a recipient to ignore, and
                     // ignoring it is all this rule does with it. The production
                     // brackets each element, so `a, , b` conforms.
@@ -91,7 +91,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                     // Quote-aware for the same reason: a `;` inside a quoted value
                     // does not start a parameter.
                     let mut parts =
-                        crate::helpers::headers::split_semicolons_respecting_quotes(member)
+                        crate::helpers::list::split_semicolons_respecting_quotes(member)
                             .into_iter();
                     // `OWS`, not `str::trim`: the `;` this split on prints `OWS`
                     // around it and nothing wider, and on a value read one `char`

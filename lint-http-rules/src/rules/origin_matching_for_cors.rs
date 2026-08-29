@@ -86,7 +86,7 @@ impl Rule for OriginMatchingForCors {
             // Now we have exactly one header field; validate its value semantics
             let acao_raw = acao_values[0].trim();
             // Must be a single value (not a comma-separated list)
-            let members: Vec<String> = crate::helpers::headers::list_members(acao_raw)
+            let members: Vec<String> = crate::helpers::list::list_members(acao_raw)
                 .map(|m| m.to_string())
                 .collect();
             if members.len() != 1 {

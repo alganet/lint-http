@@ -308,7 +308,7 @@ impl Rule for HeadResponseHeadersMatchGet {
                             // about what was advertised; a sender that writes
                             // `Accept, , Accept-Encoding` is `vary_header_valid`'s.
                             let members = |v: &str| {
-                                let mut m: Vec<String> = crate::helpers::headers::list_members(v)
+                                let mut m: Vec<String> = crate::helpers::list::list_members(v)
                                     .map(|s| s.to_ascii_lowercase())
                                     .collect();
                                 m.sort_unstable();

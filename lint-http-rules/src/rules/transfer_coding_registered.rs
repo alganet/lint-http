@@ -129,7 +129,7 @@ impl Rule for TransferCodingRegistered {
                 // `Transfer-Encoding` no such rule exists, and silence here would
                 // be the whole of the answer.
                 // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
-                if !crate::helpers::headers::quoting_is_balanced(val) {
+                if !crate::helpers::list::quoting_is_balanced(val) {
                     return Some(TransferCodingRegistered.violation(
                         ctx.severity,
                         format!(
@@ -147,7 +147,7 @@ impl Rule for TransferCodingRegistered {
                 // yielded a second "member" of `b"`, whose closing DQUOTE is not a
                 // `tchar`, and the rule reported a conforming field.
                 // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-                for part in crate::helpers::headers::split_commas_respecting_quotes(val) {
+                for part in crate::helpers::list::split_commas_respecting_quotes(val) {
                     // `#element` admits empty members, and they are not elements.
                     // `list_members` drops these; the quote-aware splitter does not,
                     // so the filter moves here with its licence.
@@ -259,10 +259,9 @@ impl Rule for TransferCodingRegistered {
                         .iter()
                         .any(|c| token.eq_ignore_ascii_case(c))
                     {
-                        for param in
-                            crate::helpers::headers::split_semicolons_respecting_quotes(part)
-                                .into_iter()
-                                .skip(1)
+                        for param in crate::helpers::list::split_semicolons_respecting_quotes(part)
+                            .into_iter()
+                            .skip(1)
                         {
                             let param = param.trim();
                             if param.is_empty() {

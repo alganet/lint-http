@@ -2,10 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{
-    combined_field_value_as_written, parse_token_bws_word, split_semicolons_respecting_quotes,
-    trim_ows,
-};
+use crate::helpers::headers::{combined_field_value_as_written, parse_token_bws_word, trim_ows};
+use crate::helpers::list::split_semicolons_respecting_quotes;
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::uri::{find_non_uri_char, validate_scheme_name};
 use crate::lint::Violation;
@@ -550,7 +548,7 @@ fn validate_link(value: &str, is_response: bool) -> Result<(), String> {
 /// does not have to know where a member begins.
 ///
 /// **Written here rather than beside
-/// [`split_commas_respecting_quotes`](crate::helpers::headers::split_commas_respecting_quotes),
+/// [`split_commas_respecting_quotes`](crate::helpers::list::split_commas_respecting_quotes),
 /// and that is a decision rather than a deferral.** This is the only field in
 /// the tree whose members are bracketed, and the one other value that carries a
 /// bracketed sub-production — `From`, whose `mailbox` may take the `name-addr`

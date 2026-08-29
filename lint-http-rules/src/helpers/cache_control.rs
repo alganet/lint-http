@@ -27,7 +27,8 @@
 // cite(RFC 9111 § 5.2): "Cache directives are identified by a token, to be compared case-insensitively"
 // cite(RFC 9111 § 5.2): "cache-directive  = token [ "=" ( token / quoted-string ) ]"
 
-use crate::helpers::headers::{split_top_level, trim_ows};
+use crate::helpers::headers::trim_ows;
+use crate::helpers::list::split_top_level;
 use hyper::HeaderMap;
 
 /// One `cache-directive`: a name, and the argument it carries if any.

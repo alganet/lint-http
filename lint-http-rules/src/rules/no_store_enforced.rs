@@ -116,7 +116,7 @@ impl Rule for NoStoreEnforced {
             // dictates that multiple header fields are concatenated with commas, and
             // HeaderMap.get_all() returns all values in order.
             for s in crate::helpers::headers::field_lines(&tx.request.headers, "if-none-match") {
-                for member in crate::helpers::headers::list_members(s) {
+                for member in crate::helpers::list::list_members(s) {
                     let normalized = crate::helpers::headers::normalize_etag(member);
                     // A validator echoed back from a no-store response is proof the client
                     // stored the thing it was told not to store.

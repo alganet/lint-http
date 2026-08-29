@@ -86,7 +86,7 @@ impl Rule for CacheValidationChain {
             // cite(RFC 9110 § 13.1.2): "The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*""
             let inm_lines = || crate::helpers::headers::field_lines(&req.headers, "if-none-match");
             if inm_lines()
-                .flat_map(crate::helpers::headers::split_commas_respecting_quotes)
+                .flat_map(crate::helpers::list::split_commas_respecting_quotes)
                 .any(|member| member == "*")
             {
                 return None;

@@ -33,7 +33,7 @@ use crate::helpers::shown::shown_in_finding;
 /// they can look at what follows. [`validate_quoted_string`] judges a slice
 /// someone else has already cut, which is the question after this one.
 ///
-/// The escape rule is the splitters' and [`quoting_is_balanced`](crate::helpers::headers::quoting_is_balanced)'s: a backslash
+/// The escape rule is the splitters' and [`quoting_is_balanced`](crate::helpers::list::quoting_is_balanced)'s: a backslash
 /// inside the string suppresses the next octet. Both call sites had transcribed
 /// this loop by hand, identically, which is two copies of a decision that has to
 /// agree with three other functions in this file.

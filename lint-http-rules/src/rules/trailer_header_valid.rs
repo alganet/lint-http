@@ -16,7 +16,8 @@ use crate::rules::Rule;
 #[derive(Debug, Clone)]
 pub struct TrailerHeaderValid;
 
-use crate::helpers::headers::{combined_field_value_as_written, sender_list_members, trim_ows};
+use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
+use crate::helpers::list::sender_list_members;
 
 impl TrailerHeaderValid {
     /// One field section: its `Trailer` list, measured against its own `Connection`.
@@ -558,7 +559,7 @@ mod tests {
             let announced: Vec<&str> = pairs
                 .iter()
                 .filter(|(k, _)| k.eq_ignore_ascii_case("trailer"))
-                .flat_map(|(_, v)| crate::helpers::headers::list_members(v))
+                .flat_map(|(_, v)| crate::helpers::list::list_members(v))
                 .collect();
             if announced.is_empty() {
                 continue;

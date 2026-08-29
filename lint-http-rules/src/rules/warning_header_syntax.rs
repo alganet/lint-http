@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{combined_field_value_as_written, list_members_as_written, trim_ows};
+use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
+use crate::helpers::list::list_members_as_written;
 use crate::helpers::quoted_string::{
     quoted_string_end, unescape_quoted_string, validate_quoted_string,
 };

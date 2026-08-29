@@ -240,7 +240,7 @@ impl NoConnectionSpecificFields {
         // cite(RFC 9110 § A, label: t-codings): "t-codings = "trailers" / ( transfer-coding [ weight ] )"
         // cite(RFC 9110 § A): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
         // cite(RFC 5234 § 2.3): "ABNF strings are case insensitive and the character set for these strings is US-ASCII."
-        let member = crate::helpers::headers::list_members_as_written(&value)
+        let member = crate::helpers::list::list_members_as_written(&value)
             .into_iter()
             .filter(|member| !member.is_empty())
             .find(|member| !member.eq_ignore_ascii_case("trailers"))?;

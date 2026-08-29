@@ -89,7 +89,7 @@ impl Rule for FormDataContentDispositionValid {
 
                 let mut name_found = false;
                 for raw_param in
-                    crate::helpers::headers::split_semicolons_respecting_quotes(params_part)
+                    crate::helpers::list::split_semicolons_respecting_quotes(params_part)
                 {
                     let p = raw_param.trim();
                     if p.is_empty() {
@@ -141,7 +141,7 @@ impl Rule for FormDataContentDispositionValid {
                 // exactly what the broken quoting makes unknowable, and this is a
                 // claim about absence. A name the scan did find is judged above and
                 // needs no such gate.
-                if !name_found && crate::helpers::headers::quoting_is_balanced(params_part) {
+                if !name_found && crate::helpers::list::quoting_is_balanced(params_part) {
                     return Some(self.violation(
                         ctx.severity,
                         "Content-Disposition: 'form-data' missing 'name' parameter".into(),

@@ -89,7 +89,7 @@ impl Rule for CompressionAndTransferEncodingConsistent {
             let mut ce_set = std::collections::HashSet::new();
             for hv in headers.get_all("content-encoding").iter() {
                 let s = decode(hv);
-                for part in crate::helpers::headers::list_members(&s) {
+                for part in crate::helpers::list::list_members(&s) {
                     // Nothing in this field's grammar sits behind a `;`, so this
                     // strips something that cannot legally be there. It is kept as
                     // a deliberate tolerance: a sender writing `gzip;q=1.0` here
@@ -130,7 +130,7 @@ impl Rule for CompressionAndTransferEncodingConsistent {
             let mut te_set = std::collections::HashSet::new();
             for hv in headers.get_all("transfer-encoding").iter() {
                 let s = decode(hv);
-                for part in crate::helpers::headers::split_commas_respecting_quotes(&s) {
+                for part in crate::helpers::list::split_commas_respecting_quotes(&s) {
                     // `OWS` for the same reason as the `Content-Encoding` loop
                     // above, and this production prints it: the whitespace around
                     // the `;` is `OWS` and nothing wider.

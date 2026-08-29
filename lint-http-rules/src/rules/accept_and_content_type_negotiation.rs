@@ -153,7 +153,7 @@ impl Rule for AcceptAndContentTypeNegotiation {
             // `tchar` in an unquoted parameter value — so nothing conforming is
             // lost, and `accept_header_media_type_syntax` is the rule that
             // reports the malformed header.
-            if !crate::helpers::headers::quoting_is_balanced(accept) {
+            if !crate::helpers::list::quoting_is_balanced(accept) {
                 return None;
             }
             // Quote-aware, because a comma inside a quoted parameter value is not a
@@ -161,7 +161,7 @@ impl Rule for AcceptAndContentTypeNegotiation {
             // pieces as members of their own, so `text/plain;foo="a,image/png,b"` —
             // which accepts `text/plain` and nothing else — was read as accepting
             // `image/png` too, and a response nobody asked for went unreported.
-            for member in crate::helpers::headers::split_commas_respecting_quotes(accept) {
+            for member in crate::helpers::list::split_commas_respecting_quotes(accept) {
                 if member.is_empty() {
                     continue;
                 }
@@ -172,7 +172,7 @@ impl Rule for AcceptAndContentTypeNegotiation {
                 // weight and the member declared unacceptable, when the member has
                 // no weight at all and accepts everything it names.
                 let mut parts =
-                    crate::helpers::headers::split_semicolons_respecting_quotes(member).into_iter();
+                    crate::helpers::list::split_semicolons_respecting_quotes(member).into_iter();
                 let media = match parts.next() {
                     Some(m) => m,
                     None => continue,

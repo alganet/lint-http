@@ -190,7 +190,7 @@ impl Rule for TrailerFieldsValid {
 fn collect_declared_trailers(headers: &hyper::HeaderMap) -> Option<Vec<String>> {
     let value = crate::helpers::headers::combined_field_value_as_written(headers, "trailer")?;
     Some(
-        crate::helpers::headers::list_members(&value)
+        crate::helpers::list::list_members(&value)
             .map(|member| member.to_ascii_lowercase())
             .collect(),
     )

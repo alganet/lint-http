@@ -135,7 +135,7 @@ impl Rule for LanguageTagSyntax {
             let content_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
                 for hv in headers.get_all("content-language").iter() {
                     let val = decode(hv);
-                    for token in crate::helpers::headers::list_members(&val) {
+                    for token in crate::helpers::list::list_members(&val) {
                         if let Some(v) = check_tag("Content-Language", token) {
                             return Some(v);
                         }
@@ -147,7 +147,7 @@ impl Rule for LanguageTagSyntax {
             let accept_language = |headers: &hyper::HeaderMap| -> Option<Violation> {
                 for hv in headers.get_all("accept-language").iter() {
                     let val = decode(hv);
-                    for member in crate::helpers::headers::list_members(&val) {
+                    for member in crate::helpers::list::list_members(&val) {
                         // The weight is stripped rather than checked; whether it is
                         // a weight at all is `accept_language_weight_valid`'s
                         // subject, and this rule reads only the range in front of it.

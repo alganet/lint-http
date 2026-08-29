@@ -129,7 +129,7 @@ impl Rule for XContentTypeOptionsPresent {
             let content_type_header =
                 crate::helpers::headers::get_header_str(&resp.headers, "content-type").and_then(
                     |s| {
-                        crate::helpers::headers::parse_semicolon_list(s)
+                        crate::helpers::list::parse_semicolon_list(s)
                             .next()
                             .map(|v| v.to_ascii_lowercase())
                     },

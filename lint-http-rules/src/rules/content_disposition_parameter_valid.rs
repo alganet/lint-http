@@ -78,9 +78,7 @@ impl Rule for ContentDispositionParameterValid {
                 // Track parameter names (case-insensitive) to detect duplicates
                 let mut seen: HashSet<String> = HashSet::new();
 
-                for p_raw in
-                    crate::helpers::headers::split_semicolons_respecting_quotes(params_part)
-                {
+                for p_raw in crate::helpers::list::split_semicolons_respecting_quotes(params_part) {
                     let p = p_raw.trim();
                     if p.is_empty() {
                         continue;

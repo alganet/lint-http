@@ -77,7 +77,7 @@ impl Rule for CrossOriginOpenerPolicyValid {
             };
 
             // Must not be a comma-separated list
-            if crate::helpers::headers::list_members(val).count() != 1 {
+            if crate::helpers::list::list_members(val).count() != 1 {
                 return Some(self.violation(
                     ctx.severity,
                     "Cross-Origin-Opener-Policy must be a single value".into(),

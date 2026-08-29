@@ -214,7 +214,7 @@ impl Rule for MediaTypeSuffixValid {
             //
             // The message even carried the stray quote, which is the tell.
             for ah in values(&tx.request.headers, "accept") {
-                for part in crate::helpers::headers::split_commas_respecting_quotes(&ah) {
+                for part in crate::helpers::list::split_commas_respecting_quotes(&ah) {
                     let p = part;
                     if p.is_empty() {
                         continue;

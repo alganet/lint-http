@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{
-    combined_field_value_as_written, list_members_as_written, parse_token_bws_word,
-    quoting_is_balanced, split_semicolons_respecting_quotes,
+use crate::helpers::headers::{combined_field_value_as_written, parse_token_bws_word};
+use crate::helpers::list::{
+    list_members_as_written, quoting_is_balanced, split_semicolons_respecting_quotes,
 };
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;

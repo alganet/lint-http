@@ -69,7 +69,7 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
                         return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin header contains non-ASCII or control characters".into()))
                     }
                 };
-                for token in crate::helpers::headers::list_members(s) {
+                for token in crate::helpers::list::list_members(s) {
                     if token == "*" {
                         acao_has_star = true;
                         break;
