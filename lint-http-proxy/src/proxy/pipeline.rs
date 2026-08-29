@@ -42,17 +42,27 @@ pub(super) struct TransactionPipeline {
 impl TransactionPipeline {
     /// Lint `tx` (populating `tx.violations`), record it to state, then write
     /// it to the capture file — in that order. Consumes the transaction so it
-    /// cannot be re-committed or mutated after capture; returns the
-    /// violations for callers that need them.
-    pub(super) async fn commit(&self, mut tx: HttpTransaction) -> Vec<Violation> {
+    /// cannot be re-committed or mutated after capture.
+    ///
+    /// Returns nothing, and that is the point. This used to hand back a clone
+    /// of `tx.violations`, taken here because the transaction moves into the
+    /// writer on the next line — a full `Vec<Violation>` deep-copied on every
+    /// transaction the proxy handles. No caller ever read it: all four
+    /// production call sites invoke this in statement position, and the two
+    /// that wanted the findings were tests, which now read them from the two
+    /// places `commit` actually puts them.
+    ///
+    /// The violations remain available where they belong: on the recorded
+    /// transaction in the [`StateStore`], and in the capture line. A caller
+    /// needing them for a *response* has the transaction before it commits.
+    ///
+    /// [`StateStore`]: crate::state::StateStore
+    pub(super) async fn commit(&self, mut tx: HttpTransaction) {
         tx.violations = self.engine.lint_transaction(&tx, &self.state);
         self.state.record_transaction(&tx);
-        // Extract violations before moving the transaction into the writer.
-        let violations = tx.violations.clone();
         if let Err(e) = self.captures.write_transaction(tx).await {
             warn!(error = %e, "failed to write transaction capture");
         }
-        violations
     }
 }
 
@@ -139,17 +149,19 @@ mod tests {
         let (shared, tmp, cw) = make_shared_with_cfg(Arc::new(cfg_inner), None, &mut temp).await?;
 
         let tx = make_test_transaction_with_response(200, &[]);
-        let violations = shared.pipeline().commit(tx).await;
+        shared.pipeline().commit(tx).await;
 
-        assert!(!violations.is_empty());
-
+        // Read the findings from the capture rather than from a return value:
+        // the capture line is where `commit` puts them, so asserting on it
+        // checks the thing the proxy actually produces. Both enabled rules fire
+        // on a 200 carrying neither `Cache-Control` nor a validator.
         cw.flush().await?;
         let entries = read_capture(&tmp).await?;
         assert_eq!(entries.len(), 1);
         let captured = entries[0]["violations"]
             .as_array()
             .expect("violations array in capture");
-        assert_eq!(captured.len(), violations.len());
+        assert_eq!(captured.len(), 2);
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())
@@ -167,13 +179,14 @@ mod tests {
         let tx = make_test_transaction_with_response(200, &[]);
         let client = tx.client.clone();
         let uri = tx.request.uri.clone();
-        let violations = shared.pipeline().commit(tx).await;
+        shared.pipeline().commit(tx).await;
 
         // The recorded copy carries the lint result, proving record ran
-        // after lint populated `tx.violations`.
+        // after lint populated `tx.violations`. A recorded transaction with an
+        // empty `violations` would be the ordering bug this test exists for.
         let history = shared.state.get_history(&client, &uri);
         assert_eq!(history.len(), 1);
-        assert_eq!(history[0].violations.len(), violations.len());
+        assert_eq!(history[0].violations.len(), 2);
 
         let _ = fs::remove_file(&tmp).await;
         Ok(())

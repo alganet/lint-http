@@ -33,9 +33,10 @@ where
     if req.method() == Method::CONNECT {
         if shared.ca.is_some() {
             let uri = req.uri().clone();
-            let shared = shared.clone();
-            let conn_metadata = conn_metadata.clone();
-
+            // `shared` and `conn_metadata` are owned `Arc`s and this branch
+            // returns, so the task takes them rather than a second handle to
+            // each. They were cloned here only because the surrounding function
+            // goes on to use them — down a path this branch never reaches.
             tokio::task::spawn(async move {
                 match hyper::upgrade::on(req).await {
                     Ok(upgraded) => {
