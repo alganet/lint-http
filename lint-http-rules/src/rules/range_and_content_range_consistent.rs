@@ -296,7 +296,7 @@ impl Rule for RangeAndContentRangeConsistent {
                     Err(e) => {
                         return Some(self.violation(
                             config.severity,
-                            format!("Invalid Content-Range header '{}': {}", cr, e),
+                            format!("Invalid Content-Range header '{}': {}", cr, e.message()),
                         ));
                     }
                 }
@@ -361,7 +361,7 @@ impl Rule for RangeAndContentRangeConsistent {
                         return Some(self.cited(
                             &RFC_9110_14_4,
                             config.severity,
-                            format!("Invalid Content-Range header '{}': {}", cr, e),
+                            format!("Invalid Content-Range header '{}': {}", cr, e.message()),
                         ));
                     }
                 }

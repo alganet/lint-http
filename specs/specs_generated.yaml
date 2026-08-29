@@ -6249,7 +6249,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 52
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 79
+      line: 220
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 47
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
@@ -6267,7 +6267,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 103
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 80
+      line: 221
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 301
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -6547,7 +6547,7 @@ sources:
     snippet: In the byte-range syntax, first-pos, last-pos, and suffix-length are expressed as decimal number of octets.  Since there is no predefined limit to the length of content, recipients MUST anticipate potentially large decimal numerals and prevent parsing errors due to integer conversion overflows.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 197
+      line: 338
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 386
   - label: lint-http-rules/src/helpers/content_range.rs (4)
@@ -6555,15 +6555,15 @@ sources:
     snippet: A Content-Range field value is invalid if it contains a range-resp that has a last-pos value less than its first-pos value, or a complete-length value less than or equal to its last-pos value.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 149
+      line: 283
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 165
+      line: 299
   - label: Content-Range grammar
     section: § 14.4
     snippet: Content-Range = range-unit SP ( range-resp / unsatisfied-range )
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 97
+      line: 236
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 36
   - label: lint-http-rules/src/helpers/content_range.rs (5)
@@ -6571,33 +6571,33 @@ sources:
     snippet: complete-length = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 121
+      line: 258
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 196
+      line: 337
   - label: lint-http-rules/src/helpers/content_range.rs (6)
     section: § 14.4
     snippet: incl-range = first-pos "-" last-pos
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 132
+      line: 268
   - label: lint-http-rules/src/helpers/content_range.rs (7)
     section: § 14.4
     snippet: range-resp = incl-range "/" ( complete-length / "*" )
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 131
+      line: 267
   - label: lint-http-rules/src/helpers/content_range.rs (8)
     section: § 14.4
     snippet: unsatisfied-range = "*/" complete-length
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 114
+      line: 251
   - label: lint-http-rules/src/helpers/content_range.rs (9)
     section: § 5.5
     snippet: A field value does not include leading or trailing whitespace.
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
-      line: 98
+      line: 237
     - file: lint-http-rules/src/helpers/product.rs
       line: 69
     - file: lint-http-rules/src/rules/host_header.rs
