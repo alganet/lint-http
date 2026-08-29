@@ -92,7 +92,7 @@ impl Rule for NoStoreEnforced {
                 let is_no_store = header_has_no_store(&resp.headers);
 
                 if let Some(etag) = crate::helpers::headers::get_header_str(&resp.headers, "etag") {
-                    let normalized = crate::helpers::headers::normalize_etag(etag);
+                    let normalized = crate::helpers::validator::normalize_etag(etag);
                     if seen_etags.insert(normalized.clone()) && is_no_store {
                         no_store_etags.insert(normalized);
                     }
@@ -117,7 +117,7 @@ impl Rule for NoStoreEnforced {
             // HeaderMap.get_all() returns all values in order.
             for s in crate::helpers::headers::field_lines(&tx.request.headers, "if-none-match") {
                 for member in crate::helpers::list::list_members(s) {
-                    let normalized = crate::helpers::headers::normalize_etag(member);
+                    let normalized = crate::helpers::validator::normalize_etag(member);
                     // A validator echoed back from a no-store response is proof the client
                     // stored the thing it was told not to store.
                     // cite(RFC 9111 § 5.2.2.5): "The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request."

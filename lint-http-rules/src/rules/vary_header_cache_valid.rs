@@ -133,7 +133,7 @@ impl Rule for VaryHeaderCacheValid {
                             // `If-None-Match: "eta` / `If-None-Match: g1"` two
                             // members where § 5.2 makes them one entity-tag.
                             if let Some(inm) = inm_value.as_deref() {
-                                if crate::helpers::headers::inm_matches_known(inm, etag) {
+                                if crate::helpers::validator::inm_matches_known(inm, etag) {
                                     matched_past = Some(past);
                                     matched_validator = Some(etag.trim().to_string());
                                     break;

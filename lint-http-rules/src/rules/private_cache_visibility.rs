@@ -76,7 +76,7 @@ impl Rule for PrivateCacheVisibility {
                 .filter_map(|(_, resp)| {
                     crate::helpers::headers::get_header_str(&resp.headers, "etag")
                 })
-                .map(crate::helpers::headers::normalize_etag)
+                .map(crate::helpers::validator::normalize_etag)
                 .collect();
             let private_last_modified: Vec<chrono::DateTime<chrono::Utc>> = private_responses()
                 .filter_map(|(_, resp)| {
@@ -99,7 +99,7 @@ impl Rule for PrivateCacheVisibility {
                 .filter_map(|hv| hv.to_str().ok())
                 .flat_map(crate::helpers::list::list_members)
             {
-                if private_etags.contains(&crate::helpers::headers::normalize_etag(member)) {
+                if private_etags.contains(&crate::helpers::validator::normalize_etag(member)) {
                     return Some(self.cited(
                         &RFC_9111_5_2_2_7,
                         ctx.severity,

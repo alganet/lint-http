@@ -101,7 +101,7 @@ impl Rule for CacheValidationChain {
             let (etag, last_modified) = history
                 .responses()
                 .map(|(_, resp)| {
-                    crate::helpers::headers::extract_validators_from_response(&resp.headers)
+                    crate::helpers::validator::extract_validators_from_response(&resp.headers)
                 })
                 .find(|(etag, last_modified)| etag.is_some() || last_modified.is_some())?;
 
@@ -113,7 +113,7 @@ impl Rule for CacheValidationChain {
             if let Some(known_etag) = etag {
                 if has_inm
                     && !inm_lines()
-                        .any(|line| crate::helpers::headers::inm_matches_known(line, &known_etag))
+                        .any(|line| crate::helpers::validator::inm_matches_known(line, &known_etag))
                 {
                     // A field line that is not text matched nothing, and is what
                     // the finding has to quote when it is all the request sent.

@@ -62,7 +62,7 @@ fn selected_representation_changed(prev: &hyper::HeaderMap, cur: &hyper::HeaderM
 
     // Entity tags compare by opaque-tag, which is `normalize_etag`'s § 8.8.3.2
     // weak comparison; `Last-Modified` is an HTTP-date and compares as written.
-    differs("etag", crate::helpers::headers::normalize_etag)
+    differs("etag", crate::helpers::validator::normalize_etag)
         || differs("last-modified", str::to_string)
 }
 

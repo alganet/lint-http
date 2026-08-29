@@ -3902,25 +3902,25 @@ sources:
     snippet: attr-char     = ALPHA / DIGIT / "!" / "#" / "$" / "&" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" ; token except ( "*" / "'" / "%" )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 979
+      line: 811
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 3.2.1
     snippet: ext-value = charset  "'" [ language ] "'" value-chars
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 920
+      line: 752
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 3.2.1
     snippet: pct-encoded   = "%" HEXDIG HEXDIG
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 958
+      line: 790
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 3.2.1
     snippet: value-chars   = *( pct-encoded / attr-char )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 951
+      line: 783
 - label: RFC 8246
   url: https://www.rfc-editor.org/rfc/rfc8246.html
   fragments:
@@ -4301,7 +4301,7 @@ sources:
     snippet: An Early-Data header field MUST NOT be included in responses or request trailers.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 596
+      line: 428
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 162
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
@@ -6211,7 +6211,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 22
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 628
+      line: 460
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 40
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
@@ -6223,7 +6223,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 125
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 663
+      line: 495
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 109
   - label: lint-http-proxy/src/proxy/websocket/handshake.rs
@@ -6383,7 +6383,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 104
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 705
+      line: 537
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
       line: 54
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
@@ -6617,35 +6617,29 @@ sources:
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 612
+      line: 444
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 11.7.3
     snippet: Proxy-Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 613
+      line: 445
   - label: qvalue grammar
     section: § 12.4.2
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 888
+      line: 720
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 193
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 141
-  - label: If-None-Match weak comparison
-    section: § 13.1.2
-    snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 308
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 16.3.2
     snippet: If the field is allowable in trailers; by default, it will not be (see Section 6.5.1).
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 533
+      line: 365
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 5
     snippet: Fields are sent and received within the header and trailer sections of messages
@@ -6661,7 +6655,7 @@ sources:
     snippet: Field names are case-insensitive
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 661
+      line: 493
     - file: lint-http-rules/src/helpers/vary.rs
       line: 78
   - label: lint-http-rules/src/helpers/headers.rs (6)
@@ -6687,7 +6681,7 @@ sources:
     snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 706
+      line: 538
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 28
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
@@ -6757,7 +6751,7 @@ sources:
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 703
+      line: 535
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 159
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
@@ -6767,7 +6761,7 @@ sources:
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 704
+      line: 536
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 253
   - label: lint-http-rules/src/helpers/headers.rs (12)
@@ -6781,7 +6775,7 @@ sources:
     snippet: Delimiters are chosen from the set of US-ASCII visual characters not allowed in a token (DQUOTE and "(),/:;<=>?@[\]{}").
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 768
+      line: 600
     - file: lint-http-rules/src/helpers/list.rs
       line: 121
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
@@ -6795,7 +6789,7 @@ sources:
     snippet: token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 769
+      line: 601
     - file: lint-http-rules/src/helpers/token.rs
       line: 7
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -6867,7 +6861,7 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 829
+      line: 661
   - label: lint-http-rules/src/helpers/headers.rs (16)
     section: § 5.6.3
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
@@ -6879,7 +6873,7 @@ sources:
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 770
+      line: 602
     - file: lint-http-rules/src/helpers/list.rs
       line: 199
     - file: lint-http-rules/src/helpers/list.rs
@@ -6919,7 +6913,7 @@ sources:
     snippet: A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 532
+      line: 364
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 44
     - file: lint-http-rules/src/rules/post_creates_resource.rs
@@ -6947,31 +6941,7 @@ sources:
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 531
-  - label: lint-http-rules/src/helpers/headers.rs (21)
-    section: § 8.8.3
-    snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 1008
-    - file: lint-http-rules/src/rules/etag_syntax.rs
-      line: 70
-    - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 72
-    - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 73
-  - label: entity-tag grammar
-    section: § 8.8.3
-    snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 1010
-  - label: lint-http-rules/src/helpers/headers.rs (22)
-    section: § 8.8.3.2
-    snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
-    cited_by:
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 387
+      line: 363
   - label: lint-http-rules/src/helpers/list.rs
     section: § 5.6.1.2
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
@@ -7292,6 +7262,36 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 382
+  - label: If-None-Match weak comparison
+    section: § 13.1.2
+    snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
+    cited_by:
+    - file: lint-http-rules/src/helpers/validator.rs
+      line: 32
+  - label: lint-http-rules/src/helpers/validator.rs
+    section: § 8.8.3
+    snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
+    cited_by:
+    - file: lint-http-rules/src/helpers/validator.rs
+      line: 134
+    - file: lint-http-rules/src/rules/etag_syntax.rs
+      line: 70
+    - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
+      line: 72
+    - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
+      line: 73
+  - label: entity-tag grammar
+    section: § 8.8.3
+    snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
+    cited_by:
+    - file: lint-http-rules/src/helpers/validator.rs
+      line: 136
+  - label: lint-http-rules/src/helpers/validator.rs (2)
+    section: § 8.8.3.2
+    snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
+    cited_by:
+    - file: lint-http-rules/src/helpers/validator.rs
+      line: 111
   - label: Vary grammar
     section: § 12.5.5
     snippet: 'Vary = #( "*" / field-name )'
@@ -10146,7 +10146,7 @@ sources:
     snippet: This includes the Connection header field and those listed as having connection-specific semantics in Section 7.6.1 of [HTTP] (that is, Proxy-Connection, Keep-Alive, Transfer-Encoding, and Upgrade).
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 586
+      line: 418
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 39
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
