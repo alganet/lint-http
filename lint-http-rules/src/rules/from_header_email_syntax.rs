@@ -224,7 +224,7 @@ impl Rule for FromHeaderEmailSyntax {
                     violation(format!(
                         "From names the domain '{}', which is a conforming `dot-atom` but not an Internet domain name in RFC 1035 §2.3.1's preferred syntax: {}. This is advice, not a violation — RFC 5322 §3.4.1 hands the domain to the host-name documents rather than restricting it itself, and RFC 9110 §10.1.2 asks only that the address be machine-usable",
                         shown_in_finding(&domain),
-                        defect
+                        defect.message()
                     ))
                 }
                 Err(MailboxDefect::ListSeparator) => {

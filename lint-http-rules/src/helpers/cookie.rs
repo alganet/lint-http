@@ -4,6 +4,59 @@
 
 //! Cookie-related helpers used by cookie-related rules.
 
+/// The ways a `Set-Cookie` `Path` attribute fails, named rather than described.
+///
+/// The two halves are not the same kind of finding, and the type is what makes
+/// that legible. [`Empty`](Self::Empty) and [`NotAbsolute`](Self::NotAbsolute)
+/// are not *syntax* errors at all — RFC 6265 § 5.2.4 has the user agent replace
+/// such a value with the default-path, so the cookie still works and the server
+/// has merely written something that does nothing. The remaining four are
+/// grammar: § 4.1.1's `path-value` admits neither of them.
+///
+/// A caller that wants to report the two halves differently now can. Before
+/// this was an enum, one of the tests below asked
+/// `msg.contains("should start with '/'") || msg.contains("invalid")` — an `||`
+/// that exists precisely because a `String` cannot say which defect it is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CookiePathDefect<'a> {
+    /// No value after trimming. § 5.2.4 substitutes the default-path.
+    Empty,
+    /// Present but not rooted at `/`; § 5.2.4 substitutes the default-path.
+    /// Carries the value **as written**, untrimmed, because that is what the
+    /// server sent and the trim is this function's own tolerance.
+    NotAbsolute(&'a str),
+    /// A `%` that no two hex digits follow. Delegated to
+    /// [`crate::helpers::uri::check_percent_encoding`], which owns the
+    /// production and phrases this one.
+    PercentEncoding(String),
+    /// A byte at or above %x80. `path-value` is built on `CHAR` = %x01-7F, so
+    /// non-ASCII derives from nothing and has to be percent-encoded.
+    NonAscii(usize),
+    /// A `CTL`, which `path-value` excludes by name. HTAB is one of these, not
+    /// a [`Whitespace`](Self::Whitespace).
+    ControlCharacter(usize),
+    /// SP, which `CHAR` admits and this profile does not. Stricter than the
+    /// grammar on purpose.
+    Whitespace(usize),
+}
+
+impl CookiePathDefect<'_> {
+    /// The finding fragment. Callers embed this in a sentence naming the
+    /// attribute, which is why it does not name it itself.
+    pub fn message(&self) -> String {
+        match self {
+            Self::Empty => "Path attribute is empty".to_string(),
+            Self::NotAbsolute(written) => {
+                format!("Path should start with '/': '{written}'")
+            }
+            Self::PercentEncoding(msg) => msg.clone(),
+            Self::NonAscii(at) => format!("Path contains non-ASCII character at byte {at}"),
+            Self::ControlCharacter(at) => format!("Path contains control character at byte {at}"),
+            Self::Whitespace(at) => format!("Path contains whitespace character at byte {at}"),
+        }
+    }
+}
+
 /// Validate a `Path` attribute value from a `Set-Cookie` header.
 ///
 /// Rules enforced:
@@ -12,7 +65,12 @@
 /// - Must not contain ASCII control characters (0x00-0x1F or 0x7F)
 /// - Must not contain literal whitespace characters (space, tab)
 /// - Percent-encodings ("%" followed by two hex digits) are accepted
-pub fn validate_cookie_path(s: &str) -> Result<(), String> {
+///
+/// The byte offsets in the character defects count into the **trimmed** value,
+/// while [`CookiePathDefect::NotAbsolute`] carries the value as written. That
+/// asymmetry was already here when the errors were strings; naming the variants
+/// is what made it visible enough to write down.
+pub fn validate_cookie_path(s: &str) -> Result<(), CookiePathDefect<'_>> {
     let v = s.trim();
     // Empty and non-`/` values are not a *syntax* error: §5.2.4 has the user
     // agent replace them with the default-path. That semantics is cited at the
@@ -20,15 +78,15 @@ pub fn validate_cookie_path(s: &str) -> Result<(), String> {
     // latent misconfiguration they are and go on to enforce the character
     // grammar below.
     if v.is_empty() {
-        return Err("Path attribute is empty".into());
+        return Err(CookiePathDefect::Empty);
     }
     if !v.starts_with('/') {
-        return Err(format!("Path should start with '/': '{}'", s));
+        return Err(CookiePathDefect::NotAbsolute(s));
     }
 
     // Validate percent-encodings using shared helper to avoid duplicate logic
     if let Some(msg) = crate::helpers::uri::check_percent_encoding(v) {
-        return Err(msg);
+        return Err(CookiePathDefect::PercentEncoding(msg));
     }
 
     // The loop holds the server to §4.1.1's `path-value = <any CHAR except CTLs
@@ -43,15 +101,15 @@ pub fn validate_cookie_path(s: &str) -> Result<(), String> {
         let b = bytes[i];
         // Reject non-ASCII bytes (require percent-encoding for non-ASCII)
         if b >= 0x80 {
-            return Err(format!("Path contains non-ASCII character at byte {}", i));
+            return Err(CookiePathDefect::NonAscii(i));
         }
         // Reject control chars and DEL
         if b <= 0x1f || b == 0x7f {
-            return Err(format!("Path contains control character at byte {}", i));
+            return Err(CookiePathDefect::ControlCharacter(i));
         }
         // Reject ASCII space and horizontal tab explicitly
         if b == b' ' || b == b'\t' {
-            return Err(format!("Path contains whitespace character at byte {}", i));
+            return Err(CookiePathDefect::Whitespace(i));
         }
         i += 1;
     }
