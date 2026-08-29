@@ -115,9 +115,10 @@ impl Rule for ContentTypePresent {
             let has_content = match resp.body_length {
                 Some(n) => n > 0,
                 None => {
-                    let declared = crate::helpers::headers::validate_content_length(&resp.headers)
-                        .ok()
-                        .flatten();
+                    let declared =
+                        crate::helpers::content_length::validate_content_length(&resp.headers)
+                            .ok()
+                            .flatten();
                     declared.is_some_and(|n| n > 0)
                         || resp.headers.contains_key(hyper::header::TRANSFER_ENCODING)
                 }

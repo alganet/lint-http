@@ -61,7 +61,7 @@ impl Rule for VaryAndCacheConsistent {
             // that ask.
             //
             // cite(RFC 9111 § 4.1): "A stored response with a Vary header field value containing a member "*" always fails to match."
-            if !crate::helpers::headers::vary_nomination(&resp.headers).is_wildcard() {
+            if !crate::helpers::vary::vary_nomination(&resp.headers).is_wildcard() {
                 return None;
             }
 

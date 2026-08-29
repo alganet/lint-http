@@ -272,7 +272,8 @@ impl Rule for RangeAndContentRangeConsistent {
                         // `content_length_valid`'s word for word. A value that does
                         // not parse leaves nothing to compare, so this rule declines
                         // and its owner reports.
-                        match crate::helpers::headers::validate_content_length(&resp.headers) {
+                        match crate::helpers::content_length::validate_content_length(&resp.headers)
+                        {
                             Ok(Some(cl_v)) => {
                                 let expected = (last - first) + 1;
                                 if cl_v != expected {

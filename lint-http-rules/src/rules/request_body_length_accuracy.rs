@@ -69,7 +69,7 @@ impl Rule for RequestBodyLengthAccuracy {
             // `content_length_valid` makes the report.
             // cite(RFC 9112 § 6.3): "The length of a message body is determined by one of the following (in order of precedence)"
             let declared =
-                crate::helpers::headers::validate_content_length(&req.headers).ok()??;
+                crate::helpers::content_length::validate_content_length(&req.headers).ok()??;
 
             // The sentence that licenses this entire rule carries a condition the
             // rule did not honour. § 6.3's sixth item is what makes a declared

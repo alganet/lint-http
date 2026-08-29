@@ -84,7 +84,7 @@ fn varies_the_response_entity(name: &str) -> Option<&'static str> {
 ///
 /// cite(RFC 7240 § 2): "Alternatively, the server MAY include a Vary header with the special value "*""
 fn vary_nominates_prefer(response_headers: &hyper::HeaderMap) -> bool {
-    crate::helpers::headers::vary_nomination(response_headers).nominates("prefer")
+    crate::helpers::vary::vary_nomination(response_headers).nominates("prefer")
 }
 
 /// The specification references this rule declares, each named so a finding

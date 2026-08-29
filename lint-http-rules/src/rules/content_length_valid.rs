@@ -49,20 +49,20 @@ impl Rule for ContentLengthValid {
             // Content-Length is worth reporting wherever it appears.
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
             let check = |headers: &hyper::HeaderMap| -> Option<Violation> {
-                match crate::helpers::headers::validate_content_length(headers) {
+                match crate::helpers::content_length::validate_content_length(headers) {
                     Ok(_) => None,
                     Err(e) => {
                         let message = match e {
-                            crate::helpers::headers::ContentLengthError::NonUtf8 => {
+                            crate::helpers::content_length::ContentLengthError::NonUtf8 => {
                                 "Invalid Content-Length value (non-UTF8)".into()
                             }
-                            crate::helpers::headers::ContentLengthError::InvalidCharacter(s) => {
+                            crate::helpers::content_length::ContentLengthError::InvalidCharacter(s) => {
                                 format!("Invalid Content-Length value: '{}'", s)
                             }
-                            crate::helpers::headers::ContentLengthError::TooLarge(s) => {
+                            crate::helpers::content_length::ContentLengthError::TooLarge(s) => {
                                 format!("Content-Length value too large: '{}'", s)
                             }
-                            crate::helpers::headers::ContentLengthError::MultipleValuesDiffer(
+                            crate::helpers::content_length::ContentLengthError::MultipleValuesDiffer(
                                 a,
                                 b,
                             ) => {

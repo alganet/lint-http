@@ -214,7 +214,7 @@ impl Rule for ProblemDetailsStructureValid {
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
             if !resp.headers.contains_key("transfer-encoding")
                 && matches!(
-                    crate::helpers::headers::validate_content_length(&resp.headers),
+                    crate::helpers::content_length::validate_content_length(&resp.headers),
                     Ok(Some(0))
                 )
             {

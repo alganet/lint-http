@@ -133,9 +133,10 @@ impl Rule for TraceMethodEcho {
         // nothing to report, and a TRACE carrying an HTTP/2 DATA frame — which
         // declares no framing field at all — does.
         // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
-        if let Some(evidence) =
-            crate::helpers::headers::content_evidence(&tx.request.headers, tx.request.body_length)
-        {
+        if let Some(evidence) = crate::helpers::content_length::content_evidence(
+            &tx.request.headers,
+            tx.request.body_length,
+        ) {
             out.push(self.cited(&RFC_9110_9_3_8, ctx.severity, format!(
                         "TRACE request carries content ({evidence}); RFC 9110 § 9.3.8 says a client MUST NOT send content in a TRACE request"
                     )));

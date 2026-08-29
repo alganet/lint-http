@@ -88,9 +88,11 @@ fn content_length_finding(
     prev_resp: &crate::http_transaction::ResponseInfo,
     resp: &crate::http_transaction::ResponseInfo,
 ) -> Option<String> {
-    let cur_len = crate::helpers::headers::declared_content_length(&resp.headers)?;
+    let cur_len = crate::helpers::content_length::declared_content_length(&resp.headers)?;
 
-    if let Some(declared) = crate::helpers::headers::declared_content_length(&prev_resp.headers) {
+    if let Some(declared) =
+        crate::helpers::content_length::declared_content_length(&prev_resp.headers)
+    {
         return (declared != cur_len).then(|| {
             format!(
                 "Content-Length in HEAD ({}) differs from GET ({})",
