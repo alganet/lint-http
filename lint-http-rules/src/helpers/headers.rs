@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::shown::{describe_char, shown_in_finding};
 use hyper::HeaderMap;
 
 /// Errors returned by `validate_content_length`.
@@ -429,20 +430,6 @@ pub fn combined_field_value_octets(headers: &HeaderMap, name: &str) -> Option<Ve
 /// cite(RFC 9110 § 5.6.3, label: OWS grammar): "OWS            = *( SP / HTAB )"
 pub fn trim_ows(s: &str) -> &str {
     s.trim_matches(|c| c == ' ' || c == '\t')
-}
-
-/// Render an octet for a finding message without letting a raw control or
-/// `obs-text` byte into the output.
-///
-/// A finding names the octet that stopped a parse, and that octet is by
-/// definition one the grammar did not admit -- often a control character, which
-/// written through would corrupt the message rather than describe it.
-pub fn describe_octet(b: u8) -> String {
-    if (0x20..0x7f).contains(&b) {
-        format!("'{}'", b as char)
-    } else {
-        format!("0x{:02X}", b)
-    }
 }
 
 /// Weak-compare an `If-None-Match` header value against a known ETag.
@@ -1438,22 +1425,6 @@ pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
     Ok(out)
 }
 
-/// Render a value -- a field value, one member of it, or any other protocol
-/// element read back from a capture -- into a finding.
-///
-/// A value read through [`combined_field_value_as_written`] carries one `char`
-/// per octet, so it can hold octets that would corrupt the message rather than
-/// appear in it -- an HTAB inside a `quoted-string` is legal and reachable, and
-/// a lone backslash reads as an escape to whoever sees the finding next.
-///
-/// It is not the answer for `obs-text`: `escape_debug` leaves a printable code
-/// point alone, so %xE9 arrives in the message as `é`. That is legible and
-/// deliberate -- naming the offending octet is [`describe_octet`]'s job, and the
-/// findings that turn on one call it.
-pub fn shown_in_finding(s: &str) -> String {
-    s.escape_debug().to_string()
-}
-
 /// The sentence a singleton field says when a message carries more than one of
 /// its field lines.
 ///
@@ -1652,25 +1623,6 @@ pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, String> {
     };
 
     Ok(TokenBwsWord { name, value, bws })
-}
-
-/// [`describe_octet`] for a `char` that came from an octet.
-///
-/// Every input to [`parse_token_bws_word`] is one `char` per octet, so the cast
-/// is exact; the fallback exists only so a caller that decoded some other way
-/// still gets a finding rather than a panic.
-///
-/// Public because every rule reading a value through
-/// [`combined_field_value_as_written`] and naming the octet a parse stopped on
-/// needs exactly this cast, and two of them had written it out privately -- with
-/// the same doc comment and a `debug_assert` plus a truncating `as u8`, which
-/// answers the out-of-range case differently from this one. The cast is one
-/// decision, so it is made in one place.
-pub fn describe_char(c: char) -> String {
-    match u8::try_from(c as u32) {
-        Ok(b) => describe_octet(b),
-        Err(_) => format!("'{}'", c),
-    }
 }
 
 /// Validate qvalue syntax: `0`, `1`, `0.5`, `0.123`, `1.000` — up to three
@@ -2025,7 +1977,7 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
 /// a raw HTAB or CR reaching a finding breaks the line it is printed on rather
 /// than appearing in it. `escape_debug` is not the `obs-text` answer — a
 /// printable code point survives it, so %xC9 still shows as `É` — and naming an
-/// octet is [`describe_octet`]'s job; the `#token` walks in this tree that do
+/// octet is [`describe_octet`](crate::helpers::shown::describe_octet)'s job; the `#token` walks in this tree that do
 /// name it are measuring a value whose every octet is one `char`, which a
 /// `media-type` reaching this function is not guaranteed to be.
 ///

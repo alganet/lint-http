@@ -228,7 +228,7 @@ impl Rule for RequestMethodTokenValid {
                     config.severity,
                     format!(
                         "Method token contains {}, which is not a `tchar`, so the request's method derives from no `token` and therefore from no `method`",
-                        crate::helpers::headers::shown_in_finding(&c.to_string())
+                        crate::helpers::shown::shown_in_finding(&c.to_string())
                     ),
                 ));
             }

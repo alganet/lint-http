@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::comment::scan_comment;
-use crate::helpers::headers::{combined_field_value_octets, describe_octet};
+use crate::helpers::headers::combined_field_value_octets;
+use crate::helpers::shown::describe_octet;
 use crate::helpers::token::is_tchar_byte;
 use crate::lint::Violation;
 use crate::rules::Rule;

@@ -143,7 +143,7 @@ impl Rule for Http3PseudoHeadersValid {
                         .unwrap_or(authority);
                     return Some(self.cited(&RFC_9114_4_4, ctx.severity, format!(
                             "HTTP/3 CONNECT ':authority' '{}' carries a userinfo subcomponent and its '@' delimiter: the field is only the host and port to connect to",
-                            crate::helpers::headers::shown_in_finding(&shown)
+                            crate::helpers::shown::shown_in_finding(&shown)
                         )));
                 }
             } else {
@@ -211,7 +211,7 @@ impl Rule for Http3PseudoHeadersValid {
                                 .unwrap_or(authority);
                             return Some(self.cited(&RFC_9114_4_3_1, ctx.severity, format!(
                                     "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter",
-                                    crate::helpers::headers::shown_in_finding(&shown)
+                                    crate::helpers::shown::shown_in_finding(&shown)
                                 )));
                         }
                     }

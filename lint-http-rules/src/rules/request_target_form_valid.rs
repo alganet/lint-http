@@ -213,7 +213,7 @@ impl Rule for RequestTargetFormValid {
             // print as nothing or, worse, print as something else -- an escape
             // sequence in a finding is a finding nobody can read. Rendered once, for
             // every message below.
-            let shown = crate::helpers::headers::shown_in_finding(target);
+            let shown = crate::helpers::shown::shown_in_finding(target);
 
             // Asked before the forms, so that the answer names the character rather
             // than the production it fell out of. The class measured is the wider
@@ -236,7 +236,7 @@ impl Rule for RequestTargetFormValid {
                     severity,
                     format!(
                         "Request-target '{shown}' contains '{}', and no whitespace is allowed in a request-target -- nor a CR, LF or FF, which no component of any of the four forms admits. The request-line carrying it is malformed, and a recipient is asked not to autocorrect it, since a request-line like this one might be deliberately crafted to bypass a security filter along the request chain",
-                        crate::helpers::headers::shown_in_finding(&ws.to_string())
+                        crate::helpers::shown::shown_in_finding(&ws.to_string())
                     ),
                 ));
             }

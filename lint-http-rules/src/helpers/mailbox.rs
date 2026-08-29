@@ -36,7 +36,7 @@
 // cite(RFC 5322 § 3.2.2): "FWS = ([*WSP CRLF] 1*WSP) / obs-FWS"
 // cite(RFC 5322 § 4): "Though these syntactic forms MUST NOT be generated according to the grammar in section 3, they MUST be accepted and parsed by a conformant receiver."
 
-use crate::helpers::headers::describe_char;
+use crate::helpers::shown::describe_char;
 
 /// What a `From` value turned out to be, for the checks that only apply to one
 /// of the alternatives.

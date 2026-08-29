@@ -130,7 +130,7 @@ impl Rule for ContentLocationAndUriConsistent {
                         crate::helpers::headers::singleton_field_preamble(
                             "Content-Location",
                             vals.len(),
-                            &crate::helpers::headers::shown_in_finding(&joined),
+                            &crate::helpers::shown::shown_in_finding(&joined),
                             "`Content-Location = absolute-URI / partial-URI`, and neither alternative is a comma-separated list",
                         )
                     )));
@@ -180,7 +180,7 @@ impl Rule for ContentLocationAndUriConsistent {
                 if let Some(c) = crate::helpers::uri::find_non_uri_char(s) {
                     return Some(self.violation(ctx.severity, format!(
                             "Content-Location value holds {}, which no part of a URI is composed from: an octet outside that set is percent-encoded before the reference is formed, or the value is not a URI reference at all",
-                            crate::helpers::headers::describe_char(c)
+                            crate::helpers::shown::describe_char(c)
                         )));
                 }
 
@@ -220,8 +220,8 @@ impl Rule for ContentLocationAndUriConsistent {
                 if let Some(hash) = s.find('#') {
                     return Some(self.violation(ctx.severity, format!(
                             "Content-Location value '{}' carries the fragment component '{}': neither alternative of `Content-Location = absolute-URI / partial-URI` generates one — each is a URI rule with the `[ \"#\" fragment ]` group dropped (RFC 9110 §4.1, RFC 3986 §4.3) — so the value derives from no reading of the grammar (RFC 9110 §2.2)",
-                            crate::helpers::headers::shown_in_finding(s),
-                            crate::helpers::headers::shown_in_finding(&s[hash..])
+                            crate::helpers::shown::shown_in_finding(s),
+                            crate::helpers::shown::shown_in_finding(&s[hash..])
                         )));
                 }
 

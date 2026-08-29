@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::domain::preferred_name_syntax_defect;
-use crate::helpers::headers::{combined_field_value_as_written, shown_in_finding, trim_ows};
+use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::mailbox::{parse_mailbox, MailboxDefect};
+use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::Rule;
 

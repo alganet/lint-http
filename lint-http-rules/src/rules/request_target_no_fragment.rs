@@ -118,8 +118,8 @@ impl Rule for RequestTargetNoFragment {
             // A target read back from a capture can hold characters that print as
             // nothing or, worse, print as something else: an escape sequence in a
             // finding is a finding nobody can read.
-            let shown = crate::helpers::headers::shown_in_finding(target);
-            let fragment = crate::helpers::headers::shown_in_finding(&target[hash..]);
+            let shown = crate::helpers::shown::shown_in_finding(target);
+            let fragment = crate::helpers::shown::shown_in_finding(&target[hash..]);
 
             // Which productions the components had to derive from is the major
             // version's question, and the answer is the same on both sides -- so the

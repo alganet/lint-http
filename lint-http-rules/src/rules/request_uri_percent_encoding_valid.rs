@@ -116,7 +116,7 @@ impl Rule for RequestUriPercentEncodingValid {
                 // A target read back from a capture can hold characters that print
                 // as nothing or, worse, print as something else: an escape sequence
                 // in a finding is a finding nobody can read.
-                let shown = crate::helpers::headers::shown_in_finding(target);
+                let shown = crate::helpers::shown::shown_in_finding(target);
 
                 return Some(self.violation(
                     severity,
@@ -158,8 +158,8 @@ impl Rule for RequestUriPercentEncodingValid {
             if let Some(ch) = crate::helpers::uri::find_non_uri_char(target) {
                 let severity = ctx.severity;
 
-                let shown = crate::helpers::headers::shown_in_finding(target);
-                let shown_char = crate::helpers::headers::shown_in_finding(&ch.to_string());
+                let shown = crate::helpers::shown::shown_in_finding(target);
+                let shown_char = crate::helpers::shown::shown_in_finding(&ch.to_string());
 
                 return Some(self.violation(
                     severity,

@@ -23,7 +23,7 @@ pub struct Http2PseudoHeadersValid;
 // cite(RFC 9110 § 9.3.6): "There is no default port; a client MUST send the port number even if the CONNECT request is based on a URI reference that contains an authority component with an elided port (Section 4.1)."
 // cite(RFC 9110 § 9.3.6): "A server MUST reject a CONNECT request that targets an empty or invalid port number, typically by responding with a 400 (Bad Request) status code."
 fn connect_authority_finding(authority: &str) -> Option<String> {
-    let shown = crate::helpers::headers::shown_in_finding(authority);
+    let shown = crate::helpers::shown::shown_in_finding(authority);
 
     if authority.is_empty() {
         return Some(
@@ -44,7 +44,7 @@ fn connect_authority_finding(authority: &str) -> Option<String> {
     // RFC 3986 § 3.2.1's sentence on it.
     if authority.contains('@') {
         let shown = crate::helpers::uri::userinfo_password_withheld(authority)
-            .map(|redacted| crate::helpers::headers::shown_in_finding(&redacted))
+            .map(|redacted| crate::helpers::shown::shown_in_finding(&redacted))
             .unwrap_or(shown);
         return Some(format!(
             "CONNECT ':authority' '{shown}' carries a userinfo subcomponent and its '@' \
@@ -309,7 +309,7 @@ impl Rule for Http2PseudoHeadersValid {
                                 "Request target '{}' carries no path, and every non-CONNECT request \
                                  sends exactly one ':path': an 'http' or 'https' URI with no path \
                                  component sends '/'",
-                                crate::helpers::headers::shown_in_finding(target)
+                                crate::helpers::shown::shown_in_finding(target)
                             )));
                     }
                 }
@@ -352,7 +352,7 @@ impl Rule for Http2PseudoHeadersValid {
                         ctx.severity,
                         format!(
                             "Request target '{}' names the scheme '{scheme}' and then no authority",
-                            crate::helpers::headers::shown_in_finding(target)
+                            crate::helpers::shown::shown_in_finding(target)
                         ),
                     ));
                 };
@@ -372,7 +372,7 @@ impl Rule for Http2PseudoHeadersValid {
                     return Some(self.cited(&RFC_9113_8_3_1, ctx.severity, format!(
                             "Authority '{}' of an '{scheme}' target carries the deprecated userinfo \
                              subcomponent and its '@' delimiter",
-                            crate::helpers::headers::shown_in_finding(&shown)
+                            crate::helpers::shown::shown_in_finding(&shown)
                         )));
                 }
 
@@ -386,7 +386,7 @@ impl Rule for Http2PseudoHeadersValid {
                         ctx.severity,
                         format!(
                             "Authority '{}' is not a host and port: {msg}",
-                            crate::helpers::headers::shown_in_finding(&authority)
+                            crate::helpers::shown::shown_in_finding(&authority)
                         ),
                     ));
                 }

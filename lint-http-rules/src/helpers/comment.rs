@@ -12,7 +12,7 @@
 //! past defects, and the naive one (count parentheses, ignore the backslash) is
 //! wrong on a value the RFC itself prints.
 
-use crate::helpers::headers::describe_octet;
+use crate::helpers::shown::describe_octet;
 
 /// `ctext` -- the text a comment may hold directly.
 ///

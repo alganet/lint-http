@@ -108,7 +108,7 @@ impl Rule for IfMatchEtagSyntax {
                         ctx.severity,
                         format!(
                             "If-Match header has invalid member '{}': {}",
-                            crate::helpers::headers::shown_in_finding(member),
+                            crate::helpers::shown::shown_in_finding(member),
                             msg
                         ),
                     ));

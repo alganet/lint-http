@@ -297,7 +297,7 @@ fn check_body_delimiters(
     // truncating one into a boundary nobody wrote.
     let octets = crate::helpers::headers::as_written_octets(boundary)?;
     let scan = scan_delimiter_lines(body, &octets);
-    let shown = crate::helpers::headers::shown_in_finding(boundary);
+    let shown = crate::helpers::shown::shown_in_finding(boundary);
 
     // Nothing outside the delimiter lines is judged, and that is the spec's
     // instruction rather than this rule's convenience: the preamble and the

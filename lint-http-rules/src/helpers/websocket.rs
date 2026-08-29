@@ -17,9 +17,8 @@
 //! of them and not to the other would be a gap no test could see from inside
 //! either.
 
-use crate::helpers::headers::{
-    combined_field_value_as_written, describe_octet, list_members, trim_ows,
-};
+use crate::helpers::headers::{combined_field_value_as_written, list_members, trim_ows};
+use crate::helpers::shown::describe_octet;
 use base64::Engine;
 use sha1::Digest;
 

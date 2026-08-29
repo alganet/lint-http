@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, content_evidence, describe_octet, list_members_as_written,
-    quoted_string_end, quoting_is_balanced, split_semicolons_respecting_quotes, trim_ows,
-    validate_quoted_string,
+    combined_field_value_as_written, content_evidence, list_members_as_written, quoted_string_end,
+    quoting_is_balanced, split_semicolons_respecting_quotes, trim_ows, validate_quoted_string,
 };
+use crate::helpers::shown::describe_octet;
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;
 use crate::rules::Rule;
@@ -128,7 +128,7 @@ impl Rule for ExpectHeaderValid {
             let Some(members) = members_of(&value) else {
                 return report(format!(
                     "Expect has a quoted-string that is never terminated: '{}'",
-                    crate::helpers::headers::shown_in_finding(&value)
+                    crate::helpers::shown::shown_in_finding(&value)
                 ));
             };
 
@@ -141,7 +141,7 @@ impl Rule for ExpectHeaderValid {
                         "Expect writes an empty list element (member {} of {}): '{}'",
                         i + 1,
                         members.len(),
-                        crate::helpers::headers::shown_in_finding(&value)
+                        crate::helpers::shown::shown_in_finding(&value)
                     ));
                 }
                 let e = match parse_expectation(member) {
@@ -215,7 +215,7 @@ impl Rule for ExpectHeaderValid {
                          specification defines no value or parameters for it, so a recipient matching \
                          the member against 100-continue sees a different expectation and may answer \
                          417 (Expectation Failed). This is advice: the grammar admits the argument",
-                        crate::helpers::headers::shown_in_finding(e.member)
+                        crate::helpers::shown::shown_in_finding(e.member)
                     ));
                 }
             }
@@ -321,7 +321,7 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
     if name.is_empty() {
         return Err(format!(
             "Expect member '{}' does not begin with a token: found {}",
-            crate::helpers::headers::shown_in_finding(member),
+            crate::helpers::shown::shown_in_finding(member),
             first_octet_of(member)
         ));
     }
@@ -335,7 +335,7 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
             "Invalid octet {} after the Expect expectation name '{}': the production admits only \
              '=' there, and `parameters` are inside the group the '=' opens",
             describe_octet(stopper as u8),
-            crate::helpers::headers::shown_in_finding(name)
+            crate::helpers::shown::shown_in_finding(name)
         ));
     }
     let rest = &tail[1..];
@@ -346,13 +346,13 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
         let Some(end) = quoted_string_end(rest) else {
             return Err(format!(
                 "Expect member '{}' has a quoted-string that is never terminated",
-                crate::helpers::headers::shown_in_finding(member)
+                crate::helpers::shown::shown_in_finding(member)
             ));
         };
         validate_quoted_string(&rest[..=end]).map_err(|e| {
             format!(
                 "Invalid quoted-string in Expect member '{}': {}",
-                crate::helpers::headers::shown_in_finding(member),
+                crate::helpers::shown::shown_in_finding(member),
                 e
             )
         })?;
@@ -364,7 +364,7 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
         if end == 0 {
             return Err(format!(
                 "Expect member '{}' has '=' with no token or quoted-string after it: found {}",
-                crate::helpers::headers::shown_in_finding(member),
+                crate::helpers::shown::shown_in_finding(member),
                 first_octet_of(rest)
             ));
         }
@@ -410,8 +410,8 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
     if !segments[0].is_empty() {
         return Err(format!(
             "Expect member '{}' has octets after its value that are not parameters: '{}'",
-            crate::helpers::headers::shown_in_finding(member),
-            crate::helpers::headers::shown_in_finding(segments[0])
+            crate::helpers::shown::shown_in_finding(member),
+            crate::helpers::shown::shown_in_finding(segments[0])
         ));
     }
 
@@ -431,8 +431,8 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         else {
             return Err(format!(
                 "Expect member '{}' has a parameter with no value: '{}'",
-                crate::helpers::headers::shown_in_finding(member),
-                crate::helpers::headers::shown_in_finding(seg)
+                crate::helpers::shown::shown_in_finding(member),
+                crate::helpers::shown::shown_in_finding(seg)
             ));
         };
         let (pname, pvalue) = (parameter.name, parameter.value);
@@ -455,22 +455,22 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         if parameter.whitespace_beside_equals {
             return Err(format!(
                 "Expect member '{}' writes whitespace beside the '=' of parameter '{}'; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
-                crate::helpers::headers::shown_in_finding(member),
-                crate::helpers::headers::shown_in_finding(seg)
+                crate::helpers::shown::shown_in_finding(member),
+                crate::helpers::shown::shown_in_finding(seg)
             ));
         }
         if pname.is_empty() {
             return Err(format!(
                 "Expect member '{}' has a parameter with no name: '{}'",
-                crate::helpers::headers::shown_in_finding(member),
-                crate::helpers::headers::shown_in_finding(seg)
+                crate::helpers::shown::shown_in_finding(member),
+                crate::helpers::shown::shown_in_finding(seg)
             ));
         }
         if let Some(c) = find_invalid_token_char(pname) {
             return Err(format!(
                 "Invalid octet {} in Expect parameter name '{}'",
                 describe_octet(c as u8),
-                crate::helpers::headers::shown_in_finding(pname)
+                crate::helpers::shown::shown_in_finding(pname)
             ));
         }
         // `parameter-value = ( token / quoted-string )`, read by the function
@@ -484,14 +484,14 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
             Err(crate::helpers::headers::WordDefect::Empty) => {
                 return Err(format!(
                     "Expect member '{}' has a parameter with an empty value: '{}'",
-                    crate::helpers::headers::shown_in_finding(member),
-                    crate::helpers::headers::shown_in_finding(seg)
+                    crate::helpers::shown::shown_in_finding(member),
+                    crate::helpers::shown::shown_in_finding(seg)
                 ))
             }
             Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
                 return Err(format!(
                     "Invalid quoted-string in Expect parameter '{}': {}",
-                    crate::helpers::headers::shown_in_finding(seg),
+                    crate::helpers::shown::shown_in_finding(seg),
                     e
                 ))
             }
@@ -499,7 +499,7 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
                 return Err(format!(
                     "Invalid octet {} in Expect parameter value '{}'",
                     describe_octet(c as u8),
-                    crate::helpers::headers::shown_in_finding(pvalue)
+                    crate::helpers::shown::shown_in_finding(pvalue)
                 ))
             }
         }

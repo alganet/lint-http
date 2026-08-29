@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{combined_field_value_as_written, describe_octet, trim_ows};
+use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
+use crate::helpers::shown::describe_octet;
 use crate::lint::Violation;
 use crate::rules::Rule;
 
