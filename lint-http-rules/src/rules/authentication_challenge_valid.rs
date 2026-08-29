@@ -77,7 +77,7 @@ impl Rule for AuthenticationChallengeValid {
                                     // cite(RFC 9110 § 11.5): "Recipients might have to support both token and quoted-string syntax for maximum interoperability with existing clients that have been accepting both notations for a long time."
                                     if r.starts_with('"') {
                                         if let Ok(unq) =
-                                            crate::helpers::headers::unescape_quoted_string(r)
+                                            crate::helpers::quoted_string::unescape_quoted_string(r)
                                         {
                                             realm_opt = Some(unq);
                                         }

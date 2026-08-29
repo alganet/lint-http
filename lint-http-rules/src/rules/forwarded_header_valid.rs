@@ -11,9 +11,8 @@
 //! wrong, since `token` admits characters none of those three productions do.
 
 use crate::helpers::forwarded_node::NodeForm;
-use crate::helpers::headers::{
-    split_commas_respecting_quotes, split_semicolons_respecting_quotes, unescape_quoted_string,
-};
+use crate::helpers::headers::{split_commas_respecting_quotes, split_semicolons_respecting_quotes};
+use crate::helpers::quoted_string::unescape_quoted_string;
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::Rule;

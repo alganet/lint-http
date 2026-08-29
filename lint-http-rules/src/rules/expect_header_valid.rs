@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, content_evidence, list_members_as_written, quoted_string_end,
-    quoting_is_balanced, split_semicolons_respecting_quotes, trim_ows, validate_quoted_string,
+    combined_field_value_as_written, content_evidence, list_members_as_written,
+    quoting_is_balanced, split_semicolons_respecting_quotes, trim_ows,
 };
+use crate::helpers::quoted_string::{quoted_string_end, validate_quoted_string};
 use crate::helpers::shown::describe_octet;
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;

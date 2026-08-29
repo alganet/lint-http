@@ -4,8 +4,9 @@
 
 use crate::helpers::headers::{
     combined_field_value_as_written, list_members_as_written, split_semicolons_respecting_quotes,
-    trim_ows, valid_qvalue, validate_quoted_string,
+    trim_ows, valid_qvalue,
 };
+use crate::helpers::quoted_string::validate_quoted_string;
 use crate::lint::Violation;
 use crate::rules::Rule;
 

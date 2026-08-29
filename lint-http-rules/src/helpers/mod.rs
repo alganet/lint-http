@@ -51,6 +51,7 @@ pub mod ipv6;
 pub mod language;
 pub mod mailbox;
 pub mod product;
+pub mod quoted_string;
 pub mod rule_config;
 pub mod shown;
 pub mod status;

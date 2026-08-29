@@ -86,7 +86,7 @@ impl Rule for DigestAuthValid {
                                             } else if v.starts_with('"') {
                                                 // if quoted-string is syntactically invalid, default to 'false' so
                                                 // it will be reported by the later quoted-string validation
-                                                crate::helpers::headers::quoted_string_inner_trimmed_is_empty(v).unwrap_or_default()
+                                                crate::helpers::quoted_string::quoted_string_inner_trimmed_is_empty(v).unwrap_or_default()
                                             } else {
                                                 false
                                             };
@@ -176,7 +176,7 @@ impl Rule for DigestAuthValid {
                                     // (grammar helper-owned, RFC 9110 §5.6.4).
                                     if quoted {
                                         if let Err(msg) =
-                                            crate::helpers::headers::validate_quoted_string(v)
+                                            crate::helpers::quoted_string::validate_quoted_string(v)
                                         {
                                             return Some(self.violation(ctx.severity, format!(
                                                     "Invalid quoted-string in Digest auth-param '{}': {}",

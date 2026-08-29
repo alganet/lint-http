@@ -255,7 +255,7 @@ fn check_multipart_boundary(
                     // cite(RFC 2046 § 5.1.1): "The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line."
                     let boundary_unquoted = if value.starts_with('"') {
                         // Unescape quoted-string interior using helper
-                        match crate::helpers::headers::unescape_quoted_string(value) {
+                        match crate::helpers::quoted_string::unescape_quoted_string(value) {
                             Ok(u) => u,
                             Err(e) => {
                                 return Some(MultipartBoundarySyntax.violation(

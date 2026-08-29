@@ -143,7 +143,9 @@ impl Rule for ContentDispositionParameterValid {
                     if !is_ext && name.eq_ignore_ascii_case("filename") {
                         // filename can be token or quoted-string
                         if val.starts_with('"') {
-                            if let Err(e) = crate::helpers::headers::validate_quoted_string(val) {
+                            if let Err(e) =
+                                crate::helpers::quoted_string::validate_quoted_string(val)
+                            {
                                 return Some(self.violation(
                                     ctx.severity,
                                     format!(
@@ -175,7 +177,7 @@ impl Rule for ContentDispositionParameterValid {
                     } else if name.eq_ignore_ascii_case("size") {
                         // allow token or quoted-string with digits only
                         let raw_val = if val.starts_with('"') {
-                            match crate::helpers::headers::unescape_quoted_string(val) {
+                            match crate::helpers::quoted_string::unescape_quoted_string(val) {
                                 Ok(u) => u.trim().to_string(),
                                 Err(e) => {
                                     return Some(self.violation(
@@ -214,7 +216,9 @@ impl Rule for ContentDispositionParameterValid {
                                 ));
                             }
                         } else if val.starts_with('"') {
-                            if let Err(e) = crate::helpers::headers::validate_quoted_string(val) {
+                            if let Err(e) =
+                                crate::helpers::quoted_string::validate_quoted_string(val)
+                            {
                                 return Some(self.violation(
                                     ctx.severity,
                                     format!(

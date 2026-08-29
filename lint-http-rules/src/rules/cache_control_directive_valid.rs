@@ -155,7 +155,7 @@ fn member_defect(member: &str) -> Option<String> {
         _ => {
             // For other directives, accept token or quoted-string and ensure token syntax if unquoted
             if argument.starts_with('"') {
-                if let Err(e) = crate::helpers::headers::validate_quoted_string(argument) {
+                if let Err(e) = crate::helpers::quoted_string::validate_quoted_string(argument) {
                     return Some(format!(
                         "Invalid quoted-string in directive {} value: {}",
                         name, e
@@ -179,7 +179,7 @@ fn member_defect(member: &str) -> Option<String> {
 /// below is written once over whichever list the argument turned out to be.
 fn field_name_list_defect(name: &str, argument: &str) -> Option<String> {
     let list = if argument.starts_with('"') {
-        match crate::helpers::headers::unescape_quoted_string(argument) {
+        match crate::helpers::quoted_string::unescape_quoted_string(argument) {
             Ok(inner) => inner,
             Err(e) => return Some(format!("Invalid quoted-string in {} value: {}", name, e)),
         }
