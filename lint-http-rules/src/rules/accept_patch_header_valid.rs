@@ -2,10 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{
-    combined_field_value_as_written, list_members_as_written, media_type_parts_defect,
-    parse_media_type, trim_ows,
-};
+use crate::helpers::headers::{combined_field_value_as_written, list_members_as_written, trim_ows};
+use crate::helpers::media_type::{media_type_parts_defect, parse_media_type};
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::Rule;

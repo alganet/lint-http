@@ -116,7 +116,7 @@ impl Rule for ProblemDetailsStructureValid {
             // media type is `content_type_valid`'s.
             // cite(RFC 9110 § 8.3): "If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type."
             let ct_str = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
-            let parsed = crate::helpers::headers::parse_media_type(ct_str).ok()?;
+            let parsed = crate::helpers::media_type::parse_media_type(ct_str).ok()?;
 
             // Folded once, here, rather than at the comparison below.
             // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."

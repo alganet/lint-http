@@ -82,7 +82,7 @@ impl Rule for ProblemDetailsContentType {
             }
 
             let ct_str = crate::helpers::headers::get_header_str(&resp.headers, "content-type")?;
-            let parsed = crate::helpers::headers::parse_media_type(ct_str).ok()?;
+            let parsed = crate::helpers::media_type::parse_media_type(ct_str).ok()?;
 
             // Folded once, here, rather than at each comparison below.
             // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."

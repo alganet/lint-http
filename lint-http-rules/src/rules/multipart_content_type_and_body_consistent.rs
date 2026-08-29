@@ -94,7 +94,8 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
                     // sender can write — and the scan hunted the body for it.
                     // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                     let s = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(boundary) = crate::helpers::headers::extract_multipart_boundary(&s)
+                    if let Some(boundary) =
+                        crate::helpers::media_type::extract_multipart_boundary(&s)
                     {
                         if let Some(v) =
                             check_body_delimiters(which, &boundary, body.as_ref(), ctx.severity)

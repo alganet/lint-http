@@ -428,7 +428,7 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
             continue;
         }
         let Ok(parameter) =
-            crate::helpers::headers::parameter_of(seg).expect("the empty segment returned above")
+            crate::helpers::parameter::parameter_of(seg).expect("the empty segment returned above")
         else {
             return Err(format!(
                 "Expect member '{}' has a parameter with no value: '{}'",
