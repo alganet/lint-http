@@ -175,7 +175,7 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
                 ));
             }
             if v.starts_with('"') {
-                if let Err(msg) = crate::helpers::headers::validate_quoted_string(v) {
+                if let Err(msg) = crate::helpers::quoted_string::validate_quoted_string(v) {
                     return Err(format!(
                         "Invalid quoted-string in auth-param '{}': {}",
                         name, msg
@@ -725,7 +725,7 @@ mod tests {
         s.push_str("abc");
         s.push('\\');
         s.push('"');
-        let r = crate::helpers::headers::validate_quoted_string(&s);
+        let r = crate::helpers::quoted_string::validate_quoted_string(&s);
         assert!(r.is_err());
         assert!(r.unwrap_err().contains("ends with escape"));
     }

@@ -135,7 +135,7 @@ impl Rule for CharsetRegistered {
                             // "the quoted and unquoted values are equivalent".
                             let mut value_owned: Option<String> = None;
                             if value.starts_with('"') {
-                                match crate::helpers::headers::unescape_quoted_string(value) {
+                                match crate::helpers::quoted_string::unescape_quoted_string(value) {
                                     Ok(u) => value_owned = Some(u),
                                     Err(e) => {
                                         return Some(CharsetRegistered.violation(ctx.severity, format!(

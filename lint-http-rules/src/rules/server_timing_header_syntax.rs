@@ -3,10 +3,11 @@
 // SPDX-License-Identifier: ISC
 
 use crate::helpers::headers::{
-    combined_field_value_as_written, list_members_as_written, quoted_string_end,
-    quoting_is_balanced, response_field_sections, split_semicolons_respecting_quotes,
-    token_or_quoted_string, trim_ows, WordDefect,
+    combined_field_value_as_written, list_members_as_written, quoting_is_balanced,
+    response_field_sections, split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows,
+    WordDefect,
 };
+use crate::helpers::quoted_string::quoted_string_end;
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
@@ -793,7 +794,7 @@ mod tests {
         assert!(HeaderValue::from_bytes(b"db;desc=\"bad\x01str\"").is_err());
         assert!(HeaderValue::from_bytes(b"db;desc=\"bad\x7fstr\"").is_err());
         assert!(HeaderValue::from_bytes(b"db;desc=\"tab\there\"").is_ok());
-        assert!(crate::helpers::headers::unescape_quoted_string("\"bad\u{1}str\"").is_err());
+        assert!(crate::helpers::quoted_string::unescape_quoted_string("\"bad\u{1}str\"").is_err());
     }
 
     /// The lines of one section are one list, so a metric may be split across

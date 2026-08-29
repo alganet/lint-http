@@ -4,9 +4,9 @@
 
 use crate::helpers::headers::{
     combined_field_value_as_written, list_members_as_written, quoting_is_balanced,
-    split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows, unescape_quoted_string,
-    WordDefect,
+    split_semicolons_respecting_quotes, token_or_quoted_string, trim_ows, WordDefect,
 };
+use crate::helpers::quoted_string::unescape_quoted_string;
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::lint::Violation;
 use crate::rules::Rule;

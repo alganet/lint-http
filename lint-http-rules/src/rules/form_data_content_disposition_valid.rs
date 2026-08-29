@@ -106,7 +106,7 @@ impl Rule for FormDataContentDispositionValid {
 
                         if raw.starts_with('"') {
                             // quoted-string: check if inner trimmed content is empty or invalid
-                            match crate::helpers::headers::quoted_string_inner_trimmed_is_empty(raw) {
+                            match crate::helpers::quoted_string::quoted_string_inner_trimmed_is_empty(raw) {
                                 Ok(true) => {
                                     return Some(self.violation(ctx.severity, "Content-Disposition 'form-data' has empty 'name' parameter"
                                             .into()));

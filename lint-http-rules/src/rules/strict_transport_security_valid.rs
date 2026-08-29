@@ -168,7 +168,7 @@ impl Rule for StrictTransportSecurityValid {
                                 let vpart = vpart.trim();
                                 if vpart.starts_with('"') {
                                     if let Err(e) =
-                                        crate::helpers::headers::validate_quoted_string(vpart)
+                                        crate::helpers::quoted_string::validate_quoted_string(vpart)
                                     {
                                         return Some(self.cited(&RFC_6797_6_1, ctx.severity, format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e)));
                                     }
