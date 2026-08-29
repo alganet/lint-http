@@ -84,16 +84,24 @@ impl ProtocolEventStore {
 
     /// Remove expired events from the store.
     pub fn cleanup_expired(&self) {
+        self.cleanup_expired_at(Utc::now());
+    }
+
+    /// [`cleanup_expired`](Self::cleanup_expired) with the sweep's instant
+    /// supplied. See [`StateStore::cleanup_expired_at`] — same reasoning, same
+    /// reason it is not `#[cfg(test)]`.
+    ///
+    /// [`StateStore::cleanup_expired_at`]: crate::state::StateStore::cleanup_expired_at
+    pub fn cleanup_expired_at(&self, now: DateTime<Utc>) {
         let ttl_chrono =
             chrono::Duration::from_std(self.ttl).unwrap_or_else(|_| chrono::Duration::seconds(0));
 
-        // One reading of the clock for both maps, because they index the same
-        // events. Each `cleanup_map` used to read its own, so an event sitting
-        // exactly on the TTL boundary could be dropped from `by_connection` and
-        // kept in `by_session` — the two views of one connection disagreeing
-        // about what the store holds, for no reason but the microseconds
-        // between two lock acquisitions.
-        let now = Utc::now();
+        // One instant for both maps, because they index the same events. Each
+        // `cleanup_map` used to read its own clock, so an event sitting exactly
+        // on the TTL boundary could be dropped from `by_connection` and kept in
+        // `by_session` — two views of one connection disagreeing about what the
+        // store holds, for no reason but the microseconds between two lock
+        // acquisitions.
         Self::cleanup_map(&self.by_connection, ttl_chrono, now);
         Self::cleanup_map(&self.by_session, ttl_chrono, now);
     }
@@ -191,8 +199,7 @@ mod tests {
         let conn = Uuid::new_v4();
         store.record_event(&make_h3_event(conn));
 
-        std::thread::sleep(std::time::Duration::from_secs(2));
-        store.cleanup_expired();
+        store.cleanup_expired_at(Utc::now() + chrono::Duration::seconds(2));
 
         assert!(store.get_history_for_connection(conn).is_empty());
     }

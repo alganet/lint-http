@@ -237,6 +237,23 @@ impl StateStore {
 
     /// Remove expired entries from the store.
     pub fn cleanup_expired(&self) {
+        self.cleanup_expired_at(Utc::now());
+    }
+
+    /// [`cleanup_expired`](Self::cleanup_expired) with the sweep's instant
+    /// supplied, so a caller can age entries without waiting for them to age.
+    ///
+    /// The public entry point reads the clock once and hands it here — the same
+    /// single-instant guarantee, now with the instant nameable. Tests used to
+    /// establish it by sleeping past the TTL: four `thread::sleep(2s)` across
+    /// this crate, eight seconds of wall clock spent proving arithmetic, and a
+    /// test that cannot be made faster than the thing it measures cannot test a
+    /// long TTL at all.
+    ///
+    /// Not `#[cfg(test)]`: a caller replaying a capture is doing exactly this —
+    /// sweeping at the recording's time rather than at its own — and the method
+    /// is honest about the store not owning a clock.
+    pub fn cleanup_expired_at(&self, now: chrono::DateTime<Utc>) {
         let mut removed_keys: Vec<ResourceKey> = Vec::new();
 
         // One write lock across expiry and index pruning: a record_transaction
@@ -246,14 +263,11 @@ impl StateStore {
         let ttl_chrono =
             chrono::Duration::from_std(self.ttl).unwrap_or_else(|_| chrono::Duration::seconds(0));
 
-        // One reading of the clock for the whole sweep, and it is the cutoff
-        // that matters rather than the syscall it saves. Read inside the
-        // closure, `now` advanced as the pass walked the store, so two entries
-        // with the same timestamp could be judged against different instants —
-        // the later deque held to a stricter deadline for no reason but its
-        // position in a HashMap iteration. A sweep is one moment.
-        let now = Utc::now();
-
+        // `now` is the caller's, read once above the lock. It used to be read
+        // inside the closure below, where it advanced as the pass walked the
+        // store — two entries with the same timestamp judged against different
+        // instants, the later deque held to a stricter deadline for no reason
+        // but its position in a HashMap iteration. A sweep is one moment.
         for deque in inner.store.values_mut() {
             deque.retain(|tx| {
                 let age = now.signed_duration_since(tx.timestamp);
@@ -465,18 +479,13 @@ mod tests {
 
     #[test]
     fn cleanup_removes_expired_entries() {
-        eprintln!("cleanup test start");
         let store = StateStore::new(1, 10); // 1 second TTL
         let client = make_client();
         let resource = "http://example.com/resource";
-
-        eprintln!("about to create tx");
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         tx.client = client.clone();
         tx.request.uri = resource.to_string();
-        eprintln!("recording transaction");
         store.record_transaction(&tx);
-        eprintln!("recorded");
         // index should contain mapping
         {
             let inner = store.inner.read();
@@ -485,20 +494,74 @@ mod tests {
                 .get(resource)
                 .map(|v| v.contains(&client))
                 .unwrap_or(false));
-            eprintln!("index contains entry");
         } // read lock dropped here
 
-        // sleep long enough to expire
-        eprintln!("sleeping");
-        std::thread::sleep(std::time::Duration::from_secs(2));
-        eprintln!("woke up, about to cleanup");
-        store.cleanup_expired();
-        eprintln!("cleanup done");
+        // Sweep two seconds after the fact rather than two seconds later. The
+        // TTL is one second, so this is the same arithmetic without the wait.
+        // A sweep *inside* the TTL keeps the entry. This half could not be
+        // written while expiry was established by sleeping: proving "still
+        // fresh after 0.5s" meant sleeping 0.5s and racing the assertion.
+        store.cleanup_expired_at(Utc::now() + chrono::Duration::milliseconds(500));
+        assert!(
+            store.get_previous(&client, resource).is_some(),
+            "an entry inside its TTL survives the sweep"
+        );
+
+        // Sweep two seconds after the fact rather than two seconds later. The
+        // TTL is one second, so this is the same arithmetic without the wait.
+        store.cleanup_expired_at(Utc::now() + chrono::Duration::seconds(2));
         assert!(store.get_previous(&client, resource).is_none());
         // index should no longer have resource
         let inner2 = store.inner.read();
         assert!(!inner2.resource_index.contains_key(resource));
-        eprintln!("cleanup test end");
+    }
+
+    /// The TTL boundary itself, which no sleeping test could sit on: `age <=
+    /// ttl` keeps an entry at exactly the TTL and drops it one millisecond
+    /// later. Reaching that instant by waiting is a coin flip.
+    #[test]
+    fn the_ttl_boundary_is_inclusive() {
+        let store = StateStore::new(60, 10);
+        let client = make_client();
+        let resource = "http://example.com/edge";
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+        let recorded_at = Utc::now();
+        tx.timestamp = recorded_at;
+        store.record_transaction(&tx);
+
+        store.cleanup_expired_at(recorded_at + chrono::Duration::seconds(60));
+        assert!(
+            store.get_previous(&client, resource).is_some(),
+            "an entry exactly at the TTL is not yet expired"
+        );
+
+        store.cleanup_expired_at(recorded_at + chrono::Duration::milliseconds(60_001));
+        assert!(
+            store.get_previous(&client, resource).is_none(),
+            "one millisecond past the TTL it is"
+        );
+    }
+
+    /// A timestamp in the future is treated as expired rather than as
+    /// infinitely fresh — the clock-skew guard. Also unreachable by sleeping.
+    #[test]
+    fn a_future_timestamp_is_swept() {
+        let store = StateStore::new(3600, 10);
+        let client = make_client();
+        let resource = "http://example.com/future";
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.client = client.clone();
+        tx.request.uri = resource.to_string();
+        tx.timestamp = Utc::now() + chrono::Duration::hours(1);
+        store.record_transaction(&tx);
+
+        store.cleanup_expired_at(Utc::now());
+        assert!(
+            store.get_previous(&client, resource).is_none(),
+            "a future timestamp is swept, not treated as fresh forever"
+        );
     }
 
     #[test]
@@ -814,9 +877,8 @@ mod tests {
             assert!(inner.connection_index.contains_key(&conn_id));
         }
 
-        // Wait for expiry
-        std::thread::sleep(std::time::Duration::from_secs(2));
-        store.cleanup_expired();
+        // Expire by naming the instant, not by waiting for it.
+        store.cleanup_expired_at(Utc::now() + chrono::Duration::seconds(2));
 
         // connection_index should be pruned
         let inner = store.inner.read();
@@ -841,9 +903,8 @@ mod tests {
             assert!(inner.client_index.contains_key(&client));
         }
 
-        // Wait for expiry
-        std::thread::sleep(std::time::Duration::from_secs(2));
-        store.cleanup_expired();
+        // Expire by naming the instant, not by waiting for it.
+        store.cleanup_expired_at(Utc::now() + chrono::Duration::seconds(2));
 
         let inner = store.inner.read();
         assert!(
