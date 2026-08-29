@@ -6381,9 +6381,9 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 110
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 101
+      line: 121
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 369
+      line: 389
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
       line: 54
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
@@ -6677,7 +6677,7 @@ sources:
     snippet: Fields are sent and received within the header and trailer sections of messages
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 232
+      line: 252
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 52
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
@@ -6687,7 +6687,7 @@ sources:
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 70
+      line: 90
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 145
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -6699,13 +6699,13 @@ sources:
     snippet: Since it cannot be combined into a single field value, recipients ought to handle "Set-Cookie" as a special case while processing fields.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 71
+      line: 91
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 5.3
     snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 370
+      line: 390
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 28
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
@@ -6745,9 +6745,9 @@ sources:
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 102
+      line: 122
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 137
+      line: 157
     - file: lint-http-rules/src/helpers/shown.rs
       line: 43
     - file: lint-http-rules/src/rules/charset_registered.rs
@@ -6775,7 +6775,7 @@ sources:
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 367
+      line: 387
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 159
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
@@ -6785,7 +6785,7 @@ sources:
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 368
+      line: 388
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 253
   - label: lint-http-rules/src/helpers/headers.rs (8)
@@ -6793,13 +6793,13 @@ sources:
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 138
+      line: 158
   - label: OWS grammar
     section: § 5.6.3
     snippet: OWS            = *( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 291
+      line: 311
     - file: lint-http-rules/src/helpers/list.rs
       line: 36
     - file: lint-http-rules/src/helpers/list.rs
@@ -6847,15 +6847,15 @@ sources:
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 290
+      line: 310
   - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 6.5
     snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 183
+      line: 203
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 233
+      line: 253
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 93
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
