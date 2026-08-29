@@ -80,7 +80,7 @@ impl Rule for CharsetRegistered {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-            use crate::helpers::headers::parse_media_type;
+            use crate::helpers::media_type::parse_media_type;
 
             let check_header = |which: &str, val: &str| -> Option<Violation> {
                 // A value that is not a media-type at all has no parameters to read,
@@ -107,7 +107,7 @@ impl Rule for CharsetRegistered {
                     // through `media_type_parts_defect` and reports it there — so it
                     // is skipped rather than judged, and the whitespace beside the
                     // `=` is the leniency this rule publishes.
-                    for parameter in crate::helpers::headers::parameters(params) {
+                    for parameter in crate::helpers::parameter::parameters(params) {
                         let Ok(parameter) = parameter else { continue };
                         let value = parameter.value;
                         // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."

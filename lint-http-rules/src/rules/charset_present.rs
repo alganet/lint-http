@@ -63,7 +63,7 @@ impl Rule for CharsetPresent {
                 // here is that the top-level type compares case-insensitively, so
                 // `TEXT/HTML` is in scope exactly as `text/html` is.
                 // cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-                if let Ok(parsed) = crate::helpers::headers::parse_media_type(ct_str) {
+                if let Ok(parsed) = crate::helpers::media_type::parse_media_type(ct_str) {
                     if parsed.type_.eq_ignore_ascii_case("text") {
                         // Parameter *names* are case-insensitive too, which is why the
                         // key comparison folds case. Only the name is compared — the

@@ -999,7 +999,7 @@ fn is_reg_rel_type(t: &str) -> bool {
 /// the subtype-name: there is no `parameters` group here, and a `;` after the
 /// subtype is an octet `restricted-name-chars` does not admit rather than the
 /// start of a `charset`. That is why the reader is not
-/// [`crate::helpers::headers::parse_media_type`] — that function implements
+/// [`crate::helpers::media_type::parse_media_type`] — that function implements
 /// RFC 9110 § 8.3.1's `media-type`, whose halves are `token` and whose tail
 /// admits parameters, and both answers are wrong here: `restricted-name` is
 /// narrower than `token` (it opens on a letter or digit, so `*/*` derives from

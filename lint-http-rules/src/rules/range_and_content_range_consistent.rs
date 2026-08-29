@@ -75,7 +75,7 @@ fn response_is_multipart_byteranges(headers: &hyper::HeaderMap) -> bool {
     let Some(ct) = crate::helpers::headers::get_header_str(headers, "content-type") else {
         return false;
     };
-    match crate::helpers::headers::parse_media_type(ct) {
+    match crate::helpers::media_type::parse_media_type(ct) {
         Ok(mt) => {
             mt.type_.eq_ignore_ascii_case("multipart")
                 && mt.subtype.eq_ignore_ascii_case("byteranges")

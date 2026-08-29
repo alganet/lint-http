@@ -222,7 +222,7 @@ fn check_content_type(
     val: &str,
     severity: crate::lint::Severity,
 ) -> Option<Violation> {
-    use crate::helpers::headers::parse_media_type;
+    use crate::helpers::media_type::parse_media_type;
 
     // `media-type = type "/" subtype parameters` is transcribed at
     // `parse_media_type`, which owns it; a second copy here would be the same
@@ -268,7 +268,7 @@ fn check_content_type(
     //
     // The helper returns the reason rather than a message, so this rule still
     // names its own field in the finding.
-    if let Some(reason) = crate::helpers::headers::media_type_parts_defect(&parsed) {
+    if let Some(reason) = crate::helpers::media_type::media_type_parts_defect(&parsed) {
         return Some(ContentTypeValid.violation(
             severity,
             format!("Invalid Content-Type '{}': {}", val, reason),

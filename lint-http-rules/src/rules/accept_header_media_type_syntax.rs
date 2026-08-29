@@ -157,7 +157,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // (Quoted as the whole production block: either half on its
                         // own is under apycite's 20-character floor for evidence.)
                         // cite(RFC 9110 § 8.3.1): "media-type = type "/" subtype parameters type       = token subtype    = token"
-                        if let Ok(parsed) = crate::helpers::headers::parse_media_type(media) {
+                        if let Ok(parsed) = crate::helpers::media_type::parse_media_type(media) {
                             if let Some(c) =
                                 crate::helpers::token::find_invalid_token_char(parsed.type_)
                             {
@@ -235,12 +235,12 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // walk's; the whitespace beside the `=` it hands back is
                         // this rule's published leniency, read and dropped here so
                         // that the paragraph saying so is a statement about the code.
-                        let Some(parsed) = crate::helpers::headers::parameter_of(p) else {
+                        let Some(parsed) = crate::helpers::parameter::parameter_of(p) else {
                             continue;
                         };
                         let parsed = match parsed {
                             Ok(parsed) => parsed,
-                            Err(crate::helpers::headers::ParameterDefect::NoEquals(_)) => {
+                            Err(crate::helpers::parameter::ParameterDefect::NoEquals(_)) => {
                                 return Some(self.violation(
                                     ctx.severity,
                                     format!(

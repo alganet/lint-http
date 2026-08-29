@@ -177,7 +177,7 @@ fn check_multipart_boundary(
     // A value that is not a media-type at all has no type to compare and no
     // parameters to read. Saying so is `content_type_valid`'s
     // finding, not this one's; the `media-type` grammar is the helper's.
-    let parsed = match crate::helpers::headers::parse_media_type(val) {
+    let parsed = match crate::helpers::media_type::parse_media_type(val) {
         Ok(p) => p,
         Err(_) => return None,
     };
@@ -219,7 +219,7 @@ fn check_multipart_boundary(
             // optional — but that it is malformed is
             // `content_type_valid`'s finding; this rule only needs
             // to know it is not the boundary, so it is skipped here.
-            for parameter in crate::helpers::headers::parameters(params) {
+            for parameter in crate::helpers::parameter::parameters(params) {
                 let Ok(parameter) = parameter else { continue };
                 let value = parameter.value;
                 // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."

@@ -50,6 +50,8 @@ pub mod headers;
 pub mod ipv6;
 pub mod language;
 pub mod mailbox;
+pub mod media_type;
+pub mod parameter;
 pub mod product;
 pub mod quoted_string;
 pub mod rule_config;

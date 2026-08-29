@@ -128,7 +128,7 @@ impl Rule for AcceptAndContentTypeNegotiation {
             let accept = accept?;
 
             // Parse response Content-Type media-type
-            let parsed_ct = match crate::helpers::headers::parse_media_type(content_type) {
+            let parsed_ct = match crate::helpers::media_type::parse_media_type(content_type) {
                 Ok(p) => p,
                 Err(_) => return None, // content-type parsing is handled by other rules
             };
@@ -184,7 +184,7 @@ impl Rule for AcceptAndContentTypeNegotiation {
                 // either, though it parses as a media-type.
                 // cite(RFC 9110 § 12.5.1): "media-range    = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) ) parameters"
                 // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
-                let range = match crate::helpers::headers::parse_media_type(media) {
+                let range = match crate::helpers::media_type::parse_media_type(media) {
                     Ok(mr) if mr.type_ != "*" || mr.subtype == "*" => mr,
                     _ => continue,
                 };
@@ -202,7 +202,7 @@ impl Rule for AcceptAndContentTypeNegotiation {
                 // `accept_header_media_type_syntax`'s finding, and this rule
                 // is only asking whether the member refuses what the response sent.
                 let mut qval: Option<&str> = None;
-                for parameter in parts.filter_map(crate::helpers::headers::parameter_of) {
+                for parameter in parts.filter_map(crate::helpers::parameter::parameter_of) {
                     let Ok(parameter) = parameter else { continue };
                     if parameter.name.eq_ignore_ascii_case("q") {
                         qval = Some(parameter.value);

@@ -84,7 +84,7 @@ impl Rule for MediaTypeSuffixValid {
                 // A value that is not a media-type has no subtype to inspect, and
                 // saying so is `content_type_valid`'s finding. The
                 // `media-type` grammar is the helper's.
-                let parsed = match crate::helpers::headers::parse_media_type(val) {
+                let parsed = match crate::helpers::media_type::parse_media_type(val) {
                     Ok(p) => p,
                     Err(_) => return None,
                 };
@@ -120,7 +120,8 @@ impl Rule for MediaTypeSuffixValid {
                 // says it in the comment on its own production, which is what the
                 // helper's `rfind('+')` encodes. A base name may itself contain "+".
                 // cite(RFC 6838 § 4.2): "restricted-name-chars =/ "+" ; Characters after last plus always ; specify a structured syntax suffix"
-                if let Some(suffix) = crate::helpers::headers::media_type_subtype_suffix(subtype) {
+                if let Some(suffix) = crate::helpers::media_type::media_type_subtype_suffix(subtype)
+                {
                     // A subtype that is *only* a suffix has no base name to qualify,
                     // and `restricted-name-first` admits no "+". The mirror image of
                     // the bare-trailing-"+" check below, on the same reasoning.
