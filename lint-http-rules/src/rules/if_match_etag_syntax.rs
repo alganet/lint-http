@@ -103,7 +103,7 @@ impl Rule for IfMatchEtagSyntax {
                         "If-Match header contains an empty list element".into(),
                     ));
                 }
-                if let Err(msg) = crate::helpers::headers::validate_entity_tag(member) {
+                if let Err(msg) = crate::helpers::validator::validate_entity_tag(member) {
                     return Some(self.violation(
                         ctx.severity,
                         format!(

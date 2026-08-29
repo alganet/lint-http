@@ -147,7 +147,7 @@ impl Rule for RangeRequestAndCaching {
             for past in history.iter() {
                 if let Some(resp) = &past.response {
                     let (etag, last_modified) =
-                        crate::helpers::headers::extract_validators_from_response(&resp.headers);
+                        crate::helpers::validator::extract_validators_from_response(&resp.headers);
                     if etag.is_some() || last_modified.is_some() {
                         newest_validators = Some((etag, last_modified));
                         break;
@@ -178,7 +178,7 @@ impl Rule for RangeRequestAndCaching {
             // charging one party for another's field. The `stored_etag == "*"` beside
             // this was a workaround for `validate_entity_tag` admitting a `*`, which
             // no `entity-tag` generates; the helper answers it now.
-            if crate::helpers::headers::validate_entity_tag(&stored_etag).is_err() {
+            if crate::helpers::validator::validate_entity_tag(&stored_etag).is_err() {
                 return None;
             }
 
@@ -655,7 +655,7 @@ mod tests {
                 // date would make *both* halves false and fail the `!=` below
                 // with a message about the value not being either — so the fix
                 // is the example, not this line.
-                let tag_ok = crate::helpers::headers::validate_entity_tag(value).is_ok();
+                let tag_ok = crate::helpers::validator::validate_entity_tag(value).is_ok();
                 let date_ok = crate::http_date::is_valid_imf_fixdate(value);
                 match name.to_ascii_lowercase().as_str() {
                     "etag" | "if-none-match" => {

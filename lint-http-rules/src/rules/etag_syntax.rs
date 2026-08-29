@@ -74,7 +74,7 @@ impl Rule for EtagSyntax {
                 }
 
                 // The entity-tag grammar itself (§8.8.3) is owned by `validate_entity_tag`.
-                if let Err(msg) = crate::helpers::headers::validate_entity_tag(t) {
+                if let Err(msg) = crate::helpers::validator::validate_entity_tag(t) {
                     return Some(
                         self.violation(ctx.severity, format!("ETag header invalid: {}", msg)),
                     );
