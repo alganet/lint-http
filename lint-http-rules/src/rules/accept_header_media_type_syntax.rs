@@ -292,7 +292,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // copy. The MUST NOT is the sender-side statement of
                             // the same bound, and it is senders this rule reports.
                             // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
-                            if !crate::helpers::headers::valid_qvalue(v) {
+                            if !crate::helpers::qvalue::valid_qvalue(v) {
                                 return Some(self.cited(
                                     &RFC_9110_12_4_2,
                                     ctx.severity,
@@ -303,7 +303,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // `parameter-value` is `( token / quoted-string )`, and
                             // the alternation is read by the helper that owns it.
                             // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-                            match crate::helpers::headers::token_or_quoted_string(v) {
+                            match crate::helpers::word::token_or_quoted_string(v) {
                                 Ok(_) => {}
                                 // The same shape the parameter *name* above was
                                 // corrected for, left standing on the value half:
@@ -314,13 +314,13 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                 // `quoted-string` is its two DQUOTEs -- so the value
                                 // as written derives from no `parameter-value`.
                                 // (`x=""` is a different value and still conforms.)
-                                Err(crate::helpers::headers::WordDefect::Empty) => {
+                                Err(crate::helpers::word::WordDefect::Empty) => {
                                     return Some(self.violation(ctx.severity, format!(
                                             "Empty parameter value in '{}' of {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
                                             p, hdr
                                         )));
                                 }
-                                Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
+                                Err(crate::helpers::word::WordDefect::NotQuotedString(e)) => {
                                     return Some(self.violation(
                                         ctx.severity,
                                         format!(
@@ -329,7 +329,7 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                         ),
                                     ));
                                 }
-                                Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
+                                Err(crate::helpers::word::WordDefect::NotToken(c)) => {
                                     return Some(self.violation(ctx.severity, format!(
                                             "Invalid token '{}' in parameter value '{}' of {} header",
                                             c, v, hdr

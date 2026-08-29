@@ -97,7 +97,7 @@ impl EarlyDataHeaderSafeMethod {
     ) -> Option<Violation> {
         let connection =
             crate::helpers::headers::combined_field_value_as_written(headers, "connection")?;
-        if !crate::helpers::headers::is_nominated_by_connection(FIELD, Some(&connection)) {
+        if !crate::helpers::field_placement::is_nominated_by_connection(FIELD, Some(&connection)) {
             return None;
         }
         Some(self.violation(

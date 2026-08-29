@@ -122,7 +122,7 @@ fn member_defect(member: &str) -> Option<String> {
 
     // The `( token / quoted-string )` alternation is read by the shared helper
     // that owns it; what stays here is what this field says about each answer.
-    match crate::helpers::headers::token_or_quoted_string(argument) {
+    match crate::helpers::word::token_or_quoted_string(argument) {
         Ok(_) => None,
         // Leniency, recorded rather than changed: `foo=` does not match the
         // grammar above — once "=" is present the optional group requires a
@@ -131,11 +131,11 @@ fn member_defect(member: &str) -> Option<String> {
         // is the safe direction for a linter, and tightening it would be a
         // behavior change. (`foo=""` is genuinely valid: quoted-string permits
         // empty content.)
-        Err(crate::helpers::headers::WordDefect::Empty) => None,
-        Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
+        Err(crate::helpers::word::WordDefect::Empty) => None,
+        Err(crate::helpers::word::WordDefect::NotQuotedString(e)) => {
             Some(format!("Invalid quoted-string in directive value: {}", e))
         }
-        Err(crate::helpers::headers::WordDefect::NotToken(c)) => Some(format!(
+        Err(crate::helpers::word::WordDefect::NotToken(c)) => Some(format!(
             "Directive value contains invalid character: '{}'",
             c
         )),

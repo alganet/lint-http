@@ -2,12 +2,11 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{
-    combined_field_value_as_written, is_nominated_by_connection, token_or_quoted_string, trim_ows,
-    WordDefect,
-};
+use crate::helpers::field_placement::is_nominated_by_connection;
+use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::list_members_as_written;
 use crate::helpers::shown::{describe_char, shown_in_finding};
+use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
 use crate::rules::Rule;
 
@@ -495,7 +494,7 @@ fn validate_keep_alive(value: &str, max_timeout_seconds: u64) -> Result<(), Stri
 /// is only judged. Folding this into the helper would give it a mode switch per
 /// disagreement and answer none of them better.
 ///
-/// [`parse_token_bws_word`]: crate::helpers::headers::parse_token_bws_word
+/// [`parse_token_bws_word`]: crate::helpers::word::parse_token_bws_word
 // cite(RFC 2068 § 19.7.1.1): "keepalive-param = param-name "=" value"
 // cite(draft-thomson-hybi-http-timeout-03 § 2): "keep-alive-extension = token [ "=" ( token / quoted-string ) ]"
 fn validate_keepalive_param(member: &str, max_timeout_seconds: u64) -> Result<(), String> {
@@ -570,8 +569,8 @@ fn validate_keepalive_param(member: &str, max_timeout_seconds: u64) -> Result<()
 /// the same pair, and the cites below are why that is a reading rather than an
 /// assumption.
 ///
-/// [`token_or_quoted_string`]: crate::helpers::headers::token_or_quoted_string
-/// [`parse_token_bws_word`]: crate::helpers::headers::parse_token_bws_word
+/// [`token_or_quoted_string`]: crate::helpers::word::token_or_quoted_string
+/// [`parse_token_bws_word`]: crate::helpers::word::parse_token_bws_word
 // cite(RFC 2068 § 3.7): "value          = token | quoted-string"
 // cite(RFC 2068 § 2.2): "token          = 1*<any CHAR except CTLs or tspecials>"
 // cite(RFC 2068 § 2.2): "quoted-string  = ( <"> *(qdtext) <"> )"

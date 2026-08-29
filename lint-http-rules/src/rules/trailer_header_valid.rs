@@ -107,7 +107,7 @@ impl TrailerHeaderValid {
             // so in as many words.
             //
             // cite(RFC 9110 § 7.6.1): "Intermediaries MUST parse a received Connection header field before a message is forwarded and, for each connection-option in this field, remove any header or trailer field(s) from the message with the same name as the connection-option, and then remove the Connection header field itself (or replace it with the intermediary's own control options for the forwarded message)."
-            if crate::helpers::headers::is_connection_specific_field(
+            if crate::helpers::field_placement::is_connection_specific_field(
                 member,
                 connection_val.as_deref(),
             ) {

@@ -224,7 +224,7 @@ fn check_trailers(
         // this crate carries that do not permit the usage.
         //
         // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-        if crate::helpers::headers::is_prohibited_trailer_field(name) {
+        if crate::helpers::field_placement::is_prohibited_trailer_field(name) {
             return Some(rule.violation(
                 severity,
                 // The message names the field's own definition rather than the
@@ -250,7 +250,10 @@ fn check_trailers(
         // on the helper.
         //
         // cite(RFC 9110 § 7.6.1): "When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field."
-        if crate::helpers::headers::is_nominated_by_connection(name, connection_val.as_deref()) {
+        if crate::helpers::field_placement::is_nominated_by_connection(
+            name,
+            connection_val.as_deref(),
+        ) {
             return Some(rule.violation(
                 severity,
                 format!(

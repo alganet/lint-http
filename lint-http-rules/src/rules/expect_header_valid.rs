@@ -481,23 +481,23 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         // value" test is needed: everything such a test would catch,
         // `validate_quoted_string` already rejects, since it requires the first
         // and last octets to be the DQUOTE with no unescaped one between them.
-        match crate::helpers::headers::token_or_quoted_string(pvalue) {
+        match crate::helpers::word::token_or_quoted_string(pvalue) {
             Ok(_) => {}
-            Err(crate::helpers::headers::WordDefect::Empty) => {
+            Err(crate::helpers::word::WordDefect::Empty) => {
                 return Err(format!(
                     "Expect member '{}' has a parameter with an empty value: '{}'",
                     crate::helpers::shown::shown_in_finding(member),
                     crate::helpers::shown::shown_in_finding(seg)
                 ))
             }
-            Err(crate::helpers::headers::WordDefect::NotQuotedString(e)) => {
+            Err(crate::helpers::word::WordDefect::NotQuotedString(e)) => {
                 return Err(format!(
                     "Invalid quoted-string in Expect parameter '{}': {}",
                     crate::helpers::shown::shown_in_finding(seg),
                     e
                 ))
             }
-            Err(crate::helpers::headers::WordDefect::NotToken(c)) => {
+            Err(crate::helpers::word::WordDefect::NotToken(c)) => {
                 return Err(format!(
                     "Invalid octet {} in Expect parameter value '{}'",
                     describe_octet(c as u8),

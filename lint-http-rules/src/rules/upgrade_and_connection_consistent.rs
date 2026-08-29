@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::{combined_field_value_as_written, is_nominated_by_connection};
+use crate::helpers::field_placement::is_nominated_by_connection;
+use crate::helpers::headers::combined_field_value_as_written;
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::Rule;

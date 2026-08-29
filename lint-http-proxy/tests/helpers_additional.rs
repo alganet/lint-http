@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: ISC
 
-use lint_http::helpers::headers::validate_ext_value;
 use lint_http::helpers::mailbox::{parse_mailbox, MailboxDefect};
+use lint_http::helpers::parameter::validate_ext_value;
 
 #[test]
 fn validate_ext_value_missing_language_separator_error() {
