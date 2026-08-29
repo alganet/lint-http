@@ -54,7 +54,7 @@ impl FrameAncestors {
         let mut named = false;
 
         for directive in crate::helpers::headers::field_lines(headers, "content-security-policy")
-            .flat_map(crate::helpers::headers::parse_semicolon_list)
+            .flat_map(crate::helpers::list::parse_semicolon_list)
         {
             let mut parts = directive.split_whitespace();
             if !parts

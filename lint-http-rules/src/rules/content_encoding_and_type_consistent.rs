@@ -49,7 +49,7 @@ impl Rule for ContentEncodingAndTypeConsistent {
                                          seen: &mut std::collections::HashSet<String>|
              -> Option<Violation> {
                 // cite(RFC 9110 § 8.4): "Content-Encoding = #content-coding"
-                for part in crate::helpers::headers::list_members(val) {
+                for part in crate::helpers::list::list_members(val) {
                     // Strip parameters (not expected for Content-Encoding but be forgiving)
                     let token = part.split(';').next().unwrap().trim();
                     if token.is_empty() {

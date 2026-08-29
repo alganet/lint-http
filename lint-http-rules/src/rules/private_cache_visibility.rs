@@ -97,7 +97,7 @@ impl Rule for PrivateCacheVisibility {
                 .get_all("if-none-match")
                 .iter()
                 .filter_map(|hv| hv.to_str().ok())
-                .flat_map(crate::helpers::headers::list_members)
+                .flat_map(crate::helpers::list::list_members)
             {
                 if private_etags.contains(&crate::helpers::headers::normalize_etag(member)) {
                     return Some(self.cited(

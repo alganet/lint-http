@@ -71,7 +71,7 @@ impl Rule for AcceptLanguageWeightValid {
                 // quoted-string, so there is no quoted comma to protect. Empty list
                 // elements are skipped, which §5.6.1.2 permits a recipient to do.
                 // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
-                for member in crate::helpers::headers::list_members(hdr_value) {
+                for member in crate::helpers::list::list_members(hdr_value) {
                     // Each member: language-range [; params]
                     let mut iter = member.split(';').map(|s| s.trim());
                     // The language-range itself is `language_tag_syntax`'s

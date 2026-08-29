@@ -42,7 +42,7 @@ pub struct ParsedMediaType<'a> {
 /// `media-type` admits and both of which `str::trim` silently removed. That
 /// erased the one unambiguous defect in `application/example%xA0`, which came
 /// back as a clean `subtype` of `example`. The same reasoning is written out at
-/// [`split_semicolons_respecting_quotes`](crate::helpers::headers::split_semicolons_respecting_quotes), which had already been fixed.
+/// [`split_semicolons_respecting_quotes`](crate::helpers::list::split_semicolons_respecting_quotes), which had already been fixed.
 ///
 /// The two halves of `type "/" subtype` are **not** trimmed at all, because the
 /// production prints no `OWS` between them: `application / example` derives from

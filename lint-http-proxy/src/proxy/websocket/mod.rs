@@ -42,7 +42,7 @@ pub(super) fn is_websocket_upgrade<B>(req: &Request<B>) -> bool {
     let is_websocket =
         crate::helpers::headers::combined_field_value_as_written(req.headers(), "upgrade")
             .is_some_and(|upgrade| {
-                crate::helpers::headers::list_members(&upgrade)
+                crate::helpers::list::list_members(&upgrade)
                     .any(|m| m.eq_ignore_ascii_case("websocket"))
             });
     has_upgrade && is_websocket

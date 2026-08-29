@@ -155,7 +155,7 @@ impl ConditionalRequestHandling {
         let etag = crate::helpers::headers::get_header_str(&resp.headers, "etag")?.trim();
         let condition_was_false =
             crate::helpers::headers::field_lines(&tx.request.headers, "if-none-match")
-                .flat_map(crate::helpers::headers::list_members)
+                .flat_map(crate::helpers::list::list_members)
                 .any(|member| member == etag || member == "*");
 
         condition_was_false.then(|| self.violation(severity, "Conditional GET/HEAD: the If-None-Match condition was not met (response ETag matched) but the server returned 200; RFC 9110 §13.1.2 requires a 304 (Not Modified) for GET/HEAD".into()))

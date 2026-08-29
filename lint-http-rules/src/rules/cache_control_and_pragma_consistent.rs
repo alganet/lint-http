@@ -46,7 +46,7 @@ impl Rule for CacheControlAndPragmaConsistent {
                     // syntax/token rules (e.g., `pragma_token_valid`) handle encoding errors.
                     continue;
                 };
-                for m in crate::helpers::headers::list_members(s) {
+                for m in crate::helpers::list::list_members(s) {
                     if m.eq_ignore_ascii_case("no-cache") {
                         // if request also contains Cache-Control: only-if-cached, that's contradictory
                         // No sentence says this combination is illegal; it is a

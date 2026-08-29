@@ -87,7 +87,7 @@ impl Rule for StrictTransportSecurityValid {
                 let mut saw_max_age = false;
                 let mut max_age_count = 0usize;
 
-                for member in crate::helpers::headers::split_semicolons_respecting_quotes(v) {
+                for member in crate::helpers::list::split_semicolons_respecting_quotes(v) {
                     let member = member.trim();
                     if member.is_empty() {
                         // skip stray semicolons but flag as violation

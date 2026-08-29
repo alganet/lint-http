@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
-use crate::helpers::headers::split_commas_respecting_quotes;
+use crate::helpers::list::split_commas_respecting_quotes;
 
 /// Split a WWW-Authenticate header value into "assembled" challenges.
 ///

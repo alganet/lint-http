@@ -87,7 +87,7 @@ impl Rule for AcceptEncodingPresent {
             for hv in tx.request.headers.get_all("accept-encoding").iter() {
                 present = true;
                 let val = crate::helpers::headers::field_line_as_written(hv);
-                if crate::helpers::headers::list_members(&val).next().is_some() {
+                if crate::helpers::list::list_members(&val).next().is_some() {
                     any_coding = true;
                 }
             }

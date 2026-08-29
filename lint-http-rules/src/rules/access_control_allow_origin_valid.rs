@@ -85,7 +85,7 @@ impl Rule for AccessControlAllowOriginValid {
             };
 
             // Must be a single value (not a comma-separated list)
-            let members: Vec<String> = crate::helpers::headers::list_members(s)
+            let members: Vec<String> = crate::helpers::list::list_members(s)
                 .map(|m| m.to_string())
                 .collect();
             if members.len() != 1 {

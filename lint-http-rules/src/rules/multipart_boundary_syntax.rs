@@ -200,7 +200,7 @@ fn check_multipart_boundary(
         // find was legible enough to judge.
         let mut unreadable = false;
         if let Some(params) = parsed.params {
-            unreadable = !crate::helpers::headers::quoting_is_balanced(params);
+            unreadable = !crate::helpers::list::quoting_is_balanced(params);
             // Quote-aware, because a `;` inside a quoted parameter value does not
             // start a new parameter. A raw `split(';')` cut such a value apart and
             // read the pieces as parameters of their own, in both directions: a

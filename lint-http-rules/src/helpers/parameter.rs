@@ -19,7 +19,8 @@
 //!
 // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
 
-use crate::helpers::headers::{split_semicolons_respecting_quotes, trim_ows};
+use crate::helpers::headers::trim_ows;
+use crate::helpers::list::split_semicolons_respecting_quotes;
 
 /// One `parameter` of a `parameters` group, split but not judged.
 ///

@@ -108,7 +108,7 @@ impl Rule for TimingAllowOriginValid {
                         // cite(RFC 9110 § 5.6.1.2): "A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism"
                     }
                 }
-                for m in crate::helpers::headers::list_members(s) {
+                for m in crate::helpers::list::list_members(s) {
                     // `wildcard` and the case-sensitive lowercase `null` are the two
                     // non-origin members the grammar admits (both productions resolve
                     // into Fetch).

@@ -93,7 +93,7 @@ impl Rule for IfNoneMatchEtagSyntax {
             // reported a conforming tag as two malformed ones.
             //
             // cite(RFC 9110 § 8.8.3): "etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text"
-            for member in crate::helpers::headers::list_members_as_written(value) {
+            for member in crate::helpers::list::list_members_as_written(value) {
                 // That walk keeps the empty members the old one dropped, and they
                 // are a defect rather than noise -- named here so the finding is
                 // about the list and not about a quoted-string that is not there.

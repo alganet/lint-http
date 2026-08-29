@@ -77,7 +77,7 @@ impl Rule for OriginIsolatedHeaderValid {
 
             // Must not be a comma-separated list
             // cite(HTML § 7.1.2): "This header is a structured header whose value must be a boolean."
-            if crate::helpers::headers::list_members(val).count() != 1 {
+            if crate::helpers::list::list_members(val).count() != 1 {
                 return Some(self.cited(
                     &HTML_7_1_2,
                     ctx.severity,

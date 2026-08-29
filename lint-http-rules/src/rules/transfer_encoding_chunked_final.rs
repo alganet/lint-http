@@ -71,13 +71,13 @@ impl Rule for TransferEncodingChunkedFinal {
                 // to judge, because the codings on that line are the ones
                 // between the lines that remain.
                 let val = crate::helpers::headers::field_line_as_written(hv);
-                if !crate::helpers::headers::quoting_is_balanced(&val) {
+                if !crate::helpers::list::quoting_is_balanced(&val) {
                     return None;
                 }
                 // Quote-aware: a comma inside a transfer-parameter's
                 // quoted-string value is not a list separator.
                 // cite(RFC 9110 § 10.1.4): "transfer-parameter = token BWS "=" BWS ( token / quoted-string )"
-                for part in crate::helpers::headers::split_commas_respecting_quotes(&val) {
+                for part in crate::helpers::list::split_commas_respecting_quotes(&val) {
                     // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                     if part.is_empty() {
                         continue;
@@ -116,7 +116,7 @@ impl Rule for TransferEncodingChunkedFinal {
                 // Bound rather than returned directly: the iterator borrows
                 // `val`, and as a tail expression it outlives it. Not a style
                 // choice -- inlining it does not compile.
-                let found = crate::helpers::headers::list_members(&val)
+                let found = crate::helpers::list::list_members(&val)
                     .any(|opt| opt.eq_ignore_ascii_case("close"));
                 found
             })

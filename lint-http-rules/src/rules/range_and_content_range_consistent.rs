@@ -203,7 +203,7 @@ impl Rule for RangeAndContentRangeConsistent {
                     // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                     let requested_ranges = requested
                         .as_ref()
-                        .map(|(_, set)| crate::helpers::headers::list_members(set).count());
+                        .map(|(_, set)| crate::helpers::list::list_members(set).count());
                     if requested_ranges == Some(1) {
                         return Some(self.violation(config.severity, "multipart/byteranges 206 response sent to a request for a single range"
                                     .into()));

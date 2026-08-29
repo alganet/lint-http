@@ -82,7 +82,7 @@ impl Rule for CharsetPresent {
                         // finding; unreadable parameters are not an absent charset.
                         // The check lives beside the splitter it guards, so the two
                         // cannot drift apart over what counts as a quote.
-                        if !crate::helpers::headers::quoting_is_balanced(params) {
+                        if !crate::helpers::list::quoting_is_balanced(params) {
                             return None;
                         }
 
@@ -93,7 +93,7 @@ impl Rule for CharsetPresent {
                         // `boundary="x; charset=utf-8"` — satisfied this check and
                         // suppressed the finding for a response that has no charset.
                         let has_charset =
-                            crate::helpers::headers::split_semicolons_respecting_quotes(params)
+                            crate::helpers::list::split_semicolons_respecting_quotes(params)
                                 .into_iter()
                                 .any(|p| {
                                     let p = p.trim();
