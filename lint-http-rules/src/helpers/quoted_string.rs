@@ -11,9 +11,11 @@
 //! three to that agreement, because they were once three walks.
 //!
 //! [`QuotedStringDefect`] is why the walk reports rather than returns a bool:
-//! four distinct ways the production fails, each carrying the sentence that
-//! makes it one, and a `message` that renders the finding. It is one of the four
-//! typed defect enums in this tree, and the model the others are converging on.
+//! five distinct ways the production fails, each carrying the sentence that
+//! makes it one, and a `message` that renders the finding. It is the model the
+//! other typed defect enums in this tree follow, and
+//! [`check_quoted_string`]/[`validate_quoted_string`] are that model's two
+//! faces: the type, and the type rendered.
 //!
 //! **This module owns the escape rule, and the list splitters deliberately do
 //! not.** `quoted-pair` is defined as part of `quoted-string` and nowhere else,
@@ -84,13 +86,25 @@ pub fn quoted_string_interior(val: &str) -> Option<&str> {
     val.strip_prefix('"')?.strip_suffix('"')
 }
 
-/// What a `quoted-string`'s interior can fail to be.
+/// What a `quoted-string` can fail to be.
 ///
 /// Data rather than a sentence for the same reason [`WordDefect`](crate::helpers::word::WordDefect) is: the two
 /// functions that read this interior word their failures against the whole
 /// value, and the walk sees only the inside of it.
+///
+/// [`NotQuoted`](Self::NotQuoted) is the one variant the walk never yields,
+/// because it is the answer to the question asked before the walk — whether
+/// there is an interior at all. It lives here rather than beside the walk so
+/// that [`check_quoted_string`] can say *everything* this production fails at
+/// with one type; while it was a bare `String` in
+/// [`validate_quoted_string`]'s body, a caller wanting the typed answer got the
+/// four it could name and a sentence for the fifth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuotedStringDefect {
+    /// Not a `quoted-string` at all: no opening DQUOTE, or nothing closing it.
+    /// The production is its two DQUOTEs and what they enclose, so a value
+    /// missing one of them has no interior to examine rather than a bad one.
+    NotQuoted,
     /// An octet after a backslash that `quoted-pair` does not admit. A backslash
     /// does not make anything quotable: the escaped octet has its own set, and
     /// it is not `qdtext`'s.
@@ -119,6 +133,7 @@ impl QuotedStringDefect {
         // no different: `qdtext` admits HTAB and `obs-text`.
         let shown = shown_in_finding(val);
         match self {
+            Self::NotQuoted => format!("Quoted-string not properly quoted: '{}'", shown),
             Self::BadQuotedPair => {
                 format!("Invalid quoted-pair in quoted-string: '{}'", shown)
             }
@@ -229,22 +244,31 @@ impl Iterator for QuotedStringChars<'_> {
 /// both.
 ///
 /// **The `String` is a convenience and not the only way to reach the answer.**
-/// The defect is [`QuotedStringDefect`], and a caller that wants to word the
-/// finding in its own field's terms — the way `Alt-Svc`'s parameter reader words
-/// `WordDefect` — walks [`quoted_string_interior_chars`] and matches the
-/// variant. Every one of the thirty-odd callers today embeds this sentence in
-/// its own, so the flattening costs nothing yet; the moment one of them needs
-/// to say something different about a `quoted-pair` than about a stray DQUOTE,
-/// it has somewhere to go that is not a second copy of the walk.
+/// The defect is [`QuotedStringDefect`] and [`check_quoted_string`] is where it
+/// comes from; this function is that answer rendered. A caller that wants to
+/// word the finding in its own field's terms — the way `Alt-Svc`'s parameter
+/// reader words `WordDefect` — asks the typed one and matches the variant.
+/// Most of the thirty-odd callers today embed this sentence in its own, so the
+/// flattening costs them nothing.
 pub fn validate_quoted_string(val: &str) -> Result<(), String> {
+    check_quoted_string(val).map_err(|defect| defect.message(val))
+}
+
+/// Whether the value is a well-formed `quoted-string`, answered as a
+/// [`QuotedStringDefect`] rather than as a sentence.
+///
+/// This is [`validate_quoted_string`] before it renders, and the two cannot
+/// disagree because that one is this one plus [`QuotedStringDefect::message`].
+/// A caller that puts the failure inside a finding of its own — auth-params
+/// name the parameter the bad value belonged to — carries the variant to where
+/// its own message is built instead of carrying a `String` it would have to
+/// splice.
+pub fn check_quoted_string(val: &str) -> Result<(), QuotedStringDefect> {
     let Some(inner) = quoted_string_interior(val) else {
-        return Err(format!(
-            "Quoted-string not properly quoted: '{}'",
-            shown_in_finding(val)
-        ));
+        return Err(QuotedStringDefect::NotQuoted);
     };
     for step in quoted_string_interior_chars(inner) {
-        step.map_err(|defect| defect.message(val))?;
+        step?;
     }
     Ok(())
 }
@@ -274,10 +298,7 @@ pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
 /// for the other.
 pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
     let Some(inner) = quoted_string_interior(val) else {
-        return Err(format!(
-            "Quoted-string not properly quoted: '{}'",
-            shown_in_finding(val)
-        ));
+        return Err(QuotedStringDefect::NotQuoted.message(val));
     };
     let mut out = String::with_capacity(inner.len());
     for step in quoted_string_interior_chars(inner) {
@@ -449,6 +470,34 @@ mod tests {
                     case
                 );
             }
+        }
+    }
+
+    /// The typed answer and the rendered one are one function and its rendering,
+    /// so the variant a caller matches on is the variant the sentence was
+    /// written from. `NotQuoted` is the case that could not be asserted before:
+    /// it was a `format!` in the validator's body, reachable only as prose.
+    #[test]
+    fn the_typed_answer_is_what_the_sentence_was_rendered_from() {
+        let cases = [
+            ("\"ok\"", None),
+            ("\"unterminated", Some(QuotedStringDefect::NotQuoted)),
+            ("no quotes", Some(QuotedStringDefect::NotQuoted)),
+            ("\"", Some(QuotedStringDefect::NotQuoted)),
+            ("\"a\"x", Some(QuotedStringDefect::NotQuoted)),
+            ("\"a\"b\"", Some(QuotedStringDefect::UnescapedQuote)),
+            ("\"a\u{1}\"", Some(QuotedStringDefect::ControlCharacter)),
+            ("\"a\\\"", Some(QuotedStringDefect::TrailingEscape)),
+            ("\"\\\u{1}\"", Some(QuotedStringDefect::BadQuotedPair)),
+        ];
+        for (case, want) in cases {
+            assert_eq!(check_quoted_string(case).err(), want, "for {:?}", case);
+            assert_eq!(
+                validate_quoted_string(case).err(),
+                want.map(|defect| defect.message(case)),
+                "the sentence is the variant rendered, for {:?}",
+                case
+            );
         }
     }
 
