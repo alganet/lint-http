@@ -15,6 +15,26 @@
 //! the WHATWG transcriptions would be the first module here named for a table of
 //! contents.
 //!
+//! **`headers` is the one module named for a data structure, and it is the
+//! standing example of what the rule prevents.** "Arrives in a `HeaderMap`" is
+//! true of every field in HTTP, so it shelved nothing and accumulated seventy
+//! items across eleven questions — cache freshness, quoted strings, media types,
+//! entity tags — each findable only by someone who already knew it was there.
+//! Eleven modules were lifted out of it: `list`, `quoted_string`, `word`,
+//! `parameter`, `media_type`, `qvalue`, `validator`, `vary`, `content_length`,
+//! `field_placement`, `shown`. What remains is genuinely about the map.
+//!
+//! Two lessons from doing it, because both cut against the obvious move. A
+//! function that transcribes *two* alternatives of a grammar belongs with
+//! neither alone: `token_or_quoted_string` cites both `token` and
+//! `quoted-string`, and filing it under `token` would have named it for half
+//! its own production — `word` is what the specification calls the pair. And
+//! the busiest caller is not the owner: `parameters` is read almost always
+//! beside `parse_media_type`, but it takes any `;`-separated tail and
+//! `Content-Disposition` and `Expect` carry it too, so it is its own module and
+//! `media_type` depends on it. Count what a function *asks*, never who asks it
+//! most.
+//!
 //! Counted by *what transcribes a production into code* — not by what cites a
 //! WHATWG document, which `link_header_valid` also does, for three
 //! algorithm steps that license a gate and transcribe nothing — the tree holds

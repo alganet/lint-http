@@ -2,6 +2,26 @@
 //
 // SPDX-License-Identifier: ISC
 
+//! Getting a field value out of a `HeaderMap`, and saying which section it came
+//! from.
+//!
+//! **This module is named for a data structure, and that is now the truth about
+//! it rather than an excuse.** It held seventy items and eleven unrelated
+//! questions, because "arrives in a `HeaderMap`" is true of every field in HTTP
+//! and so shelved nothing. What is left is the part that really is about the
+//! map: reading a value, reading the field *lines* separately, recovering the
+//! octets as written when `to_str` would refuse them, and naming the section —
+//! header or trailer — a field was found in.
+//!
+//! Everything that asked a *grammar* question about the value has gone to the
+//! module named for that grammar: `list`, `quoted_string`, `word`, `parameter`,
+//! `media_type`, `qvalue`, `validator`, `vary`, `content_length`,
+//! `field_placement`, `shown`. The import list below is the evidence that the
+//! split landed — one line, and nothing from any of them.
+//!
+//! The test of whether something belongs here: does it need the `HeaderMap`, or
+//! only a `&str` that happened to come out of one?
+
 use hyper::HeaderMap;
 
 /// Retrieve a header value as a string, if it exists and contains only visible ASCII.
