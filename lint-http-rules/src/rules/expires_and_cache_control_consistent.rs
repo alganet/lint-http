@@ -79,7 +79,8 @@ impl Rule for ExpiresAndCacheControlConsistent {
                     cc_max_age = directive.delta_seconds().or(cc_max_age);
                 }
             }
-            let cc_s_maxage = crate::helpers::headers::get_cache_control_s_maxage(&resp.headers);
+            let cc_s_maxage =
+                crate::helpers::cache_control::get_cache_control_s_maxage(&resp.headers);
 
             if !cc_present {
                 return None;

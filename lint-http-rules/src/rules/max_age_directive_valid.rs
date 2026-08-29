@@ -77,7 +77,7 @@ impl Rule for MaxAgeDirectiveValid {
                     // value with an integer parse, so a max-age too large for i64 yields
                     // None and the resource is skipped rather than treated as long-lived.
                     if let Some(max_age) =
-                        crate::helpers::headers::get_cache_control_max_age(&resp.headers)
+                        crate::helpers::cache_control::get_cache_control_max_age(&resp.headers)
                     {
                         candidate = Some((past, max_age));
                         break;
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn cache_control_max_age_helper_tests() {
-        use crate::helpers::headers::get_cache_control_max_age;
+        use crate::helpers::cache_control::get_cache_control_max_age;
 
         // no header
         let mut hm = hyper::HeaderMap::new();

@@ -61,10 +61,10 @@ impl Rule for SMaxAgeEnforced {
             for past in history.iter() {
                 if let Some(resp) = &past.response {
                     if let Some(s_age) =
-                        crate::helpers::headers::get_cache_control_s_maxage(&resp.headers)
+                        crate::helpers::cache_control::get_cache_control_s_maxage(&resp.headers)
                     {
                         if let Some(max_age) =
-                            crate::helpers::headers::get_cache_control_max_age(&resp.headers)
+                            crate::helpers::cache_control::get_cache_control_max_age(&resp.headers)
                         {
                             if max_age > s_age {
                                 candidate = Some((past, s_age, max_age));

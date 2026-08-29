@@ -87,14 +87,14 @@ impl Rule for MustRevalidateEnforced {
             // Freshness lifetime advertised by the response. The helper owns the §4.2.1
             // derivation (max-age wins, else Expires − Date), returning zero when no explicit
             // lifetime is available.
-            let freshness_lifetime = crate::helpers::headers::compute_freshness_lifetime(
+            let freshness_lifetime = crate::helpers::cache_control::compute_freshness_lifetime(
                 &prev_resp.headers,
                 prev_tx.timestamp,
             );
 
             // Age stated by the response plus the time it has since spent in our
             // record; the helper owns that estimate and what it leaves out.
-            let current_age = crate::helpers::headers::estimated_age(
+            let current_age = crate::helpers::cache_control::estimated_age(
                 &prev_resp.headers,
                 prev_tx.timestamp,
                 tx.timestamp,
