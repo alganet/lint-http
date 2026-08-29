@@ -1607,7 +1607,7 @@ sources:
     snippet: language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*"
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 74
+      line: 123
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 168
 - label: RFC 4648
@@ -1865,31 +1865,31 @@ sources:
     snippet: A language tag is composed from a sequence of one or more "subtags", each of which refines or narrows the range of language identified by the overall tag.
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 61
+      line: 110
   - label: lint-http-rules/src/helpers/language.rs (2)
     section: § 2.1
     snippet: All subtags have a maximum length of eight characters.
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 90
+      line: 139
   - label: lint-http-rules/src/helpers/language.rs (3)
     section: § 2.1
     snippet: Subtags, in turn, are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen ("-", [Unicode] U+002D).
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 47
+      line: 96
   - label: lint-http-rules/src/helpers/language.rs (4)
     section: § 2.1
     snippet: Whitespace is not permitted in a language tag.
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 41
+      line: 90
   - label: lint-http-rules/src/helpers/language.rs (5)
     section: § 2.1
     snippet: language      = 2*3ALPHA            ; shortest ISO 639 code
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
-      line: 77
+      line: 126
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.html
   fragments:

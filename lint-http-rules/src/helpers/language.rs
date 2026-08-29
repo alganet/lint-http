@@ -2,6 +2,54 @@
 //
 // SPDX-License-Identifier: ISC
 
+/// The ways a language tag fails, named rather than described.
+///
+/// Seven variants for seven branches, and the split matters because they are
+/// not all the same strength. [`Empty`](Self::Empty),
+/// [`WhitespaceOrControl`](Self::WhitespaceOrControl) and
+/// [`BadCharacter`](Self::BadCharacter) are the character set. The hyphen and
+/// subtag variants come from one sentence — a tag is a sequence of subtags
+/// separated by hyphens — read three ways, so a leading hyphen, a doubled one
+/// and a trailing one are each a subtag that is not there.
+/// [`DoesNotBeginWithLetter`](Self::DoesNotBeginWithLetter) is the one thing
+/// RFC 4647's `language-range` and RFC 5646's `language` agree on where they
+/// otherwise disagree: neither may open with a digit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LanguageTagDefect<'a> {
+    /// Nothing there. Note that nothing is trimmed first — see the function.
+    Empty,
+    /// A control octet or whitespace inside the tag.
+    WhitespaceOrControl,
+    /// An octet outside ASCII alphanumerics and `-`, carrying the character.
+    BadCharacter(char),
+    /// A leading or trailing `-`, which describes a subtag that is not there.
+    HyphenPlacement,
+    /// The first subtag opens with something other than a letter.
+    DoesNotBeginWithLetter,
+    /// Two adjacent hyphens: an empty subtag.
+    EmptySubtag,
+    /// A subtag over eight characters, carrying the subtag itself.
+    SubtagTooLong(&'a str),
+}
+
+impl LanguageTagDefect<'_> {
+    /// The finding fragment. Callers embed this after naming the field the tag
+    /// was read from, which is why it does not name one.
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => "empty language tag".to_string(),
+            Self::WhitespaceOrControl => {
+                "language tag contains control characters or whitespace".to_string()
+            }
+            Self::BadCharacter(c) => format!("invalid character '{c}' in language tag"),
+            Self::HyphenPlacement => "invalid hyphen placement in language tag".to_string(),
+            Self::DoesNotBeginWithLetter => "language tag does not begin with a letter".to_string(),
+            Self::EmptySubtag => "empty subtag in language tag".to_string(),
+            Self::SubtagTooLong(sub) => format!("subtag '{sub}' is too long (max 8 chars)"),
+        }
+    }
+}
+
 /// Conservative BCP 47 language tag validator used by rules.
 ///
 /// This validator is intentionally permissive compared to full RFC 5646 grammar
@@ -30,23 +78,24 @@
 /// element the sentence below admits no whitespace at all — so the honest answer
 /// is to measure what was passed.
 ///
-/// Returns Ok(()) if the tag looks like a valid language tag, Err(msg) otherwise.
-pub fn validate_language_tag(tag: &str) -> Result<(), String> {
+/// Returns `Ok(())` if the tag looks like a valid language tag, or the named
+/// [`LanguageTagDefect`] otherwise.
+pub fn validate_language_tag(tag: &str) -> Result<(), LanguageTagDefect<'_>> {
     let s = tag;
     if s.is_empty() {
-        return Err("empty language tag".into());
+        return Err(LanguageTagDefect::Empty);
     }
 
     // Reject control chars or whitespace inside tag
     // cite(RFC 5646 § 2.1): "Whitespace is not permitted in a language tag."
     if s.chars().any(|c| c.is_control() || c.is_whitespace()) {
-        return Err("language tag contains control characters or whitespace".into());
+        return Err(LanguageTagDefect::WhitespaceOrControl);
     }
 
     // Only allow ASCII alphanumerics and hyphen
     // cite(RFC 5646 § 2.1): "Subtags, in turn, are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen ("-", [Unicode] U+002D)."
     if let Some(c) = s.chars().find(|c| !c.is_ascii_alphanumeric() && *c != '-') {
-        return Err(format!("invalid character '{}' in language tag", c));
+        return Err(LanguageTagDefect::BadCharacter(c));
     }
 
     // Hyphen placement checks: leading or trailing hyphens are invalid here;
@@ -60,7 +109,7 @@ pub fn validate_language_tag(tag: &str) -> Result<(), String> {
     //
     // cite(RFC 5646 § 2.1): "A language tag is composed from a sequence of one or more "subtags", each of which refines or narrows the range of language identified by the overall tag."
     if s.starts_with('-') || s.ends_with('-') {
-        return Err("invalid hyphen placement in language tag".into());
+        return Err(LanguageTagDefect::HyphenPlacement);
     }
 
     // The first subtag is letters, in both of the productions this function is
@@ -80,16 +129,16 @@ pub fn validate_language_tag(tag: &str) -> Result<(), String> {
         .next()
         .is_some_and(|first| first.chars().all(|c| c.is_ascii_alphabetic()))
     {
-        return Err("language tag does not begin with a letter".into());
+        return Err(LanguageTagDefect::DoesNotBeginWithLetter);
     }
 
     for sub in s.split('-') {
         if sub.is_empty() {
-            return Err("empty subtag in language tag".into());
+            return Err(LanguageTagDefect::EmptySubtag);
         }
         // cite(RFC 5646 § 2.1): "All subtags have a maximum length of eight characters."
         if sub.len() > 8 {
-            return Err(format!("subtag '{}' is too long (max 8 chars)", sub));
+            return Err(LanguageTagDefect::SubtagTooLong(sub));
         }
     }
 
@@ -153,9 +202,32 @@ mod tests {
 
     #[test]
     fn empty_subtag_reports_error() {
-        let res = validate_language_tag("en--US");
-        assert!(res.is_err());
-        assert!(res.unwrap_err().contains("empty subtag"));
+        assert_eq!(
+            validate_language_tag("en--US"),
+            Err(LanguageTagDefect::EmptySubtag)
+        );
+    }
+
+    /// The seven defects are seven answers, and a doubled hyphen must not be
+    /// reported as bad hyphen *placement* — that variant is the leading and
+    /// trailing case, and a `String` could not hold the two apart.
+    #[test]
+    fn each_branch_reports_its_own_defect() {
+        use LanguageTagDefect as D;
+        assert_eq!(validate_language_tag(""), Err(D::Empty));
+        assert_eq!(validate_language_tag("en US"), Err(D::WhitespaceOrControl));
+        assert_eq!(validate_language_tag("en_US"), Err(D::BadCharacter('_')));
+        assert_eq!(validate_language_tag("-en"), Err(D::HyphenPlacement));
+        assert_eq!(validate_language_tag("en-"), Err(D::HyphenPlacement));
+        assert_eq!(validate_language_tag("en--US"), Err(D::EmptySubtag));
+        assert_eq!(
+            validate_language_tag("123-US"),
+            Err(D::DoesNotBeginWithLetter)
+        );
+        assert_eq!(
+            validate_language_tag("en-abcdefghi"),
+            Err(D::SubtagTooLong("abcdefghi"))
+        );
     }
 
     #[test]
