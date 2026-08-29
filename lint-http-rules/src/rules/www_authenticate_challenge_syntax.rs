@@ -58,9 +58,10 @@ impl Rule for WwwAuthenticateChallengeSyntax {
 
                     // Now validate each assembled challenge using helper to make it unit-testable
                     for challenge in challenges.iter() {
-                        if let Err(msg) = crate::helpers::auth::validate_challenge_syntax(challenge)
+                        if let Err(defect) =
+                            crate::helpers::auth::validate_challenge_syntax(challenge)
                         {
-                            return Some(self.violation(ctx.severity, msg));
+                            return Some(self.violation(ctx.severity, defect.message()));
                         }
                     }
                 }
@@ -307,8 +308,10 @@ mod tests {
         // challenges), but the per-challenge validation should detect a parameter without '='
         // when run against an assembled challenge string.
         let r = crate::helpers::auth::validate_challenge_syntax("Basic realm=\"x\", flag");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("missing value"));
+        assert_eq!(
+            r,
+            Err(crate::helpers::auth::ChallengeDefect::ParameterMissingValue("flag"))
+        );
     }
 
     #[test]

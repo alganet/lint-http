@@ -65,13 +65,125 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, String> {
     Ok(challenges)
 }
 
-/// Validate a single assembled WWW-Authenticate challenge string.
-/// Returns Ok(()) when syntactically acceptable, or Err(String) describing the problem.
-pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
+/// What a single assembled `WWW-Authenticate` challenge fails to be.
+///
+/// The split is by *what was being read*, which is the only way these group:
+/// the challenge as a whole, the `auth-scheme`, the `token68` alternative, and
+/// the `#auth-param` one. Two variants that look alike belong to different
+/// halves of that — [`SchemeCharacter`](Self::SchemeCharacter) and
+/// [`ParameterNameCharacter`](Self::ParameterNameCharacter) both report a
+/// non-`token` octet, and the production each read it under is the difference.
+///
+/// [`SuspiciousSingleToken`](Self::SuspiciousSingleToken) is the one variant
+/// that is not a grammar failure and says so in its name. `token68` admits a
+/// bare word, so `NewSch abcd` is well-formed by § 11.2; what this reports is
+/// that it is *indistinguishable* from an `auth-param` someone forgot the value
+/// of. Naming it keeps that heuristic from reading as a syntax verdict — the
+/// `String` this replaced made it one sentence among the rest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChallengeDefect<'a> {
+    /// Nothing between the commas the challenge was assembled from.
+    Empty,
+    /// A non-`token` octet in the `auth-scheme`, carrying the character.
+    SchemeCharacter(char),
+    /// A control octet where a `token68` was read. `token68`'s alphabet is
+    /// ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" and its padding, and a
+    /// control octet is in none of it.
+    Token68ControlCharacter,
+    /// A single bare word after the scheme that is a `token68` by the grammar
+    /// and a value-less `auth-param` by eye. Carries the word.
+    SuspiciousSingleToken(&'a str),
+    /// An empty member of the `#auth-param` list.
+    EmptyParameter,
+    /// A member whose name is empty — `=x`, which has a value and nothing it
+    /// belongs to.
+    EmptyParameterName,
+    /// An `auth-param` with no value, carrying the name. `auth-param` is
+    /// `token BWS "=" BWS ( token / quoted-string )`: the value is not optional.
+    ParameterMissingValue(&'a str),
+    /// A non-`token` octet in an `auth-param` name, carrying the character.
+    ParameterNameCharacter(char),
+    /// A non-`token` octet in an unquoted `auth-param` value, carrying the
+    /// character.
+    ParameterValueCharacter(char),
+    /// A value that opens with a DQUOTE and is not a well-formed
+    /// `quoted-string`. Carries the parameter it belonged to, the value as
+    /// written, and the [`QuotedStringDefect`](crate::helpers::quoted_string::QuotedStringDefect) — the reason this
+    /// conversion needed the typed answer from that module, since the finding
+    /// names the parameter and the defect names the value.
+    ParameterQuotedValue {
+        /// The `auth-param` name the bad value belonged to.
+        name: &'a str,
+        /// The value as written, DQUOTEs included.
+        value: &'a str,
+        /// What it failed to be.
+        defect: crate::helpers::quoted_string::QuotedStringDefect,
+    },
+}
+
+impl ChallengeDefect<'_> {
+    /// The finding. Every sentence names `WWW-Authenticate` or the production
+    /// inside it, because this helper serves one field and its callers embed
+    /// the sentence whole.
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => "WWW-Authenticate header contains empty challenge".to_string(),
+            Self::SchemeCharacter(c) => {
+                format!("Invalid character '{}' in WWW-Authenticate auth-scheme", c)
+            }
+            Self::Token68ControlCharacter => {
+                "WWW-Authenticate token68 contains control characters".to_string()
+            }
+            Self::SuspiciousSingleToken(word) => format!(
+                "WWW-Authenticate challenge has suspicious single token '{}' after scheme; token68 or auth-param expected",
+                word
+            ),
+            Self::EmptyParameter => "WWW-Authenticate contains empty parameter".to_string(),
+            Self::EmptyParameterName => "WWW-Authenticate auth-param name is empty".to_string(),
+            Self::ParameterMissingValue(name) => {
+                format!("WWW-Authenticate auth-param '{}' missing value", name)
+            }
+            Self::ParameterNameCharacter(c) => {
+                format!("Invalid character '{}' in auth-param name", c)
+            }
+            Self::ParameterValueCharacter(c) => {
+                format!("Invalid character '{}' in auth-param value", c)
+            }
+            Self::ParameterQuotedValue {
+                name,
+                value,
+                defect,
+            } => format!(
+                "Invalid quoted-string in auth-param '{}': {}",
+                name,
+                defect.message(value)
+            ),
+        }
+    }
+}
+
+/// Whether one assembled `WWW-Authenticate` challenge is syntactically
+/// acceptable, answered as a [`ChallengeDefect`].
+///
+/// **A challenge cannot fail to have an `auth-scheme` here, and the branch that
+/// said it could is gone.** The value is trimmed and checked for emptiness
+/// first, so it opens with a non-whitespace character; the scheme is everything
+/// before the first `char::is_whitespace`, which is therefore non-empty, and
+/// `str::trim` removes exactly that same set so it cannot empty it either. The
+/// old `"challenge missing auth-scheme"` string was unreachable, and only became
+/// visible when the failures had to be enumerated as variants — an enum with a
+/// variant nothing constructs is a claim the module cannot back. What the test
+/// named `validate_missing_scheme_error` actually exercises is a leading-space
+/// member whose scheme reads as `realm="x"` and fails on the `=`.
+pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<'_>> {
     let c = challenge.trim();
     if c.is_empty() {
-        return Err("WWW-Authenticate header contains empty challenge".into());
+        return Err(ChallengeDefect::Empty);
     }
+
+    // The three `token68` readings below share this: the alternative's alphabet
+    // has no control octet in it, whichever way the value reached the branch.
+    let has_control = |s: &str| s.chars().any(|c| (c as u32) < 0x20 || c == '\x7f');
 
     // scheme is first token before whitespace
     // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
@@ -80,14 +192,8 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
         .next()
         .expect("splitn always yields at least one element")
         .trim();
-    if scheme.is_empty() {
-        return Err("WWW-Authenticate challenge missing auth-scheme".into());
-    }
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
-        return Err(format!(
-            "Invalid character '{}' in WWW-Authenticate auth-scheme",
-            invalid
-        ));
+        return Err(ChallengeDefect::SchemeCharacter(invalid));
     }
 
     if let Some(rest) = parts.next() {
@@ -97,17 +203,14 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
         }
 
         if !rest.contains('=') {
-            if rest.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
-                return Err("WWW-Authenticate token68 contains control characters".into());
+            if has_control(rest) {
+                return Err(ChallengeDefect::Token68ControlCharacter);
             }
             if !rest
                 .chars()
                 .any(|ch| matches!(ch, '+' | '/' | '=' | '.' | '-' | '_'))
             {
-                return Err(format!(
-                    "WWW-Authenticate challenge has suspicious single token '{}' after scheme; token68 or auth-param expected",
-                    rest
-                ));
+                return Err(ChallengeDefect::SuspiciousSingleToken(rest));
             }
             return Ok(());
         }
@@ -118,8 +221,8 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
         let first_invalid = crate::helpers::token::find_invalid_token_char(first_part).is_some();
         if !rest.contains(',') {
             if first_invalid && !after_eq.starts_with('"') {
-                if rest.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
-                    return Err("WWW-Authenticate token68 contains control characters".into());
+                if has_control(rest) {
+                    return Err(ChallengeDefect::Token68ControlCharacter);
                 }
                 return Ok(());
             }
@@ -129,16 +232,13 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
                     && !scheme.eq_ignore_ascii_case("bearer")
                     && !scheme.eq_ignore_ascii_case("digest")
                 {
-                    if rest.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
-                        return Err("WWW-Authenticate token68 contains control characters".into());
+                    if has_control(rest) {
+                        return Err(ChallengeDefect::Token68ControlCharacter);
                     }
                     return Ok(());
                 }
 
-                return Err(format!(
-                    "WWW-Authenticate auth-param '{}' missing value",
-                    first_part
-                ));
+                return Err(ChallengeDefect::ParameterMissingValue(first_part));
             }
         }
 
@@ -147,7 +247,7 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
         // octets that look like whitespace, and no `token` admits either.
         for param in split_commas_respecting_quotes(rest) {
             if param.is_empty() {
-                return Err("WWW-Authenticate contains empty parameter".into());
+                return Err(ChallengeDefect::EmptyParameter);
             }
             let mut kv = param.splitn(2, '=');
             let name = kv
@@ -156,33 +256,28 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), String> {
                 .trim();
             let val = kv.next();
             if name.is_empty() {
-                return Err("WWW-Authenticate auth-param name is empty".into());
+                return Err(ChallengeDefect::EmptyParameterName);
             }
-            if val.is_none() {
-                return Err(format!(
-                    "WWW-Authenticate auth-param '{}' missing value",
-                    name
-                ));
-            }
+            let Some(val) = val else {
+                return Err(ChallengeDefect::ParameterMissingValue(name));
+            };
             if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
-                return Err(format!("Invalid character '{}' in auth-param name", inv));
+                return Err(ChallengeDefect::ParameterNameCharacter(inv));
             }
-            let v = val.expect("checked for none above").trim();
+            let v = val.trim();
             if v.is_empty() {
-                return Err(format!(
-                    "WWW-Authenticate auth-param '{}' missing value",
-                    name
-                ));
+                return Err(ChallengeDefect::ParameterMissingValue(name));
             }
             if v.starts_with('"') {
-                if let Err(msg) = crate::helpers::quoted_string::validate_quoted_string(v) {
-                    return Err(format!(
-                        "Invalid quoted-string in auth-param '{}': {}",
-                        name, msg
-                    ));
+                if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(v) {
+                    return Err(ChallengeDefect::ParameterQuotedValue {
+                        name,
+                        value: v,
+                        defect,
+                    });
                 }
             } else if let Some(inv) = crate::helpers::token::find_invalid_token_char(v) {
-                return Err(format!("Invalid character '{}' in auth-param value", inv));
+                return Err(ChallengeDefect::ParameterValueCharacter(inv));
             }
         }
     }
@@ -541,31 +636,35 @@ mod tests {
 
     #[test]
     fn validate_challenge_detects_missing_value_in_param_list() {
-        let r = validate_challenge_syntax("Basic realm=\"x\", flag");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("missing value"));
+        assert_eq!(
+            validate_challenge_syntax("Basic realm=\"x\", flag"),
+            Err(ChallengeDefect::ParameterMissingValue("flag"))
+        );
     }
 
     #[test]
     fn validate_empty_challenge() {
-        let r = validate_challenge_syntax("");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("empty challenge"));
+        assert_eq!(validate_challenge_syntax(""), Err(ChallengeDefect::Empty));
     }
 
+    /// The name is what the challenge *cannot* fail at. A member with leading
+    /// `OWS` has already been trimmed by the time it gets here, so what this
+    /// reads as the `auth-scheme` is `realm="x"` and the `=` is what it reports
+    /// — never a missing scheme, which no input reaches.
     #[test]
     fn validate_missing_scheme_error() {
-        // Leading-space member would have been rejected earlier; here it becomes an invalid scheme
-        let r = validate_challenge_syntax(" realm=\"x\"");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("Invalid character"));
+        assert_eq!(
+            validate_challenge_syntax(" realm=\"x\""),
+            Err(ChallengeDefect::SchemeCharacter('='))
+        );
     }
 
     #[test]
     fn validate_invalid_scheme_char() {
-        let r = validate_challenge_syntax("B@sic realm=\"x\"");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("Invalid character"));
+        assert_eq!(
+            validate_challenge_syntax("B@sic realm=\"x\""),
+            Err(ChallengeDefect::SchemeCharacter('@'))
+        );
     }
 
     #[test]
@@ -576,16 +675,18 @@ mod tests {
 
     #[test]
     fn suspicious_single_token_after_scheme_reports_error() {
-        let r = validate_challenge_syntax("NewSch abcd");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("suspicious single token"));
+        assert_eq!(
+            validate_challenge_syntax("NewSch abcd"),
+            Err(ChallengeDefect::SuspiciousSingleToken("abcd"))
+        );
     }
 
     #[test]
     fn token68_with_control_character_reports_error() {
-        let r = validate_challenge_syntax("NewSch \u{0001}");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("control characters"));
+        assert_eq!(
+            validate_challenge_syntax("NewSch \u{0001}"),
+            Err(ChallengeDefect::Token68ControlCharacter)
+        );
     }
 
     #[test]
@@ -619,9 +720,10 @@ mod tests {
 
     #[test]
     fn scheme_with_trailing_eq_on_basic_reports_missing_value() {
-        let r = validate_challenge_syntax("Basic realm=");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("missing value"));
+        assert_eq!(
+            validate_challenge_syntax("Basic realm="),
+            Err(ChallengeDefect::ParameterMissingValue("realm"))
+        );
     }
 
     #[test]
@@ -632,30 +734,34 @@ mod tests {
 
     #[test]
     fn empty_parameter_in_param_list_is_error() {
-        let r = validate_challenge_syntax("Basic realm=\"x\", ");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("empty parameter"));
+        assert_eq!(
+            validate_challenge_syntax("Basic realm=\"x\", "),
+            Err(ChallengeDefect::EmptyParameter)
+        );
     }
 
     #[test]
     fn empty_param_name_is_error() {
-        let r = validate_challenge_syntax("Basic =\"x\"");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("auth-param name is empty"));
+        assert_eq!(
+            validate_challenge_syntax("Basic =\"x\""),
+            Err(ChallengeDefect::EmptyParameterName)
+        );
     }
 
     #[test]
     fn invalid_character_in_param_name_is_error() {
-        let r = validate_challenge_syntax("Basic re@alm=1, x=1");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("Invalid character"));
+        assert_eq!(
+            validate_challenge_syntax("Basic re@alm=1, x=1"),
+            Err(ChallengeDefect::ParameterNameCharacter('@'))
+        );
     }
 
     #[test]
     fn param_with_missing_value_in_params_is_error() {
-        let r = validate_challenge_syntax("NewSch realm=, other=1");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("missing value"));
+        assert_eq!(
+            validate_challenge_syntax("NewSch realm=, other=1"),
+            Err(ChallengeDefect::ParameterMissingValue("realm"))
+        );
     }
 
     #[test]
@@ -709,11 +815,25 @@ mod tests {
         assert!(validate_basic_credentials(&enc).is_ok());
     }
 
+    /// The finding names the parameter *and* the defect, which is the pair a
+    /// `String` could only carry pre-spliced. `NotQuoted` is the variant: the
+    /// value opens with a DQUOTE and nothing closes it, so there is no interior
+    /// to have a defect in.
     #[test]
     fn invalid_quoted_string_in_param_reports_error() {
         let r = validate_challenge_syntax("Basic realm=\"unterminated");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("Invalid quoted-string"));
+        assert_eq!(
+            r,
+            Err(ChallengeDefect::ParameterQuotedValue {
+                name: "realm",
+                value: "\"unterminated",
+                defect: crate::helpers::quoted_string::QuotedStringDefect::NotQuoted,
+            })
+        );
+        assert!(r
+            .unwrap_err()
+            .message()
+            .starts_with("Invalid quoted-string in auth-param 'realm': "));
     }
 
     #[test]
@@ -730,11 +850,24 @@ mod tests {
         assert!(r.unwrap_err().contains("ends with escape"));
     }
 
+    /// Two `Invalid character` sentences that a `String` made
+    /// indistinguishable: the octet is read under `auth-param`'s name in one
+    /// and under its value in the other, and the pair below is a single header
+    /// value away from each other. Which is also why the bad name needs the
+    /// comma — a lone `re@alm=xy` never reaches the parameter loop, the
+    /// token68 heuristic above it takes an unquoted value behind a non-`token`
+    /// name as evidence that the whole thing is a `token68`.
     #[test]
     fn invalid_character_in_param_value_is_error() {
-        let r = validate_challenge_syntax("Basic realm=x@y");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("Invalid character"));
+        assert_eq!(
+            validate_challenge_syntax("Basic realm=x@y"),
+            Err(ChallengeDefect::ParameterValueCharacter('@'))
+        );
+        assert_eq!(
+            validate_challenge_syntax("Basic re@alm=xy, x=1"),
+            Err(ChallengeDefect::ParameterNameCharacter('@'))
+        );
+        assert_eq!(validate_challenge_syntax("Basic re@alm=xy"), Ok(()));
     }
 
     #[test]
