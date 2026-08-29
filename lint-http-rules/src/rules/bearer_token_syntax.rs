@@ -67,10 +67,11 @@ impl Rule for BearerTokenSyntax {
                         ));
                     }
 
-                    if let Err(msg) = crate::helpers::auth::validate_bearer_token(creds) {
-                        return Some(
-                            self.violation(ctx.severity, format!("Invalid Bearer token: {}", msg)),
-                        );
+                    if let Err(defect) = crate::helpers::auth::validate_bearer_token(creds) {
+                        return Some(self.violation(
+                            ctx.severity,
+                            format!("Invalid Bearer token: {}", defect.message()),
+                        ));
                     }
                 }
             }

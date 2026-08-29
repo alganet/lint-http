@@ -336,18 +336,74 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
     }
 }
 
-/// Validate Basic auth credentials token68 (base64 encoding of user-pass octet string).
-/// Returns Ok(()) on syntactically valid Basic credentials, or Err(String) describing the problem.
+/// What `Basic` credentials fail to be.
+///
+/// The split follows the two layers RFC 7617 stacks: the `token68` is base64,
+/// and what it decodes to is a `user-pass`. [`Empty`](Self::Empty) and
+/// [`Base64`](Self::Base64) are the outer one, the other three the inner —
+/// which is the distinction a reader needs, because a defect in the inner layer
+/// says the sender encoded something well and chose it badly.
+///
+/// This one is `Clone` rather than `Copy`, alone among the defect enums here,
+/// and [`Base64`](Self::Base64) is why: `base64::DecodeError` names the
+/// offending symbol and its offset, which is worth carrying and is not `Copy`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BasicCredentialsDefect {
+    /// No `token68` at all.
+    Empty,
+    /// Not base64. Carries the decoder's own account of where it stopped —
+    /// rejecting a malformed encoding is RFC 4648's instruction rather than
+    /// strictness for its own sake.
+    Base64(base64::DecodeError),
+    /// Decoded octets with no `:` in them. Without the separator there is no
+    /// telling where the user-id stops, and `user-id` may itself be empty —
+    /// which is a different thing from absent.
+    MissingColon,
+    /// A control octet in the user-id, carrying it.
+    UserIdControlCharacter(u8),
+    /// A control octet in the password, carrying it.
+    PasswordControlCharacter(u8),
+}
+
+impl BasicCredentialsDefect {
+    /// The finding. The `0x` spelling is deliberate for the two control-octet
+    /// variants: the octet is by definition one that would not survive being
+    /// printed into the sentence reporting it.
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => "Basic credentials token is empty".to_string(),
+            Self::Base64(e) => format!("Invalid base64 in Basic credentials: {}", e),
+            Self::MissingColon => "Decoded Basic credentials missing ':' separator".to_string(),
+            Self::UserIdControlCharacter(b) => {
+                format!("User-id contains control character: 0x{:02x}", b)
+            }
+            Self::PasswordControlCharacter(b) => {
+                format!("Password contains control character: 0x{:02x}", b)
+            }
+        }
+    }
+}
+
+/// Whether a `Basic` `token68` is well-formed credentials, answered as a
+/// [`BasicCredentialsDefect`].
 ///
 /// Validation performed:
 /// - Base64 decodes successfully
 /// - Decoded octets contain at least one ':' separator
 /// - User-id (octets before first ':') does not contain control characters
 /// - Password (octets after first ':') does not contain control characters
-pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
+///
+/// **A successful decode here is never empty, and the guard that said otherwise
+/// is gone.** Zero octets come out of zero base64 symbols; the value is trimmed
+/// and rejected for emptiness above, so there is at least one symbol, and one
+/// alone is `InvalidLength`. `"Decoded Basic credentials empty"` was a sentence
+/// no input produced. If the decoder ever did return nothing for something, the
+/// next line reports a `user-pass` with no `:` in it — which is what it would
+/// be.
+pub fn validate_basic_credentials(token68: &str) -> Result<(), BasicCredentialsDefect> {
     let s = token68.trim();
     if s.is_empty() {
-        return Err("Basic credentials token is empty".into());
+        return Err(BasicCredentialsDefect::Empty);
     }
     // cite(RFC 7617 § 2, label: basic-credentials base64): "and obtains the basic-credentials by encoding this octet sequence using Base64"
     // Erroring out on a malformed encoding is RFC 4648's own instruction, not
@@ -355,17 +411,12 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
     // cite(RFC 4648 § 3.3, label: base64 rejects non-alphabet): "Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise."
     let decoded = base64::engine::general_purpose::STANDARD
         .decode(s)
-        .map_err(|e| format!("Invalid base64 in Basic credentials: {}", e))?;
-    if decoded.is_empty() {
-        return Err("Decoded Basic credentials empty".into());
-    }
+        .map_err(BasicCredentialsDefect::Base64)?;
     // find first colon separator
     // cite(RFC 7617 § 2): "constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password"
-    let pos = decoded.iter().position(|b| *b == b':');
-    if pos.is_none() {
-        return Err("Decoded Basic credentials missing ':' separator".into());
-    }
-    let pos = pos.expect("checked for none above");
+    let Some(pos) = decoded.iter().position(|b| *b == b':') else {
+        return Err(BasicCredentialsDefect::MissingColon);
+    };
     let (user, pass) = decoded.split_at(pos);
     // pass starts with ':' character; skip it
     let pass = &pass[1..];
@@ -375,26 +426,67 @@ pub fn validate_basic_credentials(token68: &str) -> Result<(), String> {
         |bytes: &[u8]| -> Option<u8> { bytes.iter().find(|&&b| b < 0x20 || b == 0x7f).copied() };
 
     if let Some(v) = contains_ctl(user) {
-        return Err(format!("User-id contains control character: 0x{:02x}", v));
+        return Err(BasicCredentialsDefect::UserIdControlCharacter(v));
     }
     if let Some(v) = contains_ctl(pass) {
-        return Err(format!("Password contains control character: 0x{:02x}", v));
+        return Err(BasicCredentialsDefect::PasswordControlCharacter(v));
     }
 
     Ok(())
 }
+
+/// What a `Bearer` token fails to be.
+///
+/// All five are the one production, `b64token`, read in the order its ABNF
+/// writes it: something, then the body's alphabet, then the padding.
+/// [`Whitespace`](Self::Whitespace) is separated from
+/// [`BadCharacter`](Self::BadCharacter) although a space is just another
+/// character outside the set, because a token with a space in it is usually two
+/// things where one was expected rather than one thing misspelled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BearerTokenDefect {
+    /// No token.
+    Empty,
+    /// Whitespace anywhere in the token.
+    Whitespace,
+    /// Padding and nothing before it. `b64token` is `1*(...)` and then its
+    /// `*"="`, so the body cannot be the empty string.
+    EmptyBody,
+    /// An octet outside `b64token`'s body alphabet, carrying the character.
+    BadCharacter(char),
+    /// Something other than `=` at or after the first `=`. Padding is the only
+    /// thing that may follow the body, so a `=` in the middle makes everything
+    /// after it padding by position.
+    BadPadding,
+}
+
+impl BearerTokenDefect {
+    /// The finding. Each names `Bearer`, because a caller has one field's worth
+    /// of context to add and this helper serves one scheme.
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => "Bearer token is empty".to_string(),
+            Self::Whitespace => "Bearer token contains whitespace".to_string(),
+            Self::EmptyBody => "Bearer token has empty main part".to_string(),
+            Self::BadCharacter(c) => format!("Invalid character '{}' in Bearer token", c),
+            Self::BadPadding => "Bearer token padding contains invalid character".to_string(),
+        }
+    }
+}
+
 /// Validate Bearer token per token68-like rules: token must be non-empty, contain no
 /// whitespace, the main body may contain only ALPHA / DIGIT / '-' / '.' / '_' / '~' / '+' / '/'
-/// and any trailing padding must be '=' characters. Returns Ok(()) or Err(String).
-pub fn validate_bearer_token(token: &str) -> Result<(), String> {
+/// and any trailing padding must be '=' characters, answered as a
+/// [`BearerTokenDefect`].
+pub fn validate_bearer_token(token: &str) -> Result<(), BearerTokenDefect> {
     let s = token.trim();
     if s.is_empty() {
-        return Err("Bearer token is empty".into());
+        return Err(BearerTokenDefect::Empty);
     }
 
     // No whitespace anywhere
     if s.chars().any(|c| c.is_ascii_whitespace()) {
-        return Err("Bearer token contains whitespace".into());
+        return Err(BearerTokenDefect::Whitespace);
     }
 
     // Split at first '=' to identify padding (if any)
@@ -405,7 +497,7 @@ pub fn validate_bearer_token(token: &str) -> Result<(), String> {
     };
 
     if main.is_empty() {
-        return Err("Bearer token has empty main part".into());
+        return Err(BearerTokenDefect::EmptyBody);
     }
 
     // cite(RFC 6750 § 2.1, label: bearer b64token grammar): "b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
@@ -414,13 +506,13 @@ pub fn validate_bearer_token(token: &str) -> Result<(), String> {
 
     for c in main.chars() {
         if !allowed_main(c) {
-            return Err(format!("Invalid character '{}' in Bearer token", c));
+            return Err(BearerTokenDefect::BadCharacter(c));
         }
     }
 
     for c in padding.chars() {
         if c != '=' {
-            return Err("Bearer token padding contains invalid character".into());
+            return Err(BearerTokenDefect::BadPadding);
         }
     }
 
@@ -705,17 +797,39 @@ mod tests {
 
     #[test]
     fn validate_bearer_token_rejects_whitespace_and_invalid_chars() {
-        assert!(validate_bearer_token("a b").is_err());
-        assert!(validate_bearer_token("").is_err());
-        assert!(validate_bearer_token("a@b").is_err());
+        assert_eq!(
+            validate_bearer_token("a b"),
+            Err(BearerTokenDefect::Whitespace)
+        );
+        assert_eq!(validate_bearer_token(""), Err(BearerTokenDefect::Empty));
+        assert_eq!(
+            validate_bearer_token("a@b"),
+            Err(BearerTokenDefect::BadCharacter('@'))
+        );
     }
 
+    /// The four values here fail two different ways, which is what `is_err()`
+    /// could not say. Everything from the first `=` is padding *by position*,
+    /// so `ab=c` has well-formed body `ab` and padding `=c`; `=abc` has no body
+    /// at all, and the padding it does have is never reached.
     #[test]
     fn validate_bearer_token_rejects_eq_in_middle_or_nonpad() {
-        assert!(validate_bearer_token("ab=c").is_err());
-        assert!(validate_bearer_token("ab=c==").is_err());
-        assert!(validate_bearer_token("=abc").is_err());
-        assert!(validate_bearer_token("abc=a").is_err());
+        assert_eq!(
+            validate_bearer_token("ab=c"),
+            Err(BearerTokenDefect::BadPadding)
+        );
+        assert_eq!(
+            validate_bearer_token("ab=c=="),
+            Err(BearerTokenDefect::BadPadding)
+        );
+        assert_eq!(
+            validate_bearer_token("=abc"),
+            Err(BearerTokenDefect::EmptyBody)
+        );
+        assert_eq!(
+            validate_bearer_token("abc=a"),
+            Err(BearerTokenDefect::BadPadding)
+        );
     }
 
     #[test]
@@ -773,12 +887,29 @@ mod tests {
     #[test]
     fn validate_basic_credentials_missing_colon() {
         // 'abc' base64
-        assert!(validate_basic_credentials("YWJj").is_err());
+        assert_eq!(
+            validate_basic_credentials("YWJj"),
+            Err(BasicCredentialsDefect::MissingColon)
+        );
     }
 
+    /// The two layers, one after the other: `not-base64!!` never becomes a
+    /// `user-pass` to have anything wrong with, and the decoder says where it
+    /// stopped. An empty encoding decodes fine and is the other thing.
     #[test]
     fn validate_basic_credentials_invalid_base64() {
-        assert!(validate_basic_credentials("not-base64!!").is_err());
+        assert_eq!(
+            validate_basic_credentials("not-base64!!"),
+            Err(BasicCredentialsDefect::Base64(
+                base64::DecodeError::InvalidByte(3, b'-')
+            ))
+        );
+        assert_eq!(
+            validate_basic_credentials("===="),
+            Err(BasicCredentialsDefect::Base64(
+                base64::DecodeError::InvalidByte(0, b'=')
+            ))
+        );
     }
 
     #[test]
@@ -786,9 +917,10 @@ mod tests {
         // user:pass where pass contains 0x01
         let creds = b"user:\x01pass";
         let enc = base64::engine::general_purpose::STANDARD.encode(creds);
-        let res = validate_basic_credentials(&enc);
-        assert!(res.is_err());
-        assert!(res.unwrap_err().contains("control"));
+        assert_eq!(
+            validate_basic_credentials(&enc),
+            Err(BasicCredentialsDefect::PasswordControlCharacter(0x01))
+        );
     }
 
     #[test]
@@ -796,16 +928,18 @@ mod tests {
         // user contains 0x01
         let creds = b"us\x01er:pass";
         let enc = base64::engine::general_purpose::STANDARD.encode(creds);
-        let res = validate_basic_credentials(&enc);
-        assert!(res.is_err());
-        assert!(res
-            .unwrap_err()
-            .contains("User-id contains control character"));
+        assert_eq!(
+            validate_basic_credentials(&enc),
+            Err(BasicCredentialsDefect::UserIdControlCharacter(0x01))
+        );
     }
 
     #[test]
     fn validate_basic_credentials_empty_token() {
-        assert!(validate_basic_credentials("").is_err());
+        assert_eq!(
+            validate_basic_credentials(""),
+            Err(BasicCredentialsDefect::Empty)
+        );
     }
     #[test]
     fn validate_basic_credentials_empty_user_allowed() {

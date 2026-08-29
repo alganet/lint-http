@@ -1618,7 +1618,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 355
+      line: 411
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 210
   - label: lint-http-rules/src/helpers/websocket.rs
@@ -2922,7 +2922,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 411
+      line: 503
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.html
   fragments:
@@ -3641,7 +3641,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 472
+      line: 564
 - label: RFC 7617
   url: https://www.rfc-editor.org/rfc/rfc7617.html
   fragments:
@@ -3656,19 +3656,19 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 373
+      line: 424
   - label: basic-credentials base64
     section: § 2
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 352
+      line: 408
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 363
+      line: 416
 - label: RFC 7838
   url: https://www.rfc-editor.org/rfc/rfc7838.html
   fragments:
