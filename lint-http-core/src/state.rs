@@ -449,13 +449,13 @@ mod tests {
 
         use crate::test_helpers::make_test_transaction_with_response;
         let mut tx1 = make_test_transaction_with_response(200, &[("etag", "\"e1\"")]);
-        tx1.client = client1.clone();
+        tx1.client = client1;
         tx1.request.uri = resource.to_string();
         tx1.timestamp = chrono::Utc::now();
         store.record_transaction(&tx1);
 
         let mut tx2 = make_test_transaction_with_response(200, &[("etag", "\"e2\"")]);
-        tx2.client = client2.clone();
+        tx2.client = client2;
         tx2.request.uri = resource.to_string();
         tx2.timestamp = chrono::Utc::now() + chrono::Duration::seconds(1);
         store.record_transaction(&tx2);
@@ -574,13 +574,13 @@ mod tests {
 
         let mut tx1 =
             crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"a\"")]);
-        tx1.client = client1.clone();
+        tx1.client = client1;
         tx1.request.uri = resource.to_string();
         store.record_transaction(&tx1);
 
         let mut tx2 =
             crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"b\"")]);
-        tx2.client = client2.clone();
+        tx2.client = client2;
         tx2.request.uri = resource.to_string();
         store.record_transaction(&tx2);
 
@@ -791,7 +791,7 @@ mod tests {
         store.record_transaction(&tx1);
 
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(201, &[]);
-        tx2.client = client2.clone();
+        tx2.client = client2;
         tx2.request.uri = "http://example.com/a".to_string();
         store.record_transaction(&tx2);
 
@@ -820,7 +820,7 @@ mod tests {
 
         // Different connection
         let mut tx3 = crate::test_helpers::make_test_transaction_with_response(202, &[]);
-        tx3.client = client.clone();
+        tx3.client = client;
         tx3.request.uri = "http://example.com/c".to_string();
         tx3.connection_id = Some(uuid::Uuid::new_v4());
         store.record_transaction(&tx3);
@@ -849,7 +849,7 @@ mod tests {
         let conn_id = uuid::Uuid::new_v4();
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.client = client.clone();
+        tx.client = client;
         tx.request.uri = "http://example.com/x".to_string();
         tx.connection_id = Some(conn_id);
         store.record_transaction(&tx);
@@ -866,7 +866,7 @@ mod tests {
         let conn_id = uuid::Uuid::new_v4();
 
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
-        tx.client = client.clone();
+        tx.client = client;
         tx.request.uri = "http://example.com/conn-cleanup".to_string();
         tx.connection_id = Some(conn_id);
         store.record_transaction(&tx);

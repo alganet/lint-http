@@ -117,7 +117,7 @@ mod tests {
         store.record_transaction(&tx1);
 
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(201, &[]);
-        tx2.client = client2.clone();
+        tx2.client = client2;
         tx2.request.uri = "https://example.com/b".to_string();
         store.record_transaction(&tx2);
 

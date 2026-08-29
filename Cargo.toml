@@ -25,6 +25,20 @@ repository = "https://github.com/alganet/lint-http"
 [workspace.lints.clippy]
 cognitive_complexity = "warn"
 
+# Also nursery, also enabled here for the same reason: a clone nothing reads is
+# invisible in review and costs a deep copy at runtime. The two production sites
+# it found were a `Vec<Violation>` copied on every transaction the proxy handled
+# and two `Arc`s on the CONNECT path; the other 69 were in test modules, which
+# is exactly where an unread clone survives longest because nothing is watching.
+#
+# Its sibling `significant_drop_tightening` was assessed and **deliberately not
+# enabled**. Its 25 findings are all requests to shorten a lock scope, and the
+# scopes it objects to are long on purpose — `StateStore::record_transaction`
+# holds one lock across every index update precisely so they cannot be seen
+# apart, which the `Inner` doc comment states. Enabling it would buy nothing and
+# cost either `#[allow]`s or a worse design.
+redundant_clone = "warn"
+
 # No hand-written `unsafe` anywhere, enforced rather than merely true. A linter
 # is a poor place to reach for it: every byte here arrives from a socket and is
 # parsed against a grammar, which is exactly where a manual bounds argument is

@@ -52,7 +52,7 @@ mod tests {
 
         let mut tx2 =
             crate::test_helpers::make_test_transaction_with_response(200, &[("etag", "\"b\"")]);
-        tx2.client = client.clone();
+        tx2.client = client;
         tx2.request.uri = "http://example.com/b".to_string();
         tx2.connection_id = Some(conn_id);
         tx2.sequence_number = Some(1);
@@ -80,7 +80,7 @@ mod tests {
         store.record_transaction(&tx1);
 
         let mut tx2 = crate::test_helpers::make_test_transaction_with_response(201, &[]);
-        tx2.client = client.clone();
+        tx2.client = client;
         tx2.request.uri = "http://example.com/b".to_string();
         tx2.connection_id = Some(conn2);
         tx2.sequence_number = Some(0);
