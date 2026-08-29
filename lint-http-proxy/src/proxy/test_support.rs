@@ -108,8 +108,13 @@ pub(super) async fn drain_and_read_captures(
     read_captures_after_stream(cw, path).await
 }
 
-/// Poll the capture file until the streamed transaction's commit task has
-/// landed (the commit is detached, firing after the body finishes streaming).
+/// Flush, then poll the capture file until a detached commit has landed.
+///
+/// Two shapes need this and both are detached: a streamed body commits after
+/// the body finishes, and an upgrade commits from the relay task. `flush()`
+/// alone answers neither — it writes what is already queued, and the question
+/// is whether the commit has queued anything yet. A fixed sleep answers it only
+/// on a machine fast enough not to have needed one.
 pub(super) async fn read_captures_after_stream(
     cw: &CaptureWriter,
     path: &str,
