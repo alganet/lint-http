@@ -14,12 +14,15 @@
 //! This module holds the second half of that split. A [`ViolationDef`] is a
 //! defect: an id, a title, its default severity, and the specification
 //! sentence it enforces. Defs live in `src/violations/<subject>.rs`, grouped
-//! by subject the way `helpers/` is, and self-register into
-//! [`REGISTERED_VIOLATIONS`] at link time. [`VIOLATIONS`] is the sorted view.
+//! by subject the way `helpers/` is, written in a `defects!` block that
+//! self-registers each one into [`REGISTERED_VIOLATIONS`] at link time.
+//! [`VIOLATIONS`] is the sorted view.
 //!
-//! Nothing emits one yet: rules keep reporting through
+//! The two APIs coexist while the catalogue fills: a converted site reports
+//! through [`RuleContext::report`](crate::rules::RuleContext::report), and an
+//! unconverted one still goes through
 //! [`RuleMeta::violation`](crate::rules::RuleMeta::violation) and its cited
-//! sibling until the two APIs meet. This is the registry they will meet in.
+//! sibling, which are deleted when the last site moves.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -40,6 +43,10 @@ pub mod cookie;
 /// applies to a rule's declared list: it is a named `static`, because an array
 /// of references to statics is not const-promotable and the inline `&[…]` form
 /// does not typecheck as `'static`.
+///
+/// Which is why nothing constructs one of these by hand. `defects!` writes
+/// the `static` and its registration together, and
+/// `every_defect_comes_from_the_macro` keeps that the only way in.
 pub struct ViolationDef {
     /// This violation's id: the `[violations.<id>]` section that configures
     /// it, the `Violation.violation` its findings will carry, and the section
@@ -75,6 +82,69 @@ pub struct ViolationDef {
     /// keeps none.
     pub spec: Option<SpecRef>,
 }
+
+/// Define a subject's defects, and register every one of them.
+///
+/// The body is one entry per defect, each written as its `ViolationDef`
+/// fields. The doc comment and the `// cite` comment quoting the sentence the
+/// defect enforces go above the entry, where they would sit on any other item:
+///
+/// ```ignore
+/// defects! {
+///     /// What this defect is, and why it is its own entry.
+///     FIELD_VALUE_MALFORMED = {
+///         id: "field_value_malformed",
+///         title: "Field value does not match the grammar",
+///         message: "",
+///         default_severity: Severity::Warn,
+///         spec: Some(RFC_9110_5_5),
+///     }
+/// }
+/// ```
+///
+/// What it buys, at a catalogue this size, is that the two ways a def can be
+/// written wrong stop being writable:
+///
+/// - **`static`, never `const`.** A `const` is inlined at each use, so the
+///   `ptr::eq` lookup [`crate::rules::RuleContext::report`] does misses and the
+///   configured severity is unreachable. It compiles and it is wrong at run
+///   time, which is the worst shape a mistake can have.
+/// - **Registered, always.** The `#[distributed_slice]` entry is what puts a
+///   def in the catalogue, and it is separate from the def itself. Forgotten,
+///   the defect still reports — the rule declares it, the severity resolves —
+///   and vanishes from everything that *enumerates* the catalogue: no
+///   `[violations.<id>]` section, no docs.
+///
+/// Each entry hides its registration in an anonymous `const` block, so every
+/// one can use the same name for it: the linker collects the section entry, and
+/// nothing needs a second name derived from the first.
+macro_rules! defects {
+    ($(
+        $(#[$attr:meta])*
+        $name:ident = {
+            id: $id:literal,
+            title: $title:literal,
+            message: $message:literal,
+            default_severity: $severity:expr,
+            spec: $spec:expr,
+        }
+    )*) => {$(
+        $(#[$attr])*
+        pub static $name: $crate::violations::ViolationDef = $crate::violations::ViolationDef {
+            id: $id,
+            title: $title,
+            message: $message,
+            default_severity: $severity,
+            spec: $spec,
+        };
+
+        const _: () = {
+            #[linkme::distributed_slice($crate::violations::REGISTERED_VIOLATIONS)]
+            static REGISTRATION: &$crate::violations::ViolationDef = &$name;
+        };
+    )*};
+}
+pub(crate) use defects;
 
 /// Every violation, self-registered at link time via
 /// `linkme::distributed_slice`. Each `src/violations/<subject>.rs` appends its
@@ -163,6 +233,39 @@ mod tests {
                 "{} names both a rule and a violation",
                 rule.id(),
             );
+        }
+    }
+
+    /// A def written out longhand is a def that can be `const` and a def that
+    /// can go unregistered — the two mistakes `defects!` exists to make
+    /// unwritable, one of which is invisible until an operator's
+    /// `[violations.<id>]` silently does nothing. So the macro is not merely
+    /// available, it is the only way in: a subject file states its defects and
+    /// nothing else.
+    ///
+    /// Textual, like `no_rule_constructs_a_violation_literal`, and for the same
+    /// reason — what is being refused is a *shape of source*, which no type can
+    /// express.
+    #[test]
+    fn every_defect_comes_from_the_macro() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/violations");
+        for entry in std::fs::read_dir(&dir).expect("cannot read src/violations") {
+            let path = entry.expect("a directory entry").path();
+            if path.extension().is_none_or(|e| e != "rs")
+                || path.file_name().is_some_and(|n| n == "mod.rs")
+            {
+                continue;
+            }
+            let src = std::fs::read_to_string(&path).expect("a subject file");
+            for (i, line) in src.lines().enumerate() {
+                assert!(
+                    !line.contains("= ViolationDef {"),
+                    "{}:{}: defects are declared in a defects! block, which registers them \
+                     and keeps them `static`",
+                    path.display(),
+                    i + 1,
+                );
+            }
         }
     }
 
