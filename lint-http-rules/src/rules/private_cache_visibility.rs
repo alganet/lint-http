@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure responses marked `Cache-Control: private` are not reused by a
 /// different client, which would indicate a shared cache has stored the
@@ -27,11 +27,41 @@ const RFC_9111_5_2_2_7: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`private` — a shared cache MUST NOT store an unqualified-private response",
 };
 
-impl Rule for PrivateCacheVisibility {
+impl RuleMeta for PrivateCacheVisibility {
     fn id(&self) -> &'static str {
         "private_cache_visibility"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Stateful private cache visibility")
+    }
+
+    fn description(&self) -> &'static str {
+        "Responses with `Cache-Control: private` are intended for a single user agent's private cache and **must not be stored or served** by shared caches (RFC 9111 §5.2.2.7).  If a shared cache accidentally retains such a response, other clients may later receive the representation, violating privacy and correctness expectations.\n\nThis stateful rule examines a sequence of transactions for the same resource across **all clients**.  When a request includes a conditional validator (ETag or Last-Modified) that matches a value previously seen in a response carrying the `private` directive **and** that earlier response was sent to a **different** client, we infer that some intermediate cache reused the private entry.  A warning is emitted in that case.\n\nThe rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_5_2_2_7]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— another client revalidates using a private response"),
+                snippet: "> GET /secret HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: private\n< ETag: \"s1\"\n\n# later, a different client sends a conditional request using that ETag\n> GET /secret HTTP/1.1\n> Host: example.com\n> If-None-Match: \"s1\"   # value originated in private response for another client",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— only same client reuses the validator"),
+                snippet: "> GET /secret HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: private\n< ETag: \"s1\"\n\n# the same client later revalidates\n> GET /secret HTTP/1.1\n> Host: example.com\n> If-None-Match: \"s1\"   # acceptable, private cache may retain its own entry",
+            },
+        ]
+    }
+}
+
+impl Rule for PrivateCacheVisibility {
     fn scope(&self) -> crate::rules::RuleScope {
         // need to observe both the current request and past responses
         crate::rules::RuleScope::Both
@@ -141,34 +171,6 @@ impl Rule for PrivateCacheVisibility {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Stateful private cache visibility")
-    }
-
-    fn description(&self) -> &'static str {
-        "Responses with `Cache-Control: private` are intended for a single user agent's private cache and **must not be stored or served** by shared caches (RFC 9111 §5.2.2.7).  If a shared cache accidentally retains such a response, other clients may later receive the representation, violating privacy and correctness expectations.\n\nThis stateful rule examines a sequence of transactions for the same resource across **all clients**.  When a request includes a conditional validator (ETag or Last-Modified) that matches a value previously seen in a response carrying the `private` directive **and** that earlier response was sent to a **different** client, we infer that some intermediate cache reused the private entry.  A warning is emitted in that case.\n\nThe rule relies on a cross-client history; the engine handles this by scoping the query to all clients for the resource rather than the default per-client history.  Only conditional requests trigger the check, since they provide tangible evidence that a particular validator value was reused."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2_2_7]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— another client revalidates using a private response"),
-                snippet: "> GET /secret HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: private\n< ETag: \"s1\"\n\n# later, a different client sends a conditional request using that ETag\n> GET /secret HTTP/1.1\n> Host: example.com\n> If-None-Match: \"s1\"   # value originated in private response for another client",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— only same client reuses the validator"),
-                snippet: "> GET /secret HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: private\n< ETag: \"s1\"\n\n# the same client later revalidates\n> GET /secret HTTP/1.1\n> Host: example.com\n> If-None-Match: \"s1\"   # acceptable, private cache may retain its own entry",
-            },
-        ]
     }
 }
 

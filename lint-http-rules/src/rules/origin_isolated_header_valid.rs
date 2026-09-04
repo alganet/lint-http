@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct OriginIsolatedHeaderValid;
 
@@ -23,11 +23,47 @@ const RFC_9651_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Structured Headers boolean values (§3–§4)",
 };
 
-impl Rule for OriginIsolatedHeaderValid {
+impl RuleMeta for OriginIsolatedHeaderValid {
     fn id(&self) -> &'static str {
         "origin_isolated_header_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Checks the `Origin-Agent-Cluster` response header and ensures it uses the structured-header boolean value `?1` to request an origin-keyed agent cluster. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster; the specification ignores any other value, but this rule reports it because a non-`?1` value is almost always a server misconfiguration.\n\n(The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)"
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[HTML_7_1_2, RFC_9651_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?1, ?1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: unsafe-none",
+            },
+        ]
+    }
+}
+
+impl Rule for OriginIsolatedHeaderValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -97,40 +133,6 @@ impl Rule for OriginIsolatedHeaderValid {
             Some(self.cited(&HTML_7_1_2, ctx.severity, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val)))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Checks the `Origin-Agent-Cluster` response header and ensures it uses the structured-header boolean value `?1` to request an origin-keyed agent cluster. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster; the specification ignores any other value, but this rule reports it because a non-`?1` value is almost always a server misconfiguration.\n\n(The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)"
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[HTML_7_1_2, RFC_9651_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: ?1, ?1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nOrigin-Agent-Cluster: unsafe-none",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CachedValidatorsReused;
 
@@ -23,11 +23,59 @@ const RFC_9110_13_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "If-Modified-Since — typically used for efficient cache updates (no client obligation to send; the Last-Modified path here is a heuristic)",
 };
 
-impl Rule for CachedValidatorsReused {
+impl RuleMeta for CachedValidatorsReused {
     fn id(&self) -> &'static str {
         "cached_validators_reused"
     }
 
+    fn description(&self) -> &'static str {
+        "This rule checks if the client correctly uses conditional headers (`If-None-Match` or `If-Modified-Since`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_13_1_2, RFC_9110_13_1_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Request"),
+                snippet: "GET /image.png HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Request"),
+                snippet: "HTTP/1.1 200 OK\nETag: \"abcdef12345\"\nContent-Length: 1024",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Request"),
+                snippet:
+                    "GET /image.png HTTP/1.1\nHost: example.com\nIf-None-Match: \"abcdef12345\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Request"),
+                snippet: "GET /image.png HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Request"),
+                snippet: "HTTP/1.1 200 OK\nETag: \"abcdef12345\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Request"),
+                snippet:
+                    "GET /image.png HTTP/1.1\nHost: example.com\n# Missing If-None-Match header!",
+            },
+        ]
+    }
+}
+
+impl Rule for CachedValidatorsReused {
     fn scope(&self) -> crate::rules::RuleScope {
         // Client: the SHOULD is on the client's request; the prior response is read
         // only to learn whether a validator was offered.
@@ -104,52 +152,6 @@ impl Rule for CachedValidatorsReused {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks if the client correctly uses conditional headers (`If-None-Match` or `If-Modified-Since`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_13_1_2, RFC_9110_13_1_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Request"),
-                snippet: "GET /image.png HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Request"),
-                snippet: "HTTP/1.1 200 OK\nETag: \"abcdef12345\"\nContent-Length: 1024",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Request"),
-                snippet:
-                    "GET /image.png HTTP/1.1\nHost: example.com\nIf-None-Match: \"abcdef12345\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet: "GET /image.png HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet: "HTTP/1.1 200 OK\nETag: \"abcdef12345\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet:
-                    "GET /image.png HTTP/1.1\nHost: example.com\n# Missing If-None-Match header!",
-            },
-        ]
     }
 }
 

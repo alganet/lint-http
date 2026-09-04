@@ -4,7 +4,7 @@
 
 use crate::helpers::structured_fields::*;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct PermissionsPolicyDirectivesValid;
 
@@ -30,11 +30,57 @@ const RFC_9651_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Parsing — a failure discards the entire field value, which is why a malformed member name is not a local problem",
 };
 
-impl Rule for PermissionsPolicyDirectivesValid {
+impl RuleMeta for PermissionsPolicyDirectivesValid {
     fn id(&self) -> &'static str {
         "permissions_policy_directives_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which, and so does their number: a parse failure is reported alone because nothing else in the field survived it, while every directive that parsed and will be ignored is reported beside the others like it. A member with no `=` at all belongs to the second group — §4.2.2 reads a bare key as the Boolean true, which parses, so the cost is that one directive.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[PERMISSIONS_POLICY, RFC_9651_3_2, RFC_9651_4_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self \"https://example.com\"), fullscreen=(), payment=(\"https://pay.example\");report-to=\"endpoint\"\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(underscores and dots are ordinary SF key characters)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: ch-ua_full.version=*\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(uppercase in a member name discards the whole field)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: Geolocation=(self), camera=()\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a bare token is not an allowlist)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=SELF\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a bare member name has no allowlist at all)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(report-to must be a String)"),
+                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=endpoint\n",
+            },
+        ]
+    }
+}
+
+impl Rule for PermissionsPolicyDirectivesValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -136,50 +182,6 @@ impl Rule for PermissionsPolicyDirectivesValid {
                 })
                 .collect()
         }
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a `Permissions-Policy` response header carrying something a browser will not enforce. Neither specification calls any of this \"invalid\" — both define **ignore** semantics — so the finding is always that the server wrote a policy that will not take effect, at one of two scopes.\n\n**The whole field, or one directive.** A Structured Fields parse failure discards everything: RFC 9651 §4.2, \"If parsing fails, either the entire field value MUST be ignored … or alternatively the complete HTTP message MUST be treated as malformed\", and field specifications are explicitly not allowed to loosen that. So one uppercase letter in a member name costs every directive in the header. A value that parses but is not an allowlist costs only its own directive — §5.2, \"Member Values of any other form will cause the entire Dictionary Member to be ignored\". The messages say which, and so does their number: a parse failure is reported alone because nothing else in the field survived it, while every directive that parsed and will be ignored is reported beside the others like it. A member with no `=` at all belongs to the second group — §4.2.2 reads a bare key as the Boolean true, which parses, so the cost is that one directive.\n\n**Member names are SF keys, not §5.1 feature-identifiers.** The Permissions Policy spec serializes a policy directive twice: §5.1 for the HTML `allow` attribute, where `feature-identifier = 1*( ALPHA / DIGIT / \"-\" )`, and §5.2 for this header, where the value is an `sf-dictionary`. This rule reads the header, so a member name is an SF key: lowercase only, beginning with a letter or `*`, and permitting `_`, `.` and `*`. It used to apply §5.1's production here, which accepted `Geolocation=(self)` and rejected `a_b=(self)`.\n\n**Allowlist values are a closed list.** §5.2 permits a String, the Token `*`, the Token `self`, or an Inner List of those — nothing else. Tokens keep their case, so `SELF` is not `self`. Items *inside* an inner list are deliberately not policed: §5.2 says unknown ones are ignored and the member is processed without them, which costs one origin rather than the directive.\n\n**Field lines are joined before parsing**, as RFC 9651 §4.2 requires — a Dictionary may have its members spread across lines, so judging a line on its own describes a message nobody sent. A member repeated across the joined value loses all but its last allowlist (§4.2.2), which is not an error and not visible in the header, so it is reported.\n\n**Unknown feature names are not reported.** §5.2 says a member naming no supported feature is ignored, and RFC 9651 §3.2 says recipients MUST ignore members with unknown keys — so a name this rule does not recognise is not a defect, and there is no allowlist of features here."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[PERMISSIONS_POLICY, RFC_9651_3_2, RFC_9651_4_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self \"https://example.com\"), fullscreen=(), payment=(\"https://pay.example\");report-to=\"endpoint\"\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(underscores and dots are ordinary SF key characters)"),
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: ch-ua_full.version=*\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(uppercase in a member name discards the whole field)"),
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: Geolocation=(self), camera=()\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a bare token is not an allowlist)"),
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=SELF\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a bare member name has no allowlist at all)"),
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(report-to must be a String)"),
-                snippet: "HTTP/1.1 200 OK\nPermissions-Policy: geolocation=(self);report-to=endpoint\n",
-            },
-        ]
     }
 }
 
@@ -512,7 +514,7 @@ mod tests {
     /// non-compliant partly because of the annotation explaining why.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = PermissionsPolicyDirectivesValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 

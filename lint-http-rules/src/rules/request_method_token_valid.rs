@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 #[derive(Debug, Clone)]
 pub struct MethodTokenConfig {
@@ -136,18 +136,9 @@ const RFC_9114_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The `:method` pseudo-header field over HTTP/3",
 };
 
-impl Rule for RequestMethodTokenValid {
+impl RuleMeta for RequestMethodTokenValid {
     fn id(&self) -> &'static str {
         "request_method_token_valid"
-    }
-
-    /// Every sentence here is addressed to whoever generated the request, so the rule
-    /// has to run on a request whose upstream never answered as well as on a complete
-    /// exchange. `Client` is the scope that survives into the request-only dispatch;
-    /// `Server` would skip exactly the captures where the request is all there is.
-    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
     }
 
     /// The sixteenth rule with a required option and the only one that had no
@@ -164,6 +155,63 @@ impl Rule for RequestMethodTokenValid {
             severity: config.severity,
             state: Box::new(config),
         })
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports a request whose method token does not derive from `method = token` (RFC 9110 §9.1), and a request whose method is a standardized method's name written in a different case.\n\n**Two findings of different strengths.** A method token that is empty or carries a character outside `tchar` matches no production, and RFC 9110 §2.2 is what makes that a violation: \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.\" The case finding rests on no requirement at all — §9.1 says only \"By convention, standardized methods are defined in all-uppercase US-ASCII letters\", which is a statement about how standards write their definitions, not one addressed to a sender.\n\n**What makes the case finding worth reporting is the sentence next to the convention.** §9.1: \"The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.\" So `get` is not a badly typed `GET`; it is a method nothing defines, and §9.1 has an origin server answer an unrecognized method with `501 (Not Implemented)`. The finding is that a request asking for a standardized method will not get one.\n\n**Not reported: a lowercase method that is nobody's standardized method.** A deployment's private `x-purge` is a well-formed `token`, and the convention §9.1 states is about standardized methods — so there is no sentence under a report of it, and this rule used to make one anyway. `registered_methods` is what separates the two cases.\n\n**`registered_methods` is required, and the reason is that the names live in a registry.** RFC 9110 §16.1.1 registers method names at IANA and admits new ones by IETF Review; §9.1 says every method specified outside RFC 9110 \"ought to be registered\" there. The eight methods RFC 9110 defines are only the ones that document defines, so a list compiled into this rule would be a snapshot of an open registry presented as though it were the grammar. The array is also where a deployment records its own uppercase-by-convention names: add `PURGE` to it and `purge` is reported; leave it out and it is not.\n\n**A missing or empty array stops the whole rule, not only the case finding.** The two grammar questions never read these names, so silencing just the third would leave a configuration mistake looking like a clean run. A deployment that wants the grammar half and not the case advice disables the rule rather than emptying the array.\n\n**An incomplete array costs coverage and never a false report.** A name missing from it means one spelling goes unremarked — unlike the same shape in `early_data_header_safe_method`, where an absent name *is* the finding, because RFC 8470 §4 names \"methods whose safety is not known\" alongside the unsafe ones.\n\n**Every HTTP version is read, and there is no version gate.** `method = token` is written in the version-independent document; RFC 9112 §3.1 is where an HTTP/1.1 message carries the result, and RFC 9113 §8.3.1 and RFC 9114 §4.3.1 put the same value in a `:method` pseudo-header. `http2_pseudo_headers_valid` used to report the `tchar` half a second time, on every version; it now stops on a method that derives from no `token` and leaves the finding here, because a value naming no method names nothing for its own branches to turn on.\n\n**The two grammar findings do not arise in traffic this proxy captured.** A capture's method comes from `hyper::Method`, whose accepted character table is `tchar` exactly and which refuses a zero-length method, so a request that reaches the wire through this proxy cannot carry either defect. They are reachable in a capture written elsewhere and deserialized into the transaction model, which is the only reason the checks are here."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_9_1,
+            RFC_9110_2_2,
+            RFC_9110_5_6_2,
+            RFC_9110_16_1_1,
+            RFC_9112_3_1,
+            RFC_9113_8_3_1,
+            RFC_9114_4_3_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("a standardized method, spelled as its definition spells it"),
+                snippet: "GET /index.html HTTP/1.1",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "a private method no registry knows: a well-formed token, and the convention §9.1 states is about standardized methods",
+                ),
+                snippet: "x-purge /cache/entry HTTP/1.1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "a standardized method's name in another case — the token is case-sensitive, so this asks for a method nobody defined",
+                ),
+                snippet: "get /index.html HTTP/1.1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("`@` is not a `tchar`, so this method derives from no production"),
+                snippet: "G@T /index.html HTTP/1.1",
+            },
+        ]
+    }
+}
+
+impl Rule for RequestMethodTokenValid {
+    /// Every sentence here is addressed to whoever generated the request, so the rule
+    /// has to run on a request whose upstream never answered as well as on a complete
+    /// exchange. `Client` is the scope that survives into the request-only dispatch;
+    /// `Server` would skip exactly the captures where the request is all there is.
+    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Client
     }
 
     fn findings(
@@ -260,52 +308,6 @@ impl Rule for RequestMethodTokenValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a request whose method token does not derive from `method = token` (RFC 9110 §9.1), and a request whose method is a standardized method's name written in a different case.\n\n**Two findings of different strengths.** A method token that is empty or carries a character outside `tchar` matches no production, and RFC 9110 §2.2 is what makes that a violation: \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.\" The case finding rests on no requirement at all — §9.1 says only \"By convention, standardized methods are defined in all-uppercase US-ASCII letters\", which is a statement about how standards write their definitions, not one addressed to a sender.\n\n**What makes the case finding worth reporting is the sentence next to the convention.** §9.1: \"The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.\" So `get` is not a badly typed `GET`; it is a method nothing defines, and §9.1 has an origin server answer an unrecognized method with `501 (Not Implemented)`. The finding is that a request asking for a standardized method will not get one.\n\n**Not reported: a lowercase method that is nobody's standardized method.** A deployment's private `x-purge` is a well-formed `token`, and the convention §9.1 states is about standardized methods — so there is no sentence under a report of it, and this rule used to make one anyway. `registered_methods` is what separates the two cases.\n\n**`registered_methods` is required, and the reason is that the names live in a registry.** RFC 9110 §16.1.1 registers method names at IANA and admits new ones by IETF Review; §9.1 says every method specified outside RFC 9110 \"ought to be registered\" there. The eight methods RFC 9110 defines are only the ones that document defines, so a list compiled into this rule would be a snapshot of an open registry presented as though it were the grammar. The array is also where a deployment records its own uppercase-by-convention names: add `PURGE` to it and `purge` is reported; leave it out and it is not.\n\n**A missing or empty array stops the whole rule, not only the case finding.** The two grammar questions never read these names, so silencing just the third would leave a configuration mistake looking like a clean run. A deployment that wants the grammar half and not the case advice disables the rule rather than emptying the array.\n\n**An incomplete array costs coverage and never a false report.** A name missing from it means one spelling goes unremarked — unlike the same shape in `early_data_header_safe_method`, where an absent name *is* the finding, because RFC 8470 §4 names \"methods whose safety is not known\" alongside the unsafe ones.\n\n**Every HTTP version is read, and there is no version gate.** `method = token` is written in the version-independent document; RFC 9112 §3.1 is where an HTTP/1.1 message carries the result, and RFC 9113 §8.3.1 and RFC 9114 §4.3.1 put the same value in a `:method` pseudo-header. `http2_pseudo_headers_valid` used to report the `tchar` half a second time, on every version; it now stops on a method that derives from no `token` and leaves the finding here, because a value naming no method names nothing for its own branches to turn on.\n\n**The two grammar findings do not arise in traffic this proxy captured.** A capture's method comes from `hyper::Method`, whose accepted character table is `tchar` exactly and which refuses a zero-length method, so a request that reaches the wire through this proxy cannot carry either defect. They are reachable in a capture written elsewhere and deserialized into the transaction model, which is the only reason the checks are here."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_9_1,
-            RFC_9110_2_2,
-            RFC_9110_5_6_2,
-            RFC_9110_16_1_1,
-            RFC_9112_3_1,
-            RFC_9113_8_3_1,
-            RFC_9114_4_3_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("a standardized method, spelled as its definition spells it"),
-                snippet: "GET /index.html HTTP/1.1",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "a private method no registry knows: a well-formed token, and the convention §9.1 states is about standardized methods",
-                ),
-                snippet: "x-purge /cache/entry HTTP/1.1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some(
-                    "a standardized method's name in another case — the token is case-sensitive, so this asks for a method nobody defined",
-                ),
-                snippet: "get /index.html HTTP/1.1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("`@` is not a `tchar`, so this method derives from no production"),
-                snippet: "G@T /index.html HTTP/1.1",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Every coding RFC 9112 says defines no parameters. The first five are § 7.2's
 /// compression codings, defined there by reference to the content coding of the
@@ -68,13 +68,9 @@ const IANA_HTTP_PARAMETERS: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The registry this rule is named after and does not read: names are checked against the configured 'allowed' list instead",
 };
 
-impl Rule for TransferCodingRegistered {
+impl RuleMeta for TransferCodingRegistered {
     fn id(&self) -> &'static str {
         "transfer_coding_registered"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -98,6 +94,64 @@ impl Rule for TransferCodingRegistered {
             severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must be syntactically valid `token`s and must appear in the configured `allowed` list. The `TE` header's `trailers` member is not a coding name and is skipped.\n\n**The rule is named after a registry it does not read.** Nothing here fetches IANA's HTTP Transfer Coding registry; names are compared against the configured `allowed` list, whose shipped default is `chunked`, `compress`, `gzip`, `deflate`. The registry also holds `x-compress` and `x-gzip` (both Deprecated) and `identity` (withdrawn), which the default omits on purpose — reporting them is the useful answer. `trailers` is registered as reserved and never reaches the comparison. Widen or narrow the list to suit; an unregistered name is a configuration question, because RFC 9112 §7.3 puts registration behind IETF Review and no linter can stand in for that.\n\n**The strongest thing RFC 9112 §7 says about registration is \"ought to\"** — not MUST, not SHOULD. An unrecognised coding is therefore reported for its consequence rather than for disobedience: §6.1, \"A server that receives a request message with a transfer coding it does not understand SHOULD respond with 501 (Not Implemented).\"\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines — and for `Transfer-Encoding` a second field line is the shape request smuggling arrives in, so reading only the first is the one omission this rule cannot afford. Values are decoded from the raw octets: an octet outside visible US-ASCII is not a `tchar`, so where a coding name belongs it is reported rather than used as a reason to skip the line.\n\n**Members are split on commas that are not inside a quoted-string.** `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )`, so `chunked;ext=\"a,b\"` is one coding carrying one parameter, not two members. Quoting that never closes leaves the members undelimitable and is reported here rather than passed over, because no other rule reports a malformed `Transfer-Encoding`.\n\n**`chunked` is reported in `TE` and only there.** RFC 9112 §7.4: \"A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.\" It is a registered coding, so the registry check waves it through; this is the one place where a recognised name is still the wrong name. In `Transfer-Encoding` it is the ordinary case.\n\n**A parameter on a coding that defines none is reported.** RFC 9112 §7.2 defines `compress`, `x-compress`, `deflate`, `gzip` and `x-gzip`, states that they \"do not define any parameters\", and says their presence \"SHOULD be treated as an error\". §7.1 says the same of `chunked` in its own two sentences, so all six are covered. The `q` in `TE: deflate;q=0.5` is exempt — the grammar puts the `weight` outside `transfer-coding` and §7.3 calls it a pseudo-parameter — but `Transfer-Encoding` has no weight in its grammar, so a `q` there is an ordinary parameter. A coding you add to `allowed` is not reached: its parameters answer to whatever registered it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9112_6_1,
+            RFC_9112_7,
+            RFC_9112_7_1,
+            RFC_9112_7_2,
+            RFC_9112_7_4,
+            RFC_9110_10_1_4,
+            IANA_HTTP_PARAMETERS,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n0\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(TE request)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nTE: trailers\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(TE ranks a coding; the q is a weight, not a parameter)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nTE: trailers, deflate;q=0.5\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: x-custom\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(chunked is always acceptable, so TE cannot name it)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nTE: chunked;q=0.8\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(gzip defines no parameters)"),
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip;level=9, chunked\n",
+            },
+        ]
+    }
+}
+
+impl Rule for TransferCodingRegistered {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
     }
 
     fn findings(
@@ -395,58 +449,6 @@ impl Rule for TransferCodingRegistered {
         };
         Vec::from_iter(finding())
     }
-
-    fn description(&self) -> &'static str {
-        "Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must be syntactically valid `token`s and must appear in the configured `allowed` list. The `TE` header's `trailers` member is not a coding name and is skipped.\n\n**The rule is named after a registry it does not read.** Nothing here fetches IANA's HTTP Transfer Coding registry; names are compared against the configured `allowed` list, whose shipped default is `chunked`, `compress`, `gzip`, `deflate`. The registry also holds `x-compress` and `x-gzip` (both Deprecated) and `identity` (withdrawn), which the default omits on purpose — reporting them is the useful answer. `trailers` is registered as reserved and never reaches the comparison. Widen or narrow the list to suit; an unregistered name is a configuration question, because RFC 9112 §7.3 puts registration behind IETF Review and no linter can stand in for that.\n\n**The strongest thing RFC 9112 §7 says about registration is \"ought to\"** — not MUST, not SHOULD. An unrecognised coding is therefore reported for its consequence rather than for disobedience: §6.1, \"A server that receives a request message with a transfer coding it does not understand SHOULD respond with 501 (Not Implemented).\"\n\n**Every field line of both fields is read**, since each is a list whose members may be spread across lines — and for `Transfer-Encoding` a second field line is the shape request smuggling arrives in, so reading only the first is the one omission this rule cannot afford. Values are decoded from the raw octets: an octet outside visible US-ASCII is not a `tchar`, so where a coding name belongs it is reported rather than used as a reason to skip the line.\n\n**Members are split on commas that are not inside a quoted-string.** `transfer-parameter = token BWS \"=\" BWS ( token / quoted-string )`, so `chunked;ext=\"a,b\"` is one coding carrying one parameter, not two members. Quoting that never closes leaves the members undelimitable and is reported here rather than passed over, because no other rule reports a malformed `Transfer-Encoding`.\n\n**`chunked` is reported in `TE` and only there.** RFC 9112 §7.4: \"A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.\" It is a registered coding, so the registry check waves it through; this is the one place where a recognised name is still the wrong name. In `Transfer-Encoding` it is the ordinary case.\n\n**A parameter on a coding that defines none is reported.** RFC 9112 §7.2 defines `compress`, `x-compress`, `deflate`, `gzip` and `x-gzip`, states that they \"do not define any parameters\", and says their presence \"SHOULD be treated as an error\". §7.1 says the same of `chunked` in its own two sentences, so all six are covered. The `q` in `TE: deflate;q=0.5` is exempt — the grammar puts the `weight` outside `transfer-coding` and §7.3 calls it a pseudo-parameter — but `Transfer-Encoding` has no weight in its grammar, so a `q` there is an ordinary parameter. A coding you add to `allowed` is not reached: its parameters answer to whatever registered it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9112_6_1,
-            RFC_9112_7,
-            RFC_9112_7_1,
-            RFC_9112_7_2,
-            RFC_9112_7_4,
-            RFC_9110_10_1_4,
-            IANA_HTTP_PARAMETERS,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: chunked\n\n0\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(TE request)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nTE: trailers\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(TE ranks a coding; the q is a weight, not a parameter)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nTE: trailers, deflate;q=0.5\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: x-custom\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(chunked is always acceptable, so TE cannot name it)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nTE: chunked;q=0.8\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(gzip defines no parameters)"),
-                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip;level=9, chunked\n",
-            },
-        ]
-    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -722,7 +724,7 @@ mod tests {
     /// test passes by declining to run.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = TransferCodingRegistered;
         let cfg = make_cfg();
         let reasons: [(&str, &str); 3] = [

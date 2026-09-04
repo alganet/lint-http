@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct Status200Vs204BodyConsistent;
 
@@ -80,11 +80,55 @@ const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Message body length — a Transfer-Encoding overrides a Content-Length, so the declared length is read only in its absence; the captured content length is still consulted",
 };
 
-impl Rule for Status200Vs204BodyConsistent {
+impl RuleMeta for Status200Vs204BodyConsistent {
     fn id(&self) -> &'static str {
         "status_200_vs_204_body_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "Reports a `200 (OK)` response that carries no content, so an operator can check whether `204 (No Content)` was meant instead. **Nothing is being violated.** RFC 9110 §15.3.1 says an origin server *\"ought to\"* send a 204 *\"if some aspect of the request indicates a preference for no content upon success\"* — a modal weaker than SHOULD, and a condition about the *request* that no field on the wire records, so this rule cannot tell the case the sentence is about from the case it is not. It reports both. The same section's preceding sentence expects a 200 to contain content *\"unless the message framing explicitly indicates that the content has zero length\"*, which is the very state reported here, and §6.4.1 says of every response that is not a HEAD response, a CONNECT tunnel, a 1xx, a 204 or a 304: *\"All other responses do include content, although that content might be of zero length.\"* A 200 returning an empty representation — an empty file, an empty collection — is therefore conforming, and reads as a finding only because the alternative status code is often the better answer. `OPTIONS` is the case an operator will meet most often: §9.3.7 says of a successful OPTIONS that *\"the response content, if any\"* describes the communication options, so having none is anticipated by the method's own definition, and it is still reported here. Two responses are exempt because they cannot carry content at all: responses to `HEAD` (§9.3.2) and 2xx responses to `CONNECT`, where the tunnel begins where the content would be and a 204 would not open it. Method tokens are compared case-sensitively (§9.1). Emptiness is read from the declared `Content-Length` when the response has no `Transfer-Encoding`, and otherwise from the captured content length; when neither is available the response is not reported, and an invalid `Content-Length` is left to `content_length_valid`."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_15_3_1,
+            RFC_9110_15_3_5,
+            RFC_9110_6_4_1,
+            RFC_9110_9_3_2,
+            RFC_9110_9_3_6,
+            RFC_9110_9_3_7,
+            RFC_9112_6_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Length: 24\n\n{\"status\":\"ok\",\"data\":1}",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(HEAD request)"),
+                snippet: "HEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nDate: Mon, 01 Jan 2024 00:00:00 GMT\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(CONNECT tunnel — the content is where the tunnel starts)"),
+                snippet: "CONNECT server.example.com:443 HTTP/1.1\nHost: server.example.com:443\n\nHTTP/1.1 200 OK\n\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Length: 0\n",
+            },
+        ]
+    }
+}
+
+impl Rule for Status200Vs204BodyConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -185,48 +229,6 @@ impl Rule for Status200Vs204BodyConsistent {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a `200 (OK)` response that carries no content, so an operator can check whether `204 (No Content)` was meant instead. **Nothing is being violated.** RFC 9110 §15.3.1 says an origin server *\"ought to\"* send a 204 *\"if some aspect of the request indicates a preference for no content upon success\"* — a modal weaker than SHOULD, and a condition about the *request* that no field on the wire records, so this rule cannot tell the case the sentence is about from the case it is not. It reports both. The same section's preceding sentence expects a 200 to contain content *\"unless the message framing explicitly indicates that the content has zero length\"*, which is the very state reported here, and §6.4.1 says of every response that is not a HEAD response, a CONNECT tunnel, a 1xx, a 204 or a 304: *\"All other responses do include content, although that content might be of zero length.\"* A 200 returning an empty representation — an empty file, an empty collection — is therefore conforming, and reads as a finding only because the alternative status code is often the better answer. `OPTIONS` is the case an operator will meet most often: §9.3.7 says of a successful OPTIONS that *\"the response content, if any\"* describes the communication options, so having none is anticipated by the method's own definition, and it is still reported here. Two responses are exempt because they cannot carry content at all: responses to `HEAD` (§9.3.2) and 2xx responses to `CONNECT`, where the tunnel begins where the content would be and a 204 would not open it. Method tokens are compared case-sensitively (§9.1). Emptiness is read from the declared `Content-Length` when the response has no `Transfer-Encoding`, and otherwise from the captured content length; when neither is available the response is not reported, and an invalid `Content-Length` is left to `content_length_valid`."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_15_3_1,
-            RFC_9110_15_3_5,
-            RFC_9110_6_4_1,
-            RFC_9110_9_3_2,
-            RFC_9110_9_3_6,
-            RFC_9110_9_3_7,
-            RFC_9112_6_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json\nContent-Length: 24\n\n{\"status\":\"ok\",\"data\":1}",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(HEAD request)"),
-                snippet: "HEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nDate: Mon, 01 Jan 2024 00:00:00 GMT\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(CONNECT tunnel — the content is where the tunnel starts)"),
-                snippet: "CONNECT server.example.com:443 HTTP/1.1\nHost: server.example.com:443\n\nHTTP/1.1 200 OK\n\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Length: 0\n",
-            },
-        ]
     }
 }
 

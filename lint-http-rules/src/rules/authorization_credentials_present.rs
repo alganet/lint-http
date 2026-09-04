@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AuthorizationCredentialsPresent;
 
@@ -29,11 +29,47 @@ const RFC_6750: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The OAuth 2.0 Authorization Framework: Bearer Token Usage",
 };
 
-impl Rule for AuthorizationCredentialsPresent {
+impl RuleMeta for AuthorizationCredentialsPresent {
     fn id(&self) -> &'static str {
         "authorization_credentials_present"
     }
 
+    fn description(&self) -> &'static str {
+        "The `Authorization` request header field MUST include an authentication scheme followed by credentials. This rule flags requests where the header is empty, contains an invalid auth-scheme token, or is missing credentials after the scheme. Ensuring credentials are present helps detect malformed or truncated authorization attempts."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_11_6_2, RFC_7617, RFC_6750]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Bearer abc123",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/resource\", response=\"d41d8cd98f00b204e9800998ecf8427e\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Basic",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: B@sic abc",
+            },
+        ]
+    }
+}
+
+impl Rule for AuthorizationCredentialsPresent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -77,40 +113,6 @@ impl Rule for AuthorizationCredentialsPresent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "The `Authorization` request header field MUST include an authentication scheme followed by credentials. This rule flags requests where the header is empty, contains an invalid auth-scheme token, or is missing credentials after the scheme. Ensuring credentials are present helps detect malformed or truncated authorization attempts."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_11_6_2, RFC_7617, RFC_6750]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Bearer abc123",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/resource\", response=\"d41d8cd98f00b204e9800998ecf8427e\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: Basic",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAuthorization: B@sic abc",
-            },
-        ]
     }
 }
 
@@ -247,7 +249,7 @@ mod tests {
 
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = AuthorizationCredentialsPresent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
@@ -289,7 +291,7 @@ mod tests {
     fn published_credentials_satisfy_the_rules_that_own_their_schemes() {
         use crate::rules::bearer_token_syntax::BearerTokenSyntax;
         use crate::rules::digest_auth_valid::DigestAuthValid;
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
 
         let digest = DigestAuthValid;
         let bearer = BearerTokenSyntax;

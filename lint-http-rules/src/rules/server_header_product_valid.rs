@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ServerHeaderProductValid;
 
@@ -29,59 +29,9 @@ const RFC_9110_5_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`comment = \"(\" *( ctext / quoted-pair / comment ) \")\"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash",
 };
 
-impl Rule for ServerHeaderProductValid {
+impl RuleMeta for ServerHeaderProductValid {
     fn id(&self) -> &'static str {
         "server_header_product_valid"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        // `Server` is defined for responses only, so a request carrying one is
-        // not this rule's subject -- there is no sentence giving the field a
-        // meaning in that direction to measure the value against.
-        // cite(RFC 9110 § 10.2.4): "An origin server MAY generate a Server header field in its responses."
-        crate::rules::RuleScope::Server
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
-
-            // The response trailer section is deliberately not walked. §10.2.4
-            // permits `Server` in a response and says nothing about trailers, which
-            // makes a `Server` trailer a violation of the sentence below rather than
-            // a value for this rule to grammar-check; the trailer rules own it.
-            // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-            //
-            // Each field line is parsed on its own, and deliberately not joined
-            // first. No alternative of `Server` is a comma-separated list, so the
-            // recombination the note in §5.5 assumes does not apply here and the
-            // comma a recipient would insert is not a `tchar` -- joining would turn
-            // a second field line into a grammar finding, which blames the wrong
-            // sentence. The second line is a violation of §5.3 as a whole message,
-            // which `singleton_fields_not_repeated` owns and reports.
-            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers)"
-            for hv in resp.headers.get_all("server").iter() {
-                // The raw octets, not `to_str()`: `ctext` admits `obs-text`, so a
-                // conforming `Server` value is not always visible US-ASCII and the
-                // decode would reject the field before the grammar could accept it.
-                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                if let Err(e) = crate::helpers::product::validate_product_list(hv.as_bytes()) {
-                    return Some(
-                        self.violation(ctx.severity, format!("Invalid Server header: {}", e)),
-                    );
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -136,6 +86,58 @@ impl Rule for ServerHeaderProductValid {
                 snippet: "HTTP/1.1 200 OK\nServer: Bad (unbalanced comment",
             },
         ]
+    }
+}
+
+impl Rule for ServerHeaderProductValid {
+    fn scope(&self) -> crate::rules::RuleScope {
+        // `Server` is defined for responses only, so a request carrying one is
+        // not this rule's subject -- there is no sentence giving the field a
+        // meaning in that direction to measure the value against.
+        // cite(RFC 9110 § 10.2.4): "An origin server MAY generate a Server header field in its responses."
+        crate::rules::RuleScope::Server
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
+
+            // The response trailer section is deliberately not walked. §10.2.4
+            // permits `Server` in a response and says nothing about trailers, which
+            // makes a `Server` trailer a violation of the sentence below rather than
+            // a value for this rule to grammar-check; the trailer rules own it.
+            // cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+            //
+            // Each field line is parsed on its own, and deliberately not joined
+            // first. No alternative of `Server` is a comma-separated list, so the
+            // recombination the note in §5.5 assumes does not apply here and the
+            // comma a recipient would insert is not a `tchar` -- joining would turn
+            // a second field line into a grammar finding, which blames the wrong
+            // sentence. The second line is a violation of §5.3 as a whole message,
+            // which `singleton_fields_not_repeated` owns and reports.
+            // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers)"
+            for hv in resp.headers.get_all("server").iter() {
+                // The raw octets, not `to_str()`: `ctext` admits `obs-text`, so a
+                // conforming `Server` value is not always visible US-ASCII and the
+                // decode would reject the field before the grammar could accept it.
+                // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                if let Err(e) = crate::helpers::product::validate_product_list(hv.as_bytes()) {
+                    return Some(
+                        self.violation(ctx.severity, format!("Invalid Server header: {}", e)),
+                    );
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -342,7 +344,7 @@ mod tests {
 
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = ServerHeaderProductValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "server_header_product_valid",

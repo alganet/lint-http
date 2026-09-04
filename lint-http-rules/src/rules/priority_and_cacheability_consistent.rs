@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct PriorityAndCacheabilityConsistent;
 
@@ -23,11 +23,47 @@ const RFC_9111: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HTTP caching and `Cache-Control`/`Vary` semantics (informative)",
 };
 
-impl Rule for PriorityAndCacheabilityConsistent {
+impl RuleMeta for PriorityAndCacheabilityConsistent {
     fn id(&self) -> &'static str {
         "priority_and_cacheability_consistent"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Priority and Cacheability Consistency")
+    }
+
+    fn description(&self) -> &'static str {
+        "When an origin server includes a `Priority` response header (RFC 9218 §5) it is expected to control the cacheability or applicability of the cached response by using cache-control related fields (for example `Cache-Control` and/or `Vary`). This rule warns when a response includes `Priority` but lacks an explicit caching directive such as `Cache-Control` or `Vary` which can lead to incorrect caching of responses that differ by request properties."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9218_5, RFC_9111]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet:
+                    "HTTP/1.1 200 OK\nCache-Control: public, max-age=60\nPriority: u=3\n\n<body...>",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(Vary is present)"),
+                snippet: "HTTP/1.1 200 OK\nVary: Accept-Encoding\nPriority: u=1\n\n<body...>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nPriority: u=2\n\n<body...>",
+            },
+        ]
+    }
+}
+
+impl Rule for PriorityAndCacheabilityConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         // §5's cacheability expectation is scoped to the response header an origin
         // server generates ("When an origin server generates the Priority response
@@ -94,40 +130,6 @@ impl Rule for PriorityAndCacheabilityConsistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Priority and Cacheability Consistency")
-    }
-
-    fn description(&self) -> &'static str {
-        "When an origin server includes a `Priority` response header (RFC 9218 §5) it is expected to control the cacheability or applicability of the cached response by using cache-control related fields (for example `Cache-Control` and/or `Vary`). This rule warns when a response includes `Priority` but lacks an explicit caching directive such as `Cache-Control` or `Vary` which can lead to incorrect caching of responses that differ by request properties."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9218_5, RFC_9111]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet:
-                    "HTTP/1.1 200 OK\nCache-Control: public, max-age=60\nPriority: u=3\n\n<body...>",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(Vary is present)"),
-                snippet: "HTTP/1.1 200 OK\nVary: Accept-Encoding\nPriority: u=1\n\n<body...>",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nPriority: u=2\n\n<body...>",
-            },
-        ]
     }
 }
 

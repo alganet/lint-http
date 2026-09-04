@@ -8,7 +8,7 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::uri::{find_non_uri_char, validate_scheme_name};
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct LinkHeaderValid;
 
@@ -196,59 +196,9 @@ const RFC_8297_2: crate::rules::SpecRef = crate::rules::SpecRef {
            content, and its modals are addressed to the client",
 };
 
-impl Rule for LinkHeaderValid {
+impl RuleMeta for LinkHeaderValid {
     fn id(&self) -> &'static str {
         "link_header_valid"
-    }
-
-    /// Either direction of an exchange writes this field.
-    ///
-    /// RFC 8288 defines `Link` as a serialisation of links "into HTTP headers"
-    /// and states no direction anywhere: its IANA registration names the
-    /// protocol and not a message type, and § 3.2's default link context is
-    /// *the representation the field is associated with*, which a request
-    /// carrying content has as surely as a response does. The gate this
-    /// replaces was a comment — *"Link is meaningful on responses / 103 Early
-    /// Hints"* — with no document behind it, and it cost the grammar checks
-    /// every `Link` a client ever sent.
-    ///
-    /// One finding stays response-only, and it is gated where it is made
-    /// rather than here: the HTML processing model that discards a `preload`
-    /// member with no `as` runs over a *response*'s header list.
-    // cite(RFC 8288 § 3): "The Link header field provides a means for serialising one or more links into HTTP headers."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Most messages carry no `Link`, and the config read is several map
-            // probes and a hash of the rule id against one lookup per section.
-            if !tx.request.headers.contains_key("link")
-                && !tx
-                    .response
-                    .as_ref()
-                    .is_some_and(|resp| resp.headers.contains_key("link"))
-            {
-                return None;
-            }
-
-            let message = judge(&tx.request.headers, "Request", false).or_else(|| {
-                tx.response
-                    .as_ref()
-                    .and_then(|resp| judge(&resp.headers, "Response", true))
-            })?;
-
-            Some(self.violation(ctx.severity, message))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -461,6 +411,58 @@ impl Rule for LinkHeaderValid {
                 snippet: "HTTP/1.1 200 OK\nLink: <https://example.com/>; rel=alternate; type=text",
             },
         ]
+    }
+}
+
+impl Rule for LinkHeaderValid {
+    /// Either direction of an exchange writes this field.
+    ///
+    /// RFC 8288 defines `Link` as a serialisation of links "into HTTP headers"
+    /// and states no direction anywhere: its IANA registration names the
+    /// protocol and not a message type, and § 3.2's default link context is
+    /// *the representation the field is associated with*, which a request
+    /// carrying content has as surely as a response does. The gate this
+    /// replaces was a comment — *"Link is meaningful on responses / 103 Early
+    /// Hints"* — with no document behind it, and it cost the grammar checks
+    /// every `Link` a client ever sent.
+    ///
+    /// One finding stays response-only, and it is gated where it is made
+    /// rather than here: the HTML processing model that discards a `preload`
+    /// member with no `as` runs over a *response*'s header list.
+    // cite(RFC 8288 § 3): "The Link header field provides a means for serialising one or more links into HTTP headers."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Most messages carry no `Link`, and the config read is several map
+            // probes and a hash of the rule id against one lookup per section.
+            if !tx.request.headers.contains_key("link")
+                && !tx
+                    .response
+                    .as_ref()
+                    .is_some_and(|resp| resp.headers.contains_key("link"))
+            {
+                return None;
+            }
+
+            let message = judge(&tx.request.headers, "Request", false).or_else(|| {
+                tx.response
+                    .as_ref()
+                    .and_then(|resp| judge(&resp.headers, "Response", true))
+            })?;
+
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 }
 

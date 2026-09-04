@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// `Sec-Fetch-User` header must be the structured-boolean true (serialized as `?1`) when present.
 /// The header is request-scoped and only expected on navigation requests. Multiple header
@@ -20,11 +20,52 @@ const FETCH_METADATA_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Fetch Metadata (W3C) — `Sec-Fetch-User` header (boolean, serialized as `?1`)",
 };
 
-impl Rule for SecFetchUserValueValid {
+impl RuleMeta for SecFetchUserValueValid {
     fn id(&self) -> &'static str {
         "sec_fetch_user_value_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Requests that include the `Sec-Fetch-User` request header MUST only include the structured-boolean `true` value (serialized as `?1`) when present. This header is sent by user agents for navigation requests that were triggered by a user activation. Multiple header fields or non-ASCII values will be flagged as violations."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[FETCH_METADATA_2_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Sec-Fetch-User: ?1",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Sec-Fetch-User:  ?1  # whitespace is allowed and trimmed",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Sec-Fetch-User: true",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Sec-Fetch-User:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Sec-Fetch-User: 1",
+            },
+        ]
+    }
+}
+
+impl Rule for SecFetchUserValueValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -95,45 +136,6 @@ impl Rule for SecFetchUserValueValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Requests that include the `Sec-Fetch-User` request header MUST only include the structured-boolean `true` value (serialized as `?1`) when present. This header is sent by user agents for navigation requests that were triggered by a user activation. Multiple header fields or non-ASCII values will be flagged as violations."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_METADATA_2_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Sec-Fetch-User: ?1",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Sec-Fetch-User:  ?1  # whitespace is allowed and trimmed",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Sec-Fetch-User: true",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Sec-Fetch-User:",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Sec-Fetch-User: 1",
-            },
-        ]
     }
 }
 

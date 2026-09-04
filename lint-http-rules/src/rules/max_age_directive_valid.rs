@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure that the freshness lifetime advertised by
 /// `Cache-Control: max-age=<seconds>` is actually respected by a client or
@@ -46,11 +46,51 @@ const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Validation — a cache that cannot serve a stored response can use a conditional request to revalidate it",
 };
 
-impl Rule for MaxAgeDirectiveValid {
+impl RuleMeta for MaxAgeDirectiveValid {
     fn id(&self) -> &'static str {
         "max_age_directive_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Stateful max-age directive validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.  Caches and clients that ignore this lifespan risk serving stale content or incurring unnecessary round‑trips.\n\nThis rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate \"age\" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.\n\nTwo types of violations are reported:\n\n* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip: a fresh response can be reused without contacting the origin at all.\n* Issuing an **unconditional request** after the cached entry has become stale (age > max‑age) *when the prior response provided a validator (ETag or Last-Modified)*.  Refetching in full discards the validator already held, and with it the chance of a small `304`. (Clients that lack a validator are simply forced to fetch anew, which is not flagged.)\n\nBoth are efficiency findings rather than protocol violations: RFC 9111 frames fresh reuse and conditional revalidation as things a cache *can* do, not obligations.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is checked by a separate rule.\n\nThe stateful check augments the stateless [`cached_validators_reused`](cached_validators_reused.md) rule, which merely ensures conditional headers are included when validators exist regardless of age."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_4_2, RFC_9111_4_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— fresh entry reused without conditional headers"),
+                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n\n# thirty seconds later, no request is even sent (cache hit), so linter\n# never observes a transaction.  If a request were visible, it would not\n# include conditional headers during the freshness window.",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— stale entry revalidated"),
+                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1\n< ETag: \"v1\"\n\n# later, after expiry:\n> GET /data HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # conditional request used",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— unnecessary revalidation while still fresh"),
+                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n< ETag: \"v1\"\n\n# ten seconds later, client inexplicably revalidates\n> GET /data HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # age 10 < 60, should not revalidate yet",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— stale entry reused without conditional request"),
+                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1\n< ETag: \"v1\"\n\n# several seconds later the client fetches again but omits validators\n> GET /data HTTP/1.1\n> Host: example.com\n# violation: stale age but no conditional header",
+            },
+        ]
+    }
+}
+
+impl Rule for MaxAgeDirectiveValid {
     fn scope(&self) -> crate::rules::RuleScope {
         // examines both request and past responses
         crate::rules::RuleScope::Both
@@ -158,44 +198,6 @@ impl Rule for MaxAgeDirectiveValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Stateful max-age directive validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "Responses tagged with a `Cache-Control` `max-age=<seconds>` directive promise that the representation may safely be reused without revalidation for `<seconds>` seconds after it was stored.  Caches and clients that ignore this lifespan risk serving stale content or incurring unnecessary round‑trips.\n\nThis rule reconstructs a very small piece of cache state for a given client+resource by examining the most recent prior response that included a parseable `max-age` directive.  It then computes an approximate \"age\" for that stored response using any `Age` header it carried plus the time elapsed since it was observed.\n\nTwo types of violations are reported:\n\n* Sending a **conditional request** (`If-None-Match` or `If-Modified-Since`) while the cached copy is still fresh (age < max‑age).  Revalidation at this point is a redundant round‑trip: a fresh response can be reused without contacting the origin at all.\n* Issuing an **unconditional request** after the cached entry has become stale (age > max‑age) *when the prior response provided a validator (ETag or Last-Modified)*.  Refetching in full discards the validator already held, and with it the chance of a small `304`. (Clients that lack a validator are simply forced to fetch anew, which is not flagged.)\n\nBoth are efficiency findings rather than protocol violations: RFC 9111 frames fresh reuse and conditional revalidation as things a cache *can* do, not obligations.  The exception is `Cache-Control: immutable`, which does turn early revalidation into a SHOULD NOT; that is checked by a separate rule.\n\nThe stateful check augments the stateless [`cached_validators_reused`](cached_validators_reused.md) rule, which merely ensures conditional headers are included when validators exist regardless of age."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_4_2, RFC_9111_4_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— fresh entry reused without conditional headers"),
-                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n\n# thirty seconds later, no request is even sent (cache hit), so linter\n# never observes a transaction.  If a request were visible, it would not\n# include conditional headers during the freshness window.",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— stale entry revalidated"),
-                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1\n< ETag: \"v1\"\n\n# later, after expiry:\n> GET /data HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # conditional request used",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— unnecessary revalidation while still fresh"),
-                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n< ETag: \"v1\"\n\n# ten seconds later, client inexplicably revalidates\n> GET /data HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # age 10 < 60, should not revalidate yet",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— stale entry reused without conditional request"),
-                snippet: "> GET /data HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1\n< ETag: \"v1\"\n\n# several seconds later the client fetches again but omits validators\n> GET /data HTTP/1.1\n> Host: example.com\n# violation: stale age but no conditional header",
-            },
-        ]
     }
 }
 

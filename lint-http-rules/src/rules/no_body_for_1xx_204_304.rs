@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct NoBodyFor1xx204304;
 
@@ -82,11 +82,68 @@ const RFC_9114_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HTTP/3 — transfer codings are not defined and the field must not be used; no_connection_specific_fields reports it. The same section repeats the trailers half for interim responses",
 };
 
-impl Rule for NoBodyFor1xx204304 {
+impl RuleMeta for NoBodyFor1xx204304 {
     fn id(&self) -> &'static str {
         "no_body_for_1xx_204_304"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server No Body For 1xx, 204, 304")
+    }
+
+    fn description(&self) -> &'static str {
+        "A `1xx (Informational)`, `204 (No Content)` or `304 (Not Modified)` response *\"is terminated by the end of the header section; it cannot contain content or trailers\"* — RFC 9110 writes that sentence once per status (§15.2, §15.3.5, §15.4.5), and RFC 9112 §6.3 restates it as framing: such a response ends at the first empty line *\"regardless of the header fields present in the message\"*.\n\n**Four findings, and they are not the same kind.** Two read what actually arrived, and are the violation itself: content octets in the response body, and a trailer section. Two read a header field, and are a violation of that field's own prohibition rather than evidence of a body — because no field can make one of these responses carry one.\n\n- **Content.** Any captured content octet is reported, for all three statuses. The count is of content in §6.4's sense, so chunk sizes and the trailer section are not in it. Of the two other rules that read the captured length for these statuses, one reaches its check only when a valid `Content-Length` is present and has handed these statuses over, and the other checked `1xx` alone and only when both request and response were HTTP/3; so a `204` answering with a chunked body and no declared length is seen here and was seen nowhere before.\n- **Trailers.** A trailer section is reported for all three statuses, whether or not it carries any fields: what the sentences forbid is the section. Which fields a trailer section may hold, when one is allowed, is `trailer_fields_valid`.\n- **`Content-Length`.** Reported on `1xx` and `204` only, at **any value including `0`** — §8.6's prohibition is on the field, not on a number. No value is parsed; `content_length_valid` owns the field's syntax.\n- **`Transfer-Encoding`.** Reported on `1xx` and `204` only, by RFC 9112 §6.1's matching MUST NOT.\n\n**The `304` is exempt from both field checks, by name, in both documents.** §8.6 says a server *\"MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request\"*, and RFC 9112 §6.1 says *\"Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response … to a GET request\"*. In a 304 both fields describe the `200` that was not sent. Each MAY carries a MUST NOT of its own — the value must equal what the unsent `200` would have had — and **that requirement is not enforced here and cannot be**: the octets it compares against were never transferred, so no single exchange holds them.\n\n**Versions.** §8.6 is RFC 9110's and applies to every version, so the `Content-Length` check is not gated. RFC 9112 §6.1 is HTTP/1.1's, and HTTP/2 and HTTP/3 do not have `Transfer-Encoding` at all — there the field's *presence* is the defect and the status is beside the point, so this rule declines: `no_connection_specific_fields` reports it on both, against whichever version carried the field section it is in.\n\n**`205 (Reset Content)` is not in this set.** Its prohibition (§15.3.6, *\"a server MUST NOT generate content in a 205 response\"*) is about generating content, and its framing is ordinary — so `Content-Length: 0` on a `205` is conforming where the same field on a `204` violates a MUST NOT. It needs its own rule, not a fourth status here."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_15_2,
+            RFC_9110_15_3_5,
+            RFC_9110_15_4_5,
+            RFC_9110_8_6,
+            RFC_9110_6_4_1,
+            RFC_9110_15_3_6,
+            RFC_9112_6_3,
+            RFC_9112_6_1,
+            RFC_9113_8_2_2,
+            RFC_9114_4_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("204 — metadata about the resource, and nothing else"),
+                snippet:
+                    "HTTP/1.1 204 No Content\nETag: \"abc\"\nDate: Mon, 01 Jan 2024 00:00:00 GMT\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("304 — Content-Length describes the 200 that was not sent"),
+                snippet: "HTTP/1.1 304 Not Modified\nETag: \"abc\"\nContent-Length: 1024\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("204 — the field is forbidden at any value, including 0"),
+                snippet: "HTTP/1.1 204 No Content\nContent-Length: 0\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("100 — Transfer-Encoding on an interim response"),
+                snippet: "HTTP/1.1 100 Continue\nTransfer-Encoding: chunked\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("304 — content, which no permission covers"),
+                snippet: "HTTP/1.1 304 Not Modified\nETag: \"abc\"\n\nnot empty\n",
+            },
+        ]
+    }
+}
+
+impl Rule for NoBodyFor1xx204304 {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -266,61 +323,6 @@ impl Rule for NoBodyFor1xx204304 {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server No Body For 1xx, 204, 304")
-    }
-
-    fn description(&self) -> &'static str {
-        "A `1xx (Informational)`, `204 (No Content)` or `304 (Not Modified)` response *\"is terminated by the end of the header section; it cannot contain content or trailers\"* — RFC 9110 writes that sentence once per status (§15.2, §15.3.5, §15.4.5), and RFC 9112 §6.3 restates it as framing: such a response ends at the first empty line *\"regardless of the header fields present in the message\"*.\n\n**Four findings, and they are not the same kind.** Two read what actually arrived, and are the violation itself: content octets in the response body, and a trailer section. Two read a header field, and are a violation of that field's own prohibition rather than evidence of a body — because no field can make one of these responses carry one.\n\n- **Content.** Any captured content octet is reported, for all three statuses. The count is of content in §6.4's sense, so chunk sizes and the trailer section are not in it. Of the two other rules that read the captured length for these statuses, one reaches its check only when a valid `Content-Length` is present and has handed these statuses over, and the other checked `1xx` alone and only when both request and response were HTTP/3; so a `204` answering with a chunked body and no declared length is seen here and was seen nowhere before.\n- **Trailers.** A trailer section is reported for all three statuses, whether or not it carries any fields: what the sentences forbid is the section. Which fields a trailer section may hold, when one is allowed, is `trailer_fields_valid`.\n- **`Content-Length`.** Reported on `1xx` and `204` only, at **any value including `0`** — §8.6's prohibition is on the field, not on a number. No value is parsed; `content_length_valid` owns the field's syntax.\n- **`Transfer-Encoding`.** Reported on `1xx` and `204` only, by RFC 9112 §6.1's matching MUST NOT.\n\n**The `304` is exempt from both field checks, by name, in both documents.** §8.6 says a server *\"MAY send a Content-Length header field in a 304 (Not Modified) response to a conditional GET request\"*, and RFC 9112 §6.1 says *\"Transfer-Encoding MAY be sent in a response to a HEAD request or in a 304 (Not Modified) response … to a GET request\"*. In a 304 both fields describe the `200` that was not sent. Each MAY carries a MUST NOT of its own — the value must equal what the unsent `200` would have had — and **that requirement is not enforced here and cannot be**: the octets it compares against were never transferred, so no single exchange holds them.\n\n**Versions.** §8.6 is RFC 9110's and applies to every version, so the `Content-Length` check is not gated. RFC 9112 §6.1 is HTTP/1.1's, and HTTP/2 and HTTP/3 do not have `Transfer-Encoding` at all — there the field's *presence* is the defect and the status is beside the point, so this rule declines: `no_connection_specific_fields` reports it on both, against whichever version carried the field section it is in.\n\n**`205 (Reset Content)` is not in this set.** Its prohibition (§15.3.6, *\"a server MUST NOT generate content in a 205 response\"*) is about generating content, and its framing is ordinary — so `Content-Length: 0` on a `205` is conforming where the same field on a `204` violates a MUST NOT. It needs its own rule, not a fourth status here."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_15_2,
-            RFC_9110_15_3_5,
-            RFC_9110_15_4_5,
-            RFC_9110_8_6,
-            RFC_9110_6_4_1,
-            RFC_9110_15_3_6,
-            RFC_9112_6_3,
-            RFC_9112_6_1,
-            RFC_9113_8_2_2,
-            RFC_9114_4_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("204 — metadata about the resource, and nothing else"),
-                snippet:
-                    "HTTP/1.1 204 No Content\nETag: \"abc\"\nDate: Mon, 01 Jan 2024 00:00:00 GMT\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("304 — Content-Length describes the 200 that was not sent"),
-                snippet: "HTTP/1.1 304 Not Modified\nETag: \"abc\"\nContent-Length: 1024\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("204 — the field is forbidden at any value, including 0"),
-                snippet: "HTTP/1.1 204 No Content\nContent-Length: 0\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("100 — Transfer-Encoding on an interim response"),
-                snippet: "HTTP/1.1 100 Continue\nTransfer-Encoding: chunked\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("304 — content, which no permission covers"),
-                snippet: "HTTP/1.1 304 Not Modified\nETag: \"abc\"\n\nnot empty\n",
-            },
-        ]
     }
 }
 

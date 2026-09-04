@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure that responses marked `no-cache` are not reused without performing
 /// a conditional revalidation when a validator is available.
@@ -51,11 +51,46 @@ const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Validation (the conditional request that satisfies no-cache)",
 };
 
-impl Rule for NoCacheRevalidation {
+impl RuleMeta for NoCacheRevalidation {
     fn id(&self) -> &'static str {
         "no_cache_revalidation"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Stateful no-cache revalidation")
+    }
+
+    fn description(&self) -> &'static str {
+        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache`.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_5_2_2_4, RFC_9111_4_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— conditional request satisfies no-cache requirement"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later:\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # conditional request used; no violation",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— no validator means unconditional request is acceptable"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n\n# client cannot compose a conditional request; unconditional fetch is fine\n> GET /resource HTTP/1.1\n> Host: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— reused entry without revalidation"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, client repeats request but omits validator\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: cached response required conditional revalidation",
+            },
+        ]
+    }
+}
+
+impl Rule for NoCacheRevalidation {
     fn scope(&self) -> crate::rules::RuleScope {
         // examines both the request and prior responses for the same
         // client+resource (history is filtered by the engine accordingly).
@@ -98,39 +133,6 @@ impl Rule for NoCacheRevalidation {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Stateful no-cache revalidation")
-    }
-
-    fn description(&self) -> &'static str {
-        "The `no-cache` cache-control directive (RFC 9111 §5.2.2.4) permits a cache to store a response, but it **must not** use that stored entry to satisfy a subsequent request without first validating it with the origin server.  In practice, caches are expected to issue a conditional request using a validator (usually an `ETag` or `Last-Modified` value) when they have one; if no validator is available the cache may perform an unconditional request, which still contacts the origin server.\n\nThis stateful rule reconstructs a small portion of cache state for the current client+resource by locating the most recent prior response that included `Cache-Control: no-cache`.  If that response also carried a validator and the current request is unconditional (no `If-None-Match` or `If-Modified-Since` headers), the rule emits a warning.  The presence of validators is required to avoid false alarms in cases where the entry could not possibly be revalidated.\n\nThe check deliberately ignores request-side `Cache-Control: no-cache` clauses and makes no attempt to calculate freshness; it simply tracks whether a conditional header was omitted.  Only the unqualified directive is enforced: a qualified `no-cache=\"field\"` response may be reused (revalidating only the named fields) and is not flagged.  This rule complements `max_age_directive_valid` and `must_revalidate_enforced` by focussing on the specific behaviour mandated by the `no-cache` directive."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2_2_4, RFC_9111_4_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— conditional request satisfies no-cache requirement"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later:\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # conditional request used; no violation",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— no validator means unconditional request is acceptable"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n\n# client cannot compose a conditional request; unconditional fetch is fine\n> GET /resource HTTP/1.1\n> Host: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— reused entry without revalidation"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-cache\n< ETag: \"v1\"\n\n# later, client repeats request but omits validator\n> GET /resource HTTP/1.1\n> Host: example.com\n# violation: cached response required conditional revalidation",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct EtagOrLastModifiedPresent;
 
@@ -23,11 +23,46 @@ const RFC_9110_8_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Generation: an origin server SHOULD send an ETag",
 };
 
-impl Rule for EtagOrLastModifiedPresent {
+impl RuleMeta for EtagOrLastModifiedPresent {
     fn id(&self) -> &'static str {
         "etag_or_last_modified_present"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server ETag or Last-Modified Present")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks if `200 OK` responses include either an `ETag` or a `Last-Modified` header.\n\nThese headers act as validators, allowing clients to perform conditional requests (`If-None-Match` or `If-Modified-Since`). This enables efficient caching and revalidation, significantly reducing bandwidth when resources haven't changed."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_8_8_2_1, RFC_9110_8_8_3_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response (ETag)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: image/png\nETag: \"33a64df551425fcc55e4d42a148795d9f25f89d4\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response (Last-Modified)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: image/png\n# Missing both ETag and Last-Modified",
+            },
+        ]
+    }
+}
+
+impl Rule for EtagOrLastModifiedPresent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -66,39 +101,6 @@ impl Rule for EtagOrLastModifiedPresent {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server ETag or Last-Modified Present")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks if `200 OK` responses include either an `ETag` or a `Last-Modified` header.\n\nThese headers act as validators, allowing clients to perform conditional requests (`If-None-Match` or `If-Modified-Since`). This enables efficient caching and revalidation, significantly reducing bandwidth when resources haven't changed."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_8_2_1, RFC_9110_8_8_3_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response (ETag)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: image/png\nETag: \"33a64df551425fcc55e4d42a148795d9f25f89d4\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response (Last-Modified)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: image/png\n# Missing both ETag and Last-Modified",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// `If-Match` header must be either `*` or a comma-separated list of entity-tags
 /// (possibly weak `W/"..."`). Validates the field grammar (RFC 9110 §13.1.1); the
@@ -26,11 +26,61 @@ const RFC_9110_13_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "If-Match",
 };
 
-impl Rule for IfMatchEtagSyntax {
+impl RuleMeta for IfMatchEtagSyntax {
     fn id(&self) -> &'static str {
         "if_match_etag_syntax"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("If-Match ETag Syntax")
+    }
+
+    fn description(&self) -> &'static str {
+        "`If-Match` is either `*` or a comma-separated list of entity-tags (RFC 9110 §13.1.1). **The two are alternatives**, so the `*` is the whole field value: `If-Match: \"abc\", *` derives from neither and is reported, and because a repeated field name makes one value (§5.2), so does the same pair written on two field lines. `etagc` admits the comma, so a tag such as `\"a,b\"` is one member and not two. Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); a weak tag is valid syntax here even though `If-Match` itself is evaluated with the strong comparison function. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it does not flag weak tags."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_8_8_3, RFC_9110_13_1_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: \"abc123\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: W/\"weaktag\", \"strong\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: abc123   # missing quotes",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: W/abc    # missing quoted-string after W/",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: \"unterminated",
+            },
+        ]
+    }
+}
+
+impl Rule for IfMatchEtagSyntax {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -118,54 +168,6 @@ impl Rule for IfMatchEtagSyntax {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("If-Match ETag Syntax")
-    }
-
-    fn description(&self) -> &'static str {
-        "`If-Match` is either `*` or a comma-separated list of entity-tags (RFC 9110 §13.1.1). **The two are alternatives**, so the `*` is the whole field value: `If-Match: \"abc\", *` derives from neither and is reported, and because a repeated field name makes one value (§5.2), so does the same pair written on two field lines. `etagc` admits the comma, so a tag such as `\"a,b\"` is one member and not two. Each entity-tag follows the grammar in RFC 9110 §8.8.3 and may be weak (prefix `W/`); a weak tag is valid syntax here even though `If-Match` itself is evaluated with the strong comparison function. This rule validates that field syntax (quoting, escaping, and prohibition of control characters); it does not flag weak tags."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_8_3, RFC_9110_13_1_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: \"abc123\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: W/\"weaktag\", \"strong\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: *",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: abc123   # missing quotes",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: W/abc    # missing quoted-string after W/",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "PUT /resource HTTP/1.1\nHost: example.com\nIf-Match: \"unterminated",
-            },
-        ]
     }
 }
 

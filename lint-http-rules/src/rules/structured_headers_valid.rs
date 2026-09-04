@@ -4,7 +4,7 @@
 
 use crate::helpers::structured_fields::*;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct StructuredHeadersValid;
 
@@ -110,17 +110,9 @@ const RFC_9651_5: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The registry's \"Structured Type\" column — where the field_type this rule lacks is published, for the fields that have one",
 };
 
-impl Rule for StructuredHeadersValid {
+impl RuleMeta for StructuredHeadersValid {
     fn id(&self) -> &'static str {
         "structured_headers_valid"
-    }
-
-    /// Both directions. Structured Fields is a way of writing a field value,
-    /// not a property of requests or of responses, and the configured names are
-    /// whatever the operator listed -- several registered Structured types are
-    /// defined for one direction and several for both.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -139,32 +131,6 @@ impl Rule for StructuredHeadersValid {
             severity,
             state: Box::new(crate::helpers::rule_config::HeaderNameList { headers }),
         })
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
-        // Every configured field is judged, and every failing one is its own
-        // finding: the fields are independent — §4.2 parses each field value
-        // on its own — so stopping at the first failure reported one defect
-        // and silently swallowed the rest of the configured list.
-        // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
-        let mut out = Vec::new();
-        for hdr in &config.headers {
-            // The two sections are joined separately, never across the pair: the
-            // sentence cited on `check_section` gathers the lines "in the same
-            // section", so a request's field and a response's field of the same
-            // name are two field values, not one.
-            out.extend(self.check_section(&tx.request.headers, hdr, "request", ctx.severity));
-            if let Some(resp) = &tx.response {
-                out.extend(self.check_section(&resp.headers, hdr, "response", ctx.severity));
-            }
-        }
-        out
     }
 
     fn description(&self) -> &'static str {
@@ -209,6 +175,42 @@ impl Rule for StructuredHeadersValid {
                 snippet: "HTTP/1.1 200 OK\nProxy-Status: revdns; digest=:YWJj\n",
             },
         ]
+    }
+}
+
+impl Rule for StructuredHeadersValid {
+    /// Both directions. Structured Fields is a way of writing a field value,
+    /// not a property of requests or of responses, and the configured names are
+    /// whatever the operator listed -- several registered Structured types are
+    /// defined for one direction and several for both.
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        let config: &crate::helpers::rule_config::HeaderNameList = ctx.state();
+        // Every configured field is judged, and every failing one is its own
+        // finding: the fields are independent — §4.2 parses each field value
+        // on its own — so stopping at the first failure reported one defect
+        // and silently swallowed the rest of the configured list.
+        // cite(RFC 9651): "This document describes a set of data types and associated algorithms that are intended to make it easier and safer to define and handle HTTP header and trailer fields,"
+        let mut out = Vec::new();
+        for hdr in &config.headers {
+            // The two sections are joined separately, never across the pair: the
+            // sentence cited on `check_section` gathers the lines "in the same
+            // section", so a request's field and a response's field of the same
+            // name are two field values, not one.
+            out.extend(self.check_section(&tx.request.headers, hdr, "request", ctx.severity));
+            if let Some(resp) = &tx.response {
+                out.extend(self.check_section(&resp.headers, hdr, "response", ctx.severity));
+            }
+        }
+        out
     }
 }
 
@@ -789,7 +791,7 @@ mod tests {
     /// explaining why, which is part of the field value.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = StructuredHeadersValid;
         let cfg = make_cfg_with_headers(&[
             "accept-ch",

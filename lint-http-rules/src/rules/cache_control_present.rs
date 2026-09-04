@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CacheControlPresent;
 
@@ -23,11 +23,41 @@ const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Cache-Control — the header whose absence the rule reports",
 };
 
-impl Rule for CacheControlPresent {
+impl RuleMeta for CacheControlPresent {
     fn id(&self) -> &'static str {
         "cache_control_present"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Cache-Control Present")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks if `200 OK` responses include a `Cache-Control` header.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_4_2_2, RFC_9111_5_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json\nCache-Control: no-store",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response with no Cache-Control field line"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json",
+            },
+        ]
+    }
+}
+
+impl Rule for CacheControlPresent {
     fn scope(&self) -> crate::rules::RuleScope {
         // Server: the heuristic-freshness concern is about what an origin's response
         // does or does not tell caches, so only responses are inspected.
@@ -67,34 +97,6 @@ impl Rule for CacheControlPresent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Cache-Control Present")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks if `200 OK` responses include a `Cache-Control` header.\n\nThe `Cache-Control` header is the primary mechanism for defining the caching policies of a resource. Even if a resource should not be cached, it is best practice to explicitly state this (e.g., `Cache-Control: no-store`) rather than relying on default browser behaviors or heuristic caching."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_4_2_2, RFC_9111_5_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json\nCache-Control: no-store",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Response with no Cache-Control field line"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: application/json",
-            },
-        ]
     }
 }
 
@@ -159,7 +161,7 @@ mod tests {
     /// parser that could say otherwise.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = CacheControlPresent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// `Sec-Fetch-Dest` header must be one of the canonical destination tokens
 /// defined by Fetch (`empty`, `audio`, `audioworklet`, `document`, `embed`,
@@ -24,11 +24,52 @@ url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header",
 note: "Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations",
         };
 
-impl Rule for SecFetchDestValueValid {
+impl RuleMeta for SecFetchDestValueValid {
     fn id(&self) -> &'static str {
         "sec_fetch_dest_value_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). The match is exact — destinations are lowercase tokens and structured-field tokens carry no case folding, so `Image` is not a valid value. Token syntax is enforced. Multiple header fields are treated as a violation."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[FETCH_METADATA_2_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /image.png HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: image",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /script.js HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: script",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("destination tokens are lowercase; the match is exact"),
+                snippet: "GET /script.js HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: Script",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /something HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: invalid-dest",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /img HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: image\nSec-Fetch-Dest: script",
+            },
+        ]
+    }
+}
+
+impl Rule for SecFetchDestValueValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -121,45 +162,6 @@ impl Rule for SecFetchDestValueValid {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specification: the header value must be a token matching one of the recognized request destinations (e.g., `image`, `document`, `script`, `worker`, `empty`, etc.). The match is exact — destinations are lowercase tokens and structured-field tokens carry no case folding, so `Image` is not a valid value. Token syntax is enforced. Multiple header fields are treated as a violation."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_METADATA_2_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /image.png HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: image",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /script.js HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: script",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("destination tokens are lowercase; the match is exact"),
-                snippet: "GET /script.js HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: Script",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /something HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: invalid-dest",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /img HTTP/1.1\nHost: example.com\nSec-Fetch-Dest: image\nSec-Fetch-Dest: script",
-            },
-        ]
     }
 }
 

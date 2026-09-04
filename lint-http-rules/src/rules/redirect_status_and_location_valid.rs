@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct RedirectStatusAndLocationValid;
 
@@ -82,11 +82,61 @@ const RFC_9110_15: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "An unrecognized status code is equivalent to the x00 of its class, which is what makes 3xx a class here rather than a list of six codes",
 };
 
-impl Rule for RedirectStatusAndLocationValid {
+impl RuleMeta for RedirectStatusAndLocationValid {
     fn id(&self) -> &'static str {
         "redirect_status_and_location_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("A Location that refers to nothing")
+    }
+
+    fn description(&self) -> &'static str {
+        "RFC 9110 §10.2.2 gives the `Location` header field a referent twice — the primary resource created, on a `201 Created`, and the preferred target resource to redirect to, on a `3xx (Redirection)` response. This rule reports a response on any other status that carries the field, because there the value refers to nothing the specification names.\n\n**This is advice, not a violation.** §10.2.2 says the field is *\"used in some responses\"* and then says which; it does not forbid the rest, and no other sentence in RFC 9110 does either. A `202 Accepted` carrying a `Location` for a status monitor is the common case — §15.3.3 asks the 202's *content* to point at that monitor, so the field is carrying a meaning by convention rather than by specification. What the finding buys is that the convention is visible.\n\n**The whole 3xx class is exempt, not a list of redirect codes.** The licensing sentence names `3xx (Redirection)` responses, so `304 Not Modified`, the deprecated `305 Use Proxy`, the reserved `306`, and any 3xx that is not registered at all are all exempt. §15.4 says a user agent MAY follow a provided `Location` *\"even if the specific status code is not understood\"*, and §15 requires a client to treat an unrecognized status as the `x00` of its class — so an unregistered 3xx is a `300` to every conforming recipient and carries the same relationship to the field. §15.4.5's `SHOULD NOT` on a 304 is about representation metadata (§8); `Location` is a response context field (§10.2) and is not reached by it.\n\n**Only presence is read.** Whether the value is a usable `URI-reference`, whether it is empty, and whether the response sent several `Location` field lines are `location_header_uri_valid`'s questions. A `301` or `302` that carries *no* `Location` is `location_on_redirect_present`'s. Whether a `201` ought to carry one is `post_creates_resource`'s, because the sentence that asks for it (§9.3.3) is about `POST`."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_10_2_2, RFC_9110_15_3_2, RFC_9110_15_4, RFC_9110_15]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nHello",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(redirect)"),
+                snippet: "HTTP/1.1 302 Found\nLocation: /new",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the referent is defined for the 3xx class)"),
+                snippet: "HTTP/1.1 304 Not Modified\nETag: \"xyzzy\"\nLocation: /alternate",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the resource the request created)"),
+                snippet: "HTTP/1.1 201 Created\nLocation: /widgets/123",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nLocation: /unexpected",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a 202's status monitor is named by its content)"),
+                snippet: "HTTP/1.1 202 Accepted\nLocation: /jobs/42",
+            },
+        ]
+    }
+}
+
+impl Rule for RedirectStatusAndLocationValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -137,54 +187,6 @@ impl Rule for RedirectStatusAndLocationValid {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("A Location that refers to nothing")
-    }
-
-    fn description(&self) -> &'static str {
-        "RFC 9110 §10.2.2 gives the `Location` header field a referent twice — the primary resource created, on a `201 Created`, and the preferred target resource to redirect to, on a `3xx (Redirection)` response. This rule reports a response on any other status that carries the field, because there the value refers to nothing the specification names.\n\n**This is advice, not a violation.** §10.2.2 says the field is *\"used in some responses\"* and then says which; it does not forbid the rest, and no other sentence in RFC 9110 does either. A `202 Accepted` carrying a `Location` for a status monitor is the common case — §15.3.3 asks the 202's *content* to point at that monitor, so the field is carrying a meaning by convention rather than by specification. What the finding buys is that the convention is visible.\n\n**The whole 3xx class is exempt, not a list of redirect codes.** The licensing sentence names `3xx (Redirection)` responses, so `304 Not Modified`, the deprecated `305 Use Proxy`, the reserved `306`, and any 3xx that is not registered at all are all exempt. §15.4 says a user agent MAY follow a provided `Location` *\"even if the specific status code is not understood\"*, and §15 requires a client to treat an unrecognized status as the `x00` of its class — so an unregistered 3xx is a `300` to every conforming recipient and carries the same relationship to the field. §15.4.5's `SHOULD NOT` on a 304 is about representation metadata (§8); `Location` is a response context field (§10.2) and is not reached by it.\n\n**Only presence is read.** Whether the value is a usable `URI-reference`, whether it is empty, and whether the response sent several `Location` field lines are `location_header_uri_valid`'s questions. A `301` or `302` that carries *no* `Location` is `location_on_redirect_present`'s. Whether a `201` ought to carry one is `post_creates_resource`'s, because the sentence that asks for it (§9.3.3) is about `POST`."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_10_2_2, RFC_9110_15_3_2, RFC_9110_15_4, RFC_9110_15]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain\n\nHello",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(redirect)"),
-                snippet: "HTTP/1.1 302 Found\nLocation: /new",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(the referent is defined for the 3xx class)"),
-                snippet: "HTTP/1.1 304 Not Modified\nETag: \"xyzzy\"\nLocation: /alternate",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(the resource the request created)"),
-                snippet: "HTTP/1.1 201 Created\nLocation: /widgets/123",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nLocation: /unexpected",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a 202's status monitor is named by its content)"),
-                snippet: "HTTP/1.1 202 Accepted\nLocation: /jobs/42",
-            },
-        ]
     }
 }
 
@@ -354,7 +356,7 @@ mod tests {
     /// Every published snippet is run through the rule.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = RedirectStatusAndLocationValid;
 
         for ex in rule.examples() {

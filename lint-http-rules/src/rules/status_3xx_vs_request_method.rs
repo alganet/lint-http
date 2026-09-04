@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// A `301` or a `302` answering a `POST` leaves the method undetermined.
 ///
@@ -92,11 +92,69 @@ const RFC_9110_9_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The 303 alternative: an origin server MAY redirect a POST with a 303, if the result of processing it is equivalent to a representation of an existing resource",
 };
 
-impl Rule for Status3xxVsRequestMethod {
+impl RuleMeta for Status3xxVsRequestMethod {
     fn id(&self) -> &'static str {
         "status_3xx_vs_request_method"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("The two redirects that let the user agent pick the method")
+    }
+
+    fn description(&self) -> &'static str {
+        "`301 Moved Permanently` and `302 Found` are the two redirect statuses whose own definitions permit a user agent to change the request method, and the method they name is `POST`. This rule reports a `301` or a `302` that answers a `POST` request and carries a `Location` for the user agent to follow — the response does not determine whether the redirected request arrives as a `POST` or as a `GET`.\n\n**This is advice, not a violation.** The sentence it rests on is a note carrying a `MAY` addressed to user agents (RFC 9110 §15.4.2, §15.4.3); no sentence forbids a server from answering a `POST` with a `301` or a `302`, and a server that knows its clients may have nothing to fix. What the finding buys is that the ambiguity is a choice, not an accident.\n\n**The alternative is per status, and they are not interchangeable:**\n\n- `301` → `308 Permanent Redirect` — §15.4.2 names it, and it keeps the redirect permanent\n- `302` → `307 Temporary Redirect` — §15.4.3 names it, and it keeps the redirect temporary\n- either → `303 See Other`, where the change to `GET` is what the server wants. §9.3.3 permits this with a `MAY`, under a condition this rule cannot see: that the result of processing the `POST` is equivalent to a representation of an existing resource.\n\n**No method other than `POST` is reported.** The two notes name `POST`, and §15.4's history records that `301` and `302` \"have been adjusted to allow a POST request to be redirected as GET\" — a `PUT`, `PATCH` or `DELETE` following one of them keeps its method, so there is nothing ambiguous to report. This rule previously reported every method not known to be safe.\n\n**The method is compared exactly**, because §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request. `request_method_token_valid` is the rule that reports it.\n\n**Not reported:** a `301` or `302` carrying no `Location`. With nothing to follow there is no redirected request whose method could differ, and the missing field is `location_on_redirect_present`'s finding."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_15_4_2,
+            RFC_9110_15_4_3,
+            RFC_9110_15_4,
+            RFC_9110_15_4_8,
+            RFC_9110_15_4_4,
+            RFC_9110_9_1,
+            RFC_9110_9_3_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("308 keeps the method, and keeps the redirect permanent"),
+                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 308 Permanent Redirect\nLocation: /submit-new",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("307 is the temporary one"),
+                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 307 Temporary Redirect\nLocation: /submit-new",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("303 asks for the change to GET rather than leaving it open"),
+                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 303 See Other\nLocation: /status",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("A PUT is not reported: no sentence lets a user agent rewrite it"),
+                snippet: "PUT /doc HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: /doc-new",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("301: the redirected request may arrive as POST or as GET"),
+                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: /submit-new",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("302: the same ambiguity, and 307 is its alternative"),
+                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 302 Found\nLocation: /submit-elsewhere",
+            },
+        ]
+    }
+}
+
+impl Rule for Status3xxVsRequestMethod {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -156,62 +214,6 @@ impl Rule for Status3xxVsRequestMethod {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("The two redirects that let the user agent pick the method")
-    }
-
-    fn description(&self) -> &'static str {
-        "`301 Moved Permanently` and `302 Found` are the two redirect statuses whose own definitions permit a user agent to change the request method, and the method they name is `POST`. This rule reports a `301` or a `302` that answers a `POST` request and carries a `Location` for the user agent to follow — the response does not determine whether the redirected request arrives as a `POST` or as a `GET`.\n\n**This is advice, not a violation.** The sentence it rests on is a note carrying a `MAY` addressed to user agents (RFC 9110 §15.4.2, §15.4.3); no sentence forbids a server from answering a `POST` with a `301` or a `302`, and a server that knows its clients may have nothing to fix. What the finding buys is that the ambiguity is a choice, not an accident.\n\n**The alternative is per status, and they are not interchangeable:**\n\n- `301` → `308 Permanent Redirect` — §15.4.2 names it, and it keeps the redirect permanent\n- `302` → `307 Temporary Redirect` — §15.4.3 names it, and it keeps the redirect temporary\n- either → `303 See Other`, where the change to `GET` is what the server wants. §9.3.3 permits this with a `MAY`, under a condition this rule cannot see: that the result of processing the `POST` is equivalent to a representation of an existing resource.\n\n**No method other than `POST` is reported.** The two notes name `POST`, and §15.4's history records that `301` and `302` \"have been adjusted to allow a POST request to be redirected as GET\" — a `PUT`, `PATCH` or `DELETE` following one of them keeps its method, so there is nothing ambiguous to report. This rule previously reported every method not known to be safe.\n\n**The method is compared exactly**, because §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request. `request_method_token_valid` is the rule that reports it.\n\n**Not reported:** a `301` or `302` carrying no `Location`. With nothing to follow there is no redirected request whose method could differ, and the missing field is `location_on_redirect_present`'s finding."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_15_4_2,
-            RFC_9110_15_4_3,
-            RFC_9110_15_4,
-            RFC_9110_15_4_8,
-            RFC_9110_15_4_4,
-            RFC_9110_9_1,
-            RFC_9110_9_3_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("308 keeps the method, and keeps the redirect permanent"),
-                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 308 Permanent Redirect\nLocation: /submit-new",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("307 is the temporary one"),
-                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 307 Temporary Redirect\nLocation: /submit-new",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("303 asks for the change to GET rather than leaving it open"),
-                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 303 See Other\nLocation: /status",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("A PUT is not reported: no sentence lets a user agent rewrite it"),
-                snippet: "PUT /doc HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: /doc-new",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("301: the redirected request may arrive as POST or as GET"),
-                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: /submit-new",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("302: the same ambiguity, and 307 is its alternative"),
-                snippet: "POST /submit HTTP/1.1\nHost: example.com\n\nHTTP/1.1 302 Found\nLocation: /submit-elsewhere",
-            },
-        ]
     }
 }
 
@@ -401,7 +403,7 @@ mod tests {
     /// as the status, so both are parsed rather than assumed.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = Status3xxVsRequestMethod;
         let mut non_compliant_seen = 0;
 

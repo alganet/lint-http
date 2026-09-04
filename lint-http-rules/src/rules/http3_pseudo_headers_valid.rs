@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct Http3PseudoHeadersValid;
 
@@ -52,11 +52,83 @@ const RFC_9110_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Determining the Target Resource (asterisk-form request target)",
 };
 
-impl Rule for Http3PseudoHeadersValid {
+impl RuleMeta for Http3PseudoHeadersValid {
     fn id(&self) -> &'static str {
         "http3_pseudo_headers_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("HTTP/3 Pseudo-Headers Validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `http2_pseudo_headers_valid`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9114_4_3,
+            RFC_9114_4_3_1,
+            RFC_3986_3_2_1,
+            RFC_9114_4_3_2,
+            RFC_9114_4_4,
+            RFC_9110_7_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/3\nHost: example.com\nAccept: text/html",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "OPTIONS * HTTP/3\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "CONNECT example.com:443 HTTP/3",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/3 200 OK\nContent-Type: text/html",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/3\nAccept: text/html",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: " HTTP/3\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET * HTTP/3\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/3 0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the deprecated userinfo subcomponent in :authority)"),
+                snippet: "GET https://user@example.com/resource HTTP/3",
+            },
+        ]
+    }
+}
+
+impl Rule for Http3PseudoHeadersValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -239,76 +311,6 @@ impl Rule for Http3PseudoHeadersValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("HTTP/3 Pseudo-Headers Validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `http2_pseudo_headers_valid`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9114_4_3,
-            RFC_9114_4_3_1,
-            RFC_3986_3_2_1,
-            RFC_9114_4_3_2,
-            RFC_9114_4_4,
-            RFC_9110_7_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/3\nHost: example.com\nAccept: text/html",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "OPTIONS * HTTP/3\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "CONNECT example.com:443 HTTP/3",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/3 200 OK\nContent-Type: text/html",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/3\nAccept: text/html",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: " HTTP/3\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET * HTTP/3\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/3 0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(the deprecated userinfo subcomponent in :authority)"),
-                snippet: "GET https://user@example.com/resource HTTP/3",
-            },
-        ]
     }
 }
 

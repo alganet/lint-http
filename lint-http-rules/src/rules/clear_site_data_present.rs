@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ClearSiteDataPresent;
 
@@ -89,13 +89,9 @@ const MDN_CLEAR_SITE_DATA: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Clear-Site-Data",
 };
 
-impl Rule for ClearSiteDataPresent {
+impl RuleMeta for ClearSiteDataPresent {
     fn id(&self) -> &'static str {
         "clear_site_data_present"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -107,6 +103,36 @@ impl Rule for ClearSiteDataPresent {
             severity: config.severity,
             state: Box::new(config),
         })
+    }
+
+    fn description(&self) -> &'static str {
+        "Checks that configured logout paths include a `Clear-Site-Data` header so client-side storage (cookies, cache, storage) is cleared on logout."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[CLEAR_SITE_DATA_3_1, MDN_CLEAR_SITE_DATA]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response"),
+                snippet: "POST /logout HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nClear-Site-Data: \"*\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response"),
+                snippet: "POST /logout HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: application/json\n# Missing Clear-Site-Data",
+            },
+        ]
+    }
+}
+
+impl Rule for ClearSiteDataPresent {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
     }
 
     fn findings(
@@ -156,30 +182,6 @@ impl Rule for ClearSiteDataPresent {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Checks that configured logout paths include a `Clear-Site-Data` header so client-side storage (cookies, cache, storage) is cleared on logout."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[CLEAR_SITE_DATA_3_1, MDN_CLEAR_SITE_DATA]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response"),
-                snippet: "POST /logout HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nClear-Site-Data: \"*\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Response"),
-                snippet: "POST /logout HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: application/json\n# Missing Clear-Site-Data",
-            },
-        ]
     }
 }
 

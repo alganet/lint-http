@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure cookies set via `Set-Cookie` are stored and sent correctly by the
 /// client: expired cookies should not be included, updated cookies should
@@ -148,11 +148,52 @@ impl CookieLifecycle {
     }
 }
 
-impl Rule for CookieLifecycle {
+impl RuleMeta for CookieLifecycle {
     fn id(&self) -> &'static str {
         "cookie_lifecycle"
     }
 
+    fn description(&self) -> &'static str {
+        "Cookies sent by servers via the `Set-Cookie` header establish state that a client is expected to retain and present on subsequent requests. This rule reconstructs a simplistic cookie store for a given origin and verifies that outgoing requests are consistent with that store.  It flags three broad classes of client misbehaviour:\n\n* Sending cookies after they have clearly expired or been removed.\n* Continuing to send an old value after a newer cookie with the same name/domain/path has been observed.\n* Transmitting a cookie marked `Secure` over an insecure (HTTP) transport.  The rule only flags this if the actual name/value pair sent corresponds to a known secure cookie, which avoids false positives when a non‑secure cookie with the same name is used.\n\nThe check relies solely on the captured traffic for a given client+origin; if a cookie appears in a request but the linter has never seen it set in the past, the rule assumes it pre‑dates the capture and does not complain."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_6265_5_3, RFC_6265_5_1_3, RFC_6265_5_1_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=abc; Max-Age=3600; Path=/\n\n> GET /bar HTTP/1.1\n> Host: example.com\n> Cookie: session=abc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— different non-secure cookie over HTTP"),
+                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=secure; Secure; Path=/\n\n> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=plain; Path=/foo\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> Cookie: id=plain           # only the non-secure value is sent over HTTP",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— expired cookie sent"),
+                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=abc; Max-Age=1\n\n> GET /bar HTTP/1.1\n> Host: example.com\n> Cookie: session=abc        # sent five minutes later despite expiration",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— stale value"),
+                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; Path=/\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=2; Path=/\n\n> GET /baz HTTP/1.1\n> Host: example.com\n> Cookie: id=1               # old value should have been replaced",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— secure cookie over HTTP"),
+                snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Secure\n\n> GET /dashboard HTTP/1.1\n> Host: example.com\n> Cookie: sid=123            # insecure transport",
+            },
+        ]
+    }
+}
+
+impl Rule for CookieLifecycle {
     fn scope(&self) -> crate::rules::RuleScope {
         // Observes client request headers only; does not examine server
         // behavior directly (other rules cover syntax).
@@ -240,45 +281,6 @@ impl Rule for CookieLifecycle {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Cookies sent by servers via the `Set-Cookie` header establish state that a client is expected to retain and present on subsequent requests. This rule reconstructs a simplistic cookie store for a given origin and verifies that outgoing requests are consistent with that store.  It flags three broad classes of client misbehaviour:\n\n* Sending cookies after they have clearly expired or been removed.\n* Continuing to send an old value after a newer cookie with the same name/domain/path has been observed.\n* Transmitting a cookie marked `Secure` over an insecure (HTTP) transport.  The rule only flags this if the actual name/value pair sent corresponds to a known secure cookie, which avoids false positives when a non‑secure cookie with the same name is used.\n\nThe check relies solely on the captured traffic for a given client+origin; if a cookie appears in a request but the linter has never seen it set in the past, the rule assumes it pre‑dates the capture and does not complain."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6265_5_3, RFC_6265_5_1_3, RFC_6265_5_1_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=abc; Max-Age=3600; Path=/\n\n> GET /bar HTTP/1.1\n> Host: example.com\n> Cookie: session=abc",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— different non-secure cookie over HTTP"),
-                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=secure; Secure; Path=/\n\n> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=plain; Path=/foo\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> Cookie: id=plain           # only the non-secure value is sent over HTTP",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— expired cookie sent"),
-                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=abc; Max-Age=1\n\n> GET /bar HTTP/1.1\n> Host: example.com\n> Cookie: session=abc        # sent five minutes later despite expiration",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— stale value"),
-                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; Path=/\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=2; Path=/\n\n> GET /baz HTTP/1.1\n> Host: example.com\n> Cookie: id=1               # old value should have been replaced",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— secure cookie over HTTP"),
-                snippet: "> GET /login HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Secure\n\n> GET /dashboard HTTP/1.1\n> Host: example.com\n> Cookie: sid=123            # insecure transport",
-            },
-        ]
     }
 }
 

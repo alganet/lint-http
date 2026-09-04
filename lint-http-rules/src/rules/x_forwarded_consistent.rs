@@ -19,7 +19,7 @@
 use crate::helpers::forwarded_node::NodeForm;
 use crate::helpers::headers::combined_field_value_as_written;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The production a field's members are measured against, after §7.4's
 /// conversion has said which `Forwarded` parameter each field becomes.
@@ -158,52 +158,9 @@ const RFC_9110_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`Host = uri-host [ \":\" port ]`, the production an `X-Forwarded-Host` member is measured against",
 };
 
-impl Rule for XForwardedConsistent {
+impl RuleMeta for XForwardedConsistent {
     fn id(&self) -> &'static str {
         "x_forwarded_consistent"
-    }
-
-    /// The fields travel toward the origin. §7.4 is written about what a proxy
-    /// receives on a request, and §1 describes the family as the way a proxy
-    /// discloses to the *next* hop what it saw of the client — so a response
-    /// carrying one of these names has no sentence to be measured against. This
-    /// rule used to walk the response headers anyway, on a comment observing that
-    /// some proxies echo them, which is a fact about deployments and not a claim
-    /// about conformance. In this engine `Client` and `Both` dispatch alike, so
-    /// the enum documents the direction and deleting the walk is the change.
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Client
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            for (name, field, kind) in FIELDS {
-                // Every line of the field, and every octet of every line. A proxy
-                // chain appends by adding a field line as often as by extending the
-                // one already there, so reading `headers.get()` left a second hop
-                // entirely unexamined; and a value outside US-ASCII used to make the
-                // whole field disappear, which is the finding wearing a helper's
-                // failure mode.
-                let Some(value) = combined_field_value_as_written(&tx.request.headers, name) else {
-                    continue;
-                };
-                for member in members(&value) {
-                    if let Some(message) = check_member(field, *kind, member) {
-                        return Some(self.violation(ctx.severity, message));
-                    }
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -263,6 +220,51 @@ impl Rule for XForwardedConsistent {
                 snippet: "GET / HTTP/1.1\nHost: internal.example\nX-Forwarded-Proto: 2https",
             },
         ]
+    }
+}
+
+impl Rule for XForwardedConsistent {
+    /// The fields travel toward the origin. §7.4 is written about what a proxy
+    /// receives on a request, and §1 describes the family as the way a proxy
+    /// discloses to the *next* hop what it saw of the client — so a response
+    /// carrying one of these names has no sentence to be measured against. This
+    /// rule used to walk the response headers anyway, on a comment observing that
+    /// some proxies echo them, which is a fact about deployments and not a claim
+    /// about conformance. In this engine `Client` and `Both` dispatch alike, so
+    /// the enum documents the direction and deleting the walk is the change.
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Client
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            for (name, field, kind) in FIELDS {
+                // Every line of the field, and every octet of every line. A proxy
+                // chain appends by adding a field line as often as by extending the
+                // one already there, so reading `headers.get()` left a second hop
+                // entirely unexamined; and a value outside US-ASCII used to make the
+                // whole field disappear, which is the finding wearing a helper's
+                // failure mode.
+                let Some(value) = combined_field_value_as_written(&tx.request.headers, name) else {
+                    continue;
+                };
+                for member in members(&value) {
+                    if let Some(message) = check_member(field, *kind, member) {
+                        return Some(self.violation(ctx.severity, message));
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 

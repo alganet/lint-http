@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure that `Cache-Control: s-maxage` is not treated as the freshness
 /// lifetime by *private* clients or caches.
@@ -34,11 +34,36 @@ const RFC_9111_5_2_2_10: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`s-maxage` — applies only to shared caches and overrides `max-age`/`Expires` for those caches",
 };
 
-impl Rule for SMaxAgeEnforced {
+impl RuleMeta for SMaxAgeEnforced {
     fn id(&self) -> &'static str {
         "s_max_age_enforced"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Stateful s-maxage Enforcement")
+    }
+
+    fn description(&self) -> &'static str {
+        "Responses that include a `Cache-Control: s-maxage=<seconds>` directive are intended to limit how long **shared** caches may consider the representation fresh.  Private caches (e.g. in a browser or single-client proxy) **must ignore** `s-maxage` and instead rely on the ordinary freshness lifetime (`max-age`, `Expires`, heuristics, etc.).  Misinterpreting `s-maxage` on the client side can lead to unnecessary conditional requests and wasted network traffic.\n\nThis rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_5_2_2_10]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— premature revalidation based on `s-maxage`"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, s-maxage=60\n< ETag: \"v1\"\n\n# seconds later, same client revalidates after 120s (s-maxage expired but\n# max-age still valid)\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"",
+            },
+        ]
+    }
+}
+
+impl Rule for SMaxAgeEnforced {
     fn scope(&self) -> crate::rules::RuleScope {
         // we inspect past responses as well as the current request
         crate::rules::RuleScope::Both
@@ -119,29 +144,6 @@ impl Rule for SMaxAgeEnforced {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Stateful s-maxage Enforcement")
-    }
-
-    fn description(&self) -> &'static str {
-        "Responses that include a `Cache-Control: s-maxage=<seconds>` directive are intended to limit how long **shared** caches may consider the representation fresh.  Private caches (e.g. in a browser or single-client proxy) **must ignore** `s-maxage` and instead rely on the ordinary freshness lifetime (`max-age`, `Expires`, heuristics, etc.).  Misinterpreting `s-maxage` on the client side can lead to unnecessary conditional requests and wasted network traffic.\n\nThis rule watches a series of transactions from the same client and examines the most recent prior response for the same resource that carried both an `<s-maxage>` value and a larger `max-age`.  If the client subsequently issues a conditional request **after** the `s-maxage` interval but **before** the `max-age` interval has elapsed, the cached entry was still fresh according to the private-cache semantics and revalidation was premature.  A warning is issued in that case."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2_2_10]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— premature revalidation based on `s-maxage`"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, s-maxage=60\n< ETag: \"v1\"\n\n# seconds later, same client revalidates after 120s (s-maxage expired but\n# max-age still valid)\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"",
-            },
-        ]
     }
 }
 

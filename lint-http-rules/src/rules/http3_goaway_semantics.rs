@@ -14,7 +14,7 @@ use crate::lint::Violation;
 use crate::protocol_event::{
     MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
-use crate::rules::ProtocolRule;
+use crate::rules::{ProtocolRule, RuleMeta};
 
 pub struct Http3GoawaySemantics;
 
@@ -28,11 +28,46 @@ const RFC_9114_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Connection Shutdown (GOAWAY)",
 };
 
-impl ProtocolRule for Http3GoawaySemantics {
+impl RuleMeta for Http3GoawaySemantics {
     fn id(&self) -> &'static str {
         "http3_goaway_semantics"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("HTTP/3 GOAWAY Semantics")
+    }
+
+    fn description(&self) -> &'static str {
+        "Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  A GOAWAY's identifier depends on who sent it: a server sends a client-initiated request stream ID, a client sends a push ID (RFC 9114 §5.2), so the checks below are scoped by sender.  This rule inspects protocol-level events and checks:\n\n* **GOAWAY identifier must not increase** — when multiple GOAWAY frames are received from the same peer on a connection, the identifier in each subsequent GOAWAY MUST NOT be greater than the previous one (RFC 9114 §5.2).\n* **No request streams beyond a server GOAWAY limit** — after a *server* GOAWAY (whose identifier is a request stream ID), no new request stream should be opened with an ID greater than the indicated last stream ID (RFC 9114 §5.2).  A client GOAWAY carries a push ID and does not constrain request streams."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9114_5_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "# Connection accepts streams 0, 4, 8\n# Server sends GOAWAY { stream_id: 8 }\n# Server sends GOAWAY { stream_id: 4 }  (allowed: decreasing)\n# Connection closes gracefully",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(increasing GOAWAY stream ID)"),
+                snippet: "# Server sends GOAWAY { stream_id: 4 }\n# Server sends GOAWAY { stream_id: 12 }\n# Violation: stream ID 12 increased from previous 4 (RFC 9114 §5.2)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(stream opened beyond GOAWAY limit)"),
+                snippet: "# Server sends GOAWAY { stream_id: 4 }\n# Client opens stream 8\n# Violation: stream 8 opened after GOAWAY with last stream ID 4 (RFC 9114 §5.2)",
+            },
+        ]
+    }
+}
+
+impl ProtocolRule for Http3GoawaySemantics {
     fn findings(
         &self,
         event: &ProtocolEvent,
@@ -128,39 +163,6 @@ impl ProtocolRule for Http3GoawaySemantics {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("HTTP/3 GOAWAY Semantics")
-    }
-
-    fn description(&self) -> &'static str {
-        "Validates HTTP/3 GOAWAY frame semantics during connection lifecycle.  A GOAWAY's identifier depends on who sent it: a server sends a client-initiated request stream ID, a client sends a push ID (RFC 9114 §5.2), so the checks below are scoped by sender.  This rule inspects protocol-level events and checks:\n\n* **GOAWAY identifier must not increase** — when multiple GOAWAY frames are received from the same peer on a connection, the identifier in each subsequent GOAWAY MUST NOT be greater than the previous one (RFC 9114 §5.2).\n* **No request streams beyond a server GOAWAY limit** — after a *server* GOAWAY (whose identifier is a request stream ID), no new request stream should be opened with an ID greater than the indicated last stream ID (RFC 9114 §5.2).  A client GOAWAY carries a push ID and does not constrain request streams."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9114_5_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "# Connection accepts streams 0, 4, 8\n# Server sends GOAWAY { stream_id: 8 }\n# Server sends GOAWAY { stream_id: 4 }  (allowed: decreasing)\n# Connection closes gracefully",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(increasing GOAWAY stream ID)"),
-                snippet: "# Server sends GOAWAY { stream_id: 4 }\n# Server sends GOAWAY { stream_id: 12 }\n# Violation: stream ID 12 increased from previous 4 (RFC 9114 §5.2)",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(stream opened beyond GOAWAY limit)"),
-                snippet: "# Server sends GOAWAY { stream_id: 4 }\n# Client opens stream 8\n# Violation: stream 8 opened after GOAWAY with last stream ID 4 (RFC 9114 §5.2)",
-            },
-        ]
     }
 }
 

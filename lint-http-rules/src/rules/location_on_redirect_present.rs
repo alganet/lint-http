@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct LocationOnRedirectPresent;
 
@@ -142,60 +142,9 @@ const RFC_9110_15_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "201 Created: with no Location field, the resource created is identified by the target URI — which is why this rule does not report a 201",
 };
 
-impl Rule for LocationOnRedirectPresent {
+impl RuleMeta for LocationOnRedirectPresent {
     fn id(&self) -> &'static str {
         "location_on_redirect_present"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
-
-            // The status is read first because the status is what gives the field a
-            // referent at all — which is also why the set below is not the one
-            // `redirect_status_and_location_valid` carries. That rule asks
-            // which statuses give `Location` something to refer *to*, so its list keeps
-            // the 201 and the 300; this one asks which statuses have a sentence asking
-            // for the field, and neither of those does. The two lists were byte-identical
-            // and are not the same question.
-            // cite(RFC 9110 § 10.2.2): "For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request."
-            let reason = location_asked_for(resp.status)?;
-
-            // Presence is the whole input, and this is what presence buys: a user agent
-            // that would have followed the redirect has a URI to follow. So a value on any
-            // field line counts and nothing is joined across lines; an empty value counts
-            // too, because a field line is what the sentence asked for and whether the
-            // value is usable is `location_header_uri_valid`'s question — it reads
-            // each `Location` line and this rule reads none of them.
-            // cite(RFC 9110 § 15.4): "If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood."
-            if resp.headers.get_all("location").iter().next().is_some() {
-                return None;
-            }
-
-            // No cite of its own: what makes this a violation is the sentence
-            // `location_asked_for` matched, cited at the branch that matched it and
-            // carried into the message from there.
-            Some(self.violation(
-                ctx.severity,
-                format!(
-                    "Response with status {status} carries no Location header field, and {reason}. \
-                     A user agent has no target to redirect to",
-                    status = resp.status,
-                ),
-            ))
-        };
-        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -258,6 +207,59 @@ impl Rule for LocationOnRedirectPresent {
                 snippet: "HTTP/1.1 308 Permanent Redirect\nContent-Type: text/html",
             },
         ]
+    }
+}
+
+impl Rule for LocationOnRedirectPresent {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
+
+            // The status is read first because the status is what gives the field a
+            // referent at all — which is also why the set below is not the one
+            // `redirect_status_and_location_valid` carries. That rule asks
+            // which statuses give `Location` something to refer *to*, so its list keeps
+            // the 201 and the 300; this one asks which statuses have a sentence asking
+            // for the field, and neither of those does. The two lists were byte-identical
+            // and are not the same question.
+            // cite(RFC 9110 § 10.2.2): "For 3xx (Redirection) responses, the Location value refers to the preferred target resource for automatically redirecting the request."
+            let reason = location_asked_for(resp.status)?;
+
+            // Presence is the whole input, and this is what presence buys: a user agent
+            // that would have followed the redirect has a URI to follow. So a value on any
+            // field line counts and nothing is joined across lines; an empty value counts
+            // too, because a field line is what the sentence asked for and whether the
+            // value is usable is `location_header_uri_valid`'s question — it reads
+            // each `Location` line and this rule reads none of them.
+            // cite(RFC 9110 § 15.4): "If a Location header field (Section 10.2.2) is provided, the user agent MAY automatically redirect its request to the URI referenced by the Location field value, even if the specific status code is not understood."
+            if resp.headers.get_all("location").iter().next().is_some() {
+                return None;
+            }
+
+            // No cite of its own: what makes this a violation is the sentence
+            // `location_asked_for` matched, cited at the branch that matched it and
+            // carried into the message from there.
+            Some(self.violation(
+                ctx.severity,
+                format!(
+                    "Response with status {status} carries no Location header field, and {reason}. \
+                     A user agent has no target to redirect to",
+                    status = resp.status,
+                ),
+            ))
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -394,7 +396,7 @@ mod tests {
     /// Every published snippet is run through the rule.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = LocationOnRedirectPresent;
 
         for ex in rule.examples() {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// `Sec-Fetch-Site` header must be one of the canonical values listed in
 /// the Fetch Metadata spec: `cross-site`, `same-origin`, `same-site`, or `none`.
@@ -21,11 +21,47 @@ url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-site-header",
 note: "Fetch Metadata (W3C) — `Sec-Fetch-Site`: an sf-token whose valid values are the four initiator/target relationships",
         };
 
-impl Rule for SecFetchSiteValueValid {
+impl RuleMeta for SecFetchSiteValueValid {
     fn id(&self) -> &'static str {
         "sec_fetch_site_value_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Requests that include the `Sec-Fetch-Site` request header must use one of the canonical values defined by the Fetch Metadata specification: `cross-site`, `same-origin`, `same-site`, or `none`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — the values are lowercase tokens and structured-field tokens carry no case folding, so `Same-Origin` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Site`) are treated as a violation (possible header injection) and will be flagged."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[FETCH_METADATA_2_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Sec-Fetch-Site: same-origin",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Sec-Fetch-Site: cross-site",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Sec-Fetch-Site: invalid",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Sec-Fetch-Site:",
+            },
+        ]
+    }
+}
+
+impl Rule for SecFetchSiteValueValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -109,40 +145,6 @@ impl Rule for SecFetchSiteValueValid {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Requests that include the `Sec-Fetch-Site` request header must use one of the canonical values defined by the Fetch Metadata specification: `cross-site`, `same-origin`, `same-site`, or `none`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — the values are lowercase tokens and structured-field tokens carry no case folding, so `Same-Origin` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Site`) are treated as a violation (possible header injection) and will be flagged."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_METADATA_2_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Sec-Fetch-Site: same-origin",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Sec-Fetch-Site: cross-site",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Sec-Fetch-Site: invalid",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Sec-Fetch-Site:",
-            },
-        ]
     }
 }
 

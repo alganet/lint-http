@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct RetryAfterDateOrDelay;
 
@@ -17,11 +17,41 @@ const RFC_9110_10_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Retry-After header",
 };
 
-impl Rule for RetryAfterDateOrDelay {
+impl RuleMeta for RetryAfterDateOrDelay {
     fn id(&self) -> &'static str {
         "retry_after_date_or_delay"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Retry-After Date or Delay")
+    }
+
+    fn description(&self) -> &'static str {
+        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date. This rule flags `Retry-After` values that do not match either form, and flags a repeated `Retry-After` field: the grammar takes a single value, and because the HTTP-date form contains a comma the values cannot be combined into a list. The HTTP-date is accepted in any of the three formats a recipient must parse; this rule does not additionally enforce the sender's IMF-fixdate obligation."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_10_2_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: 120\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: tomorrow\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: -1",
+            },
+        ]
+    }
+}
+
+impl Rule for RetryAfterDateOrDelay {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -87,34 +117,6 @@ impl Rule for RetryAfterDateOrDelay {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Retry-After Date or Delay")
-    }
-
-    fn description(&self) -> &'static str {
-        "The `Retry-After` header, when present in responses, MUST be either a non-negative integer (delay-seconds) or an HTTP-date. This rule flags `Retry-After` values that do not match either form, and flags a repeated `Retry-After` field: the grammar takes a single value, and because the HTTP-date form contains a comma the values cannot be combined into a list. The HTTP-date is accepted in any of the three formats a recipient must parse; this rule does not additionally enforce the sender's IMF-fixdate obligation."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_10_2_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: 120\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: Wed, 21 Oct 2015 07:28:00 GMT",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 503 Service Unavailable\nRetry-After: tomorrow\n\nHTTP/1.1 503 Service Unavailable\nRetry-After: -1",
-            },
-        ]
     }
 }
 

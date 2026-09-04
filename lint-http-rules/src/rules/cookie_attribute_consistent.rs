@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CookieAttributeConsistent;
 
@@ -236,37 +236,9 @@ impl CookieAttributeConsistent {
     }
 }
 
-impl Rule for CookieAttributeConsistent {
+impl RuleMeta for CookieAttributeConsistent {
     fn id(&self) -> &'static str {
         "cookie_attribute_consistent"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let resp = tx.response.as_ref()?;
-            resp.headers
-                .get_all("set-cookie")
-                .iter()
-                .find_map(|line| match line.to_str() {
-                    Err(_) => Some(self.violation(
-                        ctx.severity,
-                        "Set-Cookie header value is not valid UTF-8".into(),
-                    )),
-                    Ok(line) => self.set_cookie_defect(line, ctx.severity),
-                })
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -313,6 +285,36 @@ impl Rule for CookieAttributeConsistent {
                 snippet: "Set-Cookie: SID=1; Expires=NotADate",
             },
         ]
+    }
+}
+
+impl Rule for CookieAttributeConsistent {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let resp = tx.response.as_ref()?;
+            resp.headers
+                .get_all("set-cookie")
+                .iter()
+                .find_map(|line| match line.to_str() {
+                    Err(_) => Some(self.violation(
+                        ctx.severity,
+                        "Set-Cookie header value is not valid UTF-8".into(),
+                    )),
+                    Ok(line) => self.set_cookie_defect(line, ctx.severity),
+                })
+        };
+        Vec::from_iter(finding())
     }
 }
 

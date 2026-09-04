@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CacheControlAndPragmaConsistent;
 
@@ -17,11 +17,47 @@ const RFC_9111_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`Pragma` and its relationship to `Cache-Control`",
 };
 
-impl Rule for CacheControlAndPragmaConsistent {
+impl RuleMeta for CacheControlAndPragmaConsistent {
     fn id(&self) -> &'static str {
         "cache_control_and_pragma_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "Flags contradictions between `Pragma` and `Cache-Control` in requests (for example, `Pragma: no-cache` together with `Cache-Control: only-if-cached`), and warns when `Pragma` appears in responses since its meaning there is unspecified. This helps avoid ambiguous or conflicting cache directives that can lead to cache-serving mistakes."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_5_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nCache-Control: no-cache, max-age=0\n\nHTTP/1.1 200 OK\nCache-Control: no-cache",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nPragma: no-cache\nCache-Control: only-if-cached\n\n# Contradictory directives: 'no-cache' requests should not force 'only-if-cached'",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nPragma: no-cache\n\n# 'Pragma' in responses has unspecified semantics; use 'Cache-Control' instead",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nPragma: foo\n\n# Any Pragma in responses is discouraged; prefer Cache-Control",
+            },
+        ]
+    }
+}
+
+impl Rule for CacheControlAndPragmaConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -75,40 +111,6 @@ impl Rule for CacheControlAndPragmaConsistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Flags contradictions between `Pragma` and `Cache-Control` in requests (for example, `Pragma: no-cache` together with `Cache-Control: only-if-cached`), and warns when `Pragma` appears in responses since its meaning there is unspecified. This helps avoid ambiguous or conflicting cache directives that can lead to cache-serving mistakes."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nCache-Control: no-cache, max-age=0\n\nHTTP/1.1 200 OK\nCache-Control: no-cache",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nPragma: no-cache\nCache-Control: only-if-cached\n\n# Contradictory directives: 'no-cache' requests should not force 'only-if-cached'",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nPragma: no-cache\n\n# 'Pragma' in responses has unspecified semantics; use 'Cache-Control' instead",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nPragma: foo\n\n# Any Pragma in responses is discouraged; prefer Cache-Control",
-            },
-        ]
     }
 }
 

@@ -10,7 +10,7 @@ use crate::helpers::quoted_string::{quoted_string_interior, unescape_quoted_stri
 use crate::helpers::shown::shown_in_finding;
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct SecWebsocketExtensionsSyntax;
 
@@ -262,38 +262,9 @@ const RFC_6455_11_4: crate::rules::SpecRef = crate::rules::SpecRef {
            no extension-token is compared against a list here",
 };
 
-impl Rule for SecWebsocketExtensionsSyntax {
+impl RuleMeta for SecWebsocketExtensionsSyntax {
     fn id(&self) -> &'static str {
         "sec_websocket_extensions_syntax"
-    }
-
-    /// Both directions carry the field and both are measured against the same
-    /// production: § 9.1 gives the client's offer and the server's answer one
-    /// grammar, and its malformed-value MUST names *"either the client or the
-    /// server"*.
-    ///
-    // cite(RFC 6455 § 9.1): "A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616]."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
-                let resp = tx.response.as_ref()?;
-                Self::defect(&resp.headers, "Response")
-            })?;
-
-            Some(self.violation(ctx.severity, message))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -338,6 +309,37 @@ impl Rule for SecWebsocketExtensionsSyntax {
                 snippet: "GET /chat HTTP/1.1\nHost: example.com\nSec-WebSocket-Extensions: foo; bar=\"a b\"",
             },
         ]
+    }
+}
+
+impl Rule for SecWebsocketExtensionsSyntax {
+    /// Both directions carry the field and both are measured against the same
+    /// production: § 9.1 gives the client's offer and the server's answer one
+    /// grammar, and its malformed-value MUST names *"either the client or the
+    /// server"*.
+    ///
+    // cite(RFC 6455 § 9.1): "A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616]."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
+                let resp = tx.response.as_ref()?;
+                Self::defect(&resp.headers, "Response")
+            })?;
+
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -495,7 +497,7 @@ mod tests {
     /// Every published snippet, run through the rule it is published on.
     #[test]
     fn published_examples_agree_with_the_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = SecWebsocketExtensionsSyntax;
         for ex in rule.examples() {
             let lines: Vec<&[u8]> = ex

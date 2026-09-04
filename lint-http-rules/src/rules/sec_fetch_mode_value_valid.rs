@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// `Sec-Fetch-Mode` header must be one of the canonical values listed in
 /// the Fetch Metadata spec: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`.
@@ -21,11 +21,47 @@ url: "https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode-header",
 note: "Fetch Metadata (W3C) — `Sec-Fetch-Mode`: an sf-token whose valid values are the five request modes",
         };
 
-impl Rule for SecFetchModeValueValid {
+impl RuleMeta for SecFetchModeValueValid {
     fn id(&self) -> &'static str {
         "sec_fetch_mode_value_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Requests that include the `Sec-Fetch-Mode` request header must use one of the canonical values defined by the Fetch Metadata specification: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — modes are lowercase tokens and structured-field tokens carry no case folding, so `CORS` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Mode`) are treated as a violation (possible header injection) and will be flagged."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[FETCH_METADATA_2_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Sec-Fetch-Mode: cors",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Sec-Fetch-Mode: navigate",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Sec-Fetch-Mode: invalid",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Sec-Fetch-Mode:",
+            },
+        ]
+    }
+}
+
+impl Rule for SecFetchModeValueValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -103,40 +139,6 @@ impl Rule for SecFetchModeValueValid {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Requests that include the `Sec-Fetch-Mode` request header must use one of the canonical values defined by the Fetch Metadata specification: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — modes are lowercase tokens and structured-field tokens carry no case folding, so `CORS` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Mode`) are treated as a violation (possible header injection) and will be flagged."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_METADATA_2_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Sec-Fetch-Mode: cors",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Sec-Fetch-Mode: navigate",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Sec-Fetch-Mode: invalid",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Sec-Fetch-Mode:",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CacheControlDirectiveValid;
 
@@ -51,35 +51,9 @@ impl CacheControlDirectiveValid {
     }
 }
 
-impl Rule for CacheControlDirectiveValid {
+impl RuleMeta for CacheControlDirectiveValid {
     fn id(&self) -> &'static str {
         "cache_control_directive_valid"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        //
-        // Both sides of the exchange carry this field and are read the same way;
-        // only the word in the finding differs.
-        // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
-        let finding = || -> Option<Violation> {
-            self.defect(&tx.request.headers, "request", ctx.severity)
-                .or_else(|| {
-                    let resp = tx.response.as_ref()?;
-                    self.defect(&resp.headers, "response", ctx.severity)
-                })
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -104,6 +78,34 @@ impl Rule for CacheControlDirectiveValid {
                 snippet: "Cache-Control: max-age=abc     # non-numeric max-age\nCache-Control: max-age=-1      # negative values not allowed\nCache-Control: s-maxage=1.5    # fractional values invalid\nCache-Control: private=Set Cookie  # space in token\nCache-Control: private=\"Set Cookie\" # quoted content contains space-separated token",
             },
         ]
+    }
+}
+
+impl Rule for CacheControlDirectiveValid {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        //
+        // Both sides of the exchange carry this field and are read the same way;
+        // only the word in the finding differs.
+        // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
+        let finding = || -> Option<Violation> {
+            self.defect(&tx.request.headers, "request", ctx.severity)
+                .or_else(|| {
+                    let resp = tx.response.as_ref()?;
+                    self.defect(&resp.headers, "response", ctx.severity)
+                })
+        };
+        Vec::from_iter(finding())
     }
 }
 

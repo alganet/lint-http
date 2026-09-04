@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AcceptEncodingParameterValid;
 
@@ -35,11 +35,91 @@ const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore",
 };
 
-impl Rule for AcceptEncodingParameterValid {
+impl RuleMeta for AcceptEncodingParameterValid {
     fn id(&self) -> &'static str {
         "accept_encoding_parameter_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Accept-Encoding Parameter Validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.\n\n**An octet outside visible US-ASCII is reported** rather than skipped, unlike the neighbouring `Accept` rules. Those decode such a value because `obs-text` is legal inside a quoted-string; there are no quoted-strings here, so no octet `to_str` refuses can be a legal part of this field."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_12_5_3,
+            RFC_9110_12_4_2,
+            RFC_9110_8_4_1,
+            RFC_9110_5_6_1_2,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=0.8",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: br;q=1.0",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(wildcard with q)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: *;q=0.5, gzip;q=0.8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(invalid q precision)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=1.0000",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(invalid coding token)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip@;q=0.5",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(missing q value)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(an empty value asks for no coding at all)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a coding may carry a weight and nothing else)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a weight there may be at most one of)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=0.5;q=0.8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a separator introducing a weight that is not there)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;",
+            },
+        ]
+    }
+}
+
+impl Rule for AcceptEncodingParameterValid {
     // Both, because both directions carry the field with a meaning: a request
     // states what codings a response may use, a response what the resource was
     // willing to accept. The label said `Client` while §12.5.3 defines two
@@ -226,84 +306,6 @@ impl Rule for AcceptEncodingParameterValid {
         };
         Vec::from_iter(finding())
     }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Accept-Encoding Parameter Validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each member a content coding, the literal `identity`, or the literal `*`, optionally followed by a weight.\n\n**The rule's name is a little wrong, and the reason is the point.** `Accept-Encoding` has no parameter list. A coding may carry a `weight` — `OWS \";\" OWS \"q=\" qvalue` — and nothing else, so there is no `name=value` grammar here to be well formed. What this rule checks is that nothing other than a weight appears: `gzip;charset=utf-8` and `gzip;foo=\"a;b\"` are reported, however well formed the pair looks in isolation, because no derivation of this field produces them.\n\n**Three consequences of the same reading.** `weight` brackets nothing, so `gzip;` is a separator introducing a weight that is not there. `[ weight ]` is singular, so `gzip;q=0.5;q=0.8` is two of something there may be at most one of. And `codings` is not optional, so `;q=0.5` is a member with no coding.\n\n**A weight is a MAY**, so its absence is never reported; `gzip, br` is as conforming as `gzip;q=1.0, br;q=0.5`. When present it must be a `qvalue`: `0` to `1` with at most three digits after the point.\n\n**Both directions are read.** A request states what codings a response may use; a response, per §12.5.3, says what the resource was willing to accept — most often in a 415 (Unsupported Media Type), and evaluated the same way.\n\n**An empty field value is not reported.** §12.5.3 gives it a meaning of its own: the user agent wants no content coding at all.\n\n**Known leniency:** whitespace around the `=` is trimmed, so `q =0.5` is accepted. The production spells the weight as the literal text `\"q=\"` rather than as a parameter with a name and a separator, so there is no room in it for that space at all — but tolerating it never causes a false report, only a missed one.\n\n**An octet outside visible US-ASCII is reported** rather than skipped, unlike the neighbouring `Accept` rules. Those decode such a value because `obs-text` is legal inside a quoted-string; there are no quoted-strings here, so no octet `to_str` refuses can be a legal part of this field."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_12_5_3,
-            RFC_9110_12_4_2,
-            RFC_9110_8_4_1,
-            RFC_9110_5_6_1_2,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=0.8",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: br;q=1.0",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(wildcard with q)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: *;q=0.5, gzip;q=0.8",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(invalid q precision)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=1.0000",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(invalid coding token)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip@;q=0.5",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(missing q value)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(an empty value asks for no coding at all)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding:",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a coding may carry a weight and nothing else)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;charset=utf-8",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a weight there may be at most one of)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;q=0.5;q=0.8",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a separator introducing a weight that is not there)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip;",
-            },
-        ]
-    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -396,7 +398,7 @@ mod tests {
     /// pinned to the finding it illustrates.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = AcceptEncodingParameterValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let reasons: [(&str, &str); 6] = [

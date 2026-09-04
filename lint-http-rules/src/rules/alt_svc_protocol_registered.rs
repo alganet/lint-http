@@ -8,7 +8,7 @@ use crate::helpers::list::{
 };
 use crate::helpers::shown::{describe_octet, shown_in_finding};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The one alternative of the field's top production that names no alternative
 /// service, and so carries no protocol identifier for this rule to look up.
@@ -244,17 +244,9 @@ const RFC_3986_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Percent-Encoding: `pct-encoded = \"%\" HEXDIG HEXDIG`, the triplet decoded back into an octet of the name",
 };
 
-impl Rule for AltSvcProtocolRegistered {
+impl RuleMeta for AltSvcProtocolRegistered {
     fn id(&self) -> &'static str {
         "alt_svc_protocol_registered"
-    }
-
-    /// The field rides on responses an origin server writes, and RFC 9110 § 3.7
-    /// is why a capture of a gateway's answer is measured by the same sentence.
-    // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
-    // cite(RFC 9110 § 3.7): "All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -266,6 +258,53 @@ impl Rule for AltSvcProtocolRegistered {
             severity: config.severity,
             state: Box::new(config),
         })
+    }
+
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Alt-Svc Protocol IANA-Registered")
+    }
+
+    fn description(&self) -> &'static str {
+        "Read the `protocol-id` of each `Alt-Svc` alternative as the ALPN protocol name it stands for, and ask whether that name is one this deployment offers.\n\n**A `protocol-id` is not the name; it is an escaping of it.** RFC 7838 §3 writes `protocol-id = token ; percent-encoded ALPN protocol name` and says *\"ALPN protocol names are octet sequences with no additional constraints on format\"*, so every triplet is decoded before the comparison — delimiters included, because there are no components inside a name for a decoded delimiter to move. This matters for more registered names than it looks: `/` is not a `tchar`, so `http/1.1`, `acme-tls/1`, `ntske/1`, `sip/2` and `radius/1.1` all appear on the wire percent-encoded (`http%2F1.1`), and a list written from the registry would match none of them otherwise.\n\n**The comparison is byte-exact.** RFC 7301 §3.1 says protocols are *\"named by IANA-registered, opaque, non-empty byte strings\"* and §6's registration template asks for *\"the precise set of octet values that identifies the protocol\"*, so `H2` is not `h2`. Neither side of the comparison is case-folded, and the registry itself carries a mixed-case entry.\n\n**The `allowed` list is required and stands in for the registry.** Nothing here fetches <https://www.iana.org/assignments/tls-extensiontype-values>; RFC 7301 §6 hands the *\"TLS Application-Layer Protocol Negotiation (ALPN) Protocol IDs\"* registry (renamed by RFC 8447 §3) to a designated expert under Expert Review, so it gains entries between releases and a list compiled in here would answer for the day it was written. The list is written as ALPN protocol **names**, the octets IANA registers, and not as the escaped `protocol-id`s. What the finding rests on is what happens next: RFC 7301 §3.2 has a server with no protocol in common send a fatal `no_application_protocol` alert, and RFC 7838 §2.4 requires a client whose alternative does not negotiate the expected protocol to treat that connection as failed.\n\n**One finding needs no configuration.** A `ProtocolName` is `opaque ProtocolName<1..2^8-1>`, so a name longer than 255 octets is one no ClientHello or ServerHello can carry, whatever any list says.\n\n**What this rule declines, and to whom.** Everything that is the field's grammar rather than its registry goes to `alt_svc_header_syntax`, which reads the same field under the same scope with no gate this rule lacks: an unterminated `quoted-string`, an empty list element, an alternative with no `=`, an empty `protocol-id`, a character no `tchar` admits, a malformed percent triplet, and whitespace beside the `=`. So are the three spelling MUSTs on a well-formed triplet — a lowercase hex digit, an encoded `tchar`, an unencoded `%` — which that rule reports with the reason `x%3dy` and `x%3Dy` are two protocols to a recipient. Here a well-formed triplet is simply decoded, so `%68%32` is read as `h2` and reported once rather than twice. The `clear` keyword nominates no service and is skipped, matched case-sensitively because `%s\"clear\"` is. RFC 7838 §2.1's *\"Clients MUST have reasonable assurances that the alternative service is under control of and valid for the whole origin\"* — with the §2.1 example that `h2c` cannot provide them — is addressed to clients and is not reported against the server that advertised it. Draft HTTP/3 tokens are `alt_svc_h3_advertisement_valid`'s."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_7838_2,
+            RFC_7838_3,
+            RFC_7301_3_1,
+            RFC_7301_6,
+            RFC_8447_3,
+            IANA_TLS_ALPN_PROTOCOL_IDS,
+            RFC_9110_5_6_2,
+            RFC_3986_2_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Alt-Svc: h2=\":443\"; ma=2592000\nAlt-Svc: h3=\"example.com:8443\"\nAlt-Svc: http%2F1.1=\"old.example.com:443\"  # the ALPN name is http/1.1\nAlt-Svc: clear",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Alt-Svc: xproto=\":443\"                    # names no ALPN protocol this deployment offers\nAlt-Svc: H2=\"example.com:443\"             # an ALPN protocol name is its exact octets\nAlt-Svc: spdy%2F3=\"old.example.com:443\"   # spdy/3 is registered, and not offered here",
+            },
+        ]
+    }
+}
+
+impl Rule for AltSvcProtocolRegistered {
+    /// The field rides on responses an origin server writes, and RFC 9110 § 3.7
+    /// is why a capture of a gateway's answer is measured by the same sentence.
+    // cite(RFC 7838 § 3): "An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses."
+    // cite(RFC 9110 § 3.7): "All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
     }
 
     fn findings(
@@ -403,43 +442,6 @@ impl Rule for AltSvcProtocolRegistered {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Alt-Svc Protocol IANA-Registered")
-    }
-
-    fn description(&self) -> &'static str {
-        "Read the `protocol-id` of each `Alt-Svc` alternative as the ALPN protocol name it stands for, and ask whether that name is one this deployment offers.\n\n**A `protocol-id` is not the name; it is an escaping of it.** RFC 7838 §3 writes `protocol-id = token ; percent-encoded ALPN protocol name` and says *\"ALPN protocol names are octet sequences with no additional constraints on format\"*, so every triplet is decoded before the comparison — delimiters included, because there are no components inside a name for a decoded delimiter to move. This matters for more registered names than it looks: `/` is not a `tchar`, so `http/1.1`, `acme-tls/1`, `ntske/1`, `sip/2` and `radius/1.1` all appear on the wire percent-encoded (`http%2F1.1`), and a list written from the registry would match none of them otherwise.\n\n**The comparison is byte-exact.** RFC 7301 §3.1 says protocols are *\"named by IANA-registered, opaque, non-empty byte strings\"* and §6's registration template asks for *\"the precise set of octet values that identifies the protocol\"*, so `H2` is not `h2`. Neither side of the comparison is case-folded, and the registry itself carries a mixed-case entry.\n\n**The `allowed` list is required and stands in for the registry.** Nothing here fetches <https://www.iana.org/assignments/tls-extensiontype-values>; RFC 7301 §6 hands the *\"TLS Application-Layer Protocol Negotiation (ALPN) Protocol IDs\"* registry (renamed by RFC 8447 §3) to a designated expert under Expert Review, so it gains entries between releases and a list compiled in here would answer for the day it was written. The list is written as ALPN protocol **names**, the octets IANA registers, and not as the escaped `protocol-id`s. What the finding rests on is what happens next: RFC 7301 §3.2 has a server with no protocol in common send a fatal `no_application_protocol` alert, and RFC 7838 §2.4 requires a client whose alternative does not negotiate the expected protocol to treat that connection as failed.\n\n**One finding needs no configuration.** A `ProtocolName` is `opaque ProtocolName<1..2^8-1>`, so a name longer than 255 octets is one no ClientHello or ServerHello can carry, whatever any list says.\n\n**What this rule declines, and to whom.** Everything that is the field's grammar rather than its registry goes to `alt_svc_header_syntax`, which reads the same field under the same scope with no gate this rule lacks: an unterminated `quoted-string`, an empty list element, an alternative with no `=`, an empty `protocol-id`, a character no `tchar` admits, a malformed percent triplet, and whitespace beside the `=`. So are the three spelling MUSTs on a well-formed triplet — a lowercase hex digit, an encoded `tchar`, an unencoded `%` — which that rule reports with the reason `x%3dy` and `x%3Dy` are two protocols to a recipient. Here a well-formed triplet is simply decoded, so `%68%32` is read as `h2` and reported once rather than twice. The `clear` keyword nominates no service and is skipped, matched case-sensitively because `%s\"clear\"` is. RFC 7838 §2.1's *\"Clients MUST have reasonable assurances that the alternative service is under control of and valid for the whole origin\"* — with the §2.1 example that `h2c` cannot provide them — is addressed to clients and is not reported against the server that advertised it. Draft HTTP/3 tokens are `alt_svc_h3_advertisement_valid`'s."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_7838_2,
-            RFC_7838_3,
-            RFC_7301_3_1,
-            RFC_7301_6,
-            RFC_8447_3,
-            IANA_TLS_ALPN_PROTOCOL_IDS,
-            RFC_9110_5_6_2,
-            RFC_3986_2_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Alt-Svc: h2=\":443\"; ma=2592000\nAlt-Svc: h3=\"example.com:8443\"\nAlt-Svc: http%2F1.1=\"old.example.com:443\"  # the ALPN name is http/1.1\nAlt-Svc: clear",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Alt-Svc: xproto=\":443\"                    # names no ALPN protocol this deployment offers\nAlt-Svc: H2=\"example.com:443\"             # an ALPN protocol name is its exact octets\nAlt-Svc: spdy%2F3=\"old.example.com:443\"   # spdy/3 is registered, and not offered here",
-            },
-        ]
     }
 }
 

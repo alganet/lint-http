@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct MediaTypeSuffixValid;
 
@@ -35,17 +35,9 @@ const IANA_MEDIA_TYPE_STRUCTURED_SUFFIXES: crate::rules::SpecRef = crate::rules:
     note: "The registry this rule stands in for but does not read; the configured `allowed` array is what it actually checks against",
 };
 
-impl Rule for MediaTypeSuffixValid {
+impl RuleMeta for MediaTypeSuffixValid {
     fn id(&self) -> &'static str {
         "media_type_suffix_valid"
-    }
-
-    // Suffixes are read from Content-Type, which describes the representation a
-    // message carries, and from Accept, which is request-only — so the request
-    // side sees strictly more than the response side.
-    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -68,6 +60,74 @@ impl Rule for MediaTypeSuffixValid {
             severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
+    }
+
+    fn title(&self) -> Option<&'static str> {
+        Some("Media Type Suffix Validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax — as is one that is *only* a suffix (`application/+json`), which has no base name for the suffix to qualify.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `content_type_valid`'s findings; whether the full media type is one you allow is `content_type_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_6838_4_2_8,
+            RFC_6838_4_2,
+            RFC_9110_8_3_1,
+            IANA_MEDIA_TYPE_STRUCTURED_SUFFIXES,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            // One message per example. These were two blocks of stacked
+            // `Content-Type:` lines meaning "any of these" — a reading
+            // `content_type_valid` now contradicts, since two
+            // Content-Type lines in one message are themselves a defect.
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/ld+json",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(+xml)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: image/svg+xml",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(Accept member)"),
+                snippet:
+                    "GET / HTTP/1.1\nHost: example.com\nAccept: application/vnd.example+json; q=0.8",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unknown suffix)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/vnd.example+unknown",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unknown suffix in an Accept member)"),
+                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept: application/bar+nope",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a bare `+` appends nothing)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/vnd.example+",
+            },
+        ]
+    }
+}
+
+impl Rule for MediaTypeSuffixValid {
+    // Suffixes are read from Content-Type, which describes the representation a
+    // message carries, and from Accept, which is request-only — so the request
+    // side sees strictly more than the response side.
+    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
     }
 
     fn findings(
@@ -237,64 +297,6 @@ impl Rule for MediaTypeSuffixValid {
         };
         Vec::from_iter(finding())
     }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Media Type Suffix Validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "Flags media types — in `Content-Type` on either side of a transaction, or in any member of a request `Accept` — whose subtype ends in a `+suffix` that is not in the list you configure. A suffix names the structured syntax the payload is written in (`+json`, `+xml`), so a misspelled one is a claim about the payload that recipients cannot act on: RFC 6838 §4.2.8 says media types \"MUST NOT be given names incorporating suffixes for structured syntaxes they do not actually employ\", and that \"+suffix constructs for as-yet unregistered structured syntaxes SHOULD NOT be used\". A subtype ending in a bare `+` is reported too — it appends nothing and so names no syntax — as is one that is *only* a suffix (`application/+json`), which has no base name for the suffix to qualify.\n\n**It does not consult the IANA registry**, despite what its SpecRef points at: there is no lookup, and a suffix is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. Comparison is case-insensitive, because the subtype a suffix lives in is.\n\n**Scope:** only the suffix, and only on a subtype that is a well-formed name. Whether the media type parses at all, whether the subtype's characters are legal, and whether more than one `Content-Type` field line is present are all `content_type_valid`'s findings; whether the full media type is one you allow is `content_type_registered`'s. A subtype carrying characters no name may contain is skipped here rather than reported as a bad suffix — that would name the wrong defect, and say it twice."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_6838_4_2_8,
-            RFC_6838_4_2,
-            RFC_9110_8_3_1,
-            IANA_MEDIA_TYPE_STRUCTURED_SUFFIXES,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            // One message per example. These were two blocks of stacked
-            // `Content-Type:` lines meaning "any of these" — a reading
-            // `content_type_valid` now contradicts, since two
-            // Content-Type lines in one message are themselves a defect.
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Type: application/ld+json",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(+xml)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: image/svg+xml",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(Accept member)"),
-                snippet:
-                    "GET / HTTP/1.1\nHost: example.com\nAccept: application/vnd.example+json; q=0.8",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(unknown suffix)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: application/vnd.example+unknown",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(unknown suffix in an Accept member)"),
-                snippet: "GET / HTTP/1.1\nHost: example.com\nAccept: application/bar+nope",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a bare `+` appends nothing)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: application/vnd.example+",
-            },
-        ]
-    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -313,7 +315,7 @@ mod tests {
     /// example a sibling rejects.
     #[test]
     fn published_examples_survive_the_other_media_type_rules() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = MediaTypeSuffixValid;
         let toml_src = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),

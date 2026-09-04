@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentDispositionTokenValid;
 
@@ -41,11 +41,71 @@ const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Field Order: a sender MUST NOT emit multiple field lines for a field whose definition has no comma-separated-list alternative",
 };
 
-impl Rule for ContentDispositionTokenValid {
+impl RuleMeta for ContentDispositionTokenValid {
     fn id(&self) -> &'static str {
         "content_disposition_token_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Disposition Disposition-Type Token Valid")
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate that the `Content-Disposition` header's `disposition-type` is present and is a valid `token`. The `disposition-type` is everything before the first `;` (e.g. `attachment` in `attachment; filename=\"a.txt\"`); `inline` and `attachment` are the two named types, and any other value must satisfy `disp-ext-type = token` — no whitespace, controls, or separator characters.\n\nAn unrecognized type is **not** an error: RFC 6266 §4.2 says recipients should treat unknown types like `attachment`, so this rule checks the shape of the value and never compares it against a list of known types.\n\nSince the grammar has no comma-separated-list alternative, a message section carries at most one `Content-Disposition` field line (RFC 9110 §5.3). Two lines are reported: recipients that recombine them get `attachment; filename=\"a\", inline` and disagree about where the parameter value ends, which is a real source of filename-handling divergence in downloads.\n\n**Scope:** RFC 6266 defines a *response* header field. This rule also inspects requests, where the field is used in practice by upload APIs but is not defined by RFC 6266. `Content-Disposition` inside multipart body *parts* is a different thing governed by RFC 7578 §4.2; this linter reads message header fields, not parsed body parts.\n\n**Note on `token`:** RFC 6266 §4.1 imports `token` from RFC 2616, which is obsolete. The production is the same set of characters as RFC 9110 §5.6.2's `token = 1*tchar`, which is what this rule enforces."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_6266_4_1,
+            RFC_6266_4_2,
+            RFC_6266_4,
+            RFC_9110_5_6_2,
+            RFC_9110_5_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Disposition: attachment; filename=\"example.txt\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Disposition: inline",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Disposition: ; filename=\"example.txt\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(an unrecognized type is conforming)"),
+                snippet: "Content-Disposition: preview; filename=\"a.txt\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Disposition: bad@type; filename=\"a\"",
+            },
+            // Framed as a response, not two bare field lines: a sibling rule
+            // publishes a multi-line block meaning "any of these spellings", and
+            // without the start-line the two constructs look identical while
+            // meaning opposite things.
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(two field lines in one message — Content-Disposition is a singleton)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Disposition: attachment; filename=\"a.txt\"\nContent-Disposition: inline",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentDispositionTokenValid {
     // RFC 6266 defines a *response* header field, so the request half of this
     // rule is outside the document it cites. Kept, because a request
     // Content-Disposition does occur (upload APIs put one on the message) and a
@@ -209,64 +269,6 @@ impl Rule for ContentDispositionTokenValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Content-Disposition Disposition-Type Token Valid")
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate that the `Content-Disposition` header's `disposition-type` is present and is a valid `token`. The `disposition-type` is everything before the first `;` (e.g. `attachment` in `attachment; filename=\"a.txt\"`); `inline` and `attachment` are the two named types, and any other value must satisfy `disp-ext-type = token` — no whitespace, controls, or separator characters.\n\nAn unrecognized type is **not** an error: RFC 6266 §4.2 says recipients should treat unknown types like `attachment`, so this rule checks the shape of the value and never compares it against a list of known types.\n\nSince the grammar has no comma-separated-list alternative, a message section carries at most one `Content-Disposition` field line (RFC 9110 §5.3). Two lines are reported: recipients that recombine them get `attachment; filename=\"a\", inline` and disagree about where the parameter value ends, which is a real source of filename-handling divergence in downloads.\n\n**Scope:** RFC 6266 defines a *response* header field. This rule also inspects requests, where the field is used in practice by upload APIs but is not defined by RFC 6266. `Content-Disposition` inside multipart body *parts* is a different thing governed by RFC 7578 §4.2; this linter reads message header fields, not parsed body parts.\n\n**Note on `token`:** RFC 6266 §4.1 imports `token` from RFC 2616, which is obsolete. The production is the same set of characters as RFC 9110 §5.6.2's `token = 1*tchar`, which is what this rule enforces."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_6266_4_1,
-            RFC_6266_4_2,
-            RFC_6266_4,
-            RFC_9110_5_6_2,
-            RFC_9110_5_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Disposition: attachment; filename=\"example.txt\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Disposition: inline",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Disposition: ; filename=\"example.txt\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(an unrecognized type is conforming)"),
-                snippet: "Content-Disposition: preview; filename=\"a.txt\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Disposition: bad@type; filename=\"a\"",
-            },
-            // Framed as a response, not two bare field lines: a sibling rule
-            // publishes a multi-line block meaning "any of these spellings", and
-            // without the start-line the two constructs look identical while
-            // meaning opposite things.
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(two field lines in one message — Content-Disposition is a singleton)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Disposition: attachment; filename=\"a.txt\"\nContent-Disposition: inline",
-            },
-        ]
     }
 }
 

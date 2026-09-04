@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct StatusCodeSemantics;
 
@@ -81,11 +81,73 @@ const RFC_9110_15: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Status Codes — the part of the document both status definitions live in",
 };
 
-impl Rule for StatusCodeSemantics {
+impl RuleMeta for StatusCodeSemantics {
     fn id(&self) -> &'static str {
         "status_code_semantics"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Challenges the 401 and the 407 are defined by")
+    }
+
+    fn description(&self) -> &'static str {
+        "Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it — plus, advisorily, a `Proxy-Authenticate` arriving on any other status.\n\n- `401 Unauthorized` — a server generating one **MUST** send a `WWW-Authenticate` header field containing at least one challenge applicable to the target resource (RFC 9110 §15.5.2, §11.6.1)\n- `407 Proxy Authentication Required` — the proxy generating one **MUST** send at least one `Proxy-Authenticate` header field, containing a challenge applicable to that proxy for the request (RFC 9110 §15.5.8, §11.7.1)\n\nBoth MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an empty `WWW-Authenticate:` is reported too. That case is not a syntax defect: both fields are defined as `#challenge`, a `#` list is permitted to hold no elements at all, and a recipient is required to accept the empty ones it does hold — so the value is well-formed, and what it fails is its status definition. Whether an element that *is* present is a well-formed challenge belongs to `www_authenticate_challenge_syntax`; this rule only asks whether one is there at all.\n\n**A `WWW-Authenticate` on any other status is not reported.** §11.6.1 says a server **MAY** generate one in other responses, to indicate that supplying credentials (or different credentials) might affect the response — so the field is permitted anywhere and a rule reporting it would be reporting a permission being used.\n\n**A `Proxy-Authenticate` outside a 407 is reported, and no requirement is violated by such a response.** §11.7.1 gives that field no matching permission, but it states no prohibition either; what it does say is that the field addresses the one client that chose this proxy, and outside a 407 nothing tells that client what to do with the challenge. The finding is advisory — configure the severity accordingly. The two fields are treated differently here on purpose, and the difference is one sentence in §11.6.1 that §11.7.1 does not have.\n\nThe response status and those two fields are the whole input — whether a challenge is there, never what it says. A 401 is measured from the response as it arrived rather than as it was generated, which §11.6.1 makes the same question by forbidding an intermediary from modifying the field; for the 407 no such sentence exists, and §11.7.1 addresses that field to a single hop, so an absence there is weaker evidence about the proxy that generated the status. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_15_5_2,
+            RFC_9110_11_6_1,
+            RFC_9110_15_5_8,
+            RFC_9110_11_7_1,
+            RFC_9110_5_6_1_2,
+            RFC_9110_15,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"example\"\n\n{\"error\":\"unauthorized\"}",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 407 Proxy Authentication Required\nProxy-Authenticate: Basic realm=\"proxy\"\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a server MAY hint that credentials would change the answer"),
+                snippet: "HTTP/1.1 200 OK\nWWW-Authenticate: Basic realm=\"example\"\n\n{\"ok\":true}",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 401 Unauthorized\nContent-Type: application/json\n\n{\"error\":\"unauthorized\"}",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— the field line is there and the challenge is not"),
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 407 Proxy Authentication Required\nContent-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— advisory: no requirement is violated by this response"),
+                snippet: "HTTP/1.1 200 OK\nProxy-Authenticate: Basic realm=\"proxy\"",
+            },
+        ]
+    }
+}
+
+impl Rule for StatusCodeSemantics {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -214,66 +276,6 @@ impl Rule for StatusCodeSemantics {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Challenges the 401 and the 407 are defined by")
-    }
-
-    fn description(&self) -> &'static str {
-        "Two status codes are defined in terms of a field the response has to carry, and this rule reports the responses that do not carry it — plus, advisorily, a `Proxy-Authenticate` arriving on any other status.\n\n- `401 Unauthorized` — a server generating one **MUST** send a `WWW-Authenticate` header field containing at least one challenge applicable to the target resource (RFC 9110 §15.5.2, §11.6.1)\n- `407 Proxy Authentication Required` — the proxy generating one **MUST** send at least one `Proxy-Authenticate` header field, containing a challenge applicable to that proxy for the request (RFC 9110 §15.5.8, §11.7.1)\n\nBoth MUSTs ask for a **challenge**, not for a field line, so a `401` carrying an empty `WWW-Authenticate:` is reported too. That case is not a syntax defect: both fields are defined as `#challenge`, a `#` list is permitted to hold no elements at all, and a recipient is required to accept the empty ones it does hold — so the value is well-formed, and what it fails is its status definition. Whether an element that *is* present is a well-formed challenge belongs to `www_authenticate_challenge_syntax`; this rule only asks whether one is there at all.\n\n**A `WWW-Authenticate` on any other status is not reported.** §11.6.1 says a server **MAY** generate one in other responses, to indicate that supplying credentials (or different credentials) might affect the response — so the field is permitted anywhere and a rule reporting it would be reporting a permission being used.\n\n**A `Proxy-Authenticate` outside a 407 is reported, and no requirement is violated by such a response.** §11.7.1 gives that field no matching permission, but it states no prohibition either; what it does say is that the field addresses the one client that chose this proxy, and outside a 407 nothing tells that client what to do with the challenge. The finding is advisory — configure the severity accordingly. The two fields are treated differently here on purpose, and the difference is one sentence in §11.6.1 that §11.7.1 does not have.\n\nThe response status and those two fields are the whole input — whether a challenge is there, never what it says. A 401 is measured from the response as it arrived rather than as it was generated, which §11.6.1 makes the same question by forbidding an intermediary from modifying the field; for the 407 no such sentence exists, and §11.7.1 addresses that field to a single hop, so an absence there is weaker evidence about the proxy that generated the status. The rule says nothing about `Authorization`, `Proxy-Authorization`, or the content of the response."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_15_5_2,
-            RFC_9110_11_6_1,
-            RFC_9110_15_5_8,
-            RFC_9110_11_7_1,
-            RFC_9110_5_6_1_2,
-            RFC_9110_15,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"example\"\n\n{\"error\":\"unauthorized\"}",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 407 Proxy Authentication Required\nProxy-Authenticate: Basic realm=\"proxy\"\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— a server MAY hint that credentials would change the answer"),
-                snippet: "HTTP/1.1 200 OK\nWWW-Authenticate: Basic realm=\"example\"\n\n{\"ok\":true}",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 401 Unauthorized\nContent-Type: application/json\n\n{\"error\":\"unauthorized\"}",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— the field line is there and the challenge is not"),
-                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate:",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 407 Proxy Authentication Required\nContent-Type: text/plain",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— advisory: no requirement is violated by this response"),
-                snippet: "HTTP/1.1 200 OK\nProxy-Authenticate: Basic realm=\"proxy\"",
-            },
-        ]
     }
 }
 
@@ -494,7 +496,7 @@ mod tests {
     /// labels are claims about which verdict they get.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = StatusCodeSemantics;
 
         for ex in rule.examples() {

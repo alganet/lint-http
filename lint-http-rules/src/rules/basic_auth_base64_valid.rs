@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct BasicAuthBase64Valid;
 
@@ -23,11 +23,42 @@ const RFC_4648_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Base64 encoding used for `token68`",
 };
 
-impl Rule for BasicAuthBase64Valid {
+impl RuleMeta for BasicAuthBase64Valid {
     fn id(&self) -> &'static str {
         "basic_auth_base64_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_7617_2, RFC_4648_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic not-base64",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic YWJj",
+            },
+        ]
+    }
+}
+
+impl Rule for BasicAuthBase64Valid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -86,35 +117,6 @@ impl Rule for BasicAuthBase64Valid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7617_2, RFC_4648_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic not-base64",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /protected HTTP/1.1\nHost: example.com\nAuthorization: Basic YWJj",
-            },
-        ]
     }
 }
 

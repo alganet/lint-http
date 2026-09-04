@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Responses that include `Vary: *` cannot be selected by caches for
 /// subsequent requests (a `Vary: *` always fails to match; see RFC 9111 §4.1).
@@ -29,11 +29,41 @@ const RFC_9111_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Storing Responses in Caches (cacheability requirements)",
 };
 
-impl Rule for VaryAndCacheConsistent {
+impl RuleMeta for VaryAndCacheConsistent {
     fn id(&self) -> &'static str {
         "vary_and_cache_consistent"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Vary and Cache Consistency")
+    }
+
+    fn description(&self) -> &'static str {
+        "When a response includes `Vary: *`, caches cannot select that stored response for subsequent requests (a `Vary: *` always fails to match). If the same response advertises explicit cacheability directives (such as `Cache-Control: max-age`/`s-maxage` or `public`), those directives are likely ineffective for reuse by caches. This rule flags cases where `Vary: *` and explicit cacheability directives are both present."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_4_1, RFC_9111_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nVary: Accept-Encoding\nCache-Control: max-age=3600\n\n<response body>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nVary: *\nCache-Control: max-age=3600\n\n<response body>",
+            },
+        ]
+    }
+}
+
+impl Rule for VaryAndCacheConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -85,34 +115,6 @@ impl Rule for VaryAndCacheConsistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Vary and Cache Consistency")
-    }
-
-    fn description(&self) -> &'static str {
-        "When a response includes `Vary: *`, caches cannot select that stored response for subsequent requests (a `Vary: *` always fails to match). If the same response advertises explicit cacheability directives (such as `Cache-Control: max-age`/`s-maxage` or `public`), those directives are likely ineffective for reuse by caches. This rule flags cases where `Vary: *` and explicit cacheability directives are both present."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_4_1, RFC_9111_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nVary: Accept-Encoding\nCache-Control: max-age=3600\n\n<response body>",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nVary: *\nCache-Control: max-age=3600\n\n<response body>",
-            },
-        ]
     }
 }
 

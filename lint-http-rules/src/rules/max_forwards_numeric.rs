@@ -5,7 +5,7 @@
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::shown::describe_octet;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct MaxForwardsNumeric;
 
@@ -43,11 +43,63 @@ const RFC_9110_9_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "A client MAY send the field in an OPTIONS request to target a specific recipient, and a proxy MUST NOT generate it while forwarding a request that arrived without it — the second is undecidable from a captured message, since nothing on the wire records who wrote a field",
 };
 
-impl Rule for MaxForwardsNumeric {
+impl RuleMeta for MaxForwardsNumeric {
     fn id(&self) -> &'static str {
         "max_forwards_numeric"
     }
 
+    fn description(&self) -> &'static str {
+        "Validates the `Max-Forwards` request header field's value against its own production, `Max-Forwards = 1*DIGIT` (RFC 9110 §7.6.2): one or more ASCII digits and nothing else. The field limits how many times a `TRACE` or `OPTIONS` request may be forwarded, so a value a proxy cannot read is a limit that does not apply.\n\nAt least one digit is required. `Max-Forwards:` carrying nothing is reported — the opposite answer from the comma-separated-list fields, where a value of no members is a value the production generates; `1*DIGIT` names no such alternative.\n\nThe field is a **singleton**: its grammar has no comma-separated-list form, so a message carries at most one `Max-Forwards` field line (RFC 9110 §5.3), and two lines are reported as that. §5.2 makes them one value in any case, and the comma a recipient recombines them with is not a digit.\n\nA value carrying an octet outside US-ASCII is measured rather than skipped, and the finding names the octet. This is not a UTF-8 question: `1*DIGIT` admits %x30–39 and nothing else, so `obs-text` is reported for not being a digit, which is what is wrong with it. Leading and trailing whitespace is excluded before the value is evaluated (§5.5), and only `SP`/`HTAB` count as that — %xA0 is an octet, not whitespace.\n\nThe value is never parsed into an integer. `1*DIGIT` puts no bound on its length, so `Max-Forwards: 0000000000000000000000005` is a conforming value that no integer type holds, and leading zeros are likewise fine.\n\n**Scope: this rule reads the field's syntax and nothing else.** §7.6.2's requirements on the *value* are addressed to the intermediary forwarding the message — it MUST check and update the value before forwarding, MUST NOT forward at all when it receives zero (it responds as the final recipient instead), and §9.3.7 says a proxy MUST NOT generate the field while forwarding a request that arrived without it. A captured transaction records the request as it was received on one leg; the message that was forwarded upstream is not in it, so nothing here can tell whether the value was decremented, honoured at zero, or written by the sender at all. Those are gaps in what any rule can measure, not checks this rule leaves out.\n\nThe field on a method other than `TRACE` or `OPTIONS` is not reported. §7.6.2 says a recipient MAY ignore it there — a permission granted to the recipient, not a prohibition on the sender — so such a request has a syntactically valid field that limits nothing. Whether the field may appear in a *trailer* section is §6.5.1's question and `trailer_fields_valid`'s finding."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_7_6_2,
+            RFC_9110_5_3,
+            RFC_9110_5_2,
+            RFC_9110_5_5,
+            RFC_9110_9_3_7,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Zero: the request stops at the first recipient, which answers it"),
+                snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: 0",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("`1*DIGIT` says nothing about leading zeros or magnitude"),
+                snippet: "OPTIONS * HTTP/1.1\nHost: example.com\nMax-Forwards: 007",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("`-` is not a DIGIT; the production has no sign"),
+                snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: -1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A decimal integer, not a decimal fraction"),
+                snippet: "OPTIONS * HTTP/1.1\nHost: example.com\nMax-Forwards: 1.0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A singleton sent with two members, on one line: `,` is not a DIGIT"),
+                snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: 120, 240",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("`1*DIGIT` requires a digit, so a value of none is not a value"),
+                snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards:",
+            },
+        ]
+    }
+}
+
+impl Rule for MaxForwardsNumeric {
     /// The field is a request field: it limits how far a request travels, and the
     /// two methods it works with are request methods.
     ///
@@ -163,56 +215,6 @@ impl Rule for MaxForwardsNumeric {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validates the `Max-Forwards` request header field's value against its own production, `Max-Forwards = 1*DIGIT` (RFC 9110 §7.6.2): one or more ASCII digits and nothing else. The field limits how many times a `TRACE` or `OPTIONS` request may be forwarded, so a value a proxy cannot read is a limit that does not apply.\n\nAt least one digit is required. `Max-Forwards:` carrying nothing is reported — the opposite answer from the comma-separated-list fields, where a value of no members is a value the production generates; `1*DIGIT` names no such alternative.\n\nThe field is a **singleton**: its grammar has no comma-separated-list form, so a message carries at most one `Max-Forwards` field line (RFC 9110 §5.3), and two lines are reported as that. §5.2 makes them one value in any case, and the comma a recipient recombines them with is not a digit.\n\nA value carrying an octet outside US-ASCII is measured rather than skipped, and the finding names the octet. This is not a UTF-8 question: `1*DIGIT` admits %x30–39 and nothing else, so `obs-text` is reported for not being a digit, which is what is wrong with it. Leading and trailing whitespace is excluded before the value is evaluated (§5.5), and only `SP`/`HTAB` count as that — %xA0 is an octet, not whitespace.\n\nThe value is never parsed into an integer. `1*DIGIT` puts no bound on its length, so `Max-Forwards: 0000000000000000000000005` is a conforming value that no integer type holds, and leading zeros are likewise fine.\n\n**Scope: this rule reads the field's syntax and nothing else.** §7.6.2's requirements on the *value* are addressed to the intermediary forwarding the message — it MUST check and update the value before forwarding, MUST NOT forward at all when it receives zero (it responds as the final recipient instead), and §9.3.7 says a proxy MUST NOT generate the field while forwarding a request that arrived without it. A captured transaction records the request as it was received on one leg; the message that was forwarded upstream is not in it, so nothing here can tell whether the value was decremented, honoured at zero, or written by the sender at all. Those are gaps in what any rule can measure, not checks this rule leaves out.\n\nThe field on a method other than `TRACE` or `OPTIONS` is not reported. §7.6.2 says a recipient MAY ignore it there — a permission granted to the recipient, not a prohibition on the sender — so such a request has a syntactically valid field that limits nothing. Whether the field may appear in a *trailer* section is §6.5.1's question and `trailer_fields_valid`'s finding."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_7_6_2,
-            RFC_9110_5_3,
-            RFC_9110_5_2,
-            RFC_9110_5_5,
-            RFC_9110_9_3_7,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Zero: the request stops at the first recipient, which answers it"),
-                snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: 0",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("`1*DIGIT` says nothing about leading zeros or magnitude"),
-                snippet: "OPTIONS * HTTP/1.1\nHost: example.com\nMax-Forwards: 007",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("`-` is not a DIGIT; the production has no sign"),
-                snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: -1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A decimal integer, not a decimal fraction"),
-                snippet: "OPTIONS * HTTP/1.1\nHost: example.com\nMax-Forwards: 1.0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A singleton sent with two members, on one line: `,` is not a DIGIT"),
-                snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards: 120, 240",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("`1*DIGIT` requires a digit, so a value of none is not a value"),
-                snippet: "TRACE / HTTP/1.1\nHost: example.com\nMax-Forwards:",
-            },
-        ]
     }
 }
 
@@ -388,7 +390,7 @@ mod tests {
     /// Every published snippet is run through the rule.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = MaxForwardsNumeric;
 
         for ex in rule.examples() {

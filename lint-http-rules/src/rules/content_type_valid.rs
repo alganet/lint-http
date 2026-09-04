@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentTypeValid;
 
@@ -41,11 +41,90 @@ const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
 };
 
-impl Rule for ContentTypeValid {
+impl RuleMeta for ContentTypeValid {
     fn id(&self) -> &'static str {
         "content_type_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Type Well-Formed")
+    }
+
+    fn description(&self) -> &'static str {
+        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `text/*` parses as a `media-type`. The asterisk is defined in §12.5.1 as what groups media types into *ranges* — `media-range`, which Accept takes and Content-Type does not — so a Content-Type carrying one names a set where a single media type is expected. This is the rule's judgement, not a grammar violation. (`*/plain` is rejected too, though it is not a valid `media-range` either: `media-range` allows `*/*` and `type/*`, never a wildcard type with a concrete subtype.)\n\n**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A rule yields one finding, and which value applies comes before whether a value is well formed.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `charset =utf-8` is accepted. It never causes a false report, only a missed one."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_8_3,
+            RFC_9110_8_3_1,
+            RFC_9110_5_6_6,
+            RFC_9110_12_5_1,
+            RFC_9110_5_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        // One media type per example. These used to be two blocks of stacked
+        // `Content-Type:` lines meaning "any of these" — a reading the rule now
+        // contradicts, since stacked Content-Type lines in one message are
+        // themselves the defect the last example illustrates.
+        &[
+            // Not a bare `text/*`: `charset_present` reports a
+            // text media type with no charset, so publishing one here as
+            // compliant would contradict a sibling in the same catalogue.
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Type: application/octet-stream",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(token parameter)"),
+                snippet: "Content-Type: application/json; charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(quoted-string parameter, and a trailing `;` is conforming)"),
+                snippet: "Content-Type: image/vnd.example+json; foo=\"bar\"; charset=utf-8;",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(no subtype)"),
+                snippet: "Content-Type: text",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(empty subtype)"),
+                snippet: "Content-Type: text/",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a media-range names a set of types; Accept takes those, Content-Type does not)"),
+                snippet: "Content-Type: text/*",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(parameter without a value)"),
+                snippet: "Content-Type: text/plain; badparam",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unterminated quoted-string)"),
+                snippet: "Content-Type: text/plain; charset=\"unclosed",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(two field lines in one message — Content-Type is a singleton)"),
+                snippet:
+                    "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Type: application/json",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentTypeValid {
     // The field describes the representation a message carries, and both
     // directions carry one, so both are in scope. Nothing narrows this to
     // responses the way RFC 6266 narrows Content-Disposition.
@@ -137,83 +216,6 @@ impl Rule for ContentTypeValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Content-Type Well-Formed")
-    }
-
-    fn description(&self) -> &'static str {
-        "Check that a `Content-Type` header — in a request or a response — reads as a valid `media-type`: a non-empty `type` and `subtype`, each a `token`, separated by `/`, followed by well-formed parameters if any are present. A parameter is a `name=value` pair whose name is a `token` and whose value is a `token` or a `quoted-string`; a trailing `;` with nothing after it is fine, since the grammar brackets each parameter as optional.\n\n**More than one `Content-Type` field line is reported.** RFC 9110 §8.3 calls Content-Type a singleton and says duplicated ones are handled by recipients \"using the last syntactically valid member of the list, leading to potential interoperability and security issues if different implementations have different error handling behaviors\" — so the media type a peer acts on is not the one the message states. Header and trailer sections are counted together.\n\n**A wildcard is reported**, though `*` is a legal `token` and `text/*` parses as a `media-type`. The asterisk is defined in §12.5.1 as what groups media types into *ranges* — `media-range`, which Accept takes and Content-Type does not — so a Content-Type carrying one names a set where a single media type is expected. This is the rule's judgement, not a grammar violation. (`*/plain` is rejected too, though it is not a valid `media-range` either: `media-range` allows `*/*` and `type/*`, never a wildcard type with a concrete subtype.)\n\n**Precedence:** when more than one field line is present, the duplication is reported and the individual values are not validated. A rule yields one finding, and which value applies comes before whether a value is well formed.\n\n**Known leniency:** RFC 9110 §5.6.6 forbids whitespace around a parameter's `=`, and this rule trims it, so `charset =utf-8` is accepted. It never causes a false report, only a missed one."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_8_3,
-            RFC_9110_8_3_1,
-            RFC_9110_5_6_6,
-            RFC_9110_12_5_1,
-            RFC_9110_5_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        // One media type per example. These used to be two blocks of stacked
-        // `Content-Type:` lines meaning "any of these" — a reading the rule now
-        // contradicts, since stacked Content-Type lines in one message are
-        // themselves the defect the last example illustrates.
-        &[
-            // Not a bare `text/*`: `charset_present` reports a
-            // text media type with no charset, so publishing one here as
-            // compliant would contradict a sibling in the same catalogue.
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Type: application/octet-stream",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(token parameter)"),
-                snippet: "Content-Type: application/json; charset=utf-8",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(quoted-string parameter, and a trailing `;` is conforming)"),
-                snippet: "Content-Type: image/vnd.example+json; foo=\"bar\"; charset=utf-8;",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(no subtype)"),
-                snippet: "Content-Type: text",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(empty subtype)"),
-                snippet: "Content-Type: text/",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a media-range names a set of types; Accept takes those, Content-Type does not)"),
-                snippet: "Content-Type: text/*",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(parameter without a value)"),
-                snippet: "Content-Type: text/plain; badparam",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(unterminated quoted-string)"),
-                snippet: "Content-Type: text/plain; charset=\"unclosed",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(two field lines in one message — Content-Type is a singleton)"),
-                snippet:
-                    "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Type: application/json",
-            },
-        ]
     }
 }
 

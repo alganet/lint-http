@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct RangeHeaderSyntax;
 
@@ -41,11 +41,48 @@ const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Sender Requirements for the list construct: OWS on either side of each comma, and a sender MUST NOT generate empty list elements. Recipients are told the opposite in §5.6.1.2 — parse and ignore them — so the shared list reader, which drops them, cannot answer this rule's question",
 };
 
-impl Rule for RangeHeaderSyntax {
+impl RuleMeta for RangeHeaderSyntax {
     fn id(&self) -> &'static str {
         "range_header_syntax"
     }
 
+    fn description(&self) -> &'static str {
+        "Checks that a `Range` request header field is a well-formed `ranges-specifier`: a range-unit token, an `=`, and a non-empty comma-separated list of range specifiers.\n\n**The unit decides how much can be checked.** RFC 9110 §14.1.1 says the specifier grammar is generic on purpose — \"each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed\" — and range unit names are an open IANA registry. So for a unit other than `bytes` this rule checks only what holds whatever the unit: that the list has at least one element, that no element is empty (§5.6.1.1 makes an empty list element a sender's MUST NOT), and that each element is one run of visible non-comma characters, which every alternative of `range-spec` is. `Range: items=0-1` is not reported. What an `items` specifier may hold is defined by whoever defined `items`, and an origin server that does not understand a unit is told by §14.2 to ignore the field, not to treat it as malformed.\n\n**For `bytes` it also checks the two forms that unit defines**: `first-pos \"-\" [ last-pos ]` and `\"-\" suffix-length`, every position `1*DIGIT`, the last position not below the first, and no third form — §14.1.2 says \"Byte ranges do not use the other-range specifier\". Positions are compared as decimal numerals rather than parsed into an integer, because the same section requires recipients to \"anticipate potentially large decimal numerals\" without failing on overflow.\n\n**All of the field's lines are joined before parsing**, in order and separated by comma SP, because that is the value a recipient acts on: `bytes=0-1` on one line and `bytes=2-3` on the next make one range-set whose second element no byte range specifier admits.\n\n**What it does not report.** Whether a range is *satisfiable* — that depends on the length of the selected representation, which no request carries. A `Range` on a method other than GET — the requirement there is on the server, which must ignore such a field; nothing addresses the client that sent it. Overlapping or descending ranges — §14.2 asks for ascending order with a SHOULD that ends \"unless there is a specific need to request a later part earlier\", and a request records the ranges rather than the need.\n\n**What a finding costs.** §14.2 lets a server that supports range requests \"ignore or reject\" a field carrying an invalid ranges-specifier, so the price of one is the range request rather than the request — a client that asked for part of a representation is answered with all of it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_14_1_1,
+            RFC_9110_14_1_2,
+            RFC_9110_14_2,
+            RFC_9110_14_1,
+            RFC_9110_5_6_1_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=500-999,1000-1499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=-500\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=9500-",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a range unit this rule does not model)"),
+                snippet: "GET /catalogue HTTP/1.1\nHost: example.com\nRange: items=0-1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=abc\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=5-3",
+            },
+        ]
+    }
+}
+
+impl Rule for RangeHeaderSyntax {
     /// `Range` is defined on a request and nothing defines it on a response, so
     /// the enum records what the field is rather than filtering anything: in this
     /// engine only `Server` narrows a dispatch, and this rule reads
@@ -168,41 +205,6 @@ impl Rule for RangeHeaderSyntax {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Checks that a `Range` request header field is a well-formed `ranges-specifier`: a range-unit token, an `=`, and a non-empty comma-separated list of range specifiers.\n\n**The unit decides how much can be checked.** RFC 9110 §14.1.1 says the specifier grammar is generic on purpose — \"each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed\" — and range unit names are an open IANA registry. So for a unit other than `bytes` this rule checks only what holds whatever the unit: that the list has at least one element, that no element is empty (§5.6.1.1 makes an empty list element a sender's MUST NOT), and that each element is one run of visible non-comma characters, which every alternative of `range-spec` is. `Range: items=0-1` is not reported. What an `items` specifier may hold is defined by whoever defined `items`, and an origin server that does not understand a unit is told by §14.2 to ignore the field, not to treat it as malformed.\n\n**For `bytes` it also checks the two forms that unit defines**: `first-pos \"-\" [ last-pos ]` and `\"-\" suffix-length`, every position `1*DIGIT`, the last position not below the first, and no third form — §14.1.2 says \"Byte ranges do not use the other-range specifier\". Positions are compared as decimal numerals rather than parsed into an integer, because the same section requires recipients to \"anticipate potentially large decimal numerals\" without failing on overflow.\n\n**All of the field's lines are joined before parsing**, in order and separated by comma SP, because that is the value a recipient acts on: `bytes=0-1` on one line and `bytes=2-3` on the next make one range-set whose second element no byte range specifier admits.\n\n**What it does not report.** Whether a range is *satisfiable* — that depends on the length of the selected representation, which no request carries. A `Range` on a method other than GET — the requirement there is on the server, which must ignore such a field; nothing addresses the client that sent it. Overlapping or descending ranges — §14.2 asks for ascending order with a SHOULD that ends \"unless there is a specific need to request a later part earlier\", and a request records the ranges rather than the need.\n\n**What a finding costs.** §14.2 lets a server that supports range requests \"ignore or reject\" a field carrying an invalid ranges-specifier, so the price of one is the range request rather than the request — a client that asked for part of a representation is answered with all of it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_14_1_1,
-            RFC_9110_14_1_2,
-            RFC_9110_14_2,
-            RFC_9110_14_1,
-            RFC_9110_5_6_1_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=500-999,1000-1499\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=-500\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=9500-",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a range unit this rule does not model)"),
-                snippet: "GET /catalogue HTTP/1.1\nHost: example.com\nRange: items=0-1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=abc\n\nGET /big-file HTTP/1.1\nHost: example.com\nRange: bytes=5-3",
-            },
-        ]
     }
 }
 

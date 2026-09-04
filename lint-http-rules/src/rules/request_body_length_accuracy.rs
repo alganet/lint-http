@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct RequestBodyLengthAccuracy;
 
@@ -29,11 +29,51 @@ const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Where the field and its `1*DIGIT` grammar are actually defined — the syntax itself is `content_length_valid`'s subject, not this rule's",
 };
 
-impl Rule for RequestBodyLengthAccuracy {
+impl RuleMeta for RequestBodyLengthAccuracy {
     fn id(&self) -> &'static str {
         "request_body_length_accuracy"
     }
 
+    fn description(&self) -> &'static str {
+        "Checks that a request's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that number the framing — \"the Content-Length field value provides the framing information necessary for determining where the data (and message) ends\" — and §6.3 says a recipient that does not receive that many octets \"MUST consider the message to be incomplete and close the connection\". A mismatch is that message.\n\n**Only when there is no `Transfer-Encoding`.** §6.3 licenses the comparison in exactly those terms: \"If a valid Content-Length header field is present *without Transfer-Encoding*, its decimal value defines the expected message body length in octets.\" When both fields are present the Transfer-Encoding overrides, and the declared length is a number the specification says to disregard — so this rule stays silent. Sending both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n\n**Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.\n\n**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9112_6_3, RFC_9112_6_2, RFC_9110_8_6]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a comma list of equal values is one value)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 3, 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(Transfer-Encoding overrides, so nothing here is measured)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 10\nTransfer-Encoding: chunked\n\nabc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the request is incomplete)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 10\n\nabc",
+            },
+            // The published `Content-Length: abc` example was labelled
+            // "(invalid Content-Length)" and is `content_length_valid`'s
+            // finding, not this rule's -- it is gone rather than relabelled,
+            // because this rule reports nothing for it.
+        ]
+    }
+}
+
+impl Rule for RequestBodyLengthAccuracy {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -141,44 +181,6 @@ impl Rule for RequestBodyLengthAccuracy {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Checks that a request's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that number the framing — \"the Content-Length field value provides the framing information necessary for determining where the data (and message) ends\" — and §6.3 says a recipient that does not receive that many octets \"MUST consider the message to be incomplete and close the connection\". A mismatch is that message.\n\n**Only when there is no `Transfer-Encoding`.** §6.3 licenses the comparison in exactly those terms: \"If a valid Content-Length header field is present *without Transfer-Encoding*, its decimal value defines the expected message body length in octets.\" When both fields are present the Transfer-Encoding overrides, and the declared length is a number the specification says to disregard — so this rule stays silent. Sending both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n\n**Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.\n\n**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9112_6_3, RFC_9112_6_2, RFC_9110_8_6]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 3\n\nabc",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a comma list of equal values is one value)"),
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 3, 3\n\nabc",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(Transfer-Encoding overrides, so nothing here is measured)"),
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 10\nTransfer-Encoding: chunked\n\nabc",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(the request is incomplete)"),
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 10\n\nabc",
-            },
-            // The published `Content-Length: abc` example was labelled
-            // "(invalid Content-Length)" and is `content_length_valid`'s
-            // finding, not this rule's -- it is gone rather than relabelled,
-            // because this rule reports nothing for it.
-        ]
     }
 }
 
@@ -364,7 +366,7 @@ mod tests {
     /// rule now reports nothing for it, so it is gone rather than relabelled.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = RequestBodyLengthAccuracy;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 

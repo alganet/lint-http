@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct UserAgentPresent;
 
@@ -29,11 +29,46 @@ const RFC_9110_17_13: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "why a client is configured not to send the field: a `User-Agent` might carry enough information to identify a specific device, usually combined with other characteristics, and reducing that fingerprint is a deliberate choice this rule cannot see",
 };
 
-impl Rule for UserAgentPresent {
+impl RuleMeta for UserAgentPresent {
     fn id(&self) -> &'static str {
         "user_agent_present"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Client User-Agent Present")
+    }
+
+    fn description(&self) -> &'static str {
+        "Report a request that carries no `User-Agent` header field. RFC 9110 §10.1.5 makes sending one a `SHOULD`, in each request, and it asks it of a *user agent* — which in that specification is any client program that initiates a request, so a command-line tool or a firmware update script is inside the requirement and not only a browser.\n\nThe requirement ends in an exception: *unless specifically configured not to do so*. That condition is a property of the client's configuration, and a request that omits the field on purpose is indistinguishable from one that omits it by oversight, so both are reported. A deployment that suppresses the field deliberately — §17.13 describes what a `User-Agent` can contribute to identifying a specific device — is conforming, and should turn this rule off rather than read the finding as a defect.\n\nOnly the header section is examined. A `User-Agent` field line that is present but empty is not reported here: it is a field that fails the field's own grammar, and `user_agent_token_valid` owns and reports that."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_10_1_5, RFC_9110_3_5, RFC_9110_17_13]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("a product identifier, with a comment after it"),
+                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nUser-Agent: MyClient/1.0 (Linux; x64)",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("the value RFC 9110 prints for the field"),
+                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nUser-Agent: CERN-LineMode/2.15 libwww/2.17b3",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("no User-Agent field line"),
+                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nAccept: application/json",
+            },
+        ]
+    }
+}
+
+impl Rule for UserAgentPresent {
     fn scope(&self) -> crate::rules::RuleScope {
         // The field describes the originator of a request, so a response has no
         // occasion to carry one. The sentence that asks for it asks a *user
@@ -82,39 +117,6 @@ impl Rule for UserAgentPresent {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Client User-Agent Present")
-    }
-
-    fn description(&self) -> &'static str {
-        "Report a request that carries no `User-Agent` header field. RFC 9110 §10.1.5 makes sending one a `SHOULD`, in each request, and it asks it of a *user agent* — which in that specification is any client program that initiates a request, so a command-line tool or a firmware update script is inside the requirement and not only a browser.\n\nThe requirement ends in an exception: *unless specifically configured not to do so*. That condition is a property of the client's configuration, and a request that omits the field on purpose is indistinguishable from one that omits it by oversight, so both are reported. A deployment that suppresses the field deliberately — §17.13 describes what a `User-Agent` can contribute to identifying a specific device — is conforming, and should turn this rule off rather than read the finding as a defect.\n\nOnly the header section is examined. A `User-Agent` field line that is present but empty is not reported here: it is a field that fails the field's own grammar, and `user_agent_token_valid` owns and reports that."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_10_1_5, RFC_9110_3_5, RFC_9110_17_13]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("a product identifier, with a comment after it"),
-                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nUser-Agent: MyClient/1.0 (Linux; x64)",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("the value RFC 9110 prints for the field"),
-                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nUser-Agent: CERN-LineMode/2.15 libwww/2.17b3",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("no User-Agent field line"),
-                snippet: "GET /api/data HTTP/1.1\nHost: example.com\nAccept: application/json",
-            },
-        ]
     }
 }
 
@@ -225,7 +227,7 @@ mod tests {
 
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = UserAgentPresent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 
@@ -263,7 +265,7 @@ mod tests {
     #[test]
     fn published_values_satisfy_the_rule_that_owns_the_grammar() {
         use crate::rules::user_agent_token_valid::UserAgentTokenValid;
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
 
         let grammar = UserAgentTokenValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[grammar.id()]);

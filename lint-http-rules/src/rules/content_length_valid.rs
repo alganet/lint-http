@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentLengthValid;
 
@@ -23,11 +23,41 @@ const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Why differing values are an error and why a single field line may carry a comma-separated list, provided every member is valid and identical",
 };
 
-impl Rule for ContentLengthValid {
+impl RuleMeta for ContentLengthValid {
     fn id(&self) -> &'static str {
         "content_length_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Length")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule validates `Content-Length` header values for syntax and consistency:\n\n- Each `Content-Length` header value must be a non-negative decimal integer (no signs, no decimals).\n- A `Content-Length` header with an empty value or containing non-digit characters is invalid.\n- When multiple `Content-Length` header fields are present, their trimmed numeric values MUST be identical.\n\nImproper `Content-Length` values can lead to message framing errors or truncated bodies; the rule flags invalid or inconsistent values."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_8_6, RFC_9112_6_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Length: 0\nContent-Length: 10\nContent-Length:  20  \n\nContent-Length: 10\nContent-Length:  10 ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Length: -1\nContent-Length: +1\nContent-Length: 1.5\nContent-Length: abc\nContent-Length:\n\nContent-Length: 10\nContent-Length: 20",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentLengthValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -93,34 +123,6 @@ impl Rule for ContentLengthValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Content-Length")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule validates `Content-Length` header values for syntax and consistency:\n\n- Each `Content-Length` header value must be a non-negative decimal integer (no signs, no decimals).\n- A `Content-Length` header with an empty value or containing non-digit characters is invalid.\n- When multiple `Content-Length` header fields are present, their trimmed numeric values MUST be identical.\n\nImproper `Content-Length` values can lead to message framing errors or truncated bodies; the rule flags invalid or inconsistent values."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_6, RFC_9112_6_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Length: 0\nContent-Length: 10\nContent-Length:  20  \n\nContent-Length: 10\nContent-Length:  10 ",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Length: -1\nContent-Length: +1\nContent-Length: 1.5\nContent-Length: abc\nContent-Length:\n\nContent-Length: 10\nContent-Length: 20",
-            },
-        ]
     }
 }
 

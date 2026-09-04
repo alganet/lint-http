@@ -94,19 +94,23 @@ id it does not recognise, pointing the operator at `docs/rules.md`.
 
 ### 2. Implementation
 
-Create a new file in `src/rules/<rule_name>.rs`. Implement the `Rule` trait:
+Create a new file in `src/rules/<rule_name>.rs`. Every rule implements two
+traits: `RuleMeta`, which is everything the rule says about itself and is shared
+with `ProtocolRule`, and `Rule`, which is the transaction it reads.
 
 ```rust
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct MyRule;
 
-impl Rule for MyRule {
+impl RuleMeta for MyRule {
     fn id(&self) -> &'static str {
         "my_rule_name"
     }
+}
 
+impl Rule for MyRule {
     fn findings(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
@@ -119,7 +123,7 @@ impl Rule for MyRule {
 }
 ```
 
-Configuration is resolved **once, when the engine is built**, by the trait's
+Configuration is resolved **once, when the engine is built**, by `RuleMeta`'s
 `prepare` hook. The default resolves the two required keys (`enabled`,
 `severity`); a rule with its own options overrides `prepare`, parses them into
 a typed value, and returns it as the `state` of its `ResolvedRule` — the check
@@ -196,8 +200,11 @@ Rules must declare their intended scope by overriding `scope()` when appropriate
 Example:
 
 ```rust
-impl Rule for HostHeader {
+impl RuleMeta for HostHeader {
     fn id(&self) -> &'static str { "host_header" }
+}
+
+impl Rule for HostHeader {
     fn scope(&self) -> crate::rules::RuleScope { crate::rules::RuleScope::Client }
 
     fn findings(

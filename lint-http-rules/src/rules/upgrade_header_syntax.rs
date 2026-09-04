@@ -7,7 +7,7 @@ use crate::helpers::list::sender_list_members;
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct UpgradeHeaderSyntax;
 
@@ -225,50 +225,9 @@ const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
            members are counted after the lines are joined",
 };
 
-impl Rule for UpgradeHeaderSyntax {
+impl RuleMeta for UpgradeHeaderSyntax {
     fn id(&self) -> &'static str {
         "upgrade_header_syntax"
-    }
-
-    /// Both directions carry the field by name in this section: a client offers
-    /// protocols in a request, and a server names them in a response — in the
-    /// `101` and `426` its own MUSTs are about, and in any other response it
-    /// chooses to advertise in.
-    ///
-    /// cite(RFC 9110 § 7.8): "A client MAY send a list of protocol names in the Upgrade header field of a request to invite the server to switch to one or more of the named protocols, in order of descending preference, before sending the final response."
-    /// cite(RFC 9110 § 7.8): "A server MAY send an Upgrade header field in any other response to advertise that it implements support for upgrading to the listed protocols, in order of descending preference, when appropriate for a future request."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // No version gate, and the sibling that reports presence is why. A
-            // grammar is what a value is measured against whatever carried it, and
-            // over HTTP/2 and HTTP/3 the field's *presence* is already the finding —
-            // `no_connection_specific_fields` makes it, and says in as many
-            // words that it reads no value because whether one derives from its
-            // field's own production is that field's rule's question. This is that
-            // rule, and declining the value there and here would leave the question
-            // asked by nobody. `connection_header_tokens_valid` reads its own
-            // connection-specific field the same way for the same reason.
-            let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
-                let resp = tx.response.as_ref()?;
-                Self::defect(&resp.headers, "Response")
-            })?;
-
-            // Read last: a message about to be reported is the only one that pays
-            // for the map probes and the two lookups of the rule id.
-            Some(self.violation(ctx.severity, message))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -321,6 +280,49 @@ impl Rule for UpgradeHeaderSyntax {
                 snippet: "GET / HTTP/1.1\nHost: example.com\nConnection: upgrade\nUpgrade: web socket",
             },
         ]
+    }
+}
+
+impl Rule for UpgradeHeaderSyntax {
+    /// Both directions carry the field by name in this section: a client offers
+    /// protocols in a request, and a server names them in a response — in the
+    /// `101` and `426` its own MUSTs are about, and in any other response it
+    /// chooses to advertise in.
+    ///
+    /// cite(RFC 9110 § 7.8): "A client MAY send a list of protocol names in the Upgrade header field of a request to invite the server to switch to one or more of the named protocols, in order of descending preference, before sending the final response."
+    /// cite(RFC 9110 § 7.8): "A server MAY send an Upgrade header field in any other response to advertise that it implements support for upgrading to the listed protocols, in order of descending preference, when appropriate for a future request."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // No version gate, and the sibling that reports presence is why. A
+            // grammar is what a value is measured against whatever carried it, and
+            // over HTTP/2 and HTTP/3 the field's *presence* is already the finding —
+            // `no_connection_specific_fields` makes it, and says in as many
+            // words that it reads no value because whether one derives from its
+            // field's own production is that field's rule's question. This is that
+            // rule, and declining the value there and here would leave the question
+            // asked by nobody. `connection_header_tokens_valid` reads its own
+            // connection-specific field the same way for the same reason.
+            let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
+                let resp = tx.response.as_ref()?;
+                Self::defect(&resp.headers, "Response")
+            })?;
+
+            // Read last: a message about to be reported is the only one that pays
+            // for the map probes and the two lookups of the rule id.
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -540,7 +542,7 @@ mod tests {
     /// it would be an example this rule calls clean and the catalogue reports.
     #[test]
     fn published_examples_are_judged_by_this_rule_and_by_the_one_that_owns_the_option() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = UpgradeHeaderSyntax;
         let neighbour =
             crate::rules::upgrade_and_connection_consistent::UpgradeAndConnectionConsistent;

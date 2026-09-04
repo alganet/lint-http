@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 use chrono::{DateTime, Utc};
 
 /// If `Expires` and `Cache-Control` are both present, their values should not contradict.
@@ -28,11 +28,42 @@ const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Freshness and age calculations using `max-age`, `s-maxage`, and `Expires`",
 };
 
-impl Rule for ExpiresAndCacheControlConsistent {
+impl RuleMeta for ExpiresAndCacheControlConsistent {
     fn id(&self) -> &'static str {
         "expires_and_cache_control_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nAn `Expires` value that is not a valid HTTP-date counts as contradictory too, rather\nthan as no information: a cache is required to read it as already expired, so the\ncommon `Expires: 0` paired with a positive `max-age` is flagged."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_5_3, RFC_9111_4_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: max-age=3600\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: max-age=0\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: no-cache\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
+            },
+        ]
+    }
+}
+
+impl Rule for ExpiresAndCacheControlConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -165,35 +196,6 @@ impl Rule for ExpiresAndCacheControlConsistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nAn `Expires` value that is not a valid HTTP-date counts as contradictory too, rather\nthan as no information: a cache is required to read it as already expired, so the\ncommon `Expires: 0` paired with a positive `max-age` is flagged."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_3, RFC_9111_4_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: max-age=3600\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: max-age=0\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nCache-Control: no-cache\nExpires: Wed, 21 Oct 2015 08:28:00 GMT\n\n<...>",
-            },
-        ]
     }
 }
 

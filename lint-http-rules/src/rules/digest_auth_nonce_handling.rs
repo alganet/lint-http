@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Stateful tracking of Digest authentication nonce/opaque lifecycle.
 ///
@@ -133,11 +133,52 @@ const RFC_7616_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The Authorization Header Field — the client response parameters (nonce, nc, opaque)",
 };
 
-impl Rule for DigestAuthNonceHandling {
+impl RuleMeta for DigestAuthNonceHandling {
     fn id(&self) -> &'static str {
         "digest_auth_nonce_handling"
     }
 
+    fn description(&self) -> &'static str {
+        "Digest authentication relies on a server-provided `nonce` value (and optionally `opaque`) and a client-maintained `nc` (nonce-count) counter to protect against replay attacks.  The client must never reuse a nonce-count for an already-seen nonce, and must return the `opaque` value verbatim.  When a server signals that a nonce is stale (`stale=true` in a subsequent `WWW-Authenticate` challenge), the client is expected to start a new handshake with the fresh nonce, resetting the nonce-count to `00000001`.\n\nThis rule ensures that an observed stream of transactions follows these lifecycle expectations by tracking challenges and responses across an origin."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_7616_3_3, RFC_7616_3_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("– basic progression"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n1\", opaque=\"o\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n1\", nc=00000001, uri=\"/resource\", response=\"...\", opaque=\"o\"\n\n< 200 OK HTTP/1.1\n\n> GET /other HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n1\", nc=00000002, uri=\"/other\", response=\"...\", opaque=\"o\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("– missing challenge"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n1\", nc=00000001, uri=\"/resource\", response=\"...\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("– opaque mismatch"),
+                snippet: "< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n\", opaque=\"o\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n\", nc=00000001, uri=\"/resource\", response=\"...\", opaque=\"bad\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("– nonce-count regression"),
+                snippet: "< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n\"\n\n> GET /a HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n\", nc=00000005, uri=\"/a\", response=\"...\"\n\n> GET /b HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n\", nc=00000004, uri=\"/b\", response=\"...\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("– stale nonce but counter not reset"),
+                snippet: "< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n2\", stale=true\n\n> GET /x HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n2\", nc=00000005, uri=\"/x\", response=\"...\"",
+            },
+        ]
+    }
+}
+
+impl Rule for DigestAuthNonceHandling {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -280,45 +321,6 @@ impl Rule for DigestAuthNonceHandling {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Digest authentication relies on a server-provided `nonce` value (and optionally `opaque`) and a client-maintained `nc` (nonce-count) counter to protect against replay attacks.  The client must never reuse a nonce-count for an already-seen nonce, and must return the `opaque` value verbatim.  When a server signals that a nonce is stale (`stale=true` in a subsequent `WWW-Authenticate` challenge), the client is expected to start a new handshake with the fresh nonce, resetting the nonce-count to `00000001`.\n\nThis rule ensures that an observed stream of transactions follows these lifecycle expectations by tracking challenges and responses across an origin."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7616_3_3, RFC_7616_3_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("– basic progression"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n\n< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n1\", opaque=\"o\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n1\", nc=00000001, uri=\"/resource\", response=\"...\", opaque=\"o\"\n\n< 200 OK HTTP/1.1\n\n> GET /other HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n1\", nc=00000002, uri=\"/other\", response=\"...\", opaque=\"o\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("– missing challenge"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n1\", nc=00000001, uri=\"/resource\", response=\"...\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("– opaque mismatch"),
-                snippet: "< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n\", opaque=\"o\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n\", nc=00000001, uri=\"/resource\", response=\"...\", opaque=\"bad\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("– nonce-count regression"),
-                snippet: "< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n\"\n\n> GET /a HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n\", nc=00000005, uri=\"/a\", response=\"...\"\n\n> GET /b HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n\", nc=00000004, uri=\"/b\", response=\"...\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("– stale nonce but counter not reset"),
-                snippet: "< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Digest realm=\"r\", nonce=\"n2\", stale=true\n\n> GET /x HTTP/1.1\n> Host: example.com\n> Authorization: Digest username=\"u\", realm=\"r\", nonce=\"n2\", nc=00000005, uri=\"/x\", response=\"...\"",
-            },
-        ]
     }
 }
 

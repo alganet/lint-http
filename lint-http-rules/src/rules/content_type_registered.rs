@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentTypeRegistered;
 
@@ -29,13 +29,9 @@ const IANA_MEDIA_TYPES: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
 };
 
-impl Rule for ContentTypeRegistered {
+impl RuleMeta for ContentTypeRegistered {
     fn id(&self) -> &'static str {
         "content_type_registered"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -54,6 +50,40 @@ impl Rule for ContentTypeRegistered {
             severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
+    }
+
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Type IANA Registered")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks that `Content-Type` media types (in both requests and responses) appear in an allowlist you configure. It helps flag unregistered or accidental vendor types that may cause interoperability problems.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a media type is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 says media types *ought to* be registered, which is the motivation for the rule, but the check itself is your policy.\n\nEntries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a structured syntax suffix (`+json`, matching `application/vnd.example+json` but not `application/json` or `text/notjson`). The wildcard and suffix forms are conveniences of this configuration, not media-type syntax. Comparisons are case-insensitive."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_8_3_1, RFC_6838_4_2_8, IANA_MEDIA_TYPES]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Type: text/plain\nContent-Type: application/json; charset=utf-8\nContent-Type: application/ld+json\nContent-Type: image/png",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Type: application/vnd.unknown\nContent-Type: text/x-custom",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentTypeRegistered {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
     }
 
     fn findings(
@@ -154,34 +184,6 @@ impl Rule for ContentTypeRegistered {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Content-Type IANA Registered")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks that `Content-Type` media types (in both requests and responses) appear in an allowlist you configure. It helps flag unregistered or accidental vendor types that may cause interoperability problems.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a media type is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 says media types *ought to* be registered, which is the motivation for the rule, but the check itself is your policy.\n\nEntries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a structured syntax suffix (`+json`, matching `application/vnd.example+json` but not `application/json` or `text/notjson`). The wildcard and suffix forms are conveniences of this configuration, not media-type syntax. Comparisons are case-insensitive."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_3_1, RFC_6838_4_2_8, IANA_MEDIA_TYPES]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Type: text/plain\nContent-Type: application/json; charset=utf-8\nContent-Type: application/ld+json\nContent-Type: image/png",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Type: application/vnd.unknown\nContent-Type: text/x-custom",
-            },
-        ]
     }
 }
 

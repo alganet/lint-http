@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AcceptRangesOnPartialContent;
 
@@ -76,11 +76,49 @@ const RFC_9110_15_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`206 Partial Content`: a client MUST inspect its `Content-Type` and `Content-Range`, which is not observable either. A 206 that advertised nothing is no longer reported here. RFC 7233 §4.1 defined the status code; RFC 9110 obsoleted RFC 7233",
 };
 
-impl Rule for AcceptRangesOnPartialContent {
+impl RuleMeta for AcceptRangesOnPartialContent {
     fn id(&self) -> &'static str {
         "accept_ranges_on_partial_content"
     }
 
+    fn description(&self) -> &'static str {
+        "Advice a client was given, and whether the next request took it. `Accept-Ranges` tells a client which range units a resource supports, or that it supports none — and almost everything this rule has to say about the request that follows is advice, because RFC 9110 §14.3 says the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\".\n\n**`Accept-Ranges: none` followed by a `Range` request** is the one finding addressed to the client. The permission to send `none` is granted to a server that supports no kind of range request \"to advise the client not to attempt a range request on the same request path\", and this request attempts one. It is still advice: the same section says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\".\n\n**A `Range` in a unit the previous response did not advertise** is advice about a wasted transfer. §14.2 says an origin server \"MUST ignore a Range header field that contains a range unit it does not understand\", so such a request is answered with the whole representation — which is what the advertisement exists to prevent. Nothing makes the advertised list exhaustive, so this is not a violation either.\n\n**What this rule no longer reports.** A `Range` request following a 206 that carried no `Accept-Ranges` field: §14.3's \"regardless of having received an Accept-Ranges field\" permits it in as many words, and §14 makes range requests an OPTIONAL feature of HTTP altogether. Whether the advertised value is a well-formed list of range units belongs to `accept_ranges_values_valid`; whether the `Range` value is a well-formed ranges-specifier belongs to `range_header_syntax`. Where either value cannot be read as this rule needs it, it declines rather than reporting the field a second time — but a `Range` field that cannot be read is still a range request, and still takes the `none` advice.\n\n**What no rule can check.** §14.3 also says a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", and §15.3.7 that a client \"MUST inspect a 206 response's Content-Type and Content-Range field(s)\". Both are requirements on a conclusion the client drew; nothing on the wire distinguishes a client that assumed from one that did not, so this rule stops there rather than approximating them.\n\n**What it reads, and what that assumes.** The transaction immediately preceding this one from the same client for the same request URI, which is what \"the same request path\" is measured against; a later response supersedes what an earlier one advised, so only the most recent is read. `Accept-Ranges` is read from the trailer section as well as the header section, which §14.3 permits. Two assumptions come with that and are worth knowing before enabling this rule. *The same client* is an address and a `User-Agent` string, so several user agents behind one address that send the same `User-Agent` are one client here, and advice given to one of them is measured against another's request. And the rule's name is historical: nothing it checks depends on the previous response being a `206 Partial Content`, and after the corrections above it does not read the status code at all."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_14_3, RFC_9110_14_2, RFC_9110_14_1, RFC_9110_15_3_7]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— the server advertised bytes and the client asks in bytes"),
+                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nGET /resource HTTP/1.1\nRange: bytes=0-499",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "— a client MAY generate range requests regardless of having received the field",
+                ),
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\n\nGET /resource HTTP/1.1\nRange: bytes=500-999",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— advice: the server advised against range requests on this path"),
+                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: none\n\nGET /resource HTTP/1.1\nRange: bytes=0-499",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— advice: a unit the previous response did not advertise"),
+                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nGET /resource HTTP/1.1\nRange: pages=1-2",
+            },
+        ]
+    }
+}
+
+impl Rule for AcceptRangesOnPartialContent {
     /// Documentation, not a filter: in this engine only `Server` decides
     /// anything, and `Client` and `Both` dispatch identically. What keeps this
     /// rule off a message it has nothing to say about is the `Range` field it
@@ -186,42 +224,6 @@ impl Rule for AcceptRangesOnPartialContent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Advice a client was given, and whether the next request took it. `Accept-Ranges` tells a client which range units a resource supports, or that it supports none — and almost everything this rule has to say about the request that follows is advice, because RFC 9110 §14.3 says the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\".\n\n**`Accept-Ranges: none` followed by a `Range` request** is the one finding addressed to the client. The permission to send `none` is granted to a server that supports no kind of range request \"to advise the client not to attempt a range request on the same request path\", and this request attempts one. It is still advice: the same section says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\".\n\n**A `Range` in a unit the previous response did not advertise** is advice about a wasted transfer. §14.2 says an origin server \"MUST ignore a Range header field that contains a range unit it does not understand\", so such a request is answered with the whole representation — which is what the advertisement exists to prevent. Nothing makes the advertised list exhaustive, so this is not a violation either.\n\n**What this rule no longer reports.** A `Range` request following a 206 that carried no `Accept-Ranges` field: §14.3's \"regardless of having received an Accept-Ranges field\" permits it in as many words, and §14 makes range requests an OPTIONAL feature of HTTP altogether. Whether the advertised value is a well-formed list of range units belongs to `accept_ranges_values_valid`; whether the `Range` value is a well-formed ranges-specifier belongs to `range_header_syntax`. Where either value cannot be read as this rule needs it, it declines rather than reporting the field a second time — but a `Range` field that cannot be read is still a range request, and still takes the `none` advice.\n\n**What no rule can check.** §14.3 also says a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", and §15.3.7 that a client \"MUST inspect a 206 response's Content-Type and Content-Range field(s)\". Both are requirements on a conclusion the client drew; nothing on the wire distinguishes a client that assumed from one that did not, so this rule stops there rather than approximating them.\n\n**What it reads, and what that assumes.** The transaction immediately preceding this one from the same client for the same request URI, which is what \"the same request path\" is measured against; a later response supersedes what an earlier one advised, so only the most recent is read. `Accept-Ranges` is read from the trailer section as well as the header section, which §14.3 permits. Two assumptions come with that and are worth knowing before enabling this rule. *The same client* is an address and a `User-Agent` string, so several user agents behind one address that send the same `User-Agent` are one client here, and advice given to one of them is measured against another's request. And the rule's name is historical: nothing it checks depends on the previous response being a `206 Partial Content`, and after the corrections above it does not read the status code at all."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_14_3, RFC_9110_14_2, RFC_9110_14_1, RFC_9110_15_3_7]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— the server advertised bytes and the client asks in bytes"),
-                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nGET /resource HTTP/1.1\nRange: bytes=0-499",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "— a client MAY generate range requests regardless of having received the field",
-                ),
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\n\nGET /resource HTTP/1.1\nRange: bytes=500-999",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— advice: the server advised against range requests on this path"),
-                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: none\n\nGET /resource HTTP/1.1\nRange: bytes=0-499",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— advice: a unit the previous response did not advertise"),
-                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nGET /resource HTTP/1.1\nRange: pages=1-2",
-            },
-        ]
     }
 }
 
@@ -445,7 +447,7 @@ mod tests {
     /// example here is a previous response followed by the request it advises.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
 
         let mut saw_a_finding = false;
         for ex in AcceptRangesOnPartialContent.examples() {
@@ -507,7 +509,7 @@ mod tests {
     /// published value goes past the code that owns its syntax.
     #[test]
     fn published_examples_hold_values_their_owners_accept() {
-        use crate::rules::Rule as _;
+        use crate::rules::RuleMeta as _;
 
         for ex in AcceptRangesOnPartialContent.examples() {
             for line in ex.snippet.lines() {

@@ -53,7 +53,7 @@
 // cite(RFC 8297 § 2): "However, there might be cases when this is not desirable, such as when the server learns that the header fields in the 103 (Early Hints) response are not correct before the final response is sent."
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Report a `103 (Early Hints)` recorded as a request's response.
 pub struct Status103EarlyHintsBeforeFinal;
@@ -86,11 +86,46 @@ const RFC_8297_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Why an interim response recorded as the answer is worth reporting rather than shrugging at: the document's Security Considerations are about a recipient mishandling an informational response as a final one",
 };
 
-impl Rule for Status103EarlyHintsBeforeFinal {
+impl RuleMeta for Status103EarlyHintsBeforeFinal {
     fn id(&self) -> &'static str {
         "status_103_early_hints_before_final"
     }
 
+    fn description(&self) -> &'static str {
+        "A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single request zero or more interim responses \"followed by exactly one final response\", and RFC 8297 §2 defines the status as telling the client that a final response is still likely to come. This rule reports a capture in which the response recorded for a request **is** the `103` — an exchange whose final response is not in the capture, or an interim response that some recipient took for the final one (RFC 8297 §3 describes exactly that mishandling). It also reports a `103` answering an HTTP/1.0 request, which RFC 9110 §15.2 makes a MUST NOT because HTTP/1.0 defined no `1xx` status codes at all.\n\n**What this rule does not report, and why.** A conforming `103` followed by a final response is not a defect and is not visible either: a transaction in this capture format has one response field, so a `103` and the final response for the same request are never both recorded. The check this rule used to make — a `103` for a client and target whose *previous* transaction had ended in a final response — was therefore not about RFC 9110 §15's requirement at all. Two transactions are two requests, and a repeat request to a URI answered with a `103` is the document's ordinary case; that finding is retired.\n\n**RFC 8297 states no requirement on a server.** Its three BCP 14 requirements — two MUST NOTs and a SHOULD NOT — are addressed to the client and concern what it does with the fields, which no captured message states. Its two server sentences are MAYs: a `103` may carry only some of the fields expected in the final response, and a server may emit several of them. Comparing a `103`'s fields against a final response's is declined at the source, since §2 calls the repetition typical and then names cases where omitting it is right.\n\n**Where a `103` in a capture comes from.** On the HTTP/1.x and HTTP/2 upstream legs this proxy discards interim responses before recording anything — hyper's HTTP/1.x client skips `100` and `102..=199` outright, and its HTTP/2 client reads `h2`'s main response, which steps over interim headers. The HTTP/3 leg does not: `h3`'s `recv_response` returns the first HEADERS frame whatever its status, so a `103` from an HTTP/3 origin becomes the recorded response. That leg and `lint` over capture files written elsewhere are where this rule's findings live."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_15, RFC_9110_15_2, RFC_8297_2, RFC_8297_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "— the response recorded for the request is the final one; a 103 that preceded it is not something this capture format holds",
+                ),
+                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK\n< Content-Type: text/html; charset=utf-8\n< Link: </static/style.css>; rel=preload; as=style",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "— the interim response is what the capture records as this request's answer, and no final response follows it",
+                ),
+                snippet: "> GET /resource HTTP/1.1\n\n< 103 Early Hints\n< Link: </static/style.css>; rel=preload; as=style",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— HTTP/1.0 defined no 1xx status codes, so this one may not be sent at all"),
+                snippet: "> GET /resource HTTP/1.0\n\n< 103 Early Hints\n< Link: </static/style.css>; rel=preload; as=style",
+            },
+        ]
+    }
+}
+
+impl Rule for Status103EarlyHintsBeforeFinal {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -162,39 +197,6 @@ impl Rule for Status103EarlyHintsBeforeFinal {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "A `103 (Early Hints)` response is *interim*: RFC 9110 §15 gives a single request zero or more interim responses \"followed by exactly one final response\", and RFC 8297 §2 defines the status as telling the client that a final response is still likely to come. This rule reports a capture in which the response recorded for a request **is** the `103` — an exchange whose final response is not in the capture, or an interim response that some recipient took for the final one (RFC 8297 §3 describes exactly that mishandling). It also reports a `103` answering an HTTP/1.0 request, which RFC 9110 §15.2 makes a MUST NOT because HTTP/1.0 defined no `1xx` status codes at all.\n\n**What this rule does not report, and why.** A conforming `103` followed by a final response is not a defect and is not visible either: a transaction in this capture format has one response field, so a `103` and the final response for the same request are never both recorded. The check this rule used to make — a `103` for a client and target whose *previous* transaction had ended in a final response — was therefore not about RFC 9110 §15's requirement at all. Two transactions are two requests, and a repeat request to a URI answered with a `103` is the document's ordinary case; that finding is retired.\n\n**RFC 8297 states no requirement on a server.** Its three BCP 14 requirements — two MUST NOTs and a SHOULD NOT — are addressed to the client and concern what it does with the fields, which no captured message states. Its two server sentences are MAYs: a `103` may carry only some of the fields expected in the final response, and a server may emit several of them. Comparing a `103`'s fields against a final response's is declined at the source, since §2 calls the repetition typical and then names cases where omitting it is right.\n\n**Where a `103` in a capture comes from.** On the HTTP/1.x and HTTP/2 upstream legs this proxy discards interim responses before recording anything — hyper's HTTP/1.x client skips `100` and `102..=199` outright, and its HTTP/2 client reads `h2`'s main response, which steps over interim headers. The HTTP/3 leg does not: `h3`'s `recv_response` returns the first HEADERS frame whatever its status, so a `103` from an HTTP/3 origin becomes the recorded response. That leg and `lint` over capture files written elsewhere are where this rule's findings live."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_15, RFC_9110_15_2, RFC_8297_2, RFC_8297_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "— the response recorded for the request is the final one; a 103 that preceded it is not something this capture format holds",
-                ),
-                snippet: "> GET /resource HTTP/1.1\n\n< 200 OK\n< Content-Type: text/html; charset=utf-8\n< Link: </static/style.css>; rel=preload; as=style",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some(
-                    "— the interim response is what the capture records as this request's answer, and no final response follows it",
-                ),
-                snippet: "> GET /resource HTTP/1.1\n\n< 103 Early Hints\n< Link: </static/style.css>; rel=preload; as=style",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— HTTP/1.0 defined no 1xx status codes, so this one may not be sent at all"),
-                snippet: "> GET /resource HTTP/1.0\n\n< 103 Early Hints\n< Link: </static/style.css>; rel=preload; as=style",
-            },
-        ]
     }
 }
 

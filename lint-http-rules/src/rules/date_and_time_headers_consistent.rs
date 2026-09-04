@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Validate Date, Last-Modified, If-Modified-Since and Sunset header consistency and formats.
 pub struct DateAndTimeHeadersConsistent;
@@ -212,11 +212,41 @@ impl DateAndTimeHeadersConsistent {
     }
 }
 
-impl Rule for DateAndTimeHeadersConsistent {
+impl RuleMeta for DateAndTimeHeadersConsistent {
     fn id(&self) -> &'static str {
         "date_and_time_headers_consistent"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Date and Time Headers Consistency")
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. Values that are not a parseable HTTP-date, or that contain non-UTF8 bytes, are flagged."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_6_6_1, RFC_9110_8_8_2, RFC_9110_13_1_3, RFC_8594_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nLast-Modified: Wed, 21 Oct 2015 07:20:00 GMT\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nLast-Modified: Wed, 21 Oct 2015 07:30:00 GMT  # Last-Modified after Date\nSunset: Wed, 21 Oct 2015 07:27:00 GMT        # Sunset is in the past relative to Date",
+            },
+        ]
+    }
+}
+
+impl Rule for DateAndTimeHeadersConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -275,34 +305,6 @@ impl Rule for DateAndTimeHeadersConsistent {
             self.if_modified_since_not_after_date(&tx.request.headers, skew, severity)
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Date and Time Headers Consistency")
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. Values that are not a parseable HTTP-date, or that contain non-UTF8 bytes, are flagged."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_6_6_1, RFC_9110_8_8_2, RFC_9110_13_1_3, RFC_8594_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nLast-Modified: Wed, 21 Oct 2015 07:20:00 GMT\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2015 07:28:00 GMT\nLast-Modified: Wed, 21 Oct 2015 07:30:00 GMT  # Last-Modified after Date\nSunset: Wed, 21 Oct 2015 07:27:00 GMT        # Sunset is in the past relative to Date",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CompressionAndTransferEncodingConsistent;
 
@@ -47,11 +47,59 @@ const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The `transfer-coding` grammar, including the quoted-string a parameter may carry — why that field's split is quote-aware",
 };
 
-impl Rule for CompressionAndTransferEncodingConsistent {
+impl RuleMeta for CompressionAndTransferEncodingConsistent {
     fn id(&self) -> &'static str {
         "compression_and_transfer_encoding_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "Flags a message that names the same coding in both `Content-Encoding` and `Transfer-Encoding` — for example `Content-Encoding: gzip` alongside `Transfer-Encoding: gzip, chunked`. Both directions are checked, and the finding names the side it describes.\n\n**This is advisory, and no sentence forbids it.** The two fields address different layers, which both specifications say in mirrored sentences: RFC 9112 §6.1, \"Unlike Content-Encoding …, Transfer-Encoding is a property of the message, not of the representation\"; RFC 9110 §8.4, \"Unlike Transfer-Encoding …, the codings listed in Content-Encoding are a characteristic of the representation\". Naming a coding at both layers means the representation is compressed and then compressed *again* in transit. That is decodable, not malformed — RFC 9112 §7.3 guarantees a transfer coding and a content coding sharing a name are \"identical\" transformations, and RFC 9110 §8.4 contemplates a coding \"applied a second time\" outright, remarking only that it would take \"some bizarre reason\". The finding says the message is almost certainly not what its sender meant; it does not say the message breaks a rule.\n\n**What it does not do.** It makes no claim about the *body*: nothing here decodes anything or checks that the codings were really applied. `Content-Encoding` is taken at its word, which RFC 9110 §8.4 licenses — a sender that applied encodings \"MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied\".\n\n**Parsing.** The two fields are split by their own grammars: `content-coding` is a bare `token`, so every comma separates; `transfer-coding` carries parameters whose values may be quoted-strings, so that split respects quoting. Names are compared case-insensitively, as both specifications define them to be, and values are decoded from raw octets so that one bad byte cannot hide the names beside it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_8_4,
+            RFC_9110_8_4_1,
+            RFC_9112_6_1,
+            RFC_9112_7_2,
+            RFC_9112_7_3,
+            RFC_9110_10_1_4,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: chunked\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(transfer-level gzip without Content-Encoding)"),
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip, chunked\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(different codings at each layer)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Encoding: br\nTransfer-Encoding: gzip, chunked\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the same coding at both layers)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: gzip, chunked\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a request codes its body twice)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Encoding: gzip\nTransfer-Encoding: gzip, chunked\n",
+            },
+        ]
+    }
+}
+
+impl Rule for CompressionAndTransferEncodingConsistent {
     /// `Both`, because both fields are defined for both directions and the
     /// observation this rule makes is about two *layers*, not two roles. It was
     /// `Server`, which in this engine means "skip when there is no response" --
@@ -213,52 +261,6 @@ impl Rule for CompressionAndTransferEncodingConsistent {
 
         out
     }
-
-    fn description(&self) -> &'static str {
-        "Flags a message that names the same coding in both `Content-Encoding` and `Transfer-Encoding` — for example `Content-Encoding: gzip` alongside `Transfer-Encoding: gzip, chunked`. Both directions are checked, and the finding names the side it describes.\n\n**This is advisory, and no sentence forbids it.** The two fields address different layers, which both specifications say in mirrored sentences: RFC 9112 §6.1, \"Unlike Content-Encoding …, Transfer-Encoding is a property of the message, not of the representation\"; RFC 9110 §8.4, \"Unlike Transfer-Encoding …, the codings listed in Content-Encoding are a characteristic of the representation\". Naming a coding at both layers means the representation is compressed and then compressed *again* in transit. That is decodable, not malformed — RFC 9112 §7.3 guarantees a transfer coding and a content coding sharing a name are \"identical\" transformations, and RFC 9110 §8.4 contemplates a coding \"applied a second time\" outright, remarking only that it would take \"some bizarre reason\". The finding says the message is almost certainly not what its sender meant; it does not say the message breaks a rule.\n\n**What it does not do.** It makes no claim about the *body*: nothing here decodes anything or checks that the codings were really applied. `Content-Encoding` is taken at its word, which RFC 9110 §8.4 licenses — a sender that applied encodings \"MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied\".\n\n**Parsing.** The two fields are split by their own grammars: `content-coding` is a bare `token`, so every comma separates; `transfer-coding` carries parameters whose values may be quoted-strings, so that split respects quoting. Names are compared case-insensitively, as both specifications define them to be, and values are decoded from raw octets so that one bad byte cannot hide the names beside it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_8_4,
-            RFC_9110_8_4_1,
-            RFC_9112_6_1,
-            RFC_9112_7_2,
-            RFC_9112_7_3,
-            RFC_9110_10_1_4,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: chunked\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(transfer-level gzip without Content-Encoding)"),
-                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip, chunked\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(different codings at each layer)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Encoding: br\nTransfer-Encoding: gzip, chunked\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(the same coding at both layers)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip\nTransfer-Encoding: gzip, chunked\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a request codes its body twice)"),
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nContent-Encoding: gzip\nTransfer-Encoding: gzip, chunked\n",
-            },
-        ]
-    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -397,7 +399,7 @@ mod tests {
     /// could have parsed them even if something had tried.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = CompressionAndTransferEncodingConsistent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 

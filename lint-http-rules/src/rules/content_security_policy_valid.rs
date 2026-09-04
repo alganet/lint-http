@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Basic Content-Security-Policy validation focusing on directive name syntax,
 /// minimal value sanity checks (quoted keywords and simple hash/nonce forms),
@@ -181,11 +181,52 @@ impl ContentSecurityPolicyValid {
     }
 }
 
-impl Rule for ContentSecurityPolicyValid {
+impl RuleMeta for ContentSecurityPolicyValid {
     fn id(&self) -> &'static str {
         "content_security_policy_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate basic `Content-Security-Policy` syntax in responses. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow CSP's `directive-name = 1*( ALPHA / DIGIT / \"-\" )` grammar — narrower than the HTTP `token`), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).\n\nThis rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[CSP3, MDN_CONTENT_SECURITY_POLICY]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self'; script-src 'nonce-abc123' https://example.com; upgrade-insecure-requests",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: def@ult-src 'self'",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self';",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentSecurityPolicyValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -228,45 +269,6 @@ impl Rule for ContentSecurityPolicyValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate basic `Content-Security-Policy` syntax in responses. This rule checks that the header value is UTF-8, not empty, directives are present and well-formed (directive names follow CSP's `directive-name = 1*( ALPHA / DIGIT / \"-\" )` grammar — narrower than the HTTP `token`), and common structural issues are flagged (unterminated single-quoted keywords, empty directives due to trailing semicolons, empty nonces/hashes).\n\nThis rule is intentionally conservative: it is not a full CSP grammar validator, but catches common, obvious mistakes and misconfigurations."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[CSP3, MDN_CONTENT_SECURITY_POLICY]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self'; script-src 'nonce-abc123' https://example.com; upgrade-insecure-requests",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy:",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: def@ult-src 'self'",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self';",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Security-Policy: default-src 'self",
-            },
-        ]
     }
 }
 

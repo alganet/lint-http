@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// `If-Unmodified-Since` (RFC 9110 §13.1.4) is defined as an HTTP-date; a sender must
 /// generate it as an IMF-fixdate (§5.6.7). This checks the sender's obligation.
@@ -19,11 +19,47 @@ const RFC_9110_13_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "If-Unmodified-Since header",
 };
 
-impl Rule for IfUnmodifiedSinceDateSyntax {
+impl RuleMeta for IfUnmodifiedSinceDateSyntax {
     fn id(&self) -> &'static str {
         "if_unmodified_since_date_syntax"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message If-Unmodified-Since Date Format")
+    }
+
+    fn description(&self) -> &'static str {
+        "The `If-Unmodified-Since` request header is defined as an HTTP-date, and a sender MUST generate it in the IMF-fixdate format. This rule flags values that are not a valid IMF-fixdate — including the two obsolete formats, which a recipient must still accept but no sender may emit — or that contain non-UTF8 bytes."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_13_1_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet:
+                    "GET /resource HTTP/1.1\nIf-Unmodified-Since: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nIf-Unmodified-Since: not-a-date",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nIf-Unmodified-Since: \\xff",
+            },
+        ]
+    }
+}
+
+impl Rule for IfUnmodifiedSinceDateSyntax {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -80,40 +116,6 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message If-Unmodified-Since Date Format")
-    }
-
-    fn description(&self) -> &'static str {
-        "The `If-Unmodified-Since` request header is defined as an HTTP-date, and a sender MUST generate it in the IMF-fixdate format. This rule flags values that are not a valid IMF-fixdate — including the two obsolete formats, which a recipient must still accept but no sender may emit — or that contain non-UTF8 bytes."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_13_1_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet:
-                    "GET /resource HTTP/1.1\nIf-Unmodified-Since: Wed, 21 Oct 2015 07:28:00 GMT",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nIf-Unmodified-Since: not-a-date",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nIf-Unmodified-Since: \\xff",
-            },
-        ]
     }
 }
 

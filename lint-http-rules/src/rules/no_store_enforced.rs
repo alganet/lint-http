@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure that responses marked `no-store` are never reused for later
 /// conditional requests.  The `no-store` directive (RFC 9111 §5.2.2.5) tells
@@ -47,11 +47,51 @@ const RFC_9111_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Validation (conditional requests carry the validators this rule tracks)",
 };
 
-impl Rule for NoStoreEnforced {
+impl RuleMeta for NoStoreEnforced {
     fn id(&self) -> &'static str {
         "no_store_enforced"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Stateful no-store enforcement")
+    }
+
+    fn description(&self) -> &'static str {
+        "The `no-store` cache-control directive (RFC 9111 §5.2.2.5) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.\n\nThis stateful rule observes the history of a particular client+resource and remembers which validator values (ETag or Last-Modified) were seen on responses that carried `Cache-Control: no-store`.  Only the most recent occurrence of each validator is kept; if the same value later appears on a non‑`no-store` response it is no longer considered forbidden.  When the current request carries a conditional header whose value matches one of those \"no-store\" validators, we infer that the response must have been stored at some point, and a violation is reported.\n\nThe check is scoped to resource histories (the engine filters transactions by URI) and therefore does not attempt to reason about unrelated traffic.  The rule does not flag unconditional requests, nor does it attempt to detect improper storage of requests (which is rarely visible from traffic capture)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_5_2_2_5, RFC_9111_4_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— no reuse"),
+                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"a\"\n\n# later the client issues a fresh request with no conditional headers;\n# since there is nothing to compare the rule does not fire.\n> GET /foo HTTP/1.1\n> Host: example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— validator later refreshed without no-store"),
+                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"a\"\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n< ETag: \"a\"\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-None-Match: \"a\"    # this value now comes from a cacheable response",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— conditional request referencing a no-store response"),
+                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"x\"\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-None-Match: \"x\"    # validator derived from a no-store entry",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— conditional request referencing a no-store response"),
+                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+        ]
+    }
+}
+
+impl Rule for NoStoreEnforced {
     fn scope(&self) -> crate::rules::RuleScope {
         // examine both requests and previous responses for the resource
         crate::rules::RuleScope::Both
@@ -166,44 +206,6 @@ impl Rule for NoStoreEnforced {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Stateful no-store enforcement")
-    }
-
-    fn description(&self) -> &'static str {
-        "The `no-store` cache-control directive (RFC 9111 §5.2.2.5) tells caches that **they must not retain any part of the response or request**.  A cache that breaks this rule may later reuse stale or private data inappropriately.\n\nThis stateful rule observes the history of a particular client+resource and remembers which validator values (ETag or Last-Modified) were seen on responses that carried `Cache-Control: no-store`.  Only the most recent occurrence of each validator is kept; if the same value later appears on a non‑`no-store` response it is no longer considered forbidden.  When the current request carries a conditional header whose value matches one of those \"no-store\" validators, we infer that the response must have been stored at some point, and a violation is reported.\n\nThe check is scoped to resource histories (the engine filters transactions by URI) and therefore does not attempt to reason about unrelated traffic.  The rule does not flag unconditional requests, nor does it attempt to detect improper storage of requests (which is rarely visible from traffic capture)."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2_2_5, RFC_9111_4_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— no reuse"),
-                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"a\"\n\n# later the client issues a fresh request with no conditional headers;\n# since there is nothing to compare the rule does not fire.\n> GET /foo HTTP/1.1\n> Host: example.com",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— validator later refreshed without no-store"),
-                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"a\"\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=60\n< ETag: \"a\"\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-None-Match: \"a\"    # this value now comes from a cacheable response",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— conditional request referencing a no-store response"),
-                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< ETag: \"x\"\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-None-Match: \"x\"    # validator derived from a no-store entry",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— conditional request referencing a no-store response"),
-                snippet: "< HTTP/1.1 200 OK\n< Cache-Control: no-store\n< Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> If-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT",
-            },
-        ]
     }
 }
 

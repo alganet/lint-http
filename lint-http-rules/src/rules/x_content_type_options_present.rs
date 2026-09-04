@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct XContentTypeOptionsPresent;
 
@@ -73,13 +73,9 @@ const MDN_X_CONTENT_TYPE_OPTIONS: crate::rules::SpecRef = crate::rules::SpecRef 
     note: "Web Docs: X-Content-Type-Options",
 };
 
-impl Rule for XContentTypeOptionsPresent {
+impl RuleMeta for XContentTypeOptionsPresent {
     fn id(&self) -> &'static str {
         "x_content_type_options_present"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -91,6 +87,40 @@ impl Rule for XContentTypeOptionsPresent {
             severity: config.severity,
             state: Box::new(config),
         })
+    }
+
+    fn title(&self) -> Option<&'static str> {
+        Some("Server X-Content-Type-Options")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks if responses include the `X-Content-Type-Options: nosniff` header.\n\nThis security header prevents browsers from \"MIME-sniffing\" a response away from the declared `Content-Type`. This reduces exposure to drive-by download attacks and cross-site scripting (XSS) vulnerabilities where a browser might execute a file as HTML/JavaScript even if the server served it as an image or text.\n\nA header that is present but whose first value is not `nosniff` (matched case-insensitively, per the Fetch standard's determine-nosniff algorithm) is also flagged: it does not enable the protection."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[FETCH_3_6, MDN_X_CONTENT_TYPE_OPTIONS]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript\nX-Content-Type-Options: nosniff",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript\n# Missing X-Content-Type-Options header",
+            },
+        ]
+    }
+}
+
+impl Rule for XContentTypeOptionsPresent {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
     }
 
     fn findings(
@@ -156,34 +186,6 @@ impl Rule for XContentTypeOptionsPresent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server X-Content-Type-Options")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks if responses include the `X-Content-Type-Options: nosniff` header.\n\nThis security header prevents browsers from \"MIME-sniffing\" a response away from the declared `Content-Type`. This reduces exposure to drive-by download attacks and cross-site scripting (XSS) vulnerabilities where a browser might execute a file as HTML/JavaScript even if the server served it as an image or text.\n\nA header that is present but whose first value is not `nosniff` (matched case-insensitively, per the Fetch standard's determine-nosniff algorithm) is also flagged: it does not enable the protection."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_3_6, MDN_X_CONTENT_TYPE_OPTIONS]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript\nX-Content-Type-Options: nosniff",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: text/javascript\n# Missing X-Content-Type-Options header",
-            },
-        ]
     }
 }
 

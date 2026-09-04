@@ -7,7 +7,7 @@ use crate::helpers::headers::combined_field_value_octets;
 use crate::helpers::shown::describe_octet;
 use crate::helpers::token::is_tchar_byte;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ViaHeaderSyntax;
 
@@ -66,43 +66,9 @@ const RFC_3986_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
            with no range and no minimum digit count",
 };
 
-impl Rule for ViaHeaderSyntax {
+impl RuleMeta for ViaHeaderSyntax {
     fn id(&self) -> &'static str {
         "via_header_syntax"
-    }
-
-    /// A `Via` travels in both directions, and the field's first sentence is
-    /// what says so: the chain it records runs toward the server on a request
-    /// and back toward the client on a response.
-    // cite(RFC 9110 § 7.6.3): "The "Via" header field indicates the presence of intermediate protocols and recipients between the user agent and the server (on requests) or between the origin server and the client (on responses)"
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
-            if let Some(err) = judge(&tx.request.headers, "Request") {
-                return Some(self.cited(&RFC_9110_7_6_3, ctx.severity, err));
-            }
-
-            // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
-            if let Some(resp) = &tx.response {
-                if let Some(err) = judge(&resp.headers, "Response") {
-                    return Some(self.cited(&RFC_9110_7_6_3, ctx.severity, err));
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -188,6 +154,42 @@ impl Rule for ViaHeaderSyntax {
                 snippet: "GET /index.html HTTP/1.1\nVia: 1.1 [2001:db8::1]:8080",
             },
         ]
+    }
+}
+
+impl Rule for ViaHeaderSyntax {
+    /// A `Via` travels in both directions, and the field's first sentence is
+    /// what says so: the chain it records runs toward the server on a request
+    /// and back toward the client on a response.
+    // cite(RFC 9110 § 7.6.3): "The "Via" header field indicates the presence of intermediate protocols and recipients between the user agent and the server (on requests) or between the origin server and the client (on responses)"
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // cite(RFC 9110 § 7.6.3): "A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards."
+            if let Some(err) = judge(&tx.request.headers, "Request") {
+                return Some(self.cited(&RFC_9110_7_6_3, ctx.severity, err));
+            }
+
+            // cite(RFC 9110 § 7.6.3): "An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages."
+            if let Some(resp) = &tx.response {
+                if let Some(err) = judge(&resp.headers, "Response") {
+                    return Some(self.cited(&RFC_9110_7_6_3, ctx.severity, err));
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 

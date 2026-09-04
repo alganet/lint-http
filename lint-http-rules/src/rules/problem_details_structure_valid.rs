@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ProblemDetailsStructureValid;
 
@@ -74,11 +74,47 @@ const RFC_8259_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "What a JSON text is — the measure for content that is empty or does not parse; §8.1 adds the UTF-8 requirement the parser also enforces",
 };
 
-impl Rule for ProblemDetailsStructureValid {
+impl RuleMeta for ProblemDetailsStructureValid {
     fn id(&self) -> &'static str {
         "problem_details_structure_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Reports a response whose `Content-Type` is `application/problem+json` but whose content is not the problem details JSON object that media type identifies — content that is empty, that does not parse as JSON, or that parses as some other JSON value (an array, a string, a number). RFC 9457 defines the format; it obsoletes RFC 7807.\n\n**Any status code.** RFC 9457 says problem details \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.\n\n**An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with \"can have\", §3.1.1 says that when `type` is absent \"its value is assumed to be `about:blank`\", and §4.2.1 confirms that \"any problem details object not carrying an explicit `type` member implicitly uses this URI\" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.\n\n**What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being \"in a format and encoding defined by the representation metadata header fields\", §8.3 says the indicated media type \"defines both the data format and how that data is intended to be processed by a recipient\", and the same section calls a server that does otherwise one that has not been configured \"to provide the correct Content-Type for a given representation\". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.\n\n**Limits.** Only the JSON serialization is checked: RFC 9457 defines an equivalent XML format (`application/problem+xml`) in Appendix B, and measuring an XML document against it needs a parser this crate does not have. A `Content-Encoding` means the captured octets are the coded form, so they are not parsed as JSON — the emptiness checks still apply, since a coded representation of nothing is still nothing. Two `Content-Type` field lines are declined: `Content-Type` is a singleton, recipients often act on the last member, and `content_type_valid` reports the duplication. A response carrying no `Content-Type` at all is `content_type_present`'s finding, and an unparseable one is `content_type_valid`'s.\n\nCaptured bodies are available to rules in memory; the `captures_include_body` setting only controls whether bodies are persisted to the captures file. A body captured as a truncated prefix is not parsed. Where no bytes are available — a transaction read back from a capture file — the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9457_3, RFC_9457_4_2_1, RFC_9110_8_1, RFC_8259_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("a problem details object"),
+                snippet: "HTTP/1.1 403 Forbidden\nContent-Type: application/problem+json\nContent-Length: 70\n\n{\"type\":\"https://example.com/probs/out-of-credit\",\"title\":\"No credit\"}",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("no member is required — this one means \"about:blank\""),
+                snippet: "HTTP/1.1 404 Not Found\nContent-Type: application/problem+json\nContent-Length: 2\n\n{}",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("the media type says JSON; the content is not a JSON document"),
+                snippet: "HTTP/1.1 500 Internal Server Error\nContent-Type: application/problem+json\nContent-Length: 21\n\nInternal Server Error",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("well-formed JSON, but not the object the media type names"),
+                snippet: "HTTP/1.1 422 Unprocessable Content\nContent-Type: application/problem+json\nContent-Length: 41\n\n[{\"detail\":\"must be a positive integer\"}]",
+            },
+        ]
+    }
+}
+
+impl Rule for ProblemDetailsStructureValid {
     // No sentence scopes this rule to responses. RFC 9457 describes problem
     // details only as content conveyed in a response and gives no meaning to a
     // request carrying the media type, so there is nothing here to measure such
@@ -226,40 +262,6 @@ impl Rule for ProblemDetailsStructureValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a response whose `Content-Type` is `application/problem+json` but whose content is not the problem details JSON object that media type identifies — content that is empty, that does not parse as JSON, or that parses as some other JSON value (an array, a string, a number). RFC 9457 defines the format; it obsoletes RFC 7807.\n\n**Any status code.** RFC 9457 says problem details \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\". Whether they *suit* a status is `problem_details_content_type`'s question; this rule's is whether content labelled as problem details is problem details, and that question reads the same on a 200 as on a 500.\n\n**An empty JSON object is conforming and is not reported.** Every member is optional: §3.1 introduces them with \"can have\", §3.1.1 says that when `type` is absent \"its value is assumed to be `about:blank`\", and §4.2.1 confirms that \"any problem details object not carrying an explicit `type` member implicitly uses this URI\" — the registered type meaning the problem has no semantics beyond the status code. So `{}` is a problem details object that says exactly that.\n\n**What the finding rests on.** No RFC states a MUST that content match its `Content-Type`. RFC 9110 §8.1 defines representation data as being \"in a format and encoding defined by the representation metadata header fields\", §8.3 says the indicated media type \"defines both the data format and how that data is intended to be processed by a recipient\", and the same section calls a server that does otherwise one that has not been configured \"to provide the correct Content-Type for a given representation\". A finding is a contradiction between two things the message itself states, not a matter of taste — but it is definitional in origin, not a stated requirement.\n\n**Limits.** Only the JSON serialization is checked: RFC 9457 defines an equivalent XML format (`application/problem+xml`) in Appendix B, and measuring an XML document against it needs a parser this crate does not have. A `Content-Encoding` means the captured octets are the coded form, so they are not parsed as JSON — the emptiness checks still apply, since a coded representation of nothing is still nothing. Two `Content-Type` field lines are declined: `Content-Type` is a singleton, recipients often act on the last member, and `content_type_valid` reports the duplication. A response carrying no `Content-Type` at all is `content_type_present`'s finding, and an unparseable one is `content_type_valid`'s.\n\nCaptured bodies are available to rules in memory; the `captures_include_body` setting only controls whether bodies are persisted to the captures file. A body captured as a truncated prefix is not parsed. Where no bytes are available — a transaction read back from a capture file — the emptiness half of the question is still answered from the counted octets, or failing that from a declared `Content-Length` of zero, which is evidence only when no `Transfer-Encoding` overrides it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9457_3, RFC_9457_4_2_1, RFC_9110_8_1, RFC_8259_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("a problem details object"),
-                snippet: "HTTP/1.1 403 Forbidden\nContent-Type: application/problem+json\nContent-Length: 70\n\n{\"type\":\"https://example.com/probs/out-of-credit\",\"title\":\"No credit\"}",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("no member is required — this one means \"about:blank\""),
-                snippet: "HTTP/1.1 404 Not Found\nContent-Type: application/problem+json\nContent-Length: 2\n\n{}",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("the media type says JSON; the content is not a JSON document"),
-                snippet: "HTTP/1.1 500 Internal Server Error\nContent-Type: application/problem+json\nContent-Length: 21\n\nInternal Server Error",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("well-formed JSON, but not the object the media type names"),
-                snippet: "HTTP/1.1 422 Unprocessable Content\nContent-Type: application/problem+json\nContent-Length: 41\n\n[{\"detail\":\"must be a positive integer\"}]",
-            },
-        ]
     }
 }
 
@@ -510,7 +512,7 @@ mod tests {
     /// the input under test.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = ProblemDetailsStructureValid;
         let mut saw_a_finding = false;
 

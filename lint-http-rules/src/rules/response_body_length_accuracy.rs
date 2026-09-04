@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ResponseBodyLengthAccuracy;
 
@@ -35,11 +35,52 @@ const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HEAD — servers SHOULD answer it with the fields they would have sent for GET, which is what made the exemption the common case rather than a corner",
 };
 
-impl Rule for ResponseBodyLengthAccuracy {
+impl RuleMeta for ResponseBodyLengthAccuracy {
     fn id(&self) -> &'static str {
         "response_body_length_accuracy"
     }
 
+    fn description(&self) -> &'static str {
+        "Checks that a response's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that value the framing — \"necessary for determining where the data (and message) ends\" — and RFC 9110 §8.6 says why a proxy in particular must care: \"a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect\". A length that disagrees with the framing is how response splitting reaches the next hop.\n\n**RFC 9112 §6.3 lists eight ways a body length is determined, in precedence order, and this rule is item 6.** The items above it are the reason most of what follows is an exemption rather than a check:\n\n- *Item 1* — a response to `HEAD`, and any `1xx`, `204` or `304`, ends at the blank line \"regardless of the header fields present\". Its `Content-Length` describes a body that was deliberately not sent: §8.6 requires, in a MUST, that a HEAD response's value equal what a `GET` would have returned, and a 304's equal what a `200` would have. Comparing either against zero captured octets reports a conforming response, so these are not measured here. Whether the value matches what a GET *would* have returned needs two transactions; `head_response_headers_match_get` has them. What item 1 *does* say about these is checkable and is checked: there must be no body at all, so a `204` that answered with content is reported for the body's existence rather than for any mismatch. Nothing else looks — the rule covering these statuses reads the header fields that advertise a body, not the body.\n- *Item 2* — a `2xx` to `CONNECT` becomes a tunnel, and a client \"MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message\".\n- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n- *Item 8* — a response with no declared length is close-delimited; there is nothing to compare.\n\n**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.\n\n**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9112_6_3, RFC_9110_8_6, RFC_9112_6_2, RFC_9110_9_3_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a HEAD response declares what a GET would have returned)"),
+                snippet: "HEAD /large.iso HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 1048576\n\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(304 declares what a 200 would have returned)"),
+                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 304 Not Modified\nContent-Length: 1024\n\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(Transfer-Encoding overrides, so nothing here is measured)"),
+                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 10\nTransfer-Encoding: chunked\n\nabc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the response is incomplete, and must not be forwarded)"),
+                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 10\n\nabc",
+            },
+        ]
+    }
+}
+
+impl Rule for ResponseBodyLengthAccuracy {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -190,45 +231,6 @@ impl Rule for ResponseBodyLengthAccuracy {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Checks that a response's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that value the framing — \"necessary for determining where the data (and message) ends\" — and RFC 9110 §8.6 says why a proxy in particular must care: \"a sender MUST NOT forward a message with a Content-Length header field value that is known to be incorrect\". A length that disagrees with the framing is how response splitting reaches the next hop.\n\n**RFC 9112 §6.3 lists eight ways a body length is determined, in precedence order, and this rule is item 6.** The items above it are the reason most of what follows is an exemption rather than a check:\n\n- *Item 1* — a response to `HEAD`, and any `1xx`, `204` or `304`, ends at the blank line \"regardless of the header fields present\". Its `Content-Length` describes a body that was deliberately not sent: §8.6 requires, in a MUST, that a HEAD response's value equal what a `GET` would have returned, and a 304's equal what a `200` would have. Comparing either against zero captured octets reports a conforming response, so these are not measured here. Whether the value matches what a GET *would* have returned needs two transactions; `head_response_headers_match_get` has them. What item 1 *does* say about these is checkable and is checked: there must be no body at all, so a `204` that answered with content is reported for the body's existence rather than for any mismatch. Nothing else looks — the rule covering these statuses reads the header fields that advertise a body, not the body.\n- *Item 2* — a `2xx` to `CONNECT` becomes a tunnel, and a client \"MUST ignore any Content-Length or Transfer-Encoding header fields received in such a message\".\n- *Item 3* — when `Transfer-Encoding` is also present it overrides, so the declared length is disregarded. Carrying both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n- *Item 8* — a response with no declared length is close-delimited; there is nothing to compare.\n\n**Syntax belongs to another rule.** A value that is not `1*DIGIT`, or whose field lines disagree, leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule also implements §6.3's allowance for `Content-Length: 42, 42` — a comma list of equal values is one value, not a malformed field.\n\n**What the comparison is against.** The recorded length counts octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts. Where no body was captured, nothing is claimed."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9112_6_3, RFC_9110_8_6, RFC_9112_6_2, RFC_9110_9_3_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 3\n\nabc",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a HEAD response declares what a GET would have returned)"),
-                snippet: "HEAD /large.iso HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 1048576\n\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(304 declares what a 200 would have returned)"),
-                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 304 Not Modified\nContent-Length: 1024\n\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(Transfer-Encoding overrides, so nothing here is measured)"),
-                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 10\nTransfer-Encoding: chunked\n\nabc",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(the response is incomplete, and must not be forwarded)"),
-                snippet: "GET /x HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 10\n\nabc",
-            },
-        ]
     }
 }
 
@@ -407,7 +409,7 @@ mod tests {
     /// example that does not say it is a HEAD cannot illustrate anything.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = ResponseBodyLengthAccuracy;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 

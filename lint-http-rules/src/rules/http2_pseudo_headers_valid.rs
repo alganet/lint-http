@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct Http2PseudoHeadersValid;
 
@@ -176,11 +176,85 @@ const RFC_6335_6: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Port Number Ranges — the 16-bit namespace that bounds a CONNECT port above, and the reserved edge values that are why `0` is not reported",
 };
 
-impl Rule for Http2PseudoHeadersValid {
+impl RuleMeta for Http2PseudoHeadersValid {
     fn id(&self) -> &'static str {
         "http2_pseudo_headers_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("HTTP/2 Pseudo-Headers Validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `:scheme`, `:authority` and `:path` — and this rule reads what each of them conveyed. **It runs on HTTP/2 requests only.** It had no version gate at all until this audit, so every finding below was also made of HTTP/1.1 and HTTP/3 messages, described as HTTP/2, alongside the report from whichever rule owns the question on those versions.\n\n**The fields are not in the captured field section.** A transport that carries control data as pseudo-headers hands its library a method and a target URI reassembled from `:scheme`, `:authority` and `:path`, and that is what a capture records. So each check reads the component the pseudo-header conveyed, and the checks are shaped by which of the request-target forms the reassembly produced.\n\n- **A non-CONNECT request sends exactly one `:path`.** `*` is that value for a server-wide OPTIONS request and for no other method (RFC 9110 §7.1: \"These forms MUST NOT be used with other methods\"). Otherwise a target with no path at all is reported: an `http` or `https` URI without a path component sends `/`.\n- **A basic CONNECT's `:authority` is a host and a port.** `authority-form = uri-host \":\" port` requires neither — both halves are `*`-quantified — so the prose is what asks for them: RFC 9110 §9.3.6 has no default port, requires the client to send one even when the URI reference elided it, and requires a server to reject an empty or invalid port number.\n- **A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port = *DIGIT` has none, which is why `host_header` reports no port for being out of range. It is that RFC 9113 §8.5 has the proxy open a *TCP* connection to this host and port and TCP's port namespace is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n- **The reassembled `:scheme` and `:authority` are read when the target is in absolute form**: the scheme against `scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, the authority against `uri-host [ \":\" port ]`, and — for an `http` or `https` target only, because that is how §8.3.1 writes the MUST NOT — a userinfo subcomponent. `:scheme` is deliberately not restricted to `http` and `https`, so nothing here asks whether it is a scheme anybody serves.\n\n**What this rule declines, and why.**\n\n- **Which CONNECT this is, when the target is in absolute form.** RFC 8441's extended CONNECT is marked by a `:protocol` pseudo-header, and on such a request `:scheme` and `:path` MUST be included — exactly what a basic CONNECT MUST omit. A capture records no `:protocol`, so a `CONNECT https://example.com/ws` is a conforming extended CONNECT and a malformed basic one with nothing to choose between them. It is accepted. An *origin-form* CONNECT target is reported when no `Host` field accompanies it, because that is neither CONNECT: it is a `:path` with no `:scheme` and no authority anywhere.\n- **The method token itself.** `method = token` admits no whitespace and no empty string, and a value failing it names nothing for the branches above to turn on, so the rule stops. `request_method_token_valid` reports it, on every version. The method is compared as written throughout — `connect` is not CONNECT and `options` is not OPTIONS (RFC 9110 §9.1) — where the case-folding this replaced *suppressed* findings.\n- **The characters inside the target.** Whitespace and a malformed percent-encoding triplet were both reported here and by `request_uri_percent_encoding_valid`, which reads the whole target on every version. Both duplicates are gone.\n- **Where the pseudo-headers sat, and how many there were.** RFC 9113 §8.3 requires them to precede every regular field line and forbids a repeated name. The capture holds no pseudo-header fields and no field order, so neither has a representation to check.\n- **Whether a `Host` field agrees with `:authority`.** §8.3.1 forbids a client from generating a request where they differ. `host_and_authority_consistent` asks it, of this version and of HTTP/3, and keeps the two documents apart on what comparing the values means.\n\n**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `status_code_valid_range`."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9113_8_3,
+            RFC_9113_8_3_1,
+            RFC_9113_8_3_2,
+            RFC_9113_8_5,
+            RFC_9110_9_1,
+            RFC_9110_9_3_6,
+            RFC_9110_7_1,
+            RFC_9112_3_2_3,
+            RFC_8441_4,
+            RFC_6335_6,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: ":method: GET\n:scheme: https\n:authority: example.com\n:path: /",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: ":method: OPTIONS\n:scheme: https\n:authority: example.com\n:path: *",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: ":method: CONNECT\n:authority: example.com:443",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "Extended CONNECT: :protocol is not recorded in a capture, so a CONNECT \
+                     carrying :scheme and :path is accepted",
+                ),
+                snippet: ":method: CONNECT\n:protocol: websocket\n:scheme: https\n:authority: example.com\n:path: /ws",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A non-CONNECT request with no :path"),
+                snippet: ":method: GET\n:scheme: https\n:authority: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("The asterisk is OPTIONS's :path value and no other method's"),
+                snippet: ":method: GET\n:scheme: https\n:authority: example.com\n:path: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A CONNECT has no default port, so the port is sent"),
+                snippet: ":method: CONNECT\n:authority: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("An 'https' target's authority carries no userinfo"),
+                snippet: ":method: GET\n:scheme: https\n:authority: user:pass@example.com\n:path: /",
+            },
+        ]
+    }
+}
+
+impl Rule for Http2PseudoHeadersValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -414,78 +488,6 @@ impl Rule for Http2PseudoHeadersValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("HTTP/2 Pseudo-Headers Validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `:scheme`, `:authority` and `:path` — and this rule reads what each of them conveyed. **It runs on HTTP/2 requests only.** It had no version gate at all until this audit, so every finding below was also made of HTTP/1.1 and HTTP/3 messages, described as HTTP/2, alongside the report from whichever rule owns the question on those versions.\n\n**The fields are not in the captured field section.** A transport that carries control data as pseudo-headers hands its library a method and a target URI reassembled from `:scheme`, `:authority` and `:path`, and that is what a capture records. So each check reads the component the pseudo-header conveyed, and the checks are shaped by which of the request-target forms the reassembly produced.\n\n- **A non-CONNECT request sends exactly one `:path`.** `*` is that value for a server-wide OPTIONS request and for no other method (RFC 9110 §7.1: \"These forms MUST NOT be used with other methods\"). Otherwise a target with no path at all is reported: an `http` or `https` URI without a path component sends `/`.\n- **A basic CONNECT's `:authority` is a host and a port.** `authority-form = uri-host \":\" port` requires neither — both halves are `*`-quantified — so the prose is what asks for them: RFC 9110 §9.3.6 has no default port, requires the client to send one even when the URI reference elided it, and requires a server to reject an empty or invalid port number.\n- **A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port = *DIGIT` has none, which is why `host_header` reports no port for being out of range. It is that RFC 9113 §8.5 has the proxy open a *TCP* connection to this host and port and TCP's port namespace is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n- **The reassembled `:scheme` and `:authority` are read when the target is in absolute form**: the scheme against `scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, the authority against `uri-host [ \":\" port ]`, and — for an `http` or `https` target only, because that is how §8.3.1 writes the MUST NOT — a userinfo subcomponent. `:scheme` is deliberately not restricted to `http` and `https`, so nothing here asks whether it is a scheme anybody serves.\n\n**What this rule declines, and why.**\n\n- **Which CONNECT this is, when the target is in absolute form.** RFC 8441's extended CONNECT is marked by a `:protocol` pseudo-header, and on such a request `:scheme` and `:path` MUST be included — exactly what a basic CONNECT MUST omit. A capture records no `:protocol`, so a `CONNECT https://example.com/ws` is a conforming extended CONNECT and a malformed basic one with nothing to choose between them. It is accepted. An *origin-form* CONNECT target is reported when no `Host` field accompanies it, because that is neither CONNECT: it is a `:path` with no `:scheme` and no authority anywhere.\n- **The method token itself.** `method = token` admits no whitespace and no empty string, and a value failing it names nothing for the branches above to turn on, so the rule stops. `request_method_token_valid` reports it, on every version. The method is compared as written throughout — `connect` is not CONNECT and `options` is not OPTIONS (RFC 9110 §9.1) — where the case-folding this replaced *suppressed* findings.\n- **The characters inside the target.** Whitespace and a malformed percent-encoding triplet were both reported here and by `request_uri_percent_encoding_valid`, which reads the whole target on every version. Both duplicates are gone.\n- **Where the pseudo-headers sat, and how many there were.** RFC 9113 §8.3 requires them to precede every regular field line and forbids a repeated name. The capture holds no pseudo-header fields and no field order, so neither has a representation to check.\n- **Whether a `Host` field agrees with `:authority`.** §8.3.1 forbids a client from generating a request where they differ. `host_and_authority_consistent` asks it, of this version and of HTTP/3, and keeps the two documents apart on what comparing the values means.\n\n**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `status_code_valid_range`."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9113_8_3,
-            RFC_9113_8_3_1,
-            RFC_9113_8_3_2,
-            RFC_9113_8_5,
-            RFC_9110_9_1,
-            RFC_9110_9_3_6,
-            RFC_9110_7_1,
-            RFC_9112_3_2_3,
-            RFC_8441_4,
-            RFC_6335_6,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: ":method: GET\n:scheme: https\n:authority: example.com\n:path: /",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: ":method: OPTIONS\n:scheme: https\n:authority: example.com\n:path: *",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: ":method: CONNECT\n:authority: example.com:443",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "Extended CONNECT: :protocol is not recorded in a capture, so a CONNECT \
-                     carrying :scheme and :path is accepted",
-                ),
-                snippet: ":method: CONNECT\n:protocol: websocket\n:scheme: https\n:authority: example.com\n:path: /ws",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A non-CONNECT request with no :path"),
-                snippet: ":method: GET\n:scheme: https\n:authority: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("The asterisk is OPTIONS's :path value and no other method's"),
-                snippet: ":method: GET\n:scheme: https\n:authority: example.com\n:path: *",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A CONNECT has no default port, so the port is sent"),
-                snippet: ":method: CONNECT\n:authority: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("An 'https' target's authority carries no userinfo"),
-                snippet: ":method: GET\n:scheme: https\n:authority: user:pass@example.com\n:path: /",
-            },
-        ]
     }
 }
 

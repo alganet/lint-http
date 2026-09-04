@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Detects repeated 401 challenges for the same protection space (origin),
 /// which indicates an authentication failure loop.
@@ -19,11 +19,37 @@ url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.2",
 note: "401 Unauthorized — the status code this rule counts, and the SHOULD for a repeated challenge",
         };
 
-impl Rule for AuthenticationFailureLoop {
+impl RuleMeta for AuthenticationFailureLoop {
     fn id(&self) -> &'static str {
         "authentication_failure_loop"
     }
 
+    fn description(&self) -> &'static str {
+        "Detects repeated `401 Unauthorized` challenges for the same protection space (origin), which strongly indicates an authentication failure loop. When a client continuously retries authentication and repeatedly fails with a 401 across the same origin, it could imply a broken client, misconfigured credentials, or a flawed authentication handshake.\n\nThis rule tracks the transaction history by origin and flags if a client receives 4 or more consecutive `401 Unauthorized` challenges without a successful (or other non-401) response in between."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_15_5_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "> GET /protected HTTP/1.1\n> Host: example.com\n\n< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Basic realm=\"Access\"\n\n> GET /protected HTTP/1.1\n> Host: example.com\n> Authorization: Basic ...\n\n< 200 OK HTTP/1.1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— Authentication Loop"),
+                snippet: "> GET /api/v1/data HTTP/1.1\n> Host: example.com\n\n< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Bearer realm=\"API\"\n\n> GET /api/v1/data HTTP/1.1\n> Host: example.com\n> Authorization: Bearer INVALID\n\n< 401 Unauthorized HTTP/1.1\n\n> GET /api/v1/data HTTP/1.1\n> Host: example.com\n> Authorization: Bearer INVALID\n\n< 401 Unauthorized HTTP/1.1\n\n> GET /api/v1/data HTTP/1.1\n> Host: example.com\n> Authorization: Bearer INVALID\n\n< 401 Unauthorized HTTP/1.1",
+            },
+        ]
+    }
+}
+
+impl Rule for AuthenticationFailureLoop {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -77,30 +103,6 @@ impl Rule for AuthenticationFailureLoop {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Detects repeated `401 Unauthorized` challenges for the same protection space (origin), which strongly indicates an authentication failure loop. When a client continuously retries authentication and repeatedly fails with a 401 across the same origin, it could imply a broken client, misconfigured credentials, or a flawed authentication handshake.\n\nThis rule tracks the transaction history by origin and flags if a client receives 4 or more consecutive `401 Unauthorized` challenges without a successful (or other non-401) response in between."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_15_5_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "> GET /protected HTTP/1.1\n> Host: example.com\n\n< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Basic realm=\"Access\"\n\n> GET /protected HTTP/1.1\n> Host: example.com\n> Authorization: Basic ...\n\n< 200 OK HTTP/1.1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— Authentication Loop"),
-                snippet: "> GET /api/v1/data HTTP/1.1\n> Host: example.com\n\n< 401 Unauthorized HTTP/1.1\n< WWW-Authenticate: Bearer realm=\"API\"\n\n> GET /api/v1/data HTTP/1.1\n> Host: example.com\n> Authorization: Bearer INVALID\n\n< 401 Unauthorized HTTP/1.1\n\n> GET /api/v1/data HTTP/1.1\n> Host: example.com\n> Authorization: Bearer INVALID\n\n< 401 Unauthorized HTTP/1.1\n\n> GET /api/v1/data HTTP/1.1\n> Host: example.com\n> Authorization: Bearer INVALID\n\n< 401 Unauthorized HTTP/1.1",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure a client only attaches cookies to requests when the cookie's domain
 /// (and path) attributes actually permit it.  A browser's cookie store should
@@ -42,11 +42,42 @@ const RFC_6265_5_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Path matching",
 };
 
-impl Rule for CookieDomainMatching {
+impl RuleMeta for CookieDomainMatching {
     fn id(&self) -> &'static str {
         "cookie_domain_matching"
     }
 
+    fn description(&self) -> &'static str {
+        "A client should only send a cookie back to a server when the request URI satisfies the cookie's domain and path constraints.  Browsers build the `Cookie` header with the cookie-list algorithm of [RFC 6265 §5.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4), which sends only cookies meeting the domain-match ([§5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3)) and path-match ([§5.1.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4)) requirements; this rule flags instances where the observed `Cookie` header contains a name/value pair that corresponds to a previously set cookie whose attributes would *not* allow it to be sent for the current host/path.\n\nTo avoid spurious warnings the check only considers cookies that have been seen in the capture history and matches on the exact value.  Unknown cookies are assumed to pre‑date the capture and are ignored.  The related `cookie_lifecycle` rule already handles path‑mismatch diagnostics and secure‑cookie checks; this rule is primarily intended to catch domain mismatches that the other rule overlooks."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_6265_5_4, RFC_6265_5_1_3, RFC_6265_5_1_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=abc; Path=/\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> Cookie: session=abc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— domain mismatch"),
+                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Domain=example.com\n\n> GET / HTTP/1.1\n> Host: other.com\n> Cookie: sid=123               # invalid; domain does not match",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— path mismatch (also flagged by cookie_lifecycle)"),
+                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; Path=/private\n\n> GET /public HTTP/1.1\n> Host: example.com\n> Cookie: id=1                 # path does not match",
+            },
+        ]
+    }
+}
+
+impl Rule for CookieDomainMatching {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -151,35 +182,6 @@ impl Rule for CookieDomainMatching {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "A client should only send a cookie back to a server when the request URI satisfies the cookie's domain and path constraints.  Browsers build the `Cookie` header with the cookie-list algorithm of [RFC 6265 §5.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.4), which sends only cookies meeting the domain-match ([§5.1.3](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3)) and path-match ([§5.1.4](https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.4)) requirements; this rule flags instances where the observed `Cookie` header contains a name/value pair that corresponds to a previously set cookie whose attributes would *not* allow it to be sent for the current host/path.\n\nTo avoid spurious warnings the check only considers cookies that have been seen in the capture history and matches on the exact value.  Unknown cookies are assumed to pre‑date the capture and are ignored.  The related `cookie_lifecycle` rule already handles path‑mismatch diagnostics and secure‑cookie checks; this rule is primarily intended to catch domain mismatches that the other rule overlooks."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6265_5_4, RFC_6265_5_1_3, RFC_6265_5_1_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: session=abc; Path=/\n\n> GET /foo HTTP/1.1\n> Host: example.com\n> Cookie: session=abc",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— domain mismatch"),
-                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: sid=123; Domain=example.com\n\n> GET / HTTP/1.1\n> Host: other.com\n> Cookie: sid=123               # invalid; domain does not match",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— path mismatch (also flagged by cookie_lifecycle)"),
-                snippet: "> GET / HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Set-Cookie: id=1; Path=/private\n\n> GET /public HTTP/1.1\n> Host: example.com\n> Cookie: id=1                 # path does not match",
-            },
-        ]
     }
 }
 

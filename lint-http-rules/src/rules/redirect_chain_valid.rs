@@ -4,7 +4,7 @@
 
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Reports a redirect whose `Location` names the resource the request already
 /// addressed — a redirection to where the client already is.
@@ -131,11 +131,68 @@ const RFC_3986_6_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Syntax-Based Normalization: all three of its normalizations are applied to both sides after resolution — the percent-encoding decoded where the octet is unreserved, the dot segments removed, and the case of the path and query left alone. §6.2.3's scheme-based normalization is not applied",
 };
 
-impl Rule for RedirectChainValid {
+impl RuleMeta for RedirectChainValid {
     fn id(&self) -> &'static str {
         "redirect_chain_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Redirect To The Request's Own Target")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports a redirect whose `Location` resolves to the target URI of the request it answers — a redirection to where the client already is. Following it produces the same request, and following that produces the same response.\n\n**The status set is the statuses whose own definition says the field names another resource.** Five say it in as many words — `301` and `308` a *new permanent* URI (RFC 9110 §15.4.2, §15.4.9), `302` and `307` a *different* URI (§15.4.3, §15.4.8), and `303` adds that the URI in the field *\"is not considered equivalent to the target URI\"* (§15.4.4) — and a `300`'s `Location` is *\"a preferred choice's URI reference\"* among representations *\"each with its own more specific identifier\"* (§15.4.1). An unregistered 3xx is a `300` to every conforming recipient (§15) and is reported the same way.\n\n**`304`, `305`, `306` and `201` are not reported.** A `304` redirects the client to a representation it already holds rather than to another URI; `305` is deprecated and `306` reserved, so neither defines anything to follow. A `201 Created` naming the request's own target is the case §15.3.2 *defines* — a `PUT` that creates the resource where it was addressed — and that response would mean the same thing carrying no field at all.\n\n**The comparison is between absolute forms, not between strings.** The target URI is reconstructed from the request-target and the `Host` field (RFC 9112 §3.3), and the `Location` is resolved against it (§10.2.2, RFC 3986 §5), so `page`, `/dir/page` and `https://host/dir/page` are recognised as one resource, and a value naming a different host is not reported however its path reads. Both sides then get RFC 3986 §6.2.2's syntax-based normalization, so a dot segment and a needlessly percent-encoded `unreserved` character are spellings rather than resources: `/a%2Db` and `/a-b` are one path, and — since §2.3 names the period among the octets a normalizer decodes — so are `/dir/%2E%2E/dir/page` and `/dir/page`. `%2F` is not decoded, because that would move a segment boundary the sender never wrote (§2.4). §6.2.3's scheme-based normalization is **not** applied, so a `Location` writing out the scheme's default port does not compare equal to a target that left it off.\n\n**Two things the capture cannot decide, and the rule declines both.** A request-target in origin-form carries no scheme — RFC 9112 §3.3 takes it from whether the connection was secured, which is not in the message — so a `Location` naming a scheme is not compared; the case that would otherwise be reported is the ordinary HTTP-to-HTTPS redirect. Likewise a reference naming a host is not compared when no `Host` field says which host was addressed.\n\n**This is advice.** No sentence forbids a server from sending it. The status definitions above *declare* what the field names rather than requiring anything of it, and the one requirement in the area — §15.4's *\"A client SHOULD detect and intervene in cyclical redirections\"* — is addressed to the client, which is the role this rule is performing. What the finding buys is that a redirect no client can resolve becomes visible.\n\n**Longer cycles are not detected, and the rule reads no history.** A cycle spanning two or more resources needs a history that spans resources; the state layer's origin-scoped query derives that origin from the request-target alone, so it is empty for the origin-form target an HTTP/1.1 request carries. Only the one-step cycle is reported.\n\nThe field's grammar, an empty value, and a response carrying more than one `Location` field line are `location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `redirect_status_and_location_valid`'s; a redirect status carrying *no* `Location` is `location_on_redirect_present`'s."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_15_4,
+            RFC_9110_10_2_2,
+            RFC_9110_15_3_2,
+            RFC_9112_3_3,
+            RFC_3986_5,
+            RFC_3986_6_2_2,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the field names somewhere else)"),
+                snippet: "GET /old HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: /new",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(canonicalizing to another host: same path, different authority)"),
+                snippet: "GET /a HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: https://www.example.com/a",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the created resource is the target — RFC 9110 §15.3.2)"),
+                snippet: "PUT /widgets/123 HTTP/1.1\nHost: example.com\n\nHTTP/1.1 201 Created\nLocation: /widgets/123",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the field names the request's own target)"),
+                snippet: "GET /a HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: /a",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a relative-path reference resolving to the same resource)"),
+                snippet: "GET /dir/page HTTP/1.1\nHost: example.com\n\nHTTP/1.1 302 Found\nLocation: page",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(same authority, same path, written out in full)"),
+                snippet: "GET http://example.com/a HTTP/1.1\nHost: example.com\n\nHTTP/1.1 303 See Other\nLocation: http://example.com/a",
+            },
+        ]
+    }
+}
+
+impl Rule for RedirectChainValid {
     /// `Location` is defined in §10.2, *Response Context Fields*, and every
     /// sentence this rule enforces is a status-code definition. There is no
     /// request half to read.
@@ -285,61 +342,6 @@ impl Rule for RedirectChainValid {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Redirect To The Request's Own Target")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a redirect whose `Location` resolves to the target URI of the request it answers — a redirection to where the client already is. Following it produces the same request, and following that produces the same response.\n\n**The status set is the statuses whose own definition says the field names another resource.** Five say it in as many words — `301` and `308` a *new permanent* URI (RFC 9110 §15.4.2, §15.4.9), `302` and `307` a *different* URI (§15.4.3, §15.4.8), and `303` adds that the URI in the field *\"is not considered equivalent to the target URI\"* (§15.4.4) — and a `300`'s `Location` is *\"a preferred choice's URI reference\"* among representations *\"each with its own more specific identifier\"* (§15.4.1). An unregistered 3xx is a `300` to every conforming recipient (§15) and is reported the same way.\n\n**`304`, `305`, `306` and `201` are not reported.** A `304` redirects the client to a representation it already holds rather than to another URI; `305` is deprecated and `306` reserved, so neither defines anything to follow. A `201 Created` naming the request's own target is the case §15.3.2 *defines* — a `PUT` that creates the resource where it was addressed — and that response would mean the same thing carrying no field at all.\n\n**The comparison is between absolute forms, not between strings.** The target URI is reconstructed from the request-target and the `Host` field (RFC 9112 §3.3), and the `Location` is resolved against it (§10.2.2, RFC 3986 §5), so `page`, `/dir/page` and `https://host/dir/page` are recognised as one resource, and a value naming a different host is not reported however its path reads. Both sides then get RFC 3986 §6.2.2's syntax-based normalization, so a dot segment and a needlessly percent-encoded `unreserved` character are spellings rather than resources: `/a%2Db` and `/a-b` are one path, and — since §2.3 names the period among the octets a normalizer decodes — so are `/dir/%2E%2E/dir/page` and `/dir/page`. `%2F` is not decoded, because that would move a segment boundary the sender never wrote (§2.4). §6.2.3's scheme-based normalization is **not** applied, so a `Location` writing out the scheme's default port does not compare equal to a target that left it off.\n\n**Two things the capture cannot decide, and the rule declines both.** A request-target in origin-form carries no scheme — RFC 9112 §3.3 takes it from whether the connection was secured, which is not in the message — so a `Location` naming a scheme is not compared; the case that would otherwise be reported is the ordinary HTTP-to-HTTPS redirect. Likewise a reference naming a host is not compared when no `Host` field says which host was addressed.\n\n**This is advice.** No sentence forbids a server from sending it. The status definitions above *declare* what the field names rather than requiring anything of it, and the one requirement in the area — §15.4's *\"A client SHOULD detect and intervene in cyclical redirections\"* — is addressed to the client, which is the role this rule is performing. What the finding buys is that a redirect no client can resolve becomes visible.\n\n**Longer cycles are not detected, and the rule reads no history.** A cycle spanning two or more resources needs a history that spans resources; the state layer's origin-scoped query derives that origin from the request-target alone, so it is empty for the origin-form target an HTTP/1.1 request carries. Only the one-step cycle is reported.\n\nThe field's grammar, an empty value, and a response carrying more than one `Location` field line are `location_header_uri_valid`'s findings; a `Location` on a status with no use for one is `redirect_status_and_location_valid`'s; a redirect status carrying *no* `Location` is `location_on_redirect_present`'s."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_15_4,
-            RFC_9110_10_2_2,
-            RFC_9110_15_3_2,
-            RFC_9112_3_3,
-            RFC_3986_5,
-            RFC_3986_6_2_2,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(the field names somewhere else)"),
-                snippet: "GET /old HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: /new",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(canonicalizing to another host: same path, different authority)"),
-                snippet: "GET /a HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: https://www.example.com/a",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(the created resource is the target — RFC 9110 §15.3.2)"),
-                snippet: "PUT /widgets/123 HTTP/1.1\nHost: example.com\n\nHTTP/1.1 201 Created\nLocation: /widgets/123",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(the field names the request's own target)"),
-                snippet: "GET /a HTTP/1.1\nHost: example.com\n\nHTTP/1.1 301 Moved Permanently\nLocation: /a",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a relative-path reference resolving to the same resource)"),
-                snippet: "GET /dir/page HTTP/1.1\nHost: example.com\n\nHTTP/1.1 302 Found\nLocation: page",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(same authority, same path, written out in full)"),
-                snippet: "GET http://example.com/a HTTP/1.1\nHost: example.com\n\nHTTP/1.1 303 See Other\nLocation: http://example.com/a",
-            },
-        ]
     }
 }
 

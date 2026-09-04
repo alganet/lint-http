@@ -15,7 +15,7 @@ use crate::lint::Violation;
 use crate::protocol_event::{
     MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
-use crate::rules::ProtocolRule;
+use crate::rules::{ProtocolRule, RuleMeta};
 
 pub struct WebsocketFrameMasking;
 
@@ -51,11 +51,46 @@ const RFC_6455_10_3: crate::rules::SpecRef = crate::rules::SpecRef {
            why an intercepting proxy is the party it protects",
 };
 
-impl ProtocolRule for WebsocketFrameMasking {
+impl RuleMeta for WebsocketFrameMasking {
     fn id(&self) -> &'static str {
         "websocket_frame_masking"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("WebSocket Frame Masking")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports a client frame that is not masked, and a server frame that is.\n\n**Two MUSTs about one bit, and the sender decides which applies.** RFC 6455 §5.1: *a client MUST mask all frames that it sends to the server* — for the reason the same sentence gives, that an unmasked payload confuses network intermediaries such as intercepting proxies (§10.3 is the attack) — and, three sentences later, *A server MUST NOT mask any frames that it sends to the client.* They are exact opposites, so no frame is measured against both. Each has a recipient's MUST beside it: a server *MUST close the connection upon receiving a frame that is not masked*, and a client *MUST close a connection if it detects a masked frame*, which is why the findings say what the peer is required to do about it.\n\n**Neither MUST has an escape clause.** The reserved bits next door are zero *unless an extension is negotiated*, and `websocket_frame_rsv_bits` reads the handshake for exactly that reason; §5.8 hands extensions the reserved bits, the reserved opcodes and the Extension data field, and says nothing about the MASK bit. §5.1's own parenthetical — *(These rules might be relaxed in a future specification.)* — is about a future document rather than about anything this one lets two endpoints agree, so this rule does not read the negotiation at all.\n\n**A frame whose MASK bit was not recorded is not measured.** The bit is `None` when the capture carries no frame header to have read it from: every event this proxy wrote before its relay observed raw frames, and any record a message-level tool assembled. Reading that as *not masked* would turn every such record into a finding against a client — a claim about the wire made from a gap in the record, which is the one direction that must not be guessed.\n\n**Where these findings come from.** The relay forwards bytes and records each frame's MASK bit as the wire spelled it, enforcing neither sentence — enforcement is the recipient's MUST, quoted above, and a linting intermediary reports rather than polices. So these findings arrive live off this proxy's own relay, and equally through `lint` over any capture that recorded the bit — a capture is a record of what was on the wire, and this is the rule that reads it.\n\n**Not reported: the masking key itself.** §5.3 has the client pick a *fresh masking key* per frame, derived from a *strong source of entropy*, and unpredictable from the previous one — the key is not recorded, and unpredictability is not a property of one observation anyway. Nor is any payload unmasked and re-checked: the relay never unmasks a data payload, and the record holds header facts rather than payload octets."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_6455_5_1, RFC_6455_5_2, RFC_6455_5_3, RFC_6455_10_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("The two directions, each as its own sentence requires"),
+                snippet: "client -> server: opcode=1 FIN=1 MASK=1\nserver -> client: opcode=1 FIN=1 MASK=0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A client frame with the bit clear — the server must close the connection"),
+                snippet: "client -> server: opcode=1 FIN=1 MASK=0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A server frame with the bit set — the client must close the connection"),
+                snippet: "server -> client: opcode=1 FIN=1 MASK=1",
+            },
+        ]
+    }
+}
+
+impl ProtocolRule for WebsocketFrameMasking {
     fn findings(
         &self,
         event: &ProtocolEvent,
@@ -121,39 +156,6 @@ impl ProtocolRule for WebsocketFrameMasking {
             ))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("WebSocket Frame Masking")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a client frame that is not masked, and a server frame that is.\n\n**Two MUSTs about one bit, and the sender decides which applies.** RFC 6455 §5.1: *a client MUST mask all frames that it sends to the server* — for the reason the same sentence gives, that an unmasked payload confuses network intermediaries such as intercepting proxies (§10.3 is the attack) — and, three sentences later, *A server MUST NOT mask any frames that it sends to the client.* They are exact opposites, so no frame is measured against both. Each has a recipient's MUST beside it: a server *MUST close the connection upon receiving a frame that is not masked*, and a client *MUST close a connection if it detects a masked frame*, which is why the findings say what the peer is required to do about it.\n\n**Neither MUST has an escape clause.** The reserved bits next door are zero *unless an extension is negotiated*, and `websocket_frame_rsv_bits` reads the handshake for exactly that reason; §5.8 hands extensions the reserved bits, the reserved opcodes and the Extension data field, and says nothing about the MASK bit. §5.1's own parenthetical — *(These rules might be relaxed in a future specification.)* — is about a future document rather than about anything this one lets two endpoints agree, so this rule does not read the negotiation at all.\n\n**A frame whose MASK bit was not recorded is not measured.** The bit is `None` when the capture carries no frame header to have read it from: every event this proxy wrote before its relay observed raw frames, and any record a message-level tool assembled. Reading that as *not masked* would turn every such record into a finding against a client — a claim about the wire made from a gap in the record, which is the one direction that must not be guessed.\n\n**Where these findings come from.** The relay forwards bytes and records each frame's MASK bit as the wire spelled it, enforcing neither sentence — enforcement is the recipient's MUST, quoted above, and a linting intermediary reports rather than polices. So these findings arrive live off this proxy's own relay, and equally through `lint` over any capture that recorded the bit — a capture is a record of what was on the wire, and this is the rule that reads it.\n\n**Not reported: the masking key itself.** §5.3 has the client pick a *fresh masking key* per frame, derived from a *strong source of entropy*, and unpredictable from the previous one — the key is not recorded, and unpredictability is not a property of one observation anyway. Nor is any payload unmasked and re-checked: the relay never unmasks a data payload, and the record holds header facts rather than payload octets."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6455_5_1, RFC_6455_5_2, RFC_6455_5_3, RFC_6455_10_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("The two directions, each as its own sentence requires"),
-                snippet: "client -> server: opcode=1 FIN=1 MASK=1\nserver -> client: opcode=1 FIN=1 MASK=0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A client frame with the bit clear — the server must close the connection"),
-                snippet: "client -> server: opcode=1 FIN=1 MASK=0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A server frame with the bit set — the client must close the connection"),
-                snippet: "server -> client: opcode=1 FIN=1 MASK=1",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentTypePresent;
 
@@ -35,11 +35,51 @@ const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HEAD — no content is sent, so this rule's condition is never met; the same-header-fields SHOULD is another rule's subject",
 };
 
-impl Rule for ContentTypePresent {
+impl RuleMeta for ContentTypePresent {
     fn id(&self) -> &'static str {
         "content_type_present"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Content-Type Present")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports a response that carries content without a `Content-Type` describing it.\n\n**This is a SHOULD, and it has a stated exception.** RFC 9110 §8.3: \"A sender that generates a message containing content SHOULD generate a Content-Type header field in that message *unless the intended media type of the enclosed representation is unknown to the sender*.\" Nothing on the wire separates a sender that did not know from one that did not bother, so both are reported — the finding is that the recipient was left to guess, not that a rule was broken.\n\n**Why the guess matters.** §8.3 gives a recipient two ways to proceed without the field: assume `application/octet-stream`, or examine the data. The second is content sniffing, and §8.3 spends a paragraph on it — it \"risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., \\\"privilege escalation\\\")\".\n\n**Content, not headers.** The condition is that the message *contains content*, so the recorded body length decides it wherever one was captured. Only where nothing was captured does the rule fall back to header evidence, and then only to signals that assert content — a non-zero `Content-Length` or a `Transfer-Encoding`. A 2xx that merely omits `Content-Length` is not evidence of a body; that is what an empty HTTP/2 response looks like.\n\n**Responses with nothing to describe are skipped**: `1xx`, `204`, `304` (RFC 9112 §6.3), `205` (RFC 9110 §15.3.6's MUST NOT), any response to `HEAD` (§9.3.2), and a `2xx` to `CONNECT`, whose trailing octets are a tunnel rather than content. Whether a HEAD response should still carry the `Content-Type` a `GET` would have sent is §9.3.2's same-header-fields SHOULD, which `head_response_headers_match_get` checks against the actual `GET`."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_8_3, RFC_9112_6_3, RFC_9110_15_3_6, RFC_9110_9_3_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /page HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\nContent-Length: 3\n\nabc",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(no content, so nothing to describe)"),
+                snippet: "GET /thing HTTP/1.1\n\nHTTP/1.1 204 No Content\n\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a HEAD response sends no content)"),
+                snippet: "HEAD /large.iso HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 1048576\n\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the recipient is left to sniff)"),
+                snippet: "GET /page HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 3\n\nabc",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentTypePresent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -150,44 +190,6 @@ impl Rule for ContentTypePresent {
         };
         Vec::from_iter(finding())
     }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Content-Type Present")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a response that carries content without a `Content-Type` describing it.\n\n**This is a SHOULD, and it has a stated exception.** RFC 9110 §8.3: \"A sender that generates a message containing content SHOULD generate a Content-Type header field in that message *unless the intended media type of the enclosed representation is unknown to the sender*.\" Nothing on the wire separates a sender that did not know from one that did not bother, so both are reported — the finding is that the recipient was left to guess, not that a rule was broken.\n\n**Why the guess matters.** §8.3 gives a recipient two ways to proceed without the field: assume `application/octet-stream`, or examine the data. The second is content sniffing, and §8.3 spends a paragraph on it — it \"risks drawing incorrect conclusions about the data, which might expose the user to additional security risks (e.g., \\\"privilege escalation\\\")\".\n\n**Content, not headers.** The condition is that the message *contains content*, so the recorded body length decides it wherever one was captured. Only where nothing was captured does the rule fall back to header evidence, and then only to signals that assert content — a non-zero `Content-Length` or a `Transfer-Encoding`. A 2xx that merely omits `Content-Length` is not evidence of a body; that is what an empty HTTP/2 response looks like.\n\n**Responses with nothing to describe are skipped**: `1xx`, `204`, `304` (RFC 9112 §6.3), `205` (RFC 9110 §15.3.6's MUST NOT), any response to `HEAD` (§9.3.2), and a `2xx` to `CONNECT`, whose trailing octets are a tunnel rather than content. Whether a HEAD response should still carry the `Content-Type` a `GET` would have sent is §9.3.2's same-header-fields SHOULD, which `head_response_headers_match_get` checks against the actual `GET`."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_3, RFC_9112_6_3, RFC_9110_15_3_6, RFC_9110_9_3_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /page HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\nContent-Length: 3\n\nabc",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(no content, so nothing to describe)"),
-                snippet: "GET /thing HTTP/1.1\n\nHTTP/1.1 204 No Content\n\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a HEAD response sends no content)"),
-                snippet: "HEAD /large.iso HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 1048576\n\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(the recipient is left to sniff)"),
-                snippet: "GET /page HTTP/1.1\n\nHTTP/1.1 200 OK\nContent-Length: 3\n\nabc",
-            },
-        ]
-    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -284,7 +286,7 @@ mod tests {
     /// decides two of the exemptions.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = ContentTypePresent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 

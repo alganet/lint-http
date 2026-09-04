@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// `immutable` only acts while a response is fresh, so pairing it with a directive that
 /// leaves the promise nothing to act on is a contradiction. Each flagged directive nullifies
@@ -42,11 +42,51 @@ const RFC_9111_5_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Response directives: `no-store`, `no-cache`, `max-age`, `s-maxage`",
 };
 
-impl Rule for ImmutableRequiresFreshness {
+impl RuleMeta for ImmutableRequiresFreshness {
     fn id(&self) -> &'static str {
         "immutable_requires_freshness"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Immutable Requires Freshness")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule flags responses whose `Cache-Control` header pairs `immutable` with a directive that nullifies its fresh-window promise — `no-store` (nothing is stored), `no-cache` (reuse always requires revalidation), `max-age=0`, or `s-maxage=0` (zero freshness lifetime, the latter for shared caches). Per RFC 8246, `immutable` only applies during a stored response's freshness lifetime: it tells clients the representation will not change while the response is fresh, and asks them not to revalidate during that window. A response that can never be fresh has no such window, so `immutable` has nothing to act on, and one of the two directives is a mistake.\n\nNote: `immutable` together with `must-revalidate` is **not** flagged. Those directives govern disjoint windows — `immutable` applies while the response is fresh, `must-revalidate` binds once it has gone stale — and RFC 8246 says stale responses \"SHOULD be revalidated as they normally would be in the absence of the immutable extension\". `Cache-Control: max-age=3600, immutable, must-revalidate` is coherent. An earlier version of this rule (`server_must_revalidate_and_immutable_mismatch`) reported that pairing as an error. It was wrong: no sentence in RFC 9111 or RFC 8246 supported it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_8246_2, RFC_9111_5_2_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nCache-Control: max-age=604800, immutable",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response (immutable while fresh, revalidated once stale)"),
+                snippet: "HTTP/1.1 200 OK\nCache-Control: max-age=3600, immutable, must-revalidate",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nCache-Control: no-cache, immutable",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK\nCache-Control: max-age=0, immutable",
+            },
+        ]
+    }
+}
+
+impl Rule for ImmutableRequiresFreshness {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -121,44 +161,6 @@ impl Rule for ImmutableRequiresFreshness {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Immutable Requires Freshness")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule flags responses whose `Cache-Control` header pairs `immutable` with a directive that nullifies its fresh-window promise — `no-store` (nothing is stored), `no-cache` (reuse always requires revalidation), `max-age=0`, or `s-maxage=0` (zero freshness lifetime, the latter for shared caches). Per RFC 8246, `immutable` only applies during a stored response's freshness lifetime: it tells clients the representation will not change while the response is fresh, and asks them not to revalidate during that window. A response that can never be fresh has no such window, so `immutable` has nothing to act on, and one of the two directives is a mistake.\n\nNote: `immutable` together with `must-revalidate` is **not** flagged. Those directives govern disjoint windows — `immutable` applies while the response is fresh, `must-revalidate` binds once it has gone stale — and RFC 8246 says stale responses \"SHOULD be revalidated as they normally would be in the absence of the immutable extension\". `Cache-Control: max-age=3600, immutable, must-revalidate` is coherent. An earlier version of this rule (`server_must_revalidate_and_immutable_mismatch`) reported that pairing as an error. It was wrong: no sentence in RFC 9111 or RFC 8246 supported it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_8246_2, RFC_9111_5_2_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nCache-Control: max-age=604800, immutable",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response (immutable while fresh, revalidated once stale)"),
-                snippet: "HTTP/1.1 200 OK\nCache-Control: max-age=3600, immutable, must-revalidate",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nCache-Control: no-cache, immutable",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK\nCache-Control: max-age=0, immutable",
-            },
-        ]
     }
 }
 

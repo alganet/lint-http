@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct RefreshHeaderSyntax;
 
@@ -225,11 +225,47 @@ const MDN_REFRESH: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`Refresh` header, with browser support notes",
 };
 
-impl Rule for RefreshHeaderSyntax {
+impl RuleMeta for RefreshHeaderSyntax {
     fn id(&self) -> &'static str {
         "refresh_header_syntax"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Refresh header syntax")
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate the syntax of the `Refresh` response header. Long treated as non-standard, it is now specified by the HTML Standard (§ 7.8), which says it is the HTTP equivalent of a `meta` element with `http-equiv=\"refresh\"` and *takes the same value*. That value has exactly two conforming forms: a delay in seconds on its own, or a delay followed by `;`, one or more spaces, `URL=` (in any case), and a valid URL string that does not begin with a quote. This rule reports a value matching neither.\n\nWhere the verdicts come from, since § 7.8 states no requirement of its own: the `must` is the authoring conformance requirement written for the `meta` pragma's content attribute, and \"takes the same value\" is the sentence that carries it to the field. The URL is judged against the WHATWG URL Standard's alphabet — its *URL units* — rather than RFC 3986's, so a non-ASCII octet is a URL code point here, and a relative reference such as `1http://x` is a conforming URL rather than a malformed scheme.\n\nOnly the URL's alphabet is checked. Whether its components are in a legal order, and whether its host parses, are the URL parser's questions and are not asked.\n\nMore than one `Refresh` field line is reported on its own terms: HTML records that it has no specification for that case, so the finding is an interoperability report rather than a violation of a stated requirement, and nothing further is measured — the string a recipient parses is the combination of the lines, not any one of them."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            HTML_SPECULATIVE_LOADING_7_8,
+            HTML_SEMANTICS_4_2_5_3,
+            HTML_DOCUMENT_LIFECYCLE_7_5_1,
+            URL_4_3,
+            MDN_REFRESH,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nRefresh: 5\n\nHTTP/1.1 200 OK\nRefresh: 10; url=/new\n\nHTTP/1.1 200 OK\nRefresh: 0; URL=/report?from=a,b;to=c",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nRefresh: bad\n\nHTTP/1.1 200 OK\nRefresh: +5\n\nHTTP/1.1 200 OK\nRefresh: 10;url=/new\n\nHTTP/1.1 200 OK\nRefresh: 5; url=\n\nHTTP/1.1 200 OK\nRefresh: 5; url=\"/new\"\n\nHTTP/1.1 200 OK\nRefresh: 5; foo=bar\n\nHTTP/1.1 200 OK\nRefresh: 5, 10",
+            },
+        ]
+    }
+}
+
+impl Rule for RefreshHeaderSyntax {
     fn scope(&self) -> crate::rules::RuleScope {
         // cite(HTML Speculative Loading § 7.8): "The `Refresh` HTTP response header is the HTTP-equivalent to a meta element with an http-equiv attribute in the Refresh state."
         crate::rules::RuleScope::Server
@@ -298,40 +334,6 @@ impl Rule for RefreshHeaderSyntax {
             })
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Refresh header syntax")
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate the syntax of the `Refresh` response header. Long treated as non-standard, it is now specified by the HTML Standard (§ 7.8), which says it is the HTTP equivalent of a `meta` element with `http-equiv=\"refresh\"` and *takes the same value*. That value has exactly two conforming forms: a delay in seconds on its own, or a delay followed by `;`, one or more spaces, `URL=` (in any case), and a valid URL string that does not begin with a quote. This rule reports a value matching neither.\n\nWhere the verdicts come from, since § 7.8 states no requirement of its own: the `must` is the authoring conformance requirement written for the `meta` pragma's content attribute, and \"takes the same value\" is the sentence that carries it to the field. The URL is judged against the WHATWG URL Standard's alphabet — its *URL units* — rather than RFC 3986's, so a non-ASCII octet is a URL code point here, and a relative reference such as `1http://x` is a conforming URL rather than a malformed scheme.\n\nOnly the URL's alphabet is checked. Whether its components are in a legal order, and whether its host parses, are the URL parser's questions and are not asked.\n\nMore than one `Refresh` field line is reported on its own terms: HTML records that it has no specification for that case, so the finding is an interoperability report rather than a violation of a stated requirement, and nothing further is measured — the string a recipient parses is the combination of the lines, not any one of them."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            HTML_SPECULATIVE_LOADING_7_8,
-            HTML_SEMANTICS_4_2_5_3,
-            HTML_DOCUMENT_LIFECYCLE_7_5_1,
-            URL_4_3,
-            MDN_REFRESH,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nRefresh: 5\n\nHTTP/1.1 200 OK\nRefresh: 10; url=/new\n\nHTTP/1.1 200 OK\nRefresh: 0; URL=/report?from=a,b;to=c",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nRefresh: bad\n\nHTTP/1.1 200 OK\nRefresh: +5\n\nHTTP/1.1 200 OK\nRefresh: 10;url=/new\n\nHTTP/1.1 200 OK\nRefresh: 5; url=\n\nHTTP/1.1 200 OK\nRefresh: 5; url=\"/new\"\n\nHTTP/1.1 200 OK\nRefresh: 5; foo=bar\n\nHTTP/1.1 200 OK\nRefresh: 5, 10",
-            },
-        ]
     }
 }
 
@@ -470,7 +472,7 @@ mod tests {
 
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = RefreshHeaderSyntax;
 
         for ex in rule.examples() {

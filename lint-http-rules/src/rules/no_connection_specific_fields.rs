@@ -4,7 +4,7 @@
 
 use crate::helpers::headers::combined_field_value_as_written;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The connection-specific field names, as the two governing documents reach
 /// them.
@@ -297,65 +297,9 @@ const RFC_5234_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
            licenses matching `trailers` without regard to case",
 };
 
-impl Rule for NoConnectionSpecificFields {
+impl RuleMeta for NoConnectionSpecificFields {
     fn id(&self) -> &'static str {
         "no_connection_specific_fields"
-    }
-
-    /// Both documents address the endpoint that *generates* the message, and
-    /// either party generates one.
-    ///
-    /// cite(RFC 9113 § 8.2.2): "An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Each section's own version, decided before anything else is read.
-            let request = ConnectionlessVersion::of(&tx.request.version);
-            let response = tx.response.as_ref().and_then(|resp| {
-                ConnectionlessVersion::of(&resp.version).map(|governing| (governing, resp))
-            });
-
-            // A transaction neither half of which was carried by one of these
-            // versions ends here.
-            if request.is_none() && response.is_none() {
-                return None;
-            }
-
-            if let Some(governing) = request {
-                if let Some(violation) = self.check_field_section(
-                    governing,
-                    Direction::Request,
-                    &tx.request.headers,
-                    ctx.severity,
-                ) {
-                    return Some(violation);
-                }
-            }
-
-            if let Some((governing, resp)) = response {
-                if let Some(violation) = self.check_field_section(
-                    governing,
-                    Direction::Response,
-                    &resp.headers,
-                    ctx.severity,
-                ) {
-                    return Some(violation);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -411,6 +355,64 @@ impl Rule for NoConnectionSpecificFields {
                 snippet: "HTTP/2 200 OK\nContent-Type: text/html\nTE: trailers",
             },
         ]
+    }
+}
+
+impl Rule for NoConnectionSpecificFields {
+    /// Both documents address the endpoint that *generates* the message, and
+    /// either party generates one.
+    ///
+    /// cite(RFC 9113 § 8.2.2): "An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Each section's own version, decided before anything else is read.
+            let request = ConnectionlessVersion::of(&tx.request.version);
+            let response = tx.response.as_ref().and_then(|resp| {
+                ConnectionlessVersion::of(&resp.version).map(|governing| (governing, resp))
+            });
+
+            // A transaction neither half of which was carried by one of these
+            // versions ends here.
+            if request.is_none() && response.is_none() {
+                return None;
+            }
+
+            if let Some(governing) = request {
+                if let Some(violation) = self.check_field_section(
+                    governing,
+                    Direction::Request,
+                    &tx.request.headers,
+                    ctx.severity,
+                ) {
+                    return Some(violation);
+                }
+            }
+
+            if let Some((governing, resp)) = response {
+                if let Some(violation) = self.check_field_section(
+                    governing,
+                    Direction::Response,
+                    &resp.headers,
+                    ctx.severity,
+                ) {
+                    return Some(violation);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 

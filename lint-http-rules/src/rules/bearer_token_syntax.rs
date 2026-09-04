@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct BearerTokenSyntax;
 
@@ -23,11 +23,42 @@ const RFC_9110_11_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "token68 — the current auth framework's credential-token grammar, defined identically to RFC 6750's b64token; anchors the shape in a live spec (RFC 6750 references the obsolete RFC 2617). Replaces a stale RFC 7235 pointer.",
 };
 
-impl Rule for BearerTokenSyntax {
+impl RuleMeta for BearerTokenSyntax {
     fn id(&self) -> &'static str {
         "bearer_token_syntax"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\" / \"+\" / \"/\" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_6750_2_1, RFC_9110_11_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET / HTTP/1.1\nAuthorization: Bearer abc123",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(whitespace in token)"),
+                snippet: "GET / HTTP/1.1\nAuthorization: Bearer a b",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(invalid character `@`)"),
+                snippet: "GET / HTTP/1.1\nAuthorization: Bearer a@b",
+            },
+        ]
+    }
+}
+
+impl Rule for BearerTokenSyntax {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -78,35 +109,6 @@ impl Rule for BearerTokenSyntax {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate `Authorization: Bearer <token>` header values. The Bearer token MUST be present, MUST NOT contain whitespace, and MUST conform to the `token68`-like form used for credential tokens (characters from the set ALPHA / DIGIT / \"-\" / \".\" / \"_\" / \"~\" / \"+\" / \"/\" followed by optional trailing `=` padding). Malformed Bearer tokens can lead to authentication failures or token parsing issues."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6750_2_1, RFC_9110_11_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nAuthorization: Bearer abc123",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(whitespace in token)"),
-                snippet: "GET / HTTP/1.1\nAuthorization: Bearer a b",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(invalid character `@`)"),
-                snippet: "GET / HTTP/1.1\nAuthorization: Bearer a@b",
-            },
-        ]
     }
 }
 

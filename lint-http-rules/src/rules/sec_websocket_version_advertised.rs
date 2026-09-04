@@ -6,7 +6,7 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::shown::shown_in_finding;
 use crate::helpers::websocket::version_production_defect;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct SecWebsocketVersionAdvertised;
 
@@ -127,11 +127,47 @@ const RFC_6455_11_3_5: crate::rules::SpecRef = crate::rules::SpecRef {
            one contradicts",
 };
 
-impl Rule for SecWebsocketVersionAdvertised {
+impl RuleMeta for SecWebsocketVersionAdvertised {
     fn id(&self) -> &'static str {
         "sec_websocket_version_advertised"
     }
 
+    fn description(&self) -> &'static str {
+        "Reads the `Sec-WebSocket-Version` a **response** carries — the versions a server advertises when it will not speak the one the client asked for.\n\n**Two fields share a name and neither shares a production.** RFC 6455 §4.3 prints `Sec-WebSocket-Version-Client = version` for the request and `Sec-WebSocket-Version-Server = 1#version` for the response, and says what the suffixes mean: *ABNF rules with the \"-Client\" suffix in the name are only used in requests sent by the client to the server; ABNF rules with the \"-Server\" suffix in the name are only used in responses sent by the server to the client.* So the response's field is a **list** where the request's is one value, and `sec_websocket_headers_consistent` — which reads the request — measures the other production.\n\n**The notation is RFC 2616's, which §4.3 imports by name.** A null list element therefore conforms: `Sec-WebSocket-Version: 13,,8` advertises two versions, where RFC 9110 §5.6.1.1 would make the empty member a sender's defect. What `1#` requires is *at least one non-null element*, so a value that is only commas advertises nothing and is the finding instead. Several field lines in one section are one list — §4.4 prints the same advertisement both ways and calls them the same response.\n\n**The second finding is the field's own reason for existing.** §11.3.5: the field *is also sent from the server to the client on WebSocket handshake error, when the version received from the client does not match a version understood by the server*, and *In such a case, the header field includes the protocol version(s) supported by the server.* A response advertising a list that **contains the version the request asked for** says both things about one handshake: that the server did not understand that version, and that it will speak it. The comparison is exact, because both sides derive from `version`, which is DIGITs — no case to fold, no leading zero to normalise, since the production admits none.\n\n**Not reported: that the field is missing.** §4.4's MUST is conditional — *If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field … containing all versions it is willing to use* — and its antecedent is a fact about the server, not about the message. A non-101 answer to a handshake can be a refusal for any of the reasons §4.2.2 lists (a 401, a 3xx, a 403, a 404, a 426), and no field in the exchange says which. Reporting every one of them for a missing advertisement would be reading the antecedent off the consequent.\n\n**Not reported: which versions the list should hold, or a `101` that carries one.** The set a server is *willing to use* is the server's own; nothing in the capture disagrees with it. And §11.3.5 describes when the field is sent rather than forbidding it elsewhere, so a `101` carrying it is odd and not a violation — `websocket_handshake_valid` declines the version question on a `101` for its own reason, which is that §4.2.2 aborts a handshake only for a version *that does not match a version understood by the server*, a fact a `101` is that server asserting.\n\nScope: this rule reads a response's header section, and only where the request was RFC 6455's opening handshake — the same shared gate the other two handshake rules use. Above HTTP/1.x the handshake is an extended CONNECT (RFC 8441, RFC 9220) and this field is not part of it. A value carrying an octet outside US-ASCII is measured rather than skipped: it reaches the production that excludes it and is reported there."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_6455_4_3, RFC_2616_2_1, RFC_6455_4_4, RFC_6455_11_3_5]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("§4.4's own worked exchange"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\n\nHTTP/1.1 400 Bad Request\nSec-WebSocket-Version: 13, 8, 7",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("The same advertisement on two field lines, which §4.4 also prints"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\n\nHTTP/1.1 400 Bad Request\nSec-WebSocket-Version: 13\nSec-WebSocket-Version: 8, 7",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A member deriving from no `version` — the production admits no leading zero"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\n\nHTTP/1.1 400 Bad Request\nSec-WebSocket-Version: 013",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("The advertisement holds the version the request asked for"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\n\nHTTP/1.1 400 Bad Request\nSec-WebSocket-Version: 13, 25",
+            },
+        ]
+    }
+}
+
+impl Rule for SecWebsocketVersionAdvertised {
     /// The `-Server` suffix is the document's own scoping, and § 4.3 states what
     /// it means: the production is used in responses only. The evidence is a
     /// field the server wrote, so a capture whose upstream never answered has
@@ -179,40 +215,6 @@ impl Rule for SecWebsocketVersionAdvertised {
             ))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reads the `Sec-WebSocket-Version` a **response** carries — the versions a server advertises when it will not speak the one the client asked for.\n\n**Two fields share a name and neither shares a production.** RFC 6455 §4.3 prints `Sec-WebSocket-Version-Client = version` for the request and `Sec-WebSocket-Version-Server = 1#version` for the response, and says what the suffixes mean: *ABNF rules with the \"-Client\" suffix in the name are only used in requests sent by the client to the server; ABNF rules with the \"-Server\" suffix in the name are only used in responses sent by the server to the client.* So the response's field is a **list** where the request's is one value, and `sec_websocket_headers_consistent` — which reads the request — measures the other production.\n\n**The notation is RFC 2616's, which §4.3 imports by name.** A null list element therefore conforms: `Sec-WebSocket-Version: 13,,8` advertises two versions, where RFC 9110 §5.6.1.1 would make the empty member a sender's defect. What `1#` requires is *at least one non-null element*, so a value that is only commas advertises nothing and is the finding instead. Several field lines in one section are one list — §4.4 prints the same advertisement both ways and calls them the same response.\n\n**The second finding is the field's own reason for existing.** §11.3.5: the field *is also sent from the server to the client on WebSocket handshake error, when the version received from the client does not match a version understood by the server*, and *In such a case, the header field includes the protocol version(s) supported by the server.* A response advertising a list that **contains the version the request asked for** says both things about one handshake: that the server did not understand that version, and that it will speak it. The comparison is exact, because both sides derive from `version`, which is DIGITs — no case to fold, no leading zero to normalise, since the production admits none.\n\n**Not reported: that the field is missing.** §4.4's MUST is conditional — *If the server doesn't support the requested version, it MUST respond with a |Sec-WebSocket-Version| header field … containing all versions it is willing to use* — and its antecedent is a fact about the server, not about the message. A non-101 answer to a handshake can be a refusal for any of the reasons §4.2.2 lists (a 401, a 3xx, a 403, a 404, a 426), and no field in the exchange says which. Reporting every one of them for a missing advertisement would be reading the antecedent off the consequent.\n\n**Not reported: which versions the list should hold, or a `101` that carries one.** The set a server is *willing to use* is the server's own; nothing in the capture disagrees with it. And §11.3.5 describes when the field is sent rather than forbidding it elsewhere, so a `101` carrying it is odd and not a violation — `websocket_handshake_valid` declines the version question on a `101` for its own reason, which is that §4.2.2 aborts a handshake only for a version *that does not match a version understood by the server*, a fact a `101` is that server asserting.\n\nScope: this rule reads a response's header section, and only where the request was RFC 6455's opening handshake — the same shared gate the other two handshake rules use. Above HTTP/1.x the handshake is an extended CONNECT (RFC 8441, RFC 9220) and this field is not part of it. A value carrying an octet outside US-ASCII is measured rather than skipped: it reaches the production that excludes it and is reported there."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6455_4_3, RFC_2616_2_1, RFC_6455_4_4, RFC_6455_11_3_5]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("§4.4's own worked exchange"),
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\n\nHTTP/1.1 400 Bad Request\nSec-WebSocket-Version: 13, 8, 7",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("The same advertisement on two field lines, which §4.4 also prints"),
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\n\nHTTP/1.1 400 Bad Request\nSec-WebSocket-Version: 13\nSec-WebSocket-Version: 8, 7",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A member deriving from no `version` — the production admits no leading zero"),
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\n\nHTTP/1.1 400 Bad Request\nSec-WebSocket-Version: 013",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("The advertisement holds the version the request asked for"),
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\n\nHTTP/1.1 400 Bad Request\nSec-WebSocket-Version: 13, 25",
-            },
-        ]
     }
 }
 
@@ -373,7 +375,7 @@ mod tests {
     /// Every published snippet, run as the exchange it prints.
     #[test]
     fn published_examples_agree_with_the_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = SecWebsocketVersionAdvertised;
         for ex in rule.examples() {
             let (request, response) = ex

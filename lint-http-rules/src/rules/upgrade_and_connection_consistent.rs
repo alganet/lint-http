@@ -6,7 +6,7 @@ use crate::helpers::field_placement::is_nominated_by_connection;
 use crate::helpers::headers::combined_field_value_as_written;
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct UpgradeAndConnectionConsistent;
 
@@ -139,39 +139,9 @@ const RFC_9114_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HTTP fields — the same prohibition for HTTP/3",
 };
 
-impl Rule for UpgradeAndConnectionConsistent {
+impl RuleMeta for UpgradeAndConnectionConsistent {
     fn id(&self) -> &'static str {
         "upgrade_and_connection_consistent"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Each half is measured against its own version. In a reverse-proxy capture
-            // the request may have arrived over HTTP/3 while the response came back from
-            // the origin over HTTP/1.1, and the sender the sentence is about is the one
-            // that wrote the section being read.
-            let message = Self::defect(&tx.request.headers, &tx.request.version, "Request")
-                .or_else(|| {
-                    let resp = tx.response.as_ref()?;
-                    Self::defect(&resp.headers, &resp.version, "Response")
-                })?;
-
-            // Read last: every gate above ends the rule, so only a message about to be
-            // reported pays for the map probes and the hash over the rule id.
-            Some(self.violation(ctx.severity, message))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -201,6 +171,38 @@ impl Rule for UpgradeAndConnectionConsistent {
                 snippet: "Connection: keep-alive\nUpgrade: websocket",
             },
         ]
+    }
+}
+
+impl Rule for UpgradeAndConnectionConsistent {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Each half is measured against its own version. In a reverse-proxy capture
+            // the request may have arrived over HTTP/3 while the response came back from
+            // the origin over HTTP/1.1, and the sender the sentence is about is the one
+            // that wrote the section being read.
+            let message = Self::defect(&tx.request.headers, &tx.request.version, "Request")
+                .or_else(|| {
+                    let resp = tx.response.as_ref()?;
+                    Self::defect(&resp.headers, &resp.version, "Response")
+                })?;
+
+            // Read last: every gate above ends the rule, so only a message about to be
+            // reported pays for the map probes and the hash over the rule id.
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 }
 

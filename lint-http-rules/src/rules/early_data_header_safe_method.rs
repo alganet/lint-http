@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The field name, in the lowercase spelling a `HeaderMap` indexes by.
 const FIELD: &str = "early-data";
@@ -149,18 +149,9 @@ const IANA_HTTP_METHOD_REGISTRY: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The registry itself. Its Safe column held GET, HEAD, OPTIONS, PRI, PROPFIND, QUERY, REPORT, SEARCH and TRACE when config_example.toml's array was written",
 };
 
-impl Rule for EarlyDataHeaderSafeMethod {
+impl RuleMeta for EarlyDataHeaderSafeMethod {
     fn id(&self) -> &'static str {
         "early_data_header_safe_method"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        // The field is a request header field, and one of the sentences that govern it
-        // names a response as a place it MUST NOT be — so the response half of a
-        // transaction is read too, and `Server` would have skipped every capture whose
-        // upstream never answered.
-        // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -172,6 +163,62 @@ impl Rule for EarlyDataHeaderSafeMethod {
             severity: config.severity,
             state: Box::new(config),
         })
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports a request that was conveyed in TLS early data — a request carrying an `Early-Data` header field — under a method this deployment does not list as safe. RFC 8470 §4: \"Absent other information, clients MAY send requests with safe HTTP methods … in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data.\" Early data can be captured and replayed by an attacker, so a request that changes state may take effect more than once.\n\n**The field's presence is the signal, not its value.** RFC 8470 §5.1 gives the field one valid value, `1`, and then says what a server does with anything else: \"Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server.\" So `Early-Data: 0`, an empty value, a value that is not US-ASCII, and two field lines all describe the same request — one a server must treat as having arrived through early data. The value and the line count are each reported separately, as what they are.\n\n**The sender of the message is usually not the party that broke the requirement.** §5.1: \"A request that is marked with Early-Data was sent in early data on a previous hop\", and the field \"is not intended for use by user agents (that is, the original initiator of a request)\" — an intermediary forwarding a request before its TLS handshake completed MUST add it. So a finding here says an unsafe method entered early data somewhere along the chain; which hop put it there is not in the message.\n\n**`safe_methods` is required, and the reason is that safety is a registry field.** RFC 9110 §16.1.1 makes `Safe (\"yes\" or \"no\")` a mandatory part of every method registration, and entries are added by IETF Review — `GET`, `HEAD`, `OPTIONS` and `TRACE` are only the ones RFC 9110 itself defines, while `PRI`, `PROPFIND`, `QUERY`, `REPORT` and `SEARCH` are registered safe by other documents. A list compiled into this rule would be a snapshot of that registry presented as though it were the grammar. The array is also where a deployment records what it knows about its own methods, which is the state §4's sentence opens with — \"Absent other information\".\n\nMethods are matched exactly. RFC 9110 §9.1: \"The method token is case-sensitive\", so `get` is not `GET` but a method this specification does not define, and §4's parenthetical — \"or methods whose safety is not known\" — is what covers it. A method absent from the array is reported for that reason, not for being unsafe.\n\n**Three further sentences of §5.1 are enforced here, because this rule is the field's only reader.** A client may send at most one instance. The field MUST NOT appear in a response. And it MUST NOT be named as a connection-option in a `Connection` header field, which would have every intermediary strip the one field §5.1 forbids removing. The remaining placement — the field arriving in a trailer section — is `trailer_fields_valid`'s finding, since that is where RFC 9110 §6.5.1 is applied.\n\n**Not checked here.** Whether a request was in fact sent in early data when no field marks it: a user agent that sends its own request in early data \"does not need to include the Early-Data header field\", so an unmarked early-data request is invisible to any observer of the message. Whether a server answered a request it could not safely process with 425 (Too Early), which turns on the origin's own judgement of replay risk for a resource. And whether \"other information\" existed: an out-of-band agreement that a particular resource tolerates replay leaves no trace in the message, which is why the deployment's array is the place to record it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_8470_4,
+            RFC_8470_5_1,
+            RFC_8470_5_2,
+            RFC_9110_9_2_1,
+            RFC_9110_16_1_1,
+            IANA_HTTP_METHOD_REGISTRY,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("RFC 8470 §5.1's own example of the field"),
+                snippet: "GET /resource HTTP/1.0\nHost: example.com\nEarly-Data: 1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("an unsafe method conveyed in early data"),
+                snippet: "POST /submit HTTP/1.1\nHost: example.com\nEarly-Data: 1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "a value a server still reads as \"1\", so the request is early data all the same",
+                ),
+                snippet: "DELETE /item/7 HTTP/1.1\nHost: example.com\nEarly-Data: 0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "naming the field as a connection-option has every intermediary strip it",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: early-data\nEarly-Data: 1",
+            },
+        ]
+    }
+}
+
+impl Rule for EarlyDataHeaderSafeMethod {
+    fn scope(&self) -> crate::rules::RuleScope {
+        // The field is a request header field, and one of the sentences that govern it
+        // names a response as a place it MUST NOT be — so the response half of a
+        // transaction is read too, and `Server` would have skipped every capture whose
+        // upstream never answered.
+        // cite(RFC 8470 § 5.1): "An Early-Data header field MUST NOT be included in responses or request trailers."
+        crate::rules::RuleScope::Both
     }
 
     fn findings(
@@ -286,51 +333,6 @@ impl Rule for EarlyDataHeaderSafeMethod {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a request that was conveyed in TLS early data — a request carrying an `Early-Data` header field — under a method this deployment does not list as safe. RFC 8470 §4: \"Absent other information, clients MAY send requests with safe HTTP methods … in early data when it is available and MUST NOT send unsafe methods (or methods whose safety is not known) in early data.\" Early data can be captured and replayed by an attacker, so a request that changes state may take effect more than once.\n\n**The field's presence is the signal, not its value.** RFC 8470 §5.1 gives the field one valid value, `1`, and then says what a server does with anything else: \"Multiple or invalid instances of the header field MUST be treated as equivalent to a single instance with a value of 1 by a server.\" So `Early-Data: 0`, an empty value, a value that is not US-ASCII, and two field lines all describe the same request — one a server must treat as having arrived through early data. The value and the line count are each reported separately, as what they are.\n\n**The sender of the message is usually not the party that broke the requirement.** §5.1: \"A request that is marked with Early-Data was sent in early data on a previous hop\", and the field \"is not intended for use by user agents (that is, the original initiator of a request)\" — an intermediary forwarding a request before its TLS handshake completed MUST add it. So a finding here says an unsafe method entered early data somewhere along the chain; which hop put it there is not in the message.\n\n**`safe_methods` is required, and the reason is that safety is a registry field.** RFC 9110 §16.1.1 makes `Safe (\"yes\" or \"no\")` a mandatory part of every method registration, and entries are added by IETF Review — `GET`, `HEAD`, `OPTIONS` and `TRACE` are only the ones RFC 9110 itself defines, while `PRI`, `PROPFIND`, `QUERY`, `REPORT` and `SEARCH` are registered safe by other documents. A list compiled into this rule would be a snapshot of that registry presented as though it were the grammar. The array is also where a deployment records what it knows about its own methods, which is the state §4's sentence opens with — \"Absent other information\".\n\nMethods are matched exactly. RFC 9110 §9.1: \"The method token is case-sensitive\", so `get` is not `GET` but a method this specification does not define, and §4's parenthetical — \"or methods whose safety is not known\" — is what covers it. A method absent from the array is reported for that reason, not for being unsafe.\n\n**Three further sentences of §5.1 are enforced here, because this rule is the field's only reader.** A client may send at most one instance. The field MUST NOT appear in a response. And it MUST NOT be named as a connection-option in a `Connection` header field, which would have every intermediary strip the one field §5.1 forbids removing. The remaining placement — the field arriving in a trailer section — is `trailer_fields_valid`'s finding, since that is where RFC 9110 §6.5.1 is applied.\n\n**Not checked here.** Whether a request was in fact sent in early data when no field marks it: a user agent that sends its own request in early data \"does not need to include the Early-Data header field\", so an unmarked early-data request is invisible to any observer of the message. Whether a server answered a request it could not safely process with 425 (Too Early), which turns on the origin's own judgement of replay risk for a resource. And whether \"other information\" existed: an out-of-band agreement that a particular resource tolerates replay leaves no trace in the message, which is why the deployment's array is the place to record it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_8470_4,
-            RFC_8470_5_1,
-            RFC_8470_5_2,
-            RFC_9110_9_2_1,
-            RFC_9110_16_1_1,
-            IANA_HTTP_METHOD_REGISTRY,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("RFC 8470 §5.1's own example of the field"),
-                snippet: "GET /resource HTTP/1.0\nHost: example.com\nEarly-Data: 1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("an unsafe method conveyed in early data"),
-                snippet: "POST /submit HTTP/1.1\nHost: example.com\nEarly-Data: 1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some(
-                    "a value a server still reads as \"1\", so the request is early data all the same",
-                ),
-                snippet: "DELETE /item/7 HTTP/1.1\nHost: example.com\nEarly-Data: 0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some(
-                    "naming the field as a connection-option has every intermediary strip it",
-                ),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nConnection: early-data\nEarly-Data: 1",
-            },
-        ]
     }
 }
 
@@ -652,7 +654,7 @@ mod tests {
     /// Every published snippet is run through the rule, with the shipped array.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = EarlyDataHeaderSafeMethod;
         let mut saw_non_compliant = false;
         for ex in rule.examples() {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Validate the `Vary` response header against RFC 9110 §12.5.5:
 /// `Vary = #( "*" / field-name )`. Each field-name must conform to the `token`
@@ -22,11 +22,52 @@ url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5",
 note: "Vary = #( \"*\" / field-name ) — a comma-separated list; \"*\" is an ordinary member (RFC 7231's \"*\"-or-a-list form is obsolete). Not checked: the same section's \"A proxy MUST NOT generate \\\"*\\\"\", since a forwarded \"*\" is indistinguishable from a generated one in an observed response",
         };
 
-impl Rule for VaryHeaderValid {
+impl RuleMeta for VaryHeaderValid {
     fn id(&self) -> &'static str {
         "vary_header_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate the `Vary` response header against its grammar `Vary = #( \"*\" / field-name )` (RFC 9110 §12.5.5). This rule enforces that:\n\n- Each field-name conforms to the `token` grammar (RFC `tchar`).\n- The list contains no empty elements (a stray, leading, or trailing comma).\n\nBecause `Vary` is a comma-separated (`#`) list, an entirely empty value is a legal zero-element list and is not flagged. The wildcard `*` is an ordinary list member: under RFC 9110 it may appear alongside field-names, so the combination is not reported (RFC 7231's `\"*\" / 1#field-name` exclusivity no longer applies)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_12_5_5]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Vary: Accept-Encoding\nVary: User-Agent",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Vary: Accept-Encoding, User-Agent",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Vary: *",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— '*' may accompany field-names under RFC 9110"),
+                snippet: "Vary: *, Accept-Encoding",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Vary: x@bad                # invalid token characters in field-name\nVary: Accept-Encoding,     # empty element (trailing comma) is invalid",
+            },
+        ]
+    }
+}
+
+impl Rule for VaryHeaderValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -106,45 +147,6 @@ impl Rule for VaryHeaderValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate the `Vary` response header against its grammar `Vary = #( \"*\" / field-name )` (RFC 9110 §12.5.5). This rule enforces that:\n\n- Each field-name conforms to the `token` grammar (RFC `tchar`).\n- The list contains no empty elements (a stray, leading, or trailing comma).\n\nBecause `Vary` is a comma-separated (`#`) list, an entirely empty value is a legal zero-element list and is not flagged. The wildcard `*` is an ordinary list member: under RFC 9110 it may appear alongside field-names, so the combination is not reported (RFC 7231's `\"*\" / 1#field-name` exclusivity no longer applies)."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_12_5_5]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Vary: Accept-Encoding\nVary: User-Agent",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Vary: Accept-Encoding, User-Agent",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Vary: *",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— '*' may accompany field-names under RFC 9110"),
-                snippet: "Vary: *, Accept-Encoding",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Vary: x@bad                # invalid token characters in field-name\nVary: Accept-Encoding,     # empty element (trailing comma) is invalid",
-            },
-        ]
     }
 }
 

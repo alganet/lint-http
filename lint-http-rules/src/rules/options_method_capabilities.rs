@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Report the two things § 9.3.7 asks of an OPTIONS exchange that a captured
 /// message can answer: a request carrying content with no `Content-Type`, and a
@@ -98,11 +98,69 @@ const RFC_5789_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`Accept-Patch` advertises the patch formats a resource accepts, and this section asks for it in an OPTIONS response by name",
 };
 
-impl Rule for OptionsMethodCapabilities {
+impl RuleMeta for OptionsMethodCapabilities {
     fn id(&self) -> &'static str {
         "options_method_capabilities"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Semantic OPTIONS Method Capabilities")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that a captured message can answer. An OPTIONS request asks \"about the communication options available for the target resource\", so what the exchange is for is the advertisement in the response.\n\n**A request carrying content must say what it is.** §9.3.7: \"A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does, which leaves a chunked request whose octets were not captured unmeasurable. Only the field's *absence* is reported here: a `Content-Type` that is empty or is not a media type is `content_type_valid`'s finding. The section adds that \"this specification does not define any use for such content\", so the requirement is about labelling what was sent, not about sending it.\n\n**A successful response should advertise something.** §9.3.7: \"A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.\" That names a class, not a field, so this rule does not ask for `Allow` — §10.2.1 makes `Allow` a **MAY** on every response other than a 405, and the 405 that requires it is `status_405_allow_valid`'s. The finding is a successful response carrying none of the three fields a specification names as advertising an optional feature applicable to the target resource: `Allow` (§10.2.1), `Accept-Ranges` (§14.3), and `Accept-Patch` (RFC 5789 §3.1, which asks for it in an OPTIONS response by name). Presence is the whole test — §10.2.1 gives an empty `Allow` value the meaning \"the resource allows no methods\", which is an answer. `Accept-Ranges` also counts when it arrives in the trailer section, because §14.3 says it MAY be sent there; the other two are read from the header section only, since §6.5.1 forbids a trailer field unless the field's own definition permits it and neither definition does.\n\n**The limit of that finding.** The sentence ends by including \"potential extensions not defined by this specification\", so the class is open and no list can close it. A server advertising a capability under a field name this rule does not know reads here exactly like a server advertising nothing. Read the finding as \"nothing recognizable was advertised\", not as a violation of the SHOULD.\n\n**Not checked: an asterisk target.** §9.3.7 says an OPTIONS request with `*` as the request target \"applies to the server in general rather than to a specific resource\", and the SHOULD asks for headers applicable to the target resource. Such a response is not measured — **over HTTP/1.1**. Over HTTP/3 the capture does not keep the form: the request target is recorded as the string form of a URI rebuilt from `:scheme`, `:authority` and `:path`, so a `:path` of `*` arrives as `https://example.com*` and the asterisk is no longer distinguishable from part of the authority. An `OPTIONS *` over HTTP/3 is therefore measured, and may be reported for advertising nothing when there was nothing to advertise.\n\n**Not checked: where `Max-Forwards` came from.** §9.3.7's \"A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field\" is about who wrote a field, and no field of a message records its author. A capture cannot distinguish a client's `Max-Forwards` from one an intermediary invented."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_9_3_7,
+            RFC_9110_9_1,
+            RFC_9110_6_4,
+            RFC_9110_15_3,
+            RFC_9110_10_2_1,
+            RFC_9110_14_3,
+            RFC_5789_3_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("The methods of the target resource"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAllow: GET, POST, OPTIONS",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("A capability other than the method set — the class is what the SHOULD names"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAccept-Patch: application/json-patch+json",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("An asterisk target names no resource, so nothing is asked of the response"),
+                snippet: "OPTIONS * HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Length: 0",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Content in the request, labelled"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 2\n\n{}\n\nHTTP/1.1 200 OK\nAllow: GET, OPTIONS",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A successful response that advertises nothing recognizable"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Content in the request with nothing saying what it is"),
+                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nContent-Length: 2\n\n{}\n\nHTTP/1.1 200 OK\nAllow: GET, OPTIONS",
+            },
+        ]
+    }
+}
+
+impl Rule for OptionsMethodCapabilities {
     /// § 9.3.7 addresses both ends: the content requirement is on the client and
     /// the advertisement is on the server. `Server` would mean "skip when there
     /// is no response", so the request-only lint — and every exchange whose
@@ -215,62 +273,6 @@ impl Rule for OptionsMethodCapabilities {
         }
 
         out
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Semantic OPTIONS Method Capabilities")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports the two requirements RFC 9110 §9.3.7 places on an OPTIONS exchange that a captured message can answer. An OPTIONS request asks \"about the communication options available for the target resource\", so what the exchange is for is the advertisement in the response.\n\n**A request carrying content must say what it is.** §9.3.7: \"A client that generates an OPTIONS request containing content MUST send a valid Content-Type header field describing the representation media type.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does, which leaves a chunked request whose octets were not captured unmeasurable. Only the field's *absence* is reported here: a `Content-Type` that is empty or is not a media type is `content_type_valid`'s finding. The section adds that \"this specification does not define any use for such content\", so the requirement is about labelling what was sent, not about sending it.\n\n**A successful response should advertise something.** §9.3.7: \"A server generating a successful response to OPTIONS SHOULD send any header that might indicate optional features implemented by the server and applicable to the target resource (e.g., Allow), including potential extensions not defined by this specification.\" That names a class, not a field, so this rule does not ask for `Allow` — §10.2.1 makes `Allow` a **MAY** on every response other than a 405, and the 405 that requires it is `status_405_allow_valid`'s. The finding is a successful response carrying none of the three fields a specification names as advertising an optional feature applicable to the target resource: `Allow` (§10.2.1), `Accept-Ranges` (§14.3), and `Accept-Patch` (RFC 5789 §3.1, which asks for it in an OPTIONS response by name). Presence is the whole test — §10.2.1 gives an empty `Allow` value the meaning \"the resource allows no methods\", which is an answer. `Accept-Ranges` also counts when it arrives in the trailer section, because §14.3 says it MAY be sent there; the other two are read from the header section only, since §6.5.1 forbids a trailer field unless the field's own definition permits it and neither definition does.\n\n**The limit of that finding.** The sentence ends by including \"potential extensions not defined by this specification\", so the class is open and no list can close it. A server advertising a capability under a field name this rule does not know reads here exactly like a server advertising nothing. Read the finding as \"nothing recognizable was advertised\", not as a violation of the SHOULD.\n\n**Not checked: an asterisk target.** §9.3.7 says an OPTIONS request with `*` as the request target \"applies to the server in general rather than to a specific resource\", and the SHOULD asks for headers applicable to the target resource. Such a response is not measured — **over HTTP/1.1**. Over HTTP/3 the capture does not keep the form: the request target is recorded as the string form of a URI rebuilt from `:scheme`, `:authority` and `:path`, so a `:path` of `*` arrives as `https://example.com*` and the asterisk is no longer distinguishable from part of the authority. An `OPTIONS *` over HTTP/3 is therefore measured, and may be reported for advertising nothing when there was nothing to advertise.\n\n**Not checked: where `Max-Forwards` came from.** §9.3.7's \"A proxy MUST NOT generate a Max-Forwards header field while forwarding a request unless that request was received with a Max-Forwards field\" is about who wrote a field, and no field of a message records its author. A capture cannot distinguish a client's `Max-Forwards` from one an intermediary invented."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_9_3_7,
-            RFC_9110_9_1,
-            RFC_9110_6_4,
-            RFC_9110_15_3,
-            RFC_9110_10_2_1,
-            RFC_9110_14_3,
-            RFC_5789_3_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("The methods of the target resource"),
-                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAllow: GET, POST, OPTIONS",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("A capability other than the method set — the class is what the SHOULD names"),
-                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nAccept-Patch: application/json-patch+json",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("An asterisk target names no resource, so nothing is asked of the response"),
-                snippet: "OPTIONS * HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Length: 0",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Content in the request, labelled"),
-                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 2\n\n{}\n\nHTTP/1.1 200 OK\nAllow: GET, OPTIONS",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A successful response that advertises nothing recognizable"),
-                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Content in the request with nothing saying what it is"),
-                snippet: "OPTIONS /resource HTTP/1.1\nHost: example.com\nContent-Length: 2\n\n{}\n\nHTTP/1.1 200 OK\nAllow: GET, OPTIONS",
-            },
-        ]
     }
 }
 

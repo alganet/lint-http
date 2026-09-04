@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentDispositionParameterValid;
 
@@ -38,11 +38,41 @@ const RFC_9110_5_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`quoted-string`, the other permitted parameter-value form",
 };
 
-impl Rule for ContentDispositionParameterValid {
+impl RuleMeta for ContentDispositionParameterValid {
     fn id(&self) -> &'static str {
         "content_disposition_parameter_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Disposition Parameter Validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.\n\n**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type`, more than one `Content-Disposition` field line, and a value carrying octets outside visible US-ASCII are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_6266_4, RFC_8187_3_2_1, RFC_9110_5_6_2, RFC_9110_5_6_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Disposition: attachment; filename=\"example.txt\"\nContent-Disposition: attachment; filename*=UTF-8''%e2%82%ac%20rates\nContent-Disposition: attachment; filename=example.txt; size=12345",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Disposition: attachment; filename=unclosed\nContent-Disposition: attachment; filename*=UTF-8'%e2%82%ac   ;  # missing second quote\nContent-Disposition: attachment; size=12a\nContent-Disposition: attachment; filename=foo; filename=bar  # duplicate parameter name",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentDispositionParameterValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -268,34 +298,6 @@ impl Rule for ContentDispositionParameterValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Content-Disposition Parameter Validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "`Content-Disposition` parameters provide metadata about how to handle a payload (for example, the suggested filename). Malformed parameters can break user agents or enable confusing behavior. This rule validates parameter name syntax and performs focused checks on common parameters:\n\n- `filename` — must be a `token` or a valid `quoted-string`.\n- `filename*` — must be a valid RFC 8187 `ext-value` (e.g., `UTF-8''%e2%82%ac%20rates`).\n- `size` — must be a numeric value (digits only), optionally quoted.\n\nWhen a parameter value is syntactically invalid, the rule raises a `warn`-level violation by default.\n\n**Scope:** this rule covers `disposition-parm` and nothing above it. An empty field value, a missing `disposition-type`, more than one `Content-Disposition` field line, and a value carrying octets outside visible US-ASCII are all reported by `content_disposition_token_valid`, which owns that part of the grammar. Those inputs leave no parameters to inspect, so this rule stays silent on them rather than emitting a second, identical finding."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6266_4, RFC_8187_3_2_1, RFC_9110_5_6_2, RFC_9110_5_6_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Disposition: attachment; filename=\"example.txt\"\nContent-Disposition: attachment; filename*=UTF-8''%e2%82%ac%20rates\nContent-Disposition: attachment; filename=example.txt; size=12345",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Disposition: attachment; filename=unclosed\nContent-Disposition: attachment; filename*=UTF-8'%e2%82%ac   ;  # missing second quote\nContent-Disposition: attachment; size=12a\nContent-Disposition: attachment; filename=foo; filename=bar  # duplicate parameter name",
-            },
-        ]
     }
 }
 

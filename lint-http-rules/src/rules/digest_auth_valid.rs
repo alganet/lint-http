@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct DigestAuthValid;
 
@@ -23,11 +23,47 @@ const RFC_2617_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The obsolete document whose qop-less credential shape is why cnonce and nc are demanded only beside a qop: its own conditional (\"MUST be specified if a qop directive is sent\") is the observable line, and deployed servers still verify the older shape",
 };
 
-impl Rule for DigestAuthValid {
+impl RuleMeta for DigestAuthValid {
     fn id(&self) -> &'static str {
         "digest_auth_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Digest `Authorization` credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks `Authorization: Digest ...` request headers for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`).\n\n**`cnonce` and `nc` are demanded exactly where the credential's own `qop` makes the demand observable.** RFC 7616 §3.4 marks each *\"MUST be used by all implementations\"*; RFC 2617 computes a qop-less response without either and makes both conditional on a qop directive. A credential that carries `qop` is inside both documents' requirements at once — and both compute the `response` value over `cnonce` and `nc`, so their absence leaves the credential unverifiable by the recipient it was written for. A credential with no `qop` is RFC 2617's older shape and neither is demanded of it: RFC 7616 alone would ask for them, but rejecting the qop-less form outright would reject credentials the obsolete document defines and deployed servers still verify, and no observable line short of `qop` separates the two vintages.\n\n**§3.4's two per-parameter quoting MUSTs are enforced in both directions.** A sender *\"MUST only generate the quoted string syntax\"* for `username`, `realm`, `nonce`, `uri`, `response`, `cnonce` and `opaque`, and *\"MUST NOT\"* for `algorithm`, `qop` and `nc` — for historical reasons, which is the point: recipients of each parameter were deployed against one spelling, so the wrong spelling is a credential some verifiers will not read. An unquoted `uri` was deliberately accepted here for a long time and no longer is. `username*`, `userhash` and unknown extension parameters are in neither list, so only the spelling they arrived in is judged.\n\nServers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_7616_3_4, RFC_2617_3_2_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8cd98f00b204e9800998ecf8427e\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(missing response)"),
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(username unquoted — §3.4 admits only the quoted string syntax for it)"),
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=Mu!fasa, realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(qop sent with no cnonce or nc — the response value is computed over both)"),
+                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\", qop=auth",
+            },
+        ]
+    }
+}
+
+impl Rule for DigestAuthValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -217,40 +253,6 @@ impl Rule for DigestAuthValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Digest `Authorization` credentials must include the required auth-params and use syntactically valid tokens or quoted-strings. This rule checks `Authorization: Digest ...` request headers for presence of required fields and basic syntactic validity (e.g., `username`, `realm`, `nonce`, `uri`, `response`).\n\n**`cnonce` and `nc` are demanded exactly where the credential's own `qop` makes the demand observable.** RFC 7616 §3.4 marks each *\"MUST be used by all implementations\"*; RFC 2617 computes a qop-less response without either and makes both conditional on a qop directive. A credential that carries `qop` is inside both documents' requirements at once — and both compute the `response` value over `cnonce` and `nc`, so their absence leaves the credential unverifiable by the recipient it was written for. A credential with no `qop` is RFC 2617's older shape and neither is demanded of it: RFC 7616 alone would ask for them, but rejecting the qop-less form outright would reject credentials the obsolete document defines and deployed servers still verify, and no observable line short of `qop` separates the two vintages.\n\n**§3.4's two per-parameter quoting MUSTs are enforced in both directions.** A sender *\"MUST only generate the quoted string syntax\"* for `username`, `realm`, `nonce`, `uri`, `response`, `cnonce` and `opaque`, and *\"MUST NOT\"* for `algorithm`, `qop` and `nc` — for historical reasons, which is the point: recipients of each parameter were deployed against one spelling, so the wrong spelling is a credential some verifiers will not read. An unquoted `uri` was deliberately accepted here for a long time and no longer is. `username*`, `userhash` and unknown extension parameters are in neither list, so only the spelling they arrived in is judged.\n\nServers and clients relying on Digest authentication may behave incorrectly when required parameters are missing or malformed."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7616_3_4, RFC_2617_3_2_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8cd98f00b204e9800998ecf8427e\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(missing response)"),
-                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(username unquoted — §3.4 admits only the quoted string syntax for it)"),
-                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=Mu!fasa, realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(qop sent with no cnonce or nc — the response value is computed over both)"),
-                snippet: "GET /protected HTTP/1.1\nAuthorization: Digest username=\"Mufasa\", realm=\"test\", nonce=\"abc\", uri=\"/protected\", response=\"d41d8c\", qop=auth",
-            },
-        ]
     }
 }
 

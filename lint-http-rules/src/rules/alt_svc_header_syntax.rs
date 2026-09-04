@@ -10,7 +10,7 @@ use crate::helpers::quoted_string::unescape_quoted_string;
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The one alternative of the field's top production that is not a list.
 ///
@@ -418,11 +418,50 @@ const RFC_6335_6: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Port Number Ranges: the sixteen-bit namespace that bounds the port, and the reserved edge values that are not thereby invalid",
 };
 
-impl Rule for AltSvcHeaderSyntax {
+impl RuleMeta for AltSvcHeaderSyntax {
     fn id(&self) -> &'static str {
         "alt_svc_header_syntax"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Alt-Svc Header Syntax")
+    }
+
+    fn description(&self) -> &'static str {
+        "Read an `Alt-Svc` response header field against the grammar RFC 7838 §3 prints for it:\n\n```\nAlt-Svc       = clear / 1#alt-value\nclear         = %s\"clear\"; \"clear\", case-sensitive\nalt-value     = alternative *( OWS \";\" OWS parameter )\nalternative   = protocol-id \"=\" alt-authority\nprotocol-id   = token ; percent-encoded ALPN protocol name\nalt-authority = quoted-string ; containing [ uri-host ] \":\" port\nparameter     = token \"=\" ( token / quoted-string )\n```\n\n**The alt-authority is a `quoted-string`, and the DQUOTEs are the production.** Every example in RFC 7838 carries them, and the section says why: *\"Note that the \"quoted-string\" syntax needs to be used because \":\" is not an allowed character in \"token\".\"* An unquoted `h2=example.com:443` is reported. Inside the quotes the content is asked for in prose rather than ABNF — *\"an OPTIONAL uri-host …, a colon (\":\"), and a port number\"* — so the host may be absent and the colon and the number may not.\n\n**`clear` is the whole field value or it is nothing.** The top production is an alternation, so a value holding the keyword beside an alternative derives from neither half; RFC 7838 §3 calls that *\"an invalid reply\"* in its own parenthetical. The keyword is `%s\"clear\"`, a case-sensitive string, so `CLEAR` is not it and is read as an `alt-value` instead.\n\n**A `protocol-id` is a percent-encoded ALPN protocol name, and three sentences constrain the spelling** — octets no `token` admits MUST be percent-encoded (including `%` itself, as `%25`), octets that *are* valid token characters MUST NOT be, and the hex digits MUST be uppercase. A `token` admits `%`, so a character scan sees none of these. They exist so that *\"recipients can apply simple string comparison to match protocol identifiers\"*, which two spellings of one name would defeat.\n\n**A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port` is `*DIGIT` — but that an ALPN protocol name identifies a suite carried over a transport whose port registry is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n\n**Parameters are read as `token \"=\" ( token / quoted-string )` and not looked up.** *\"Unknown parameters MUST be ignored\"*, so a name this rule does not recognise is not a defect. `persist` is the one exception, because §3.1 prints a syntax for it that is a single literal `\"1\"` and requires clients to ignore any other value. The `ma` parameter's own value is read by `alt_svc_h3_advertisement_valid`.\n\n**Whitespace beside an `=` is reported.** RFC 7838 writes `OWS` in exactly one place — around the semicolon before a parameter — and the `#rule` it imports writes it around the commas. Both are gone by the time a half is read, so whitespace still touching an `=` is admitted by nothing. This is the opposite of a `BWS`, which is whitespace a grammar prints in order to tolerate.\n\n**What this rule declines.** RFC 7838 §3 says that over HTTP/2 *\"servers SHOULD instead send an ALTSVC frame\"*, and the next sentence says *\"Alt-Svc header fields remain valid in responses delivered over HTTP/2\"*. The frame is not in a capture, HTTP/3 has no such frame at all and RFC 9114 §3.1.1 has an HTTP/3 server use this field, so the SHOULD is not reported. Nothing here reads *which* protocol a well-spelled `protocol-id` names — `alt_svc_protocol_registered` decodes it back into its ALPN protocol name and asks that against a configured list."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_7838_3,
+            RFC_7838_3_1,
+            RFC_7838_1_1,
+            RFC_7838_8,
+            RFC_7838_2,
+            RFC_9110_5_6,
+            RFC_3986_3_2,
+            RFC_6335_6,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Alt-Svc: h2=\":443\"; ma=2592000\nAlt-Svc: h2=\"new.example.org:80\"\nAlt-Svc: h2=\"alt.example.com:8000\", h2=\":443\"\nAlt-Svc: h2=\"[::1]:443\"; persist=1\nAlt-Svc: clear\nAlt-Svc: w%3Dx%3Ay#z=\":443\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Alt-Svc: h2=example.com:443       # alt-authority is a quoted-string\nAlt-Svc: h2=\"example.com\"         # the colon and the port are not optional\nAlt-Svc: h2=\"example.com:notaport\" # port is *DIGIT\nAlt-Svc: h2example.com:443        # no '=' in the alternative\nAlt-Svc: h@=\":443\"                # '@' is no tchar\nAlt-Svc: x%3dy=\":443\"             # hex digits are uppercase\nAlt-Svc: %68%32=\":443\"            # a tchar is not percent-encoded\nAlt-Svc: clear, h2=\":443\"         # clear beside an alternative\nAlt-Svc: h2 = \":443\"              # no OWS beside the '='\nAlt-Svc: h2=\":443\"; persist=2     # persist's only value is \"1\"\nAlt-Svc: ,                        # empty list element",
+            },
+        ]
+    }
+}
+
+impl Rule for AltSvcHeaderSyntax {
     /// The field is one an origin server writes onto its own responses, and
     /// RFC 9110 § 3.7 is why a capture of a gateway's answer is measured by the
     /// same sentence.
@@ -528,43 +567,6 @@ impl Rule for AltSvcHeaderSyntax {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Alt-Svc Header Syntax")
-    }
-
-    fn description(&self) -> &'static str {
-        "Read an `Alt-Svc` response header field against the grammar RFC 7838 §3 prints for it:\n\n```\nAlt-Svc       = clear / 1#alt-value\nclear         = %s\"clear\"; \"clear\", case-sensitive\nalt-value     = alternative *( OWS \";\" OWS parameter )\nalternative   = protocol-id \"=\" alt-authority\nprotocol-id   = token ; percent-encoded ALPN protocol name\nalt-authority = quoted-string ; containing [ uri-host ] \":\" port\nparameter     = token \"=\" ( token / quoted-string )\n```\n\n**The alt-authority is a `quoted-string`, and the DQUOTEs are the production.** Every example in RFC 7838 carries them, and the section says why: *\"Note that the \"quoted-string\" syntax needs to be used because \":\" is not an allowed character in \"token\".\"* An unquoted `h2=example.com:443` is reported. Inside the quotes the content is asked for in prose rather than ABNF — *\"an OPTIONAL uri-host …, a colon (\":\"), and a port number\"* — so the host may be absent and the colon and the number may not.\n\n**`clear` is the whole field value or it is nothing.** The top production is an alternation, so a value holding the keyword beside an alternative derives from neither half; RFC 7838 §3 calls that *\"an invalid reply\"* in its own parenthetical. The keyword is `%s\"clear\"`, a case-sensitive string, so `CLEAR` is not it and is read as an `alt-value` instead.\n\n**A `protocol-id` is a percent-encoded ALPN protocol name, and three sentences constrain the spelling** — octets no `token` admits MUST be percent-encoded (including `%` itself, as `%25`), octets that *are* valid token characters MUST NOT be, and the hex digits MUST be uppercase. A `token` admits `%`, so a character scan sees none of these. They exist so that *\"recipients can apply simple string comparison to match protocol identifiers\"*, which two spellings of one name would defeat.\n\n**A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port` is `*DIGIT` — but that an ALPN protocol name identifies a suite carried over a transport whose port registry is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n\n**Parameters are read as `token \"=\" ( token / quoted-string )` and not looked up.** *\"Unknown parameters MUST be ignored\"*, so a name this rule does not recognise is not a defect. `persist` is the one exception, because §3.1 prints a syntax for it that is a single literal `\"1\"` and requires clients to ignore any other value. The `ma` parameter's own value is read by `alt_svc_h3_advertisement_valid`.\n\n**Whitespace beside an `=` is reported.** RFC 7838 writes `OWS` in exactly one place — around the semicolon before a parameter — and the `#rule` it imports writes it around the commas. Both are gone by the time a half is read, so whitespace still touching an `=` is admitted by nothing. This is the opposite of a `BWS`, which is whitespace a grammar prints in order to tolerate.\n\n**What this rule declines.** RFC 7838 §3 says that over HTTP/2 *\"servers SHOULD instead send an ALTSVC frame\"*, and the next sentence says *\"Alt-Svc header fields remain valid in responses delivered over HTTP/2\"*. The frame is not in a capture, HTTP/3 has no such frame at all and RFC 9114 §3.1.1 has an HTTP/3 server use this field, so the SHOULD is not reported. Nothing here reads *which* protocol a well-spelled `protocol-id` names — `alt_svc_protocol_registered` decodes it back into its ALPN protocol name and asks that against a configured list."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_7838_3,
-            RFC_7838_3_1,
-            RFC_7838_1_1,
-            RFC_7838_8,
-            RFC_7838_2,
-            RFC_9110_5_6,
-            RFC_3986_3_2,
-            RFC_6335_6,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Alt-Svc: h2=\":443\"; ma=2592000\nAlt-Svc: h2=\"new.example.org:80\"\nAlt-Svc: h2=\"alt.example.com:8000\", h2=\":443\"\nAlt-Svc: h2=\"[::1]:443\"; persist=1\nAlt-Svc: clear\nAlt-Svc: w%3Dx%3Ay#z=\":443\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Alt-Svc: h2=example.com:443       # alt-authority is a quoted-string\nAlt-Svc: h2=\"example.com\"         # the colon and the port are not optional\nAlt-Svc: h2=\"example.com:notaport\" # port is *DIGIT\nAlt-Svc: h2example.com:443        # no '=' in the alternative\nAlt-Svc: h@=\":443\"                # '@' is no tchar\nAlt-Svc: x%3dy=\":443\"             # hex digits are uppercase\nAlt-Svc: %68%32=\":443\"            # a tchar is not percent-encoded\nAlt-Svc: clear, h2=\":443\"         # clear beside an alternative\nAlt-Svc: h2 = \":443\"              # no OWS beside the '='\nAlt-Svc: h2=\":443\"; persist=2     # persist's only value is \"1\"\nAlt-Svc: ,                        # empty list element",
-            },
-        ]
     }
 }
 

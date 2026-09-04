@@ -4,7 +4,7 @@
 
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct Status426UpgradeValid;
 
@@ -63,11 +63,55 @@ const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
            a trailer field needs its own definition's permission, and §7.8 gives none",
 };
 
-impl Rule for Status426UpgradeValid {
+impl RuleMeta for Status426UpgradeValid {
     fn id(&self) -> &'static str {
         "status_426_upgrade_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Reports a `426 (Upgrade Required)` response that carries no `Upgrade` header field, and one whose `Upgrade` names no protocol.\n\n**The requirement is stated twice, in the two sections that own the halves of it.** RFC 9110 §15.5.22: *The server MUST send an Upgrade header field in a 426 response to indicate the required protocol(s) (Section 7.8).* And §7.8, from the field's side: *A server that sends a 426 (Upgrade Required) response MUST send an Upgrade header field to indicate the acceptable protocols, in order of descending preference.* The status itself is what makes the field load-bearing — it says the server *refuses to perform the request using the current protocol but might be willing to do so after the client upgrades to a different protocol*, so a 426 with no `Upgrade` asks for a change it does not describe.\n\n**The second finding is the clause after \"to indicate\".** `Upgrade` is `#protocol`, so `Upgrade:` is a well-formed list of no protocols and no grammar rule reports it — `upgrade_header_syntax` says so explicitly. What this rule reports is not the grammar but the purpose: on a 426 the field is sent to name what to upgrade to, and a list of none names nothing. On every other response that same value draws nothing from anybody, which is what makes this the *status's* requirement rather than the field's. (Contrast `Allow` on a 405, where §10.2.1 gives the empty value a documented meaning — *the resource allows no methods* — and `status_405_allow_valid` therefore accepts it.)\n\n**Two versions are declined, and each has its own sentence.** Over HTTP/2 an endpoint MUST NOT generate a message containing connection-specific header fields (RFC 9113 §8.2.2), and over HTTP/3 the Upgrade mechanism does not exist at all (RFC 9114 §4.5) — so on those versions this MUST cannot be obeyed, and asking for the field would be advice a server must not follow. That is the defect `sec_websocket_headers_consistent` was once reported for: a rule demanding a field on versions that forbid it. A 426 that *does* carry `Upgrade` there is reported by `no_connection_specific_fields`, with the version's own sentence, so nothing is unreported by this decline. The **response's** version decides it, not the request's: a reverse proxy may have taken the request over one version and answered from an origin speaking another, and the field would have been written in the section this response carries. The test is *not one of the two that forbid it* rather than *is this HTTP/1.x*, so a version deriving from no `HTTP-version` production is still measured.\n\n**A trailer does not answer it.** The requirement names a header field, and §6.5.1 forbids a trailer field unless the field's own definition permits one, which §7.8 does not. A 426 carrying `Upgrade` only in its trailer section is reported here as carrying none, and the finding says the trailer was seen; that the placement is itself a defect is `trailer_fields_valid`'s finding, whose §6.5.1 table names this field.\n\n**Not reported: the order.** §7.8 asks for the protocols *in order of descending preference*, which is what a sender meant by the order it wrote — no field records a preference for the order to disagree with. Nor is any name checked against the Upgrade Token Registry: §16.7's policy is First Come First Served and §7.8's *ought to be registered* is not a requirement.\n\n**What the neighbours own.** Whether the value derives from `protocol = protocol-name [\"/\" protocol-version]` is `upgrade_header_syntax`'s. Whether the field is named by an `upgrade` connection option — which §7.8 asks of every sender of `Upgrade`, including this one — is `upgrade_and_connection_consistent`'s. The mirror requirement on a `101` response, and the rule that the chosen protocol was one the client offered, is `status_101_switching_protocols`'s.\n\nScope: this rule reads a response's header section, and its subject is *the server* — whatever answered, which for a capture taken at a proxy is the party that wrote this response. Where the field appears on several lines they are one value (§5.2), and the value is read as written rather than through a UTF-8 decode, so a field carrying `obs-text` counts as a field that is there."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_15_5_22,
+            RFC_9110_7_8,
+            RFC_9113_8_2_2,
+            RFC_9114_4_5,
+            RFC_9110_5_5,
+            RFC_9110_5_2,
+            RFC_9110_6_5_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("§15.5.22's own worked example"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 426 Upgrade Required\nUpgrade: HTTP/3.0\nConnection: Upgrade\nContent-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Every other response MAY carry the field, so its absence says nothing"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("The MUST's own subject — a 426 carrying no Upgrade at all"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 426 Upgrade Required\nContent-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("The clause after \"to indicate\" — a list of no protocols names none"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 426 Upgrade Required\nUpgrade:\nConnection: Upgrade",
+            },
+        ]
+    }
+}
+
+impl Rule for Status426UpgradeValid {
     /// The requirement's subject is the server and its evidence is a response, so
     /// a capture whose upstream never answered has nothing to measure and this is
     /// the scope that skips exactly those.
@@ -195,48 +239,6 @@ impl Rule for Status426UpgradeValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a `426 (Upgrade Required)` response that carries no `Upgrade` header field, and one whose `Upgrade` names no protocol.\n\n**The requirement is stated twice, in the two sections that own the halves of it.** RFC 9110 §15.5.22: *The server MUST send an Upgrade header field in a 426 response to indicate the required protocol(s) (Section 7.8).* And §7.8, from the field's side: *A server that sends a 426 (Upgrade Required) response MUST send an Upgrade header field to indicate the acceptable protocols, in order of descending preference.* The status itself is what makes the field load-bearing — it says the server *refuses to perform the request using the current protocol but might be willing to do so after the client upgrades to a different protocol*, so a 426 with no `Upgrade` asks for a change it does not describe.\n\n**The second finding is the clause after \"to indicate\".** `Upgrade` is `#protocol`, so `Upgrade:` is a well-formed list of no protocols and no grammar rule reports it — `upgrade_header_syntax` says so explicitly. What this rule reports is not the grammar but the purpose: on a 426 the field is sent to name what to upgrade to, and a list of none names nothing. On every other response that same value draws nothing from anybody, which is what makes this the *status's* requirement rather than the field's. (Contrast `Allow` on a 405, where §10.2.1 gives the empty value a documented meaning — *the resource allows no methods* — and `status_405_allow_valid` therefore accepts it.)\n\n**Two versions are declined, and each has its own sentence.** Over HTTP/2 an endpoint MUST NOT generate a message containing connection-specific header fields (RFC 9113 §8.2.2), and over HTTP/3 the Upgrade mechanism does not exist at all (RFC 9114 §4.5) — so on those versions this MUST cannot be obeyed, and asking for the field would be advice a server must not follow. That is the defect `sec_websocket_headers_consistent` was once reported for: a rule demanding a field on versions that forbid it. A 426 that *does* carry `Upgrade` there is reported by `no_connection_specific_fields`, with the version's own sentence, so nothing is unreported by this decline. The **response's** version decides it, not the request's: a reverse proxy may have taken the request over one version and answered from an origin speaking another, and the field would have been written in the section this response carries. The test is *not one of the two that forbid it* rather than *is this HTTP/1.x*, so a version deriving from no `HTTP-version` production is still measured.\n\n**A trailer does not answer it.** The requirement names a header field, and §6.5.1 forbids a trailer field unless the field's own definition permits one, which §7.8 does not. A 426 carrying `Upgrade` only in its trailer section is reported here as carrying none, and the finding says the trailer was seen; that the placement is itself a defect is `trailer_fields_valid`'s finding, whose §6.5.1 table names this field.\n\n**Not reported: the order.** §7.8 asks for the protocols *in order of descending preference*, which is what a sender meant by the order it wrote — no field records a preference for the order to disagree with. Nor is any name checked against the Upgrade Token Registry: §16.7's policy is First Come First Served and §7.8's *ought to be registered* is not a requirement.\n\n**What the neighbours own.** Whether the value derives from `protocol = protocol-name [\"/\" protocol-version]` is `upgrade_header_syntax`'s. Whether the field is named by an `upgrade` connection option — which §7.8 asks of every sender of `Upgrade`, including this one — is `upgrade_and_connection_consistent`'s. The mirror requirement on a `101` response, and the rule that the chosen protocol was one the client offered, is `status_101_switching_protocols`'s.\n\nScope: this rule reads a response's header section, and its subject is *the server* — whatever answered, which for a capture taken at a proxy is the party that wrote this response. Where the field appears on several lines they are one value (§5.2), and the value is read as written rather than through a UTF-8 decode, so a field carrying `obs-text` counts as a field that is there."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_15_5_22,
-            RFC_9110_7_8,
-            RFC_9113_8_2_2,
-            RFC_9114_4_5,
-            RFC_9110_5_5,
-            RFC_9110_5_2,
-            RFC_9110_6_5_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("§15.5.22's own worked example"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 426 Upgrade Required\nUpgrade: HTTP/3.0\nConnection: Upgrade\nContent-Type: text/plain",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Every other response MAY carry the field, so its absence says nothing"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("The MUST's own subject — a 426 carrying no Upgrade at all"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 426 Upgrade Required\nContent-Type: text/plain",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("The clause after \"to indicate\" — a list of no protocols names none"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 426 Upgrade Required\nUpgrade:\nConnection: Upgrade",
-            },
-        ]
     }
 }
 
@@ -444,7 +446,7 @@ mod tests {
     /// changeset disagreeing with itself.
     #[test]
     fn published_examples_agree_with_the_rule_and_with_the_neighbours() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
 
         let mut asserted_a_finding = false;
         let neighbours: [(&dyn crate::rules::Rule, &str); 2] = [
