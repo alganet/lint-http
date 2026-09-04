@@ -5,8 +5,9 @@
 //! The `lint-http` rule catalogue and lint dispatch.
 //!
 //! This crate holds the [`Rule`](rules::Rule) catalogue (self-registered via
-//! `linkme`), the helper utilities rules build on, the state-query layer, and
-//! the dispatch engine ([`engine::lint_transaction`],
+//! `linkme`), the [`ViolationDef`](violations::ViolationDef) catalogue of the
+//! defects those rules report, the helper utilities rules build on, the
+//! state-query layer, and the dispatch engine ([`engine::lint_transaction`],
 //! [`lint_protocol::lint_protocol_event`]). It depends only on
 //! [`lint_http_core`].
 //!
@@ -33,6 +34,11 @@ pub mod queries;
 // actually be tempted — still covered.
 #[allow(unsafe_code)]
 pub mod rules;
+// The violation catalogue registers the same way and needs the same exemption,
+// for the same reason: one `#[link_section]` per def, inside each
+// `src/violations/*.rs`.
+#[allow(unsafe_code)]
+pub mod violations;
 
 #[cfg(test)]
 mod test_helpers;
