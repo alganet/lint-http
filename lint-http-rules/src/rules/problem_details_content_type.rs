@@ -40,6 +40,12 @@ impl RuleMeta for ProblemDetailsContentType {
         "problem_details_content_type"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Reports an error response (4xx or 5xx) whose `Content-Type` is one of the three **generic** JSON or XML media types — `application/json`, `application/xml`, `text/xml` — as a candidate for problem details, the format RFC 9457 defines to carry machine-readable details of an error as `application/problem+json` or `application/problem+xml`. RFC 9457 obsoletes RFC 7807.\n\n**The finding is advisory: no RFC requires problem details.** RFC 9457 says they \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\", which is where this rule looks, and it twice says that a sender with a format of its own should keep it: §1 notes that where the response is still a representation of a resource \"it's often preferable to describe the relevant details in that application's format\", and §4 that problem details are \"intended to avoid the necessity of establishing new 'fault' or 'error' document formats, not to replace existing domain-specific formats\". A finding means this error response carries no error format at all, not that its sender did anything wrong.\n\nThat is why the reported set stops at the three generic media types. A subtype ending in `+json` or `+xml` (`application/hal+json`, `application/vnd.api+json`) names a specific format, so the sender has the one RFC 9457 prefers and the rule says nothing. It also says nothing about a `Content-Type` it cannot parse, which is `content_type_valid`'s finding, nor about a response carrying no `Content-Type` at all, which is `content_type_present`'s. A response carrying **two** `Content-Type` field lines is declined for a third reason: RFC 9110 §8.3 says recipients often act on the last syntactically valid member, so which media type the peer reads is not knowable, and `content_type_valid` reports the duplication itself."
     }

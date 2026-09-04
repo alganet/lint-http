@@ -40,6 +40,12 @@ impl RuleMeta for AccessControlAllowOriginValid {
         "access_control_allow_origin_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Access-Control-Allow-Origin Syntax")
     }

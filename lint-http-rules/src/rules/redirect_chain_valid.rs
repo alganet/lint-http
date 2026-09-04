@@ -136,6 +136,12 @@ impl RuleMeta for RedirectChainValid {
         "redirect_chain_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Redirect To The Request's Own Target")
     }

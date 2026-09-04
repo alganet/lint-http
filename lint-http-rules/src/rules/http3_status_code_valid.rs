@@ -40,6 +40,12 @@ impl RuleMeta for Http3StatusCodeValid {
         "http3_status_code_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "error"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("HTTP/3 Status Code Validity")
     }

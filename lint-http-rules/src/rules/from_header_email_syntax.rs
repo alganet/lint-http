@@ -99,6 +99,12 @@ impl RuleMeta for FromHeaderEmailSyntax {
         "from_header_email_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "This rule measures the `From` request header against the one production RFC 9110 §10.1.2 gives it: `From = mailbox`, imported by reference from RFC 5322 §3.4. It is a single mailbox and not a list — `mailbox-list` is defined two lines below it in the same section and is not what the field imports — so a comma outside every `quoted-string`, `comment` and `angle-addr` is reported, and so is a second `From` field line, which a recipient recombines into exactly that comma-separated shape (RFC 9110 §5.3). The value is read one `char` per octet, so an octet above %x7E is named at the character class that excludes it rather than folded into a claim about UTF-8; RFC 5322 writes `atext`, `qtext`, `ctext` and `dtext` as ranges that all stop at %x7E. Parenthesised comments and folding whitespace are part of the grammar and are accepted wherever `CFWS` may appear — `alice@example.com (Alice)` is one conforming mailbox. Only §3's grammar is accepted: §4's obsolete alternatives must be accepted by a receiver and must not be generated, and this rule reports on senders. One finding is weaker than the rest and says so in its own text: a `dot-atom` domain outside RFC 1035 §2.3.1's preferred name syntax (an `_`, a label opening or closing on `-`, a label over 63 characters) is a conforming `dot-atom` and is reported as advice. §10.1.2's three other requirements are declined and none of them is about syntax: the user agent SHOULD NOT that turns on whether the user configured the field, the SHOULD on a *robotic* user agent, and the SHOULD NOT on a server *using* the field for access control are each about a party or an intent no captured message states. RFC 5322's own advice to its generators — prefer a `dot-atom` local-part over a quoted one (§3.4.1), keep comments out of address fields (§3.4) — is likewise not enforced: RFC 9110 imports a production, not the document's style guidance."
     }

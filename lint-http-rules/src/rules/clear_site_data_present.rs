@@ -94,6 +94,15 @@ impl RuleMeta for ClearSiteDataPresent {
         "clear_site_data_present"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
+
+# Correctness rules examples
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let config = parse_paths_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config

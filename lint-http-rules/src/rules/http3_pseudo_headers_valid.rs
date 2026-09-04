@@ -57,6 +57,12 @@ impl RuleMeta for Http3PseudoHeadersValid {
         "http3_pseudo_headers_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "error"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("HTTP/3 Pseudo-Headers Validity")
     }

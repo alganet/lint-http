@@ -34,6 +34,46 @@ impl RuleMeta for ContentTypeRegistered {
         "content_type_registered"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# The list has to carry the media types HTTP itself produces, or the rule
+# reports the protocol working. `multipart/byteranges` is what a multi-range
+# request gets back (RFC 9110 § 14.6) and `message/http` is what a TRACE
+# response carries (RFC 9112 § 10.1) -- neither is a choice the origin made.
+# `application/octet-stream` is the type RFC 9110 § 8.3 names for content whose
+# type is unknown, so a default that rejects it rejects the specified fallback.
+#
+# The rest are the ordinary shapes of a request body, a non-JSON API, and the
+# subresources a browser fetches for any page it renders. The stylesheet, script
+# and font types are registered and are served by essentially every deployment
+# with a web front end, so leaving them out reported conformant traffic on any
+# corpus a browser produced -- the same defect as rejecting `message/http`, one
+# step further out.
+#
+# A deployment is still expected to narrow this to what it actually serves.
+allowed = [
+  "text/plain",
+  "text/html",
+  "text/css",
+  "text/javascript",
+  "application/javascript",
+  "application/json",
+  "application/xml",
+  "application/wasm",
+  "application/octet-stream",
+  "application/x-www-form-urlencoded",
+  "multipart/byteranges",
+  "multipart/form-data",
+  "message/http",
+  "font/woff",
+  "font/woff2",
+  "image/*",
+  "+json",
+]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         let allowed = crate::helpers::rule_config::parse_lowercased_list(

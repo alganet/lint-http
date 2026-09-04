@@ -34,6 +34,12 @@ impl RuleMeta for ContentTransferEncodingValid {
         "content_transfer_encoding_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Flags any `Content-Transfer-Encoding` header in an HTTP message. HTTP does not use this field: it belongs to MIME, and a gateway from a MIME-compliant protocol is required to remove it before the message reaches an HTTP client, so one arriving over HTTP means that removal did not happen.\n\nThe consequence is silent corruption rather than a mere style problem — an HTTP recipient ignores the field, so a body that was (say) base64-encoded for MIME transport is read without being decoded.\n\nThe value is reported as detail: a single `token` naming one of `7bit`, `8bit`, `binary`, `quoted-printable`, `base64` (case-insensitive), or a private `x-` mechanism, is well-formed MIME — but being well-formed MIME does not make the field belong in HTTP."
     }

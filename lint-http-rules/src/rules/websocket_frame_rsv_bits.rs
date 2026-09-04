@@ -68,6 +68,12 @@ impl RuleMeta for WebsocketFrameRsvBits {
         "websocket_frame_rsv_bits"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("WebSocket Frame Reserved Bits")
     }

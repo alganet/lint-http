@@ -28,6 +28,12 @@ impl RuleMeta for CrossOriginEmbedderPolicyValid {
         "cross_origin_embedder_policy_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Cross-Origin-Embedder-Policy Value")
     }

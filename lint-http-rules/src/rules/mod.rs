@@ -176,7 +176,7 @@ impl std::fmt::Display for SpecRef {
 /// out twice, with a comment on the second copy saying it matched the first,
 /// and the three bodies the copies shared were extracted into free functions
 /// called from both. A reader who has to be told two declarations agree is
-/// reading one declaration too many: the eight members live here once, each
+/// reading one declaration too many: the nine members live here once, each
 /// trait keeps only the hook that takes its own subject, and the three
 /// go-betweens are gone because there is no longer a second caller to reach
 /// them from.
@@ -191,6 +191,26 @@ pub trait RuleMeta: Send + Sync {
     /// `Violation.rule` its findings carry, and the `docs/rules/<id>.md` page
     /// that documents it.
     fn id(&self) -> &'static str;
+
+    /// The body of this rule's `[rules.<id>]` section, as it appears in the
+    /// generated `config_example.toml` and in the generated doc page's
+    /// Configuration block. The `[rules.<id>]` header itself is rendered from
+    /// [`id`](RuleMeta::id), so the two cannot name different rules; what a
+    /// rule writes here is everything under that header — the two required
+    /// keys, its own options, and any comment explaining them.
+    ///
+    /// Required rather than defaulted, for the reason §6 of
+    /// `docs/development.md` gives for options: an example nobody chose is
+    /// still an example someone will copy. A default would silently answer
+    /// `enabled = true` / `severity = "warn"` for a rule whose author never
+    /// considered either, and 40 of the catalogue's 193 rules write something
+    /// else.
+    ///
+    /// A comment belongs *below* the key it explains. Sections are rendered
+    /// one after another with a blank line between them, so a comment written
+    /// above a key reads as introducing everything under it — including, at
+    /// the top of a body, the whole rule.
+    fn config_example(&self) -> &'static str;
 
     /// Resolve this rule's configuration once, when the engine is built —
     /// which is also when it is validated: a malformed section fails fast at
@@ -1157,6 +1177,13 @@ severity = "warn"
     // per-rule: a history consumer omitted from STATEFUL_RULES is dispatched with
     // an empty history and fails its own history-exercising tests loudly.
 
+    /// The shipped file has a section for every rule.
+    ///
+    /// `config_example_matches_generated` in `xtask` says something stronger,
+    /// and this is not therefore redundant: that gate needs the generator, and
+    /// this crate is the one a `cargo test -p lint-http-rules` runs. It is also
+    /// the half that survives a hand-edit of the file, which is the only way
+    /// the two can now disagree.
     #[test]
     fn config_example_includes_all_rules() -> anyhow::Result<()> {
         let s = std::fs::read_to_string(
@@ -1323,6 +1350,12 @@ severity = "warn"
         impl RuleMeta for DummyRule {
             fn id(&self) -> &'static str {
                 "dummy_rule"
+            }
+
+            fn config_example(&self) -> &'static str {
+                r#"enabled = true
+severity = "warn"
+"#
             }
         }
         impl Rule for DummyRule {

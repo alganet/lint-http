@@ -46,6 +46,12 @@ impl RuleMeta for ContentDispositionTokenValid {
         "content_disposition_token_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Content-Disposition Disposition-Type Token Valid")
     }

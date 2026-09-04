@@ -33,6 +33,12 @@ impl RuleMeta for Http3GoawaySemantics {
         "http3_goaway_semantics"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("HTTP/3 GOAWAY Semantics")
     }

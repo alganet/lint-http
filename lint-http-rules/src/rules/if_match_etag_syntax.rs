@@ -31,6 +31,12 @@ impl RuleMeta for IfMatchEtagSyntax {
         "if_match_etag_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("If-Match ETag Syntax")
     }

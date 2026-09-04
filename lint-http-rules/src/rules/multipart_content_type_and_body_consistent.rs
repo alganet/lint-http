@@ -34,6 +34,12 @@ impl RuleMeta for MultipartContentTypeAndBodyConsistent {
         "multipart_content_type_and_body_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Multipart Content-Type and Body Consistency")
     }

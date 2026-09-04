@@ -47,6 +47,12 @@ impl RuleMeta for LanguageTagSyntax {
         "language_tag_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Language Tag Format Valid")
     }

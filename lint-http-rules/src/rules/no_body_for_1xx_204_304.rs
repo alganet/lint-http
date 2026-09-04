@@ -87,6 +87,12 @@ impl RuleMeta for NoBodyFor1xx204304 {
         "no_body_for_1xx_204_304"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "error"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server No Body For 1xx, 204, 304")
     }

@@ -7,18 +7,31 @@
 //! `gendocs` regenerates `docs/rules/<id>.md` and the `docs/rules.md` index from
 //! rule metadata, and deletes the pages no rule claims any more (reported on
 //! stderr, since deleting quietly is how a file goes missing without a reader
-//! ever knowing). It is a repo tool and not a user tool: it reads
-//! `config_example.toml` and writes into the working tree, both resolved from
-//! the workspace root that this crate's manifest dir points at. An installed
-//! binary has no such tree, which is why this lives here and not in the CLI.
+//! ever knowing). `genconfig` regenerates `config_example.toml` from the same
+//! metadata. Both are repo tools and not user tools: they write into the
+//! working tree, resolved from the workspace root that this crate's manifest
+//! dir points at. An installed binary has no such tree, which is why this lives
+//! here and not in the CLI.
 //!
-//! Run it as `cargo xtask gendocs` (the alias is in `.cargo/config.toml`) or
-//! `just gendocs`.
+//! Run them as `cargo xtask gendocs` / `cargo xtask genconfig` (the alias is in
+//! `.cargo/config.toml`) or `just gendocs` / `just genconfig`.
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+mod genconfig;
 mod gendocs;
+
+/// The workspace root, derived from this crate's manifest dir. `config_example.toml`
+/// and the `docs/` tree live there, so reads and writes are anchored here rather
+/// than to the process CWD (which varies between `cargo run` at the root and
+/// `cargo test -p`).
+pub fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crate manifest dir has a parent (the workspace root)")
+        .to_path_buf()
+}
 
 #[derive(Parser, Debug)]
 #[command(name = "xtask", about = "Repository maintenance tasks for lint-http")]
@@ -31,12 +44,21 @@ struct Cli {
 enum Command {
     /// Regenerate the rule documentation under the --out directory from rule metadata.
     Gendocs(GendocsArgs),
+    /// Regenerate the example configuration file from rule metadata.
+    Genconfig(GenconfigArgs),
 }
 
 #[derive(clap::Args, Debug)]
 struct GendocsArgs {
     /// Output directory; `rules.md` and `rules/<id>.md` are written under it.
     /// Defaults to `docs/` at the workspace root.
+    #[arg(long)]
+    out: Option<PathBuf>,
+}
+
+#[derive(clap::Args, Debug)]
+struct GenconfigArgs {
+    /// Output file. Defaults to `config_example.toml` at the workspace root.
     #[arg(long)]
     out: Option<PathBuf>,
 }
@@ -51,7 +73,14 @@ struct GendocsArgs {
 /// find out what your working directory was. The inputs are already anchored to
 /// the repo root; the output now agrees with them.
 fn resolve_out(out: Option<PathBuf>) -> PathBuf {
-    out.unwrap_or_else(|| gendocs::repo_root().join("docs"))
+    out.unwrap_or_else(|| repo_root().join("docs"))
+}
+
+/// Where the example config goes when `--out` is not given, for the same reason
+/// [`resolve_out`] gives: the gate reads the workspace root's copy, so the fix
+/// it suggests has to write there from wherever it is run.
+fn resolve_config_out(out: Option<PathBuf>) -> PathBuf {
+    out.unwrap_or_else(|| repo_root().join("config_example.toml"))
 }
 
 /// The whole tool, minus argument parsing, so the work is reachable from a test
@@ -64,6 +93,12 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                 eprintln!("Removed {} — no rule claims it", path.display());
             }
             eprintln!("Wrote rule docs to {}", out.display());
+            Ok(())
+        }
+        Command::Genconfig(args) => {
+            let out = resolve_config_out(args.out);
+            genconfig::write(&out)?;
+            eprintln!("Wrote example config to {}", out.display());
             Ok(())
         }
     }
@@ -112,23 +147,84 @@ mod tests {
             .any(|r| r.id() == "quic_transport_parameters_valid"));
     }
 
+    /// One arm per subcommand, so a new one has to be given a place here rather
+    /// than silently falling into another's `_ =>`.
+    fn gendocs_args(argv: &[&str]) -> Option<PathBuf> {
+        match Cli::parse_from(argv).command {
+            Command::Gendocs(args) => args.out,
+            Command::Genconfig(_) => panic!("expected gendocs"),
+        }
+    }
+
+    fn genconfig_args(argv: &[&str]) -> Option<PathBuf> {
+        match Cli::parse_from(argv).command {
+            Command::Genconfig(args) => args.out,
+            Command::Gendocs(_) => panic!("expected genconfig"),
+        }
+    }
+
     /// The default is absolute, and it is the tree the drift gate reads — not
     /// `./docs`, which is only the same thing when you happen to be standing at
     /// the workspace root.
     #[test]
     fn out_defaults_to_the_workspace_docs_tree() {
-        let cli = Cli::parse_from(["xtask", "gendocs"]);
-        let Command::Gendocs(args) = cli.command;
-        let out = resolve_out(args.out);
+        let out = resolve_out(gendocs_args(&["xtask", "gendocs"]));
         assert!(out.is_absolute());
-        assert_eq!(out, gendocs::repo_root().join("docs"));
+        assert_eq!(out, repo_root().join("docs"));
     }
 
     #[test]
     fn cli_gendocs_parses_out() {
-        let cli = Cli::parse_from(["xtask", "gendocs", "--out", "/tmp/docs-out"]);
-        let Command::Gendocs(args) = cli.command;
-        assert_eq!(resolve_out(args.out), PathBuf::from("/tmp/docs-out"));
+        assert_eq!(
+            resolve_out(gendocs_args(&[
+                "xtask",
+                "gendocs",
+                "--out",
+                "/tmp/docs-out"
+            ])),
+            PathBuf::from("/tmp/docs-out")
+        );
+    }
+
+    /// Same anchoring argument as the docs tree, and the same failure if it is
+    /// wrong: the fixer writes a `config_example.toml` the gate never reads.
+    #[test]
+    fn config_out_defaults_to_the_workspace_file() {
+        let out = resolve_config_out(genconfig_args(&["xtask", "genconfig"]));
+        assert!(out.is_absolute());
+        assert_eq!(out, repo_root().join("config_example.toml"));
+    }
+
+    #[test]
+    fn cli_genconfig_parses_out() {
+        assert_eq!(
+            resolve_config_out(genconfig_args(&[
+                "xtask",
+                "genconfig",
+                "--out",
+                "/tmp/config-out.toml"
+            ])),
+            PathBuf::from("/tmp/config-out.toml")
+        );
+    }
+
+    /// The CLI end of `genconfig`: the render reaches a file, and that file is
+    /// the one the gate would accept.
+    #[test]
+    fn run_genconfig_writes_the_example_config() {
+        let path =
+            std::env::temp_dir().join(format!("xtask_genconfig_{}.toml", uuid::Uuid::new_v4()));
+        run(Cli::parse_from([
+            "xtask",
+            "genconfig",
+            "--out",
+            path.to_str().expect("temp path is utf-8"),
+        ]))
+        .expect("genconfig should succeed");
+
+        let written = std::fs::read_to_string(&path).expect("read generated config");
+        assert_eq!(written, genconfig::render());
+        std::fs::remove_file(&path).ok();
     }
 
     /// The pruning itself is `gendocs`'s to test; what this covers is the CLI

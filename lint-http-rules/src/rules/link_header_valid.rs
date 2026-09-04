@@ -201,6 +201,12 @@ impl RuleMeta for LinkHeaderValid {
         "link_header_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Parses the `Link` field of a request and of a response — every field line of one section \
          joined into the single list they are — against the grammar RFC 8288 §3 writes for it: \

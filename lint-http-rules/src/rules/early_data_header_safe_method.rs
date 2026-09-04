@@ -154,6 +154,31 @@ impl RuleMeta for EarlyDataHeaderSafeMethod {
         "early_data_header_safe_method"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# The methods this deployment knows to be safe. Safety is a required field of every
+# entry in the IANA "Hypertext Transfer Protocol (HTTP) Method Registry" (RFC 9110
+# §16.1.1), which grows by IETF Review, so the set below is that registry's `Safe: yes`
+# column and not a grammar. GET, HEAD, OPTIONS and TRACE are the four RFC 9110 itself
+# defines; the rest are registered safe by RFC 9113, RFC 4918, RFC 10008, RFC 3253 and
+# RFC 5323. Add a private method here when this deployment knows it to be safe — RFC
+# 8470 §4's requirement opens "Absent other information", and this array is where that
+# information goes.
+safe_methods = [
+  "GET",
+  "HEAD",
+  "OPTIONS",
+  "PRI",
+  "PROPFIND",
+  "QUERY",
+  "REPORT",
+  "SEARCH",
+  "TRACE",
+]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let config = parse_early_data_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config

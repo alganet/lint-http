@@ -79,6 +79,12 @@ impl RuleMeta for AltSvcH3AdvertisementValid {
         "alt_svc_h3_advertisement_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Alt-Svc H3 Advertisement Valid")
     }

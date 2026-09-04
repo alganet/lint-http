@@ -40,6 +40,12 @@ impl RuleMeta for AcceptEncodingParameterValid {
         "accept_encoding_parameter_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Accept-Encoding Parameter Validity")
     }

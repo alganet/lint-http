@@ -136,6 +136,15 @@ impl RuleMeta for SingletonFieldsNotRepeated {
         "singleton_fields_not_repeated"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"# RFC 9110 §5.3's MUST NOT is unconditional, so the shipped severity is error:
+# a second field line of a singleton is a defect of the message however a
+# recipient recovers from it.
+enabled = true
+severity = "error"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Reports a message writing more than one field line of a singleton field. RFC 9110 §5.3: \
          a sender MUST NOT generate multiple field lines with the same name in a message — \

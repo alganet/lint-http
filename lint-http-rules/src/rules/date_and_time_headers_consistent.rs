@@ -217,6 +217,12 @@ impl RuleMeta for DateAndTimeHeadersConsistent {
         "date_and_time_headers_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Date and Time Headers Consistency")
     }

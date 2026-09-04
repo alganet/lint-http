@@ -46,6 +46,21 @@ impl RuleMeta for ExtensionHeadersRegistered {
         "extension_headers_registered"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"# The 'allowed' array is this rule's only authority: it is not the IANA field
+# name registry, so every field name the deployment expects has to be listed
+# here, including the ones RFC 9110 itself defines. No such list is
+# deployment-independent, so the example below is an illustration and the rule
+# ships disabled -- turned on against this array it would report ordinary
+# traffic, since Date, Content-Length and Connection are not in it either.
+# Name a private field for its use and without an "X-" prefix (RFC 9110
+# 16.3.2.1).
+enabled = false
+severity = "warn"
+allowed = ["host", "user-agent", "accept", "content-type", "acme-request-id"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         // What the array lists is field names, and a field name means the same

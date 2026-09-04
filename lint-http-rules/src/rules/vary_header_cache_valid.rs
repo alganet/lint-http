@@ -49,6 +49,12 @@ impl RuleMeta for VaryHeaderCacheValid {
         "vary_header_cache_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Caches use the response's `Vary` header to decide which request header values must be incorporated into their cache key.  When a cached representation is reused (for example via conditional requests using `If-None-Match` or `If-Modified-Since`), the values of *all* headers listed in `Vary` **must** be identical to those that produced the stored response.  Otherwise the cache is effectively using an incomplete key and may send a stale or incorrect representation to the server or client.\n\nThis rule inspects conditional requests and attempts to pair them with the prior response whose validator is being reused.  If that earlier response included a `Vary` header, the rule compares the request header values from the two transactions.  Any difference is reported as a violation because it indicates the cache key omitted a required dimension.\n\nThe rule is intentionally forgiving:\n\n* It only applies when a previous validator matching the current conditional header can be located.\n* `Vary: *` is ignored, since it precludes reuse and offers no explicit fields to compare.\n* When no `Vary` header is present on the candidate response, no check is performed."
     }

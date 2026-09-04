@@ -151,6 +151,13 @@ impl RuleMeta for HeadResponseHeadersMatchGet {
         "head_response_headers_match_get"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+headers = ["etag", "content-type", "content-length"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         // The configured names are folded once at prepare time so the rest of the

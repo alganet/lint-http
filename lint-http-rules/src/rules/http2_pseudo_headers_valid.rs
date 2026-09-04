@@ -181,6 +181,12 @@ impl RuleMeta for Http2PseudoHeadersValid {
         "http2_pseudo_headers_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "error"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("HTTP/2 Pseudo-Headers Validity")
     }

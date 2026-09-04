@@ -78,6 +78,13 @@ impl RuleMeta for XContentTypeOptionsPresent {
         "x_content_type_options_present"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+content_types = ["text/html", "application/javascript", "application/json"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let config = parse_x_content_type_options_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config

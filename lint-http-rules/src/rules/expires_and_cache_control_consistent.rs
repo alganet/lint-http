@@ -33,6 +33,12 @@ impl RuleMeta for ExpiresAndCacheControlConsistent {
         "expires_and_cache_control_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "If a response includes both an `Expires` header and a `Cache-Control` freshness directive\n(such as `max-age`/`s-maxage`) they SHOULD not contradict each other. When both are\npresent, `Cache-Control` directives take precedence; clearly contradictory values\n(e.g., `Cache-Control: no-cache` while `Expires` is in the future) likely indicate\nmisconfiguration and should be corrected.\n\nAn `Expires` value that is not a valid HTTP-date counts as contradictory too, rather\nthan as no information: a cache is required to read it as already expired, so the\ncommon `Expires: 0` paired with a positive `max-age` is flagged."
     }

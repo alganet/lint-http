@@ -28,6 +28,12 @@ impl RuleMeta for XXssProtectionValueValid {
         "x_xss_protection_value_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server X-XSS-Protection Value Valid")
     }

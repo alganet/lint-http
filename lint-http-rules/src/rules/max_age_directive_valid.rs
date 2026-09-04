@@ -51,6 +51,12 @@ impl RuleMeta for MaxAgeDirectiveValid {
         "max_age_directive_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Stateful max-age directive validity")
     }

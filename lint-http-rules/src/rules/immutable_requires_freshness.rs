@@ -47,6 +47,12 @@ impl RuleMeta for ImmutableRequiresFreshness {
         "immutable_requires_freshness"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Immutable Requires Freshness")
     }

@@ -40,6 +40,12 @@ impl RuleMeta for TransferEncodingChunkedFinal {
         "transfer_encoding_chunked_final"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Transfer-Encoding Chunked Final")
     }

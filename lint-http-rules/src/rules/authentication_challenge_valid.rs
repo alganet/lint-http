@@ -28,6 +28,12 @@ impl RuleMeta for AuthenticationChallengeValid {
         "authentication_challenge_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Warn when a single response advertises the same `realm` value across multiple `WWW-Authenticate` authentication schemes. A realm identifies a protection space and re-using the same realm string for different schemes can cause ambiguity and confuse credential selection. This is a **heuristic** check (HTTP does not strictly forbid this pattern), and it is intended to help operators spot potentially confusing authentication configurations. (RFC 9110 §11.5)"
     }

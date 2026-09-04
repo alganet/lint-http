@@ -55,6 +55,12 @@ impl RuleMeta for Oauth2CodeFlow {
         "oauth2_code_flow"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Stateful OAuth2 Authorization Code Flow")
     }

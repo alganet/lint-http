@@ -32,6 +32,12 @@ impl RuleMeta for PrivateCacheVisibility {
         "private_cache_visibility"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Stateful private cache visibility")
     }

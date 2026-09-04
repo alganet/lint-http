@@ -53,6 +53,12 @@ impl RuleMeta for AcceptAndContentTypeNegotiation {
         "accept_and_content_type_negotiation"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Accept and Content-Type Negotiation")
     }

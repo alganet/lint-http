@@ -98,6 +98,12 @@ impl RuleMeta for TraceMethodEcho {
         "trace_method_echo"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Semantic TRACE Method Echo")
     }

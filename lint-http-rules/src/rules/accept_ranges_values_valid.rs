@@ -54,6 +54,12 @@ impl RuleMeta for AcceptRangesValuesValid {
         "accept_ranges_values_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Accept-Ranges Values Valid")
     }

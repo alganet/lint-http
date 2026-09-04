@@ -46,6 +46,12 @@ impl RuleMeta for AcceptHeaderMediaTypeSyntax {
         "accept_header_media_type_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Accept Header Media Type Syntax")
     }

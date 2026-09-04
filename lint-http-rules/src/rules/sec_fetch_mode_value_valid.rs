@@ -26,6 +26,12 @@ impl RuleMeta for SecFetchModeValueValid {
         "sec_fetch_mode_value_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Requests that include the `Sec-Fetch-Mode` request header must use one of the canonical values defined by the Fetch Metadata specification: `cors`, `no-cors`, `same-origin`, `navigate`, or `websocket`. This rule validates the header token syntax and that the value is exactly one of the accepted identifiers — modes are lowercase tokens and structured-field tokens carry no case folding, so `CORS` is not a valid value. Multiple header fields (repeated `Sec-Fetch-Mode`) are treated as a violation (possible header injection) and will be flagged."
     }

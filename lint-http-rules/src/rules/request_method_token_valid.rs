@@ -141,6 +141,66 @@ impl RuleMeta for RequestMethodTokenValid {
         "request_method_token_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# The standardized method names this deployment expects to see spelled the way their
+# definitions spell them. RFC 9110 §9.1 states the convention this rule reports against
+# — "standardized methods are defined in all-uppercase US-ASCII letters" — and says
+# every method specified outside that document "ought to be registered" in the IANA
+# "Hypertext Transfer Protocol (HTTP) Method Registry" (§16.1.1), which grows by IETF
+# Review. So the set below is that registry's Method Name column and not a grammar: the
+# `token` production admits every lowercase spelling this rule reports.
+# A name missing here costs one unremarked spelling and never a false report. Add a
+# private method — `PURGE`, `BAN` — to have its own case convention checked too.
+# The array is required, and an absent or empty one stops the rule outright rather than
+# only its case check: the grammar questions do not read these names, so silencing just
+# that branch would leave a configuration mistake looking like a clean run.
+registered_methods = [
+  "ACL",
+  "BASELINE-CONTROL",
+  "BIND",
+  "CHECKIN",
+  "CHECKOUT",
+  "CONNECT",
+  "COPY",
+  "DELETE",
+  "GET",
+  "HEAD",
+  "LABEL",
+  "LINK",
+  "LOCK",
+  "MERGE",
+  "MKACTIVITY",
+  "MKCALENDAR",
+  "MKCOL",
+  "MKREDIRECTREF",
+  "MKWORKSPACE",
+  "MOVE",
+  "OPTIONS",
+  "ORDERPATCH",
+  "PATCH",
+  "POST",
+  "PRI",
+  "PROPFIND",
+  "PROPPATCH",
+  "PUT",
+  "QUERY",
+  "REBIND",
+  "REPORT",
+  "SEARCH",
+  "TRACE",
+  "UNBIND",
+  "UNCHECKOUT",
+  "UNLINK",
+  "UNLOCK",
+  "UPDATE",
+  "UPDATEREDIRECTREF",
+  "VERSION-CONTROL",
+]
+"#
+    }
+
     /// The sixteenth rule with a required option and the only one that had no
     /// `validate` of its own, so the trait default checked the two standard keys
     /// and `registered_methods` was read for the first time **at lint time** —
