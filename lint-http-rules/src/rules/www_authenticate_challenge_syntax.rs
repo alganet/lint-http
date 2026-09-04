@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct WwwAuthenticateChallengeSyntax;
 
@@ -23,52 +23,9 @@ const RFC_9110_11_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Challenge and Response — `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]` (RFC 7235, which defined this, is obsoleted by RFC 9110; `token68` itself is defined in §11.2)",
 };
 
-impl Rule for WwwAuthenticateChallengeSyntax {
+impl RuleMeta for WwwAuthenticateChallengeSyntax {
     fn id(&self) -> &'static str {
         "www_authenticate_challenge_syntax"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        // WWW-Authenticate is a response header field, so only responses are checked.
-        // The challenge grammar and its validation are owned by helpers::auth (§11.3).
-        crate::rules::RuleScope::Server
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Only check response headers; ignore non-UTF8 header values
-            if let Some(resp) = &tx.response {
-                for s in crate::helpers::headers::field_lines(&resp.headers, "www-authenticate") {
-                    // Group members into assembled challenges using the helper so we can
-                    // test the grouping logic independently and exercise more branches.
-                    // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
-                    let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
-                        Ok(c) => c,
-                        Err(msg) => {
-                            return Some(self.cited(&RFC_9110_11_6_1, ctx.severity, msg));
-                        }
-                    };
-
-                    // Now validate each assembled challenge using helper to make it unit-testable
-                    for challenge in challenges.iter() {
-                        if let Err(defect) =
-                            crate::helpers::auth::validate_challenge_syntax(challenge)
-                        {
-                            return Some(self.violation(ctx.severity, defect.message()));
-                        }
-                    }
-                }
-            }
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -113,6 +70,51 @@ impl Rule for WwwAuthenticateChallengeSyntax {
                 snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"unfinished",
             },
         ]
+    }
+}
+
+impl Rule for WwwAuthenticateChallengeSyntax {
+    fn scope(&self) -> crate::rules::RuleScope {
+        // WWW-Authenticate is a response header field, so only responses are checked.
+        // The challenge grammar and its validation are owned by helpers::auth (§11.3).
+        crate::rules::RuleScope::Server
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Only check response headers; ignore non-UTF8 header values
+            if let Some(resp) = &tx.response {
+                for s in crate::helpers::headers::field_lines(&resp.headers, "www-authenticate") {
+                    // Group members into assembled challenges using the helper so we can
+                    // test the grouping logic independently and exercise more branches.
+                    // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
+                    let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
+                        Ok(c) => c,
+                        Err(msg) => {
+                            return Some(self.cited(&RFC_9110_11_6_1, ctx.severity, msg));
+                        }
+                    };
+
+                    // Now validate each assembled challenge using helper to make it unit-testable
+                    for challenge in challenges.iter() {
+                        if let Err(defect) =
+                            crate::helpers::auth::validate_challenge_syntax(challenge)
+                        {
+                            return Some(self.violation(ctx.severity, defect.message()));
+                        }
+                    }
+                }
+            }
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 

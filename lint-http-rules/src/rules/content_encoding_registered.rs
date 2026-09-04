@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentEncodingRegistered;
 
@@ -35,13 +35,9 @@ const IANA_HTTP_PARAMETERS: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
 };
 
-impl Rule for ContentEncodingRegistered {
+impl RuleMeta for ContentEncodingRegistered {
     fn id(&self) -> &'static str {
         "content_encoding_registered"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -60,6 +56,41 @@ impl Rule for ContentEncodingRegistered {
             severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate `Content-Encoding` and `Accept-Encoding` header values: each content-coding must be a valid `token` and must appear in the `allowed` array you configure.\n\n**It does not consult the IANA registry**, despite the rule's name. RFC 9110 says content codings *ought to* be registered, which is the motivation, but a coding is recognised here exactly when your `allowed` array covers it. Comparisons are case-insensitive.\n\nThe two headers do not share a vocabulary. `Accept-Encoding` additionally admits `*` (matching any coding not listed) and `identity` (meaning no encoding); both are preference vocabulary and neither is a content-coding, so in `Content-Encoding` they are flagged — `identity` explicitly so, since RFC 9110 §8.4 reserves it for its Accept-Encoding role and says it SHOULD NOT be included."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_8_4,
+            RFC_9110_8_4_1,
+            RFC_9110_12_5_3,
+            IANA_HTTP_PARAMETERS,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Encoding: gzip\nContent-Encoding: gzip, br\nAccept-Encoding: gzip;q=0.8, br;q=1.0\nAccept-Encoding: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Encoding: x-custom\nAccept-Encoding: x-custom;q=0.5\nAccept-Encoding: x!bad  # invalid token character '!'",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentEncodingRegistered {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
     }
 
     fn findings(
@@ -159,35 +190,6 @@ impl Rule for ContentEncodingRegistered {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate `Content-Encoding` and `Accept-Encoding` header values: each content-coding must be a valid `token` and must appear in the `allowed` array you configure.\n\n**It does not consult the IANA registry**, despite the rule's name. RFC 9110 says content codings *ought to* be registered, which is the motivation, but a coding is recognised here exactly when your `allowed` array covers it. Comparisons are case-insensitive.\n\nThe two headers do not share a vocabulary. `Accept-Encoding` additionally admits `*` (matching any coding not listed) and `identity` (meaning no encoding); both are preference vocabulary and neither is a content-coding, so in `Content-Encoding` they are flagged — `identity` explicitly so, since RFC 9110 §8.4 reserves it for its Accept-Encoding role and says it SHOULD NOT be included."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_8_4,
-            RFC_9110_8_4_1,
-            RFC_9110_12_5_3,
-            IANA_HTTP_PARAMETERS,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Encoding: gzip\nContent-Encoding: gzip, br\nAccept-Encoding: gzip;q=0.8, br;q=1.0\nAccept-Encoding: *",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Encoding: x-custom\nAccept-Encoding: x-custom;q=0.5\nAccept-Encoding: x!bad  # invalid token character '!'",
-            },
-        ]
     }
 }
 

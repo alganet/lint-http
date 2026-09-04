@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Stateful check on the preconditions a client sends with a `Range` request
 /// after it has been given a partial (206) copy of the same resource.
@@ -80,11 +80,66 @@ const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "GET is the only method for which range handling is defined, which is what bounds this rule to GET",
 };
 
-impl Rule for RangeRequestAndCaching {
+impl RuleMeta for RangeRequestAndCaching {
     fn id(&self) -> &'static str {
         "range_request_and_caching"
     }
 
+    fn description(&self) -> &'static str {
+        "A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.\n\nThis rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request that carries none of those three fields, an `If-Range` holding a tag other than the one most recently provided for the resource, and an `If-Range` holding a date when an entity tag was provided (RFC 9110 §13.1.5 forbids the date in that case).  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.\n\n**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  Turn the rule off for traffic that is not caching."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9111_4_3_1,
+            RFC_9110_13_1_5,
+            RFC_9110_15_3_7_3,
+            RFC_9111_3_4,
+            RFC_9110_14_2,
+        ]
+    }
+
+    /// Each snippet is a two-message sequence in the order it happened: the
+    /// earlier response this client was given, then the later request the rule
+    /// judges. A single message could not illustrate a stateful rule at all.
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— the stored tag comes back in `If-Range`"),
+                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199\nIf-Range: \"etag123\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— or in `If-None-Match`, which the same sentence allows"),
+                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199\nIf-None-Match: \"etag123\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— a date-only stored response asks for nothing"),
+                snippet: "HTTP/1.1 206 Partial Content\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— no precondition at all after a 206 that provided a tag"),
+                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— `If-Range` holds a tag that was never provided"),
+                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199\nIf-Range: \"other\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a date in `If-Range` while holding an entity tag"),
+                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199\nIf-Range: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+        ]
+    }
+}
+
+impl Rule for RangeRequestAndCaching {
     /// The rule judges a request against earlier responses and never reads the
     /// current one. In this engine only `Server` filters dispatch, so this is
     /// documentation — but the reader who assumed a response was in hand would
@@ -242,59 +297,6 @@ impl Rule for RangeRequestAndCaching {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.\n\nThis rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request that carries none of those three fields, an `If-Range` holding a tag other than the one most recently provided for the resource, and an `If-Range` holding a date when an entity tag was provided (RFC 9110 §13.1.5 forbids the date in that case).  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.\n\n**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  Turn the rule off for traffic that is not caching."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9111_4_3_1,
-            RFC_9110_13_1_5,
-            RFC_9110_15_3_7_3,
-            RFC_9111_3_4,
-            RFC_9110_14_2,
-        ]
-    }
-
-    /// Each snippet is a two-message sequence in the order it happened: the
-    /// earlier response this client was given, then the later request the rule
-    /// judges. A single message could not illustrate a stateful rule at all.
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— the stored tag comes back in `If-Range`"),
-                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199\nIf-Range: \"etag123\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— or in `If-None-Match`, which the same sentence allows"),
-                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199\nIf-None-Match: \"etag123\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— a date-only stored response asks for nothing"),
-                snippet: "HTTP/1.1 206 Partial Content\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— no precondition at all after a 206 that provided a tag"),
-                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— `If-Range` holds a tag that was never provided"),
-                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199\nIf-Range: \"other\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— a date in `If-Range` while holding an entity tag"),
-                snippet: "HTTP/1.1 206 Partial Content\nETag: \"etag123\"\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\nContent-Range: bytes 0-99/1000\n\nGET /resource HTTP/1.1\nRange: bytes=100-199\nIf-Range: Wed, 21 Oct 2015 07:28:00 GMT",
-            },
-        ]
     }
 }
 
@@ -573,7 +575,7 @@ mod tests {
     /// reader cannot tell from the page which message came first.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = RangeRequestAndCaching;
 
         let mut saw_a_finding = false;
@@ -641,7 +643,7 @@ mod tests {
     /// unread. Each goes past the code that owns its syntax.
     #[test]
     fn published_examples_hold_values_their_owners_accept() {
-        use crate::rules::Rule as _;
+        use crate::rules::RuleMeta as _;
 
         for ex in RangeRequestAndCaching.examples() {
             for line in ex.snippet.lines() {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure that responses labelled `Cache-Control: immutable` are not
 /// needlessly revalidated while still within their advertised freshness
@@ -45,11 +45,46 @@ const RFC_9111_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Freshness — Calculating Freshness Lifetime (§4.2.1) and Calculating Age (§4.2.3)",
 };
 
-impl Rule for ImmutableCacheNeverStale {
+impl RuleMeta for ImmutableCacheNeverStale {
     fn id(&self) -> &'static str {
         "immutable_cache_never_stale"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Stateful immutable cache never stale")
+    }
+
+    fn description(&self) -> &'static str {
+        "The `immutable` cache-control directive (RFC 8246) signals that the representation is not expected to change.  Clients and caches are therefore encouraged to treat the response as fresh for the duration of its advertised freshness lifetime and to avoid revalidation during that period.  Revalidating (issuing a conditional request) while the entry is still fresh is wasteful and undermines the purpose of `immutable`.\n\nThis rule reconstructs a small piece of cache state for a given client and resource by locating the most recent prior response bearing an `immutable` directive that does not simultaneously forbid caching (`no-store` or `no-cache`).  It estimates the \"age\" of that response using any `Age` header and the elapsed time since the response was observed.  The advertised freshness lifetime is computed using the shared helper in `helpers::headers`, which honours `Cache-Control: max-age` and falls back to an `Expires` header if necessary.  If a subsequent request for the same resource includes a conditional header (`If-None-Match` or `If-Modified-Since`) **and** the calculated age is still less than the freshness lifetime, a warning is produced.  Unconditional requests and conditional requests made after the freshness lifetime expires are permitted, since `immutable` entries may still be reused without revalidation once stale."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_8246_2, RFC_9111_4_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— fresh response reused without revalidation"),
+                snippet: "> GET /static.css HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, immutable\n\n# thirty seconds later the cache is still fresh; no conditional request is sent",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— conditional request after expiry is allowed"),
+                snippet: "> GET /static.css HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, immutable\n< ETag: \"v1\"\n\n# later, after expiry:\n> GET /static.css HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # revalidation after freshness is fine",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— unnecessary revalidation while still fresh"),
+                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600, immutable\n< ETag: \"a\"\n\n# still within the advertised lifetime\n> GET /image.png HTTP/1.1\n> Host: example.com\n> If-None-Match: \"a\"        # unnecessary conditional request",
+            },
+        ]
+    }
+}
+
+impl Rule for ImmutableCacheNeverStale {
     fn scope(&self) -> crate::rules::RuleScope {
         // Both: the rule correlates a client's conditional request with a prior
         // origin response that carried immutable, so it needs to see each side.
@@ -106,39 +141,6 @@ impl Rule for ImmutableCacheNeverStale {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Stateful immutable cache never stale")
-    }
-
-    fn description(&self) -> &'static str {
-        "The `immutable` cache-control directive (RFC 8246) signals that the representation is not expected to change.  Clients and caches are therefore encouraged to treat the response as fresh for the duration of its advertised freshness lifetime and to avoid revalidation during that period.  Revalidating (issuing a conditional request) while the entry is still fresh is wasteful and undermines the purpose of `immutable`.\n\nThis rule reconstructs a small piece of cache state for a given client and resource by locating the most recent prior response bearing an `immutable` directive that does not simultaneously forbid caching (`no-store` or `no-cache`).  It estimates the \"age\" of that response using any `Age` header and the elapsed time since the response was observed.  The advertised freshness lifetime is computed using the shared helper in `helpers::headers`, which honours `Cache-Control: max-age` and falls back to an `Expires` header if necessary.  If a subsequent request for the same resource includes a conditional header (`If-None-Match` or `If-Modified-Since`) **and** the calculated age is still less than the freshness lifetime, a warning is produced.  Unconditional requests and conditional requests made after the freshness lifetime expires are permitted, since `immutable` entries may still be reused without revalidation once stale."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_8246_2, RFC_9111_4_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— fresh response reused without revalidation"),
-                snippet: "> GET /static.css HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=3600, immutable\n\n# thirty seconds later the cache is still fresh; no conditional request is sent",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— conditional request after expiry is allowed"),
-                snippet: "> GET /static.css HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=1, immutable\n< ETag: \"v1\"\n\n# later, after expiry:\n> GET /static.css HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"    # revalidation after freshness is fine",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— unnecessary revalidation while still fresh"),
-                snippet: "> GET /image.png HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Cache-Control: max-age=600, immutable\n< ETag: \"a\"\n\n# still within the advertised lifetime\n> GET /image.png HTTP/1.1\n> Host: example.com\n> If-None-Match: \"a\"        # unnecessary conditional request",
-            },
-        ]
     }
 }
 

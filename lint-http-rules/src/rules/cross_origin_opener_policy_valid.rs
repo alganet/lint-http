@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CrossOriginOpenerPolicyValid;
 
@@ -29,11 +29,56 @@ const HTML: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "“Cross-origin opener policies” — the possible opener policy values and their meanings",
 };
 
-impl Rule for CrossOriginOpenerPolicyValid {
+impl RuleMeta for CrossOriginOpenerPolicyValid {
     fn id(&self) -> &'static str {
         "cross_origin_opener_policy_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Cross-Origin-Opener-Policy Value")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, **`noopener-allow-popups`**, or **`unsafe-none`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `same-origin-plus-COEP` is an opener policy value, but the HTML Standard states it cannot be set directly through this header — it results from combining `same-origin` with a compatible `Cross-Origin-Embedder-Policy` — so a response carrying it is flagged. This header is response-only; the rule applies to server responses (RuleScope::Server)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[MDN_CROSS_ORIGIN_OPENER_POLICY, HTML_7_1_3_1, HTML]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(response)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(case-insensitive, whitespace tolerated)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy:  SAME-ORIGIN-ALLOW-POPUPS  ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unsupported value)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: other",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(comma-separated list)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin, unsafe-none",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(multiple header fields)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin\nCross-Origin-Opener-Policy: unsafe-none",
+            },
+        ]
+    }
+}
+
+impl Rule for CrossOriginOpenerPolicyValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -110,49 +155,6 @@ impl Rule for CrossOriginOpenerPolicyValid {
             ))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Cross-Origin-Opener-Policy Value")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Opener-Policy` response header value and ensures it is one of the allowed tokens: **`same-origin`**, **`same-origin-allow-popups`**, **`noopener-allow-popups`**, or **`unsafe-none`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `same-origin-plus-COEP` is an opener policy value, but the HTML Standard states it cannot be set directly through this header — it results from combining `same-origin` with a compatible `Cross-Origin-Embedder-Policy` — so a response carrying it is flagged. This header is response-only; the rule applies to server responses (RuleScope::Server)."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[MDN_CROSS_ORIGIN_OPENER_POLICY, HTML_7_1_3_1, HTML]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(response)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(case-insensitive, whitespace tolerated)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy:  SAME-ORIGIN-ALLOW-POPUPS  ",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(unsupported value)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: other",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(comma-separated list)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin, unsafe-none",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(multiple header fields)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Opener-Policy: same-origin\nCross-Origin-Opener-Policy: unsafe-none",
-            },
-        ]
     }
 }
 

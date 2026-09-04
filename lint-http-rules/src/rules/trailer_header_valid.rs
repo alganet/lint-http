@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The `Trailer` header field's own syntax, and the fields it may name.
 ///
@@ -172,41 +172,9 @@ const RFC_9112_7_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The chunked transfer coding's trailer section — HTTP/1.1's framing mechanism for the section this field announces. This said RFC 7230 §4.1.2",
 };
 
-impl Rule for TrailerHeaderValid {
+impl RuleMeta for TrailerHeaderValid {
     fn id(&self) -> &'static str {
         "trailer_header_valid"
-    }
-
-    /// The field is message metadata, and the section that groups it says which
-    /// messages carry it.
-    ///
-    /// cite(RFC 9110 § 6.6): "Fields that describe the message itself, such as when and how the message has been generated, can appear in both requests and responses."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
-                return Some(v);
-            }
-
-            if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -256,6 +224,40 @@ impl Rule for TrailerHeaderValid {
                 snippet: "HTTP/1.1 200 OK\nConnection: Keep-Alive\nTrailer: Keep-Alive\n\n<response body>",
             },
         ]
+    }
+}
+
+impl Rule for TrailerHeaderValid {
+    /// The field is message metadata, and the section that groups it says which
+    /// messages carry it.
+    ///
+    /// cite(RFC 9110 § 6.6): "Fields that describe the message itself, such as when and how the message has been generated, can appear in both requests and responses."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
+                return Some(v);
+            }
+
+            if let Some(resp) = &tx.response {
+                if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -515,7 +517,7 @@ mod tests {
     /// that rule rejects — a presence-shaped rule cannot see that in its own file.
     #[test]
     fn published_examples_are_judged_by_this_rule_and_by_the_one_that_owns_the_trailers() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = TrailerHeaderValid;
         let owner = crate::rules::trailer_fields_valid::TrailerFieldsValid;
         let owner_cfg =

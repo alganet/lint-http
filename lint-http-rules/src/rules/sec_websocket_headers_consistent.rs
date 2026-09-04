@@ -8,7 +8,7 @@ use crate::helpers::list::sender_list_members;
 use crate::helpers::shown::{describe_octet, shown_in_finding};
 use crate::helpers::websocket::{sec_websocket_key_defect, version_production_defect};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct SecWebsocketHeadersConsistent;
 
@@ -207,11 +207,60 @@ const RFC_4648_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The instruction to reject encoded data holding a character outside the base alphabet, which is what makes a malformed `Sec-WebSocket-Key` reportable rather than merely unusual",
 };
 
-impl Rule for SecWebsocketHeadersConsistent {
+impl RuleMeta for SecWebsocketHeadersConsistent {
     fn id(&self) -> &'static str {
         "sec_websocket_headers_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "Measures a WebSocket opening handshake — a `GET` whose `Upgrade` field names `websocket` — against the requirements RFC 6455 § 4.1 lists for it:\n\n- The request's HTTP version is at least `1.1`.\n- `Connection` names the `Upgrade` connection-option.\n- `Sec-WebSocket-Version` derives from the `version` production and names version `13`. A value that derives from the production but names another version is RFC 6455 § 4.4's version advertisement: it is reported as a handshake for a protocol this document does not define, and the answer it asks a server for is a `400` listing the versions the server speaks — which `sec_websocket_version_advertised` is the rule that reads.\n- `Sec-WebSocket-Key` is a base64-encoded sixteen-octet nonce. Whether that nonce was *chosen* randomly, which the same sentence also requires, is not something one captured message states.\n- `Sec-WebSocket-Protocol`, when present, is a list of at least one subprotocol name, each a non-empty `token`, and no name written twice.\n\nOnly HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshake is an extended CONNECT carrying a `:protocol` pseudo-header field (RFC 8441, RFC 9220), the `Connection` and `Upgrade` fields this rule reads are forbidden outright, and `Sec-WebSocket-Key` is not processed — so demanding them there would be advice a sender must not follow.\n\n`Host` is asked for by the same list and reported by `host_header`; the server's half of the handshake is `websocket_handshake_valid`'s. RFC 6455 § 4.1 also requires an `Origin` field from a browser client, and nothing in a capture says whether a client is one — § 4.2.1 says as much, telling a server not to read a missing `Origin` as evidence either way — so no rule here reports its absence."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_6455_4_1,
+            RFC_6455_4_2_1,
+            RFC_6455_4_3,
+            RFC_6455_4_4,
+            RFC_8441_5,
+            RFC_9220_3,
+            RFC_4648_3_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— missing Sec-WebSocket-Key"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— HTTP/1.0, where the Upgrade mechanism this handshake needs does not reach"),
+                snippet: "GET /chat HTTP/1.0\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a version advertisement, which RFC 6455 § 4.4 prints as this exact request"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— the same subprotocol name twice"),
+                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\nSec-WebSocket-Protocol: chat, superchat, chat",
+            },
+        ]
+    }
+}
+
+impl Rule for SecWebsocketHeadersConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -276,53 +325,6 @@ impl Rule for SecWebsocketHeadersConsistent {
             ))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Measures a WebSocket opening handshake — a `GET` whose `Upgrade` field names `websocket` — against the requirements RFC 6455 § 4.1 lists for it:\n\n- The request's HTTP version is at least `1.1`.\n- `Connection` names the `Upgrade` connection-option.\n- `Sec-WebSocket-Version` derives from the `version` production and names version `13`. A value that derives from the production but names another version is RFC 6455 § 4.4's version advertisement: it is reported as a handshake for a protocol this document does not define, and the answer it asks a server for is a `400` listing the versions the server speaks — which `sec_websocket_version_advertised` is the rule that reads.\n- `Sec-WebSocket-Key` is a base64-encoded sixteen-octet nonce. Whether that nonce was *chosen* randomly, which the same sentence also requires, is not something one captured message states.\n- `Sec-WebSocket-Protocol`, when present, is a list of at least one subprotocol name, each a non-empty `token`, and no name written twice.\n\nOnly HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshake is an extended CONNECT carrying a `:protocol` pseudo-header field (RFC 8441, RFC 9220), the `Connection` and `Upgrade` fields this rule reads are forbidden outright, and `Sec-WebSocket-Key` is not processed — so demanding them there would be advice a sender must not follow.\n\n`Host` is asked for by the same list and reported by `host_header`; the server's half of the handshake is `websocket_handshake_valid`'s. RFC 6455 § 4.1 also requires an `Origin` field from a browser client, and nothing in a capture says whether a client is one — § 4.2.1 says as much, telling a server not to read a missing `Origin` as evidence either way — so no rule here reports its absence."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_6455_4_1,
-            RFC_6455_4_2_1,
-            RFC_6455_4_3,
-            RFC_6455_4_4,
-            RFC_8441_5,
-            RFC_9220_3,
-            RFC_4648_3_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— missing Sec-WebSocket-Key"),
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— HTTP/1.0, where the Upgrade mechanism this handshake needs does not reach"),
-                snippet: "GET /chat HTTP/1.0\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— a version advertisement, which RFC 6455 § 4.4 prints as this exact request"),
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 25\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— the same subprotocol name twice"),
-                snippet: "GET /chat HTTP/1.1\nHost: server.example.com\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Version: 13\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\nSec-WebSocket-Protocol: chat, superchat, chat",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Report a TRACE request that carries what § 9.3.8 forbids it to carry:
 /// content, or a field holding the data that section names when it says a
@@ -93,11 +93,53 @@ const RFC_9110_B_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Changes from RFC 7231 — the normative requirement to use `message/http` in TRACE responses was removed, which is why this rule no longer asks for it",
 };
 
-impl Rule for TraceMethodEcho {
+impl RuleMeta for TraceMethodEcho {
     fn id(&self) -> &'static str {
         "trace_method_echo"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Semantic TRACE Method Echo")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports a TRACE request that carries content, and a TRACE request that carries one of the fields RFC 9110 §9.3.8 names when it forbids handing sensitive data to a loop-back. A TRACE asks the final recipient to \"reflect the message received, excluding some fields described below, back to the client as the content of a 200 (OK) response\", so what a TRACE request contains is what a TRACE response discloses.\n\n**Content.** §9.3.8: \"A client MUST NOT send content in a TRACE request.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, a chunked TRACE whose only chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does — which leaves one case unmeasurable, a chunked request whose octets were not captured, since it declares no length to fall back to.\n\n**Sensitive fields.** §9.3.8 also says \"A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.\" Whether a value is sensitive is not something a message states, so this rule reports exactly the two kinds of data the section names as its example — stored user credentials (`Authorization`, `Proxy-Authorization`) and cookies (`Cookie`), and only where the field carries a value. Sensitive data under any other field name is not reported: the sentence leaves the class open, and a message does not say which of its values are sensitive.\n\n**Not checked: the response's media type.** RFC 7231 §4.3.8 required `message/http` on a TRACE response; RFC 9110 does not. §9.3.8 now calls that format one way to do so, and Appendix B.3 records the change — \"The normative requirement to use the \"message/http\" media type in TRACE responses has been removed.\" A TRACE response in another media type is reported by nothing here. A response that carries content with no `Content-Type` at all is `content_type_present`'s finding.\n\n**Not checked: whether the response reflected the request.** The reflection is a SHOULD addressed to \"the final recipient\" — the origin server, or the first server to receive a `Max-Forwards` of zero — and no field of a message says which recipient answered it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_9_3_8,
+            RFC_9110_9_1,
+            RFC_9110_6_4,
+            RFC_9110_11_6_2,
+            RFC_6265_4_2_1,
+            RFC_9110_B_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("A loop-back carrying nothing to reflect"),
+                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nMax-Forwards: 3",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Content in a TRACE request"),
+                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nContent-Length: 4\n\nping",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Credentials and cookies, which the reflection would echo back"),
+                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nAuthorization: Basic dXNlcjpwYXNzd29yZA==\nCookie: session=8f1c2b",
+            },
+        ]
+    }
+}
+
+impl Rule for TraceMethodEcho {
     /// Both sentences this rule enforces are requirements on the client, and a
     /// request that never drew a response has broken them or not already.
     // cite(RFC 9110 § 9.3.8): "A client MUST NOT send content in a TRACE request."
@@ -164,46 +206,6 @@ impl Rule for TraceMethodEcho {
         }
 
         out
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Semantic TRACE Method Echo")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a TRACE request that carries content, and a TRACE request that carries one of the fields RFC 9110 §9.3.8 names when it forbids handing sensitive data to a loop-back. A TRACE asks the final recipient to \"reflect the message received, excluding some fields described below, back to the client as the content of a 200 (OK) response\", so what a TRACE request contains is what a TRACE response discloses.\n\n**Content.** §9.3.8: \"A client MUST NOT send content in a TRACE request.\" Content is §6.4's — the stream of octets after the header section, counted once framing has been taken off — so a `Transfer-Encoding: chunked` is not by itself content, a chunked TRACE whose only chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured its octet count decides; otherwise the request's own `Content-Length` does — which leaves one case unmeasurable, a chunked request whose octets were not captured, since it declares no length to fall back to.\n\n**Sensitive fields.** §9.3.8 also says \"A client MUST NOT generate fields in a TRACE request containing sensitive data that might be disclosed by the response.\" Whether a value is sensitive is not something a message states, so this rule reports exactly the two kinds of data the section names as its example — stored user credentials (`Authorization`, `Proxy-Authorization`) and cookies (`Cookie`), and only where the field carries a value. Sensitive data under any other field name is not reported: the sentence leaves the class open, and a message does not say which of its values are sensitive.\n\n**Not checked: the response's media type.** RFC 7231 §4.3.8 required `message/http` on a TRACE response; RFC 9110 does not. §9.3.8 now calls that format one way to do so, and Appendix B.3 records the change — \"The normative requirement to use the \"message/http\" media type in TRACE responses has been removed.\" A TRACE response in another media type is reported by nothing here. A response that carries content with no `Content-Type` at all is `content_type_present`'s finding.\n\n**Not checked: whether the response reflected the request.** The reflection is a SHOULD addressed to \"the final recipient\" — the origin server, or the first server to receive a `Max-Forwards` of zero — and no field of a message says which recipient answered it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_9_3_8,
-            RFC_9110_9_1,
-            RFC_9110_6_4,
-            RFC_9110_11_6_2,
-            RFC_6265_4_2_1,
-            RFC_9110_B_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("A loop-back carrying nothing to reflect"),
-                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nMax-Forwards: 3",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Content in a TRACE request"),
-                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nContent-Length: 4\n\nping",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Credentials and cookies, which the reflection would echo back"),
-                snippet: "TRACE /diagnostics HTTP/1.1\nHost: example.com\nAuthorization: Basic dXNlcjpwYXNzd29yZA==\nCookie: session=8f1c2b",
-            },
-        ]
     }
 }
 
@@ -469,7 +471,7 @@ mod tests {
     /// Every published snippet is run through the rule.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = TraceMethodEcho;
 
         for ex in rule.examples() {

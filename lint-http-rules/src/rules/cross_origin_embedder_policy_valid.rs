@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CrossOriginEmbedderPolicyValid;
 
@@ -23,11 +23,56 @@ const HTML_7_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The `Cross-Origin-Embedder-Policy` header — its value is one of the three embedder policy strings `unsafe-none`, `require-corp`, `credentialless`",
 };
 
-impl Rule for CrossOriginEmbedderPolicyValid {
+impl RuleMeta for CrossOriginEmbedderPolicyValid {
     fn id(&self) -> &'static str {
         "cross_origin_embedder_policy_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Cross-Origin-Embedder-Policy Value")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses (RuleScope::Server)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[MDN_CROSS_ORIGIN_EMBEDDER_POLICY, HTML_7_1_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(response)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(case-insensitive, whitespace tolerated)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy:  CREDENTIALLESS  ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(valid but insecure value)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: unsafe-none",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(comma-separated list)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp, credentialless",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(multiple header fields)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp\nCross-Origin-Embedder-Policy: unsafe-none",
+            },
+        ]
+    }
+}
+
+impl Rule for CrossOriginEmbedderPolicyValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -99,49 +144,6 @@ impl Rule for CrossOriginEmbedderPolicyValid {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Cross-Origin-Embedder-Policy Value")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Embedder-Policy` response header value and ensures it uses one of the secure tokens that enable cross-origin isolation: **`require-corp`** or **`credentialless`**. The header must be a single value and must not contain comma-separated lists or multiple header fields. Note: `unsafe-none` is a valid COEP token per the specification, but it does not enable cross-origin isolation; this rule rejects it intentionally to encourage more secure configurations. The rule applies to server responses (RuleScope::Server)."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[MDN_CROSS_ORIGIN_EMBEDDER_POLICY, HTML_7_1_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(response)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(case-insensitive, whitespace tolerated)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy:  CREDENTIALLESS  ",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(valid but insecure value)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: unsafe-none",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(comma-separated list)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp, credentialless",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(multiple header fields)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Embedder-Policy: require-corp\nCross-Origin-Embedder-Policy: unsafe-none",
-            },
-        ]
     }
 }
 

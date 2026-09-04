@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AuthenticationChallengeValid;
 
@@ -23,11 +23,42 @@ const RFC_9110_11_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "WWW-Authenticate",
 };
 
-impl Rule for AuthenticationChallengeValid {
+impl RuleMeta for AuthenticationChallengeValid {
     fn id(&self) -> &'static str {
         "authentication_challenge_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Warn when a single response advertises the same `realm` value across multiple `WWW-Authenticate` authentication schemes. A realm identifies a protection space and re-using the same realm string for different schemes can cause ambiguity and confuse credential selection. This is a **heuristic** check (HTTP does not strictly forbid this pattern), and it is intended to help operators spot potentially confusing authentication configurations. (RFC 9110 §11.5)"
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_11_5, RFC_9110_11_6_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"users\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: NewScheme realm=\"admin\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"shared\"\nWWW-Authenticate: NewScheme realm=\"shared\"",
+            },
+        ]
+    }
+}
+
+impl Rule for AuthenticationChallengeValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -142,35 +173,6 @@ impl Rule for AuthenticationChallengeValid {
         }
 
         out
-    }
-
-    fn description(&self) -> &'static str {
-        "Warn when a single response advertises the same `realm` value across multiple `WWW-Authenticate` authentication schemes. A realm identifies a protection space and re-using the same realm string for different schemes can cause ambiguity and confuse credential selection. This is a **heuristic** check (HTTP does not strictly forbid this pattern), and it is intended to help operators spot potentially confusing authentication configurations. (RFC 9110 §11.5)"
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_11_5, RFC_9110_11_6_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"users\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: NewScheme realm=\"admin\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 401 Unauthorized\nWWW-Authenticate: Basic realm=\"shared\"\nWWW-Authenticate: NewScheme realm=\"shared\"",
-            },
-        ]
     }
 }
 

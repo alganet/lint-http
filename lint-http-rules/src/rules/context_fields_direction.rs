@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContextFieldsDirection;
 
@@ -86,50 +86,9 @@ const RFC_9110_10_2: crate::rules::SpecRef = crate::rules::SpecRef {
            forbids the misdirection, which is why the finding is advice",
 };
 
-impl Rule for ContextFieldsDirection {
+impl RuleMeta for ContextFieldsDirection {
     fn id(&self) -> &'static str {
         "context_fields_direction"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // A response context field in a request, then a request context field
-            // in a response. Each table is probed against the *other* direction
-            // only — in its own direction the field is what its section says it
-            // is, and its value is its own rule's question.
-            let message = misdirected(
-                &tx.request.headers,
-                RESPONSE_CONTEXT_FIELDS,
-                "Request",
-                "response context field",
-                "a request",
-            )
-            .or_else(|| {
-                tx.response.as_ref().and_then(|resp| {
-                    misdirected(
-                        &resp.headers,
-                        REQUEST_CONTEXT_FIELDS,
-                        "Response",
-                        "request context field",
-                        "a response",
-                    )
-                })
-            })?;
-
-            Some(self.violation(ctx.severity, message))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -194,6 +153,49 @@ impl Rule for ContextFieldsDirection {
                 snippet: "HTTP/1.1 200 OK\nUser-Agent: curl/8.0",
             },
         ]
+    }
+}
+
+impl Rule for ContextFieldsDirection {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // A response context field in a request, then a request context field
+            // in a response. Each table is probed against the *other* direction
+            // only — in its own direction the field is what its section says it
+            // is, and its value is its own rule's question.
+            let message = misdirected(
+                &tx.request.headers,
+                RESPONSE_CONTEXT_FIELDS,
+                "Request",
+                "response context field",
+                "a request",
+            )
+            .or_else(|| {
+                tx.response.as_ref().and_then(|resp| {
+                    misdirected(
+                        &resp.headers,
+                        REQUEST_CONTEXT_FIELDS,
+                        "Response",
+                        "request context field",
+                        "a response",
+                    )
+                })
+            })?;
+
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 }
 

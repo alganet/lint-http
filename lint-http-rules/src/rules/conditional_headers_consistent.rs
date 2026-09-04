@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Validate mutual exclusivity and sanity of conditional request headers.
 ///
@@ -43,11 +43,57 @@ const RFC_9110_14_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Range (the header If-Range depends on)",
 };
 
-impl Rule for ConditionalHeadersConsistent {
+impl RuleMeta for ConditionalHeadersConsistent {
     fn id(&self) -> &'static str {
         "conditional_headers_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_13_1, RFC_9110_13_1_5, RFC_9110_13_2, RFC_9110_14_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-99\nIf-Range: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "POST /resource HTTP/1.1\nHost: example.com\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT   # If-Modified-Since is not meaningful for POST",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT   # If-Modified-Since MUST be ignored when If-None-Match present",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-99\nIf-Range: W/\"weaktag\"   # If-Range must not contain a weak entity-tag",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-Range: \"strongtag\"   # missing Range header -> invalid use of If-Range",
+            },
+        ]
+    }
+}
+
+impl Rule for ConditionalHeadersConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -146,50 +192,6 @@ impl Rule for ConditionalHeadersConsistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_13_1, RFC_9110_13_1_5, RFC_9110_13_2, RFC_9110_14_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-99\nIf-Range: \"abc\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "POST /resource HTTP/1.1\nHost: example.com\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT   # If-Modified-Since is not meaningful for POST",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"\nIf-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT   # If-Modified-Since MUST be ignored when If-None-Match present",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-99\nIf-Range: W/\"weaktag\"   # If-Range must not contain a weak entity-tag",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-Range: \"strongtag\"   # missing Range header -> invalid use of If-Range",
-            },
-        ]
     }
 }
 

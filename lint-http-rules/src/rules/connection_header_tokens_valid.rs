@@ -5,7 +5,7 @@
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::sender_list_members;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ConnectionHeaderTokensValid;
 
@@ -150,41 +150,9 @@ const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Several `Connection` lines in one field section are one field value, so the members are counted after the lines are joined",
 };
 
-impl Rule for ConnectionHeaderTokensValid {
+impl RuleMeta for ConnectionHeaderTokensValid {
     fn id(&self) -> &'static str {
         "connection_header_tokens_valid"
-    }
-
-    /// The field is what a sender says about the connection it is speaking over,
-    /// and either party is a sender.
-    ///
-    /// cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
-                return Some(v);
-            }
-
-            if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -237,6 +205,40 @@ impl Rule for ConnectionHeaderTokensValid {
                 snippet: "GET / HTTP/1.1\nHost: example.com\nConnection: Cache-Control",
             },
         ]
+    }
+}
+
+impl Rule for ConnectionHeaderTokensValid {
+    /// The field is what a sender says about the connection it is speaking over,
+    /// and either party is a sender.
+    ///
+    /// cite(RFC 9110 § 7.6.1): "The "Connection" header field allows the sender to list desired control options for the current connection."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
+                return Some(v);
+            }
+
+            if let Some(resp) = &tx.response {
+                if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -443,7 +445,7 @@ mod tests {
     /// it would catch is a published snippet that names the field and drops the option.
     #[test]
     fn published_examples_are_judged_by_this_rule_and_by_the_one_that_owns_the_upgrade_option() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = ConnectionHeaderTokensValid;
         let neighbour =
             crate::rules::upgrade_and_connection_consistent::UpgradeAndConnectionConsistent;

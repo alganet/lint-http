@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentLengthVsTransferEncoding;
 
@@ -23,11 +23,41 @@ const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The recipient side and the stakes: Transfer-Encoding overrides, a forwarding intermediary must strip the Content-Length, and such a message may be an attempt at request smuggling or response splitting",
 };
 
-impl Rule for ContentLengthVsTransferEncoding {
+impl RuleMeta for ContentLengthVsTransferEncoding {
     fn id(&self) -> &'static str {
         "content_length_vs_transfer_encoding"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Content-Length vs Transfer-Encoding")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule flags messages (requests or responses) that include both `Content-Length` and `Transfer-Encoding` headers. A sender must never combine them: the two describe message framing differently, so a message carrying both says two things about where it ends.\n\nRecipients are told to let `Transfer-Encoding` win and an intermediary that forwards the message must strip the `Content-Length` first. Where that does not happen consistently, two recipients can disagree about the message boundary — the primitive behind request smuggling and response splitting — so the combination is treated as an attack signal rather than mere redundancy."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9112_6_2, RFC_9112_6_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Message"),
+                snippet: "POST /submit HTTP/1.1\nHost: example.com\nContent-Length: 15\n\npayload",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Message"),
+                snippet: "POST /submit HTTP/1.1\nHost: example.com\nContent-Length: 15\nTransfer-Encoding: chunked",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentLengthVsTransferEncoding {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -78,34 +108,6 @@ impl Rule for ContentLengthVsTransferEncoding {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Content-Length vs Transfer-Encoding")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule flags messages (requests or responses) that include both `Content-Length` and `Transfer-Encoding` headers. A sender must never combine them: the two describe message framing differently, so a message carrying both says two things about where it ends.\n\nRecipients are told to let `Transfer-Encoding` win and an intermediary that forwards the message must strip the `Content-Length` first. Where that does not happen consistently, two recipients can disagree about the message boundary — the primitive behind request smuggling and response splitting — so the combination is treated as an attack signal rather than mere redundancy."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9112_6_2, RFC_9112_6_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Message"),
-                snippet: "POST /submit HTTP/1.1\nHost: example.com\nContent-Length: 15\n\npayload",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Message"),
-                snippet: "POST /submit HTTP/1.1\nHost: example.com\nContent-Length: 15\nTransfer-Encoding: chunked",
-            },
-        ]
     }
 }
 

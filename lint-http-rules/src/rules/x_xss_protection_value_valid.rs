@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct XXssProtectionValueValid;
 
@@ -23,11 +23,56 @@ const OWASP_SECURE_HEADERS: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "OWASP guidance",
 };
 
-impl Rule for XXssProtectionValueValid {
+impl RuleMeta for XXssProtectionValueValid {
     fn id(&self) -> &'static str {
         "x_xss_protection_value_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server X-XSS-Protection Value Valid")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks that the `X-XSS-Protection` response header, when present, uses an expected and safe value. Historically, the header accepted `0` to disable the browser's cross-site scripting filter and `1; mode=block` to enable blocking; other values are unsupported or ambiguous and should be avoided."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[MDN_X_XSS_PROTECTION, OWASP_SECURE_HEADERS]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 0",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; mode=block",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 2",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; report=1",
+            },
+        ]
+    }
+}
+
+impl Rule for XXssProtectionValueValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -101,49 +146,6 @@ impl Rule for XXssProtectionValueValid {
             ))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server X-XSS-Protection Value Valid")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks that the `X-XSS-Protection` response header, when present, uses an expected and safe value. Historically, the header accepted `0` to disable the browser's cross-site scripting filter and `1; mode=block` to enable blocking; other values are unsupported or ambiguous and should be avoided."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[MDN_X_XSS_PROTECTION, OWASP_SECURE_HEADERS]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 0",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; mode=block",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 2",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-XSS-Protection: 1; report=1",
-            },
-        ]
     }
 }
 

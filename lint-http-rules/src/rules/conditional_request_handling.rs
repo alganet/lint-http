@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Stateful checks for conditional requests and their responses.
 ///
@@ -189,33 +189,9 @@ impl ConditionalRequestHandling {
     }
 }
 
-impl Rule for ConditionalRequestHandling {
+impl RuleMeta for ConditionalRequestHandling {
     fn id(&self) -> &'static str {
         "conditional_request_handling"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let sent = Preconditions::of(&tx.request.headers);
-            if !sent.any() {
-                return None;
-            }
-            self.validator_was_observed(&sent, history, ctx.severity)
-                .or_else(|| self.if_none_match_was_evaluated(tx, &sent, ctx.severity))
-                .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx.severity))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -252,6 +228,32 @@ impl Rule for ConditionalRequestHandling {
                 snippet: "> GET /resource HTTP/1.1\n> If-Modified-Since: Wed, 21 Oct 2015 07:28:00 GMT\n\n< 200 OK  HTTP/1.1\n< Last-Modified: Wed, 21 Oct 2015 07:28:00 GMT",
             },
         ]
+    }
+}
+
+impl Rule for ConditionalRequestHandling {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let sent = Preconditions::of(&tx.request.headers);
+            if !sent.any() {
+                return None;
+            }
+            self.validator_was_observed(&sent, history, ctx.severity)
+                .or_else(|| self.if_none_match_was_evaluated(tx, &sent, ctx.severity))
+                .or_else(|| self.if_modified_since_was_evaluated(tx, &sent, ctx.severity))
+        };
+        Vec::from_iter(finding())
     }
 }
 

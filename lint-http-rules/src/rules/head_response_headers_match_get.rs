@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Whether a difference in *presence* of this field between the two responses
 /// is licensed, in either direction.
@@ -146,13 +146,9 @@ const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Transfer-Encoding is excluded outright: it \"MAY be sent in a response to a HEAD request\", the indication \"is not required\", and any recipient on the response chain \"can remove transfer codings when they are not needed\" — so neither its presence nor its value is comparable across the two messages",
 };
 
-impl Rule for HeadResponseHeadersMatchGet {
+impl RuleMeta for HeadResponseHeadersMatchGet {
     fn id(&self) -> &'static str {
         "head_response_headers_match_get"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -175,6 +171,63 @@ impl Rule for HeadResponseHeadersMatchGet {
             severity,
             state: Box::new(crate::helpers::rule_config::HeaderNameList { headers }),
         })
+    }
+
+    fn title(&self) -> Option<&'static str> {
+        Some("HEAD response headers match GET")
+    }
+
+    fn description(&self) -> &'static str {
+        "Ensure responses to `HEAD` carry the header fields the server would have sent for a `GET` on the same resource. RFC 9110 §9.3.2 asks this with a SHOULD, and the configured `headers` array names the fields to compare; `Content-Length` is the exception, governed by §8.6's MUST NOT unless its value equals the octet count a `GET` would have delivered.\n\n**The comparison is evidence, not the sentence.** §9.3.2 is about the response the server *would have sent* for a `GET` at that moment, and what this rule has is a `GET` it observed earlier. It therefore declines whenever the two responses say they describe different things — a different status code, or a different `ETag` or `Last-Modified`. What it cannot see is a representation that changed with no validator to show it, so every finding assumes the resource held still between the two exchanges.\n\n**The exceptions are an open class.** §9.3.2 permits a server to omit any header field whose value is determined only while generating the content, and no field announces its membership — so the rule can only excuse the ones a specification names: `Content-Length` (§8.6), `Vary` (§9.3.2's own example) and `Transfer-Encoding` (RFC 9112 §6.1, which also makes its value incomparable). A field outside that set which the server legitimately omitted is still reported; configure `headers` accordingly."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_9_3_2, RFC_9110_8_6, RFC_9110_8_8, RFC_9112_6_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            // Each snippet is the observed GET exchange followed by the HEAD
+            // exchange measured against it, on one resource.
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the HEAD carries the fields the GET carried)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(§9.3.2's own example: a value determined while generating the content need not be generated for a HEAD)",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42\nVary: Accept-Encoding\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(the representation changed between the two exchanges, and the entity tags say so)",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v1\"\nContent-Type: text/plain\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/html",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the HEAD omits a field the GET sent)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "(§8.6: a Content-Length that is not the octet count a GET would have delivered)",
+                ),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 100\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 50",
+            },
+        ]
+    }
+}
+
+impl Rule for HeadResponseHeadersMatchGet {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
     }
 
     fn findings(
@@ -345,57 +398,6 @@ impl Rule for HeadResponseHeadersMatchGet {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("HEAD response headers match GET")
-    }
-
-    fn description(&self) -> &'static str {
-        "Ensure responses to `HEAD` carry the header fields the server would have sent for a `GET` on the same resource. RFC 9110 §9.3.2 asks this with a SHOULD, and the configured `headers` array names the fields to compare; `Content-Length` is the exception, governed by §8.6's MUST NOT unless its value equals the octet count a `GET` would have delivered.\n\n**The comparison is evidence, not the sentence.** §9.3.2 is about the response the server *would have sent* for a `GET` at that moment, and what this rule has is a `GET` it observed earlier. It therefore declines whenever the two responses say they describe different things — a different status code, or a different `ETag` or `Last-Modified`. What it cannot see is a representation that changed with no validator to show it, so every finding assumes the resource held still between the two exchanges.\n\n**The exceptions are an open class.** §9.3.2 permits a server to omit any header field whose value is determined only while generating the content, and no field announces its membership — so the rule can only excuse the ones a specification names: `Content-Length` (§8.6), `Vary` (§9.3.2's own example) and `Transfer-Encoding` (RFC 9112 §6.1, which also makes its value incomparable). A field outside that set which the server legitimately omitted is still reported; configure `headers` accordingly."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_9_3_2, RFC_9110_8_6, RFC_9110_8_8, RFC_9112_6_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            // Each snippet is the observed GET exchange followed by the HEAD
-            // exchange measured against it, on one resource.
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(the HEAD carries the fields the GET carried)"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "(§9.3.2's own example: a value determined while generating the content need not be generated for a HEAD)",
-                ),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\nContent-Length: 42\nVary: Accept-Encoding\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "(the representation changed between the two exchanges, and the entity tags say so)",
-                ),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v1\"\nContent-Type: text/plain\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/html",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(the HEAD omits a field the GET sent)"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nETag: \"v2\"\nContent-Type: text/plain\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some(
-                    "(§8.6: a Content-Length that is not the octet count a GET would have delivered)",
-                ),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 100\n\nHEAD /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 50",
-            },
-        ]
     }
 }
 

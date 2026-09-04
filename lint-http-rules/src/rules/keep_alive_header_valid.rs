@@ -8,7 +8,7 @@ use crate::helpers::list::list_members_as_written;
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 #[derive(Debug, Clone)]
 pub struct MessageKeepAliveConfig {
@@ -164,16 +164,9 @@ const IANA_HTTP_FIELD_NAME_REGISTRY: crate::rules::SpecRef = crate::rules::SpecR
            an obsoleted document, not an authority this rule enforces",
 };
 
-impl Rule for KeepAliveHeaderValid {
+impl RuleMeta for KeepAliveHeaderValid {
     fn id(&self) -> &'static str {
         "keep_alive_header_valid"
-    }
-
-    /// Either side of a connection writes this field, and the section that
-    /// specifies it says so in the sentence that permits it at all.
-    // cite(RFC 2068 § 19.7.1.1): "When the Keep-Alive connection-token has been transmitted with a request or a response, a Keep-Alive header field MAY also be included."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -185,51 +178,6 @@ impl Rule for KeepAliveHeaderValid {
             severity: config.severity,
             state: Box::new(config),
         })
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // The field probe is one lookup per section; `parse_keep_alive_config`
-            // is several map probes and a hash of the rule id. Nearly every message
-            // carries no `Keep-Alive`, so the config is read only once the field is
-            // known to be here.
-            if !tx.request.headers.contains_key("keep-alive")
-                && !tx
-                    .response
-                    .as_ref()
-                    .is_some_and(|resp| resp.headers.contains_key("keep-alive"))
-            {
-                return None;
-            }
-
-            let config: &MessageKeepAliveConfig = ctx.state();
-            let message = judge(
-                &tx.request.headers,
-                &tx.request.version,
-                "Request",
-                config.max_timeout_seconds,
-            )
-            .or_else(|| {
-                tx.response.as_ref().and_then(|resp| {
-                    judge(
-                        &resp.headers,
-                        &resp.version,
-                        "Response",
-                        config.max_timeout_seconds,
-                    )
-                })
-            })?;
-
-            Some(self.violation(config.severity, message))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -384,6 +332,60 @@ impl Rule for KeepAliveHeaderValid {
                     "HTTP/1.1 200 OK\nConnection: keep-alive\nKeep-Alive: timeout=30, note=a b",
             },
         ]
+    }
+}
+
+impl Rule for KeepAliveHeaderValid {
+    /// Either side of a connection writes this field, and the section that
+    /// specifies it says so in the sentence that permits it at all.
+    // cite(RFC 2068 § 19.7.1.1): "When the Keep-Alive connection-token has been transmitted with a request or a response, a Keep-Alive header field MAY also be included."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The field probe is one lookup per section; `parse_keep_alive_config`
+            // is several map probes and a hash of the rule id. Nearly every message
+            // carries no `Keep-Alive`, so the config is read only once the field is
+            // known to be here.
+            if !tx.request.headers.contains_key("keep-alive")
+                && !tx
+                    .response
+                    .as_ref()
+                    .is_some_and(|resp| resp.headers.contains_key("keep-alive"))
+            {
+                return None;
+            }
+
+            let config: &MessageKeepAliveConfig = ctx.state();
+            let message = judge(
+                &tx.request.headers,
+                &tx.request.version,
+                "Request",
+                config.max_timeout_seconds,
+            )
+            .or_else(|| {
+                tx.response.as_ref().and_then(|resp| {
+                    judge(
+                        &resp.headers,
+                        &resp.version,
+                        "Response",
+                        config.max_timeout_seconds,
+                    )
+                })
+            })?;
+
+            Some(self.violation(config.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 }
 

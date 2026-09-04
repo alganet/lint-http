@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct HostHeader;
 
@@ -65,11 +65,73 @@ const RFC_3986_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Port — `port = *DIGIT` bounds nothing, so a port outside the TCP range is not a syntax finding",
 };
 
-impl Rule for HostHeader {
+impl RuleMeta for HostHeader {
     fn id(&self) -> &'static str {
         "host_header"
     }
 
+    fn description(&self) -> &'static str {
+        "This rule reads the request's `Host` header field: whether it is there, whether it is there once, and whether its value is what `Host = uri-host [ \":\" port ]` generates.\n\n- A request that carries no `Host` field is reported **unless it is an HTTP/2 or HTTP/3 request that sent an `:authority` pseudo-header** — RFC 9110 §7.2's MUST is written with that exception, and RFC 9112 §3.2's is written for HTTP/1.1 messages. An HTTP/1.1 request in absolute-form is not exempt: RFC 9112 §3.2.2 requires the field there too.\n- `Host` is not a list field, so two field lines of it are not one value; RFC 9110 §5.3 forbids a sender from generating them and RFC 9112 §3.2 has the recipient answer 400.\n- The value must be a `uri-host` (RFC 3986 §3.2.2) and, if a port follows the colon, a port. An IPv6 address must be inside square brackets — that is the only thing distinguishing an IP literal from a registered name.\n- A userinfo subcomponent and its `@` are reported: RFC 9112 §3.2 requires the field value to be the authority component *excluding* them.\n\nThree things this rule deliberately does **not** report:\n\n- **An empty field value.** `reg-name` is `*( unreserved / pct-encoded / sub-delims )`, so a host of no characters is one, and RFC 9112 §3.2 *requires* an empty `Host` when the target URI's authority component is missing or undefined. A server facing one reconstructs an empty authority and may reject the request (RFC 9112 §3.3), but nothing makes the client's field a syntax error.\n- **A port outside the TCP range.** The production is `port = *DIGIT` (RFC 3986 §3.2.3) — no lower bound, no upper bound, and zero digits is a port, which is why `Host: example.com:0`, `Host: example.com:99999` and `Host: example.com:` are not findings here. `Host: example.com:abc` is, because it is not `*DIGIT`.\n- **Where the field sits in the header section.** RFC 9110 §7.2 says a user agent that sends `Host` SHOULD send it as the first field, and RFC 9110 §5.3 calls it good practice; the captured transaction holds its fields in a map whose iteration order is not the order they arrived in, so no check here can decide it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_7_2,
+            RFC_9110_5_3,
+            RFC_9112_3_2,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("A registered name and a port"),
+                snippet: "GET /path HTTP/1.1\nHost: example.com:8080",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("An IPv6 literal, inside the brackets that identify it"),
+                snippet: "GET /path HTTP/1.1\nHost: [::1]:443",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("A port no TCP connection could use is still `*DIGIT`"),
+                snippet: "GET /path HTTP/1.1\nHost: example.com:99999",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A port that is not digits"),
+                snippet: "GET /path HTTP/1.1\nHost: example.com:abc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("An IPv6 address with nothing marking where it ended"),
+                snippet: "GET /path HTTP/1.1\nHost: fe80::1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("The authority component, userinfo and all"),
+                snippet: "GET /path HTTP/1.1\nHost: user:pass@example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A character no host production generates"),
+                snippet: "GET /path HTTP/1.1\nHost: exa mple.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Two field lines of a field that does not recombine as a list"),
+                snippet: "GET /path HTTP/1.1\nHost: a.example\nHost: b.example",
+            },
+        ]
+    }
+}
+
+impl Rule for HostHeader {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -192,66 +254,6 @@ impl Rule for HostHeader {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule reads the request's `Host` header field: whether it is there, whether it is there once, and whether its value is what `Host = uri-host [ \":\" port ]` generates.\n\n- A request that carries no `Host` field is reported **unless it is an HTTP/2 or HTTP/3 request that sent an `:authority` pseudo-header** — RFC 9110 §7.2's MUST is written with that exception, and RFC 9112 §3.2's is written for HTTP/1.1 messages. An HTTP/1.1 request in absolute-form is not exempt: RFC 9112 §3.2.2 requires the field there too.\n- `Host` is not a list field, so two field lines of it are not one value; RFC 9110 §5.3 forbids a sender from generating them and RFC 9112 §3.2 has the recipient answer 400.\n- The value must be a `uri-host` (RFC 3986 §3.2.2) and, if a port follows the colon, a port. An IPv6 address must be inside square brackets — that is the only thing distinguishing an IP literal from a registered name.\n- A userinfo subcomponent and its `@` are reported: RFC 9112 §3.2 requires the field value to be the authority component *excluding* them.\n\nThree things this rule deliberately does **not** report:\n\n- **An empty field value.** `reg-name` is `*( unreserved / pct-encoded / sub-delims )`, so a host of no characters is one, and RFC 9112 §3.2 *requires* an empty `Host` when the target URI's authority component is missing or undefined. A server facing one reconstructs an empty authority and may reject the request (RFC 9112 §3.3), but nothing makes the client's field a syntax error.\n- **A port outside the TCP range.** The production is `port = *DIGIT` (RFC 3986 §3.2.3) — no lower bound, no upper bound, and zero digits is a port, which is why `Host: example.com:0`, `Host: example.com:99999` and `Host: example.com:` are not findings here. `Host: example.com:abc` is, because it is not `*DIGIT`.\n- **Where the field sits in the header section.** RFC 9110 §7.2 says a user agent that sends `Host` SHOULD send it as the first field, and RFC 9110 §5.3 calls it good practice; the captured transaction holds its fields in a map whose iteration order is not the order they arrived in, so no check here can decide it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_7_2,
-            RFC_9110_5_3,
-            RFC_9112_3_2,
-            RFC_3986_3_2_2,
-            RFC_3986_3_2_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("A registered name and a port"),
-                snippet: "GET /path HTTP/1.1\nHost: example.com:8080",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("An IPv6 literal, inside the brackets that identify it"),
-                snippet: "GET /path HTTP/1.1\nHost: [::1]:443",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("A port no TCP connection could use is still `*DIGIT`"),
-                snippet: "GET /path HTTP/1.1\nHost: example.com:99999",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A port that is not digits"),
-                snippet: "GET /path HTTP/1.1\nHost: example.com:abc",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("An IPv6 address with nothing marking where it ended"),
-                snippet: "GET /path HTTP/1.1\nHost: fe80::1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("The authority component, userinfo and all"),
-                snippet: "GET /path HTTP/1.1\nHost: user:pass@example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A character no host production generates"),
-                snippet: "GET /path HTTP/1.1\nHost: exa mple.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Two field lines of a field that does not recombine as a list"),
-                snippet: "GET /path HTTP/1.1\nHost: a.example\nHost: b.example",
-            },
-        ]
     }
 }
 

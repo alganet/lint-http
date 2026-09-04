@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Stateful check ensuring that conditional requests use the most recently
 /// observed validator for a given resource.
@@ -52,11 +52,47 @@ const RFC_9110_13_1_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "If-Modified-Since",
 };
 
-impl Rule for CacheValidationChain {
+impl RuleMeta for CacheValidationChain {
     fn id(&self) -> &'static str {
         "cache_validation_chain"
     }
 
+    fn description(&self) -> &'static str {
+        "Caches must validate stored responses using up-to-date validators.  When a server supplies an `ETag` or `Last-Modified` header, a well-behaved cache will include that validator in subsequent conditional requests (`If-None-Match` or `If-Modified-Since`).  The value in those request headers should match the most recently observed validator for the resource; if it does not, revalidation may fail and clients can receive stale or unexpected content.\n\nThis rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/\"tag\"`) is considered equivalent to its strong counterpart when the opaque tag matches.\n\nThis rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_4_3_1, RFC_9110_13_1_2, RFC_9110_13_1_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Sequence"),
+                snippet: "HTTP/1.1 200 OK\nETag: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Sequence"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Request"),
+                snippet: "HTTP/1.1 304 Not Modified\nETag: \"xyz\"  # validator updated by 304\n\nHTTP/1.1 200 OK\nETag: \"abc\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Request"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
+            },
+        ]
+    }
+}
+
+impl Rule for CacheValidationChain {
     fn scope(&self) -> crate::rules::RuleScope {
         // Both: a client's conditional request is compared against validators
         // carried by prior origin responses for the same resource.
@@ -166,40 +202,6 @@ impl Rule for CacheValidationChain {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Caches must validate stored responses using up-to-date validators.  When a server supplies an `ETag` or `Last-Modified` header, a well-behaved cache will include that validator in subsequent conditional requests (`If-None-Match` or `If-Modified-Since`).  The value in those request headers should match the most recently observed validator for the resource; if it does not, revalidation may fail and clients can receive stale or unexpected content.\n\nThis rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/\"tag\"`) is considered equivalent to its strong counterpart when the opaque tag matches.\n\nThis rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_4_3_1, RFC_9110_13_1_2, RFC_9110_13_1_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Sequence"),
-                snippet: "HTTP/1.1 200 OK\nETag: \"abc\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Sequence"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet: "HTTP/1.1 304 Not Modified\nETag: \"xyz\"  # validator updated by 304\n\nHTTP/1.1 200 OK\nETag: \"abc\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Request"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nIf-None-Match: \"abc\"",
-            },
-        ]
     }
 }
 

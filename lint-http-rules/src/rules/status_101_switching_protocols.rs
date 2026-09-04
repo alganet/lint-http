@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Validate 101 Switching Protocols responses follow correct upgrade semantics.
 ///
@@ -48,11 +48,57 @@ const RFC_9114_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HTTP Upgrade — the only place RFC 9114 mentions 101; forbids it alongside the Upgrade mechanism",
 };
 
-impl Rule for Status101SwitchingProtocols {
+impl RuleMeta for Status101SwitchingProtocols {
     fn id(&self) -> &'static str {
         "status_101_switching_protocols"
     }
 
+    fn description(&self) -> &'static str {
+        "Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:\n\n- The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.\n- The protocol chosen in the response `Upgrade` header must match one offered by the client.\n- 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.\n- After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_15_2_2, RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— client requests upgrade and server agrees"),
+                snippet: "> GET /chat HTTP/1.1\n> Upgrade: websocket\n> Connection: Upgrade\n\n< HTTP/1.1 101 Switching Protocols\n< Upgrade: websocket\n< Connection: Upgrade",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— server declines upgrade (non-101 response)"),
+                snippet: "> GET /resource HTTP/1.1\n> Upgrade: h2c\n> Connection: Upgrade\n\n< HTTP/1.1 200 OK",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— unsolicited 101 (no Upgrade in request)"),
+                snippet: "> GET /resource HTTP/1.1\n\n< HTTP/1.1 101 Switching Protocols\n< Upgrade: websocket",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— protocol mismatch"),
+                snippet: "> GET /chat HTTP/1.1\n> Upgrade: websocket\n> Connection: Upgrade\n\n< HTTP/1.1 101 Switching Protocols\n< Upgrade: h2c\n< Connection: Upgrade",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— 101 over HTTP/2"),
+                snippet: "> GET /chat HTTP/2\n> Upgrade: websocket\n\n< HTTP/2 101 Switching Protocols\n< Upgrade: websocket",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— HTTP traffic after 101 on the same connection"),
+                snippet: "// previous transaction on this connection: 101 upgrade to websocket\n\n> GET /other HTTP/1.1\n\n< HTTP/1.1 200 OK",
+            },
+        ]
+    }
+}
+
+impl Rule for Status101SwitchingProtocols {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -245,50 +291,6 @@ impl Rule for Status101SwitchingProtocols {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:\n\n- The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.\n- The protocol chosen in the response `Upgrade` header must match one offered by the client.\n- 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.\n- After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_15_2_2, RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— client requests upgrade and server agrees"),
-                snippet: "> GET /chat HTTP/1.1\n> Upgrade: websocket\n> Connection: Upgrade\n\n< HTTP/1.1 101 Switching Protocols\n< Upgrade: websocket\n< Connection: Upgrade",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— server declines upgrade (non-101 response)"),
-                snippet: "> GET /resource HTTP/1.1\n> Upgrade: h2c\n> Connection: Upgrade\n\n< HTTP/1.1 200 OK",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— unsolicited 101 (no Upgrade in request)"),
-                snippet: "> GET /resource HTTP/1.1\n\n< HTTP/1.1 101 Switching Protocols\n< Upgrade: websocket",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— protocol mismatch"),
-                snippet: "> GET /chat HTTP/1.1\n> Upgrade: websocket\n> Connection: Upgrade\n\n< HTTP/1.1 101 Switching Protocols\n< Upgrade: h2c\n< Connection: Upgrade",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— 101 over HTTP/2"),
-                snippet: "> GET /chat HTTP/2\n> Upgrade: websocket\n\n< HTTP/2 101 Switching Protocols\n< Upgrade: websocket",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— HTTP traffic after 101 on the same connection"),
-                snippet: "// previous transaction on this connection: 101 upgrade to websocket\n\n> GET /other HTTP/1.1\n\n< HTTP/1.1 200 OK",
-            },
-        ]
     }
 }
 

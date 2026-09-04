@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 use chrono::TimeZone;
 
 pub struct SunsetAndDeprecationConsistent;
@@ -36,11 +36,41 @@ const RFC_9651_3_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Structured Field `Date` item syntax",
 };
 
-impl Rule for SunsetAndDeprecationConsistent {
+impl RuleMeta for SunsetAndDeprecationConsistent {
     fn id(&self) -> &'static str {
         "sunset_and_deprecation_consistent"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Sunset and Deprecation Consistency")
+    }
+
+    fn description(&self) -> &'static str {
+        "When both `Sunset` and `Deprecation` response headers are present they must be logically consistent: `Deprecation` (a Structured Field Date, `@<seconds>`, RFC 9745 §2.1) marks when a resource was or will be deprecated, and `Sunset` (an HTTP-date, RFC 8594 §3) marks the removal date. RFC 9745 §4 requires that the Sunset timestamp not be earlier than the Deprecation timestamp; this rule flags the reverse (subject to a small clock-skew tolerance). It also validates the `Sunset` syntax: a `Sunset` header that is not a parseable HTTP-date is reported even when `Deprecation` is absent. Legacy/non-structured `Deprecation` forms are left to `deprecation_header_syntax`."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_8594_3, RFC_9745_2_1, RFC_9745_4, RFC_9651_3_3_7]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2025 07:28:00 GMT\nDeprecation: @1730000000\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2025 07:28:00 GMT\nDeprecation: @4102444800   # year 2100\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
+            },
+        ]
+    }
+}
+
+impl Rule for SunsetAndDeprecationConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         // This rule inspects response headers only
         crate::rules::RuleScope::Server
@@ -144,34 +174,6 @@ impl Rule for SunsetAndDeprecationConsistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Sunset and Deprecation Consistency")
-    }
-
-    fn description(&self) -> &'static str {
-        "When both `Sunset` and `Deprecation` response headers are present they must be logically consistent: `Deprecation` (a Structured Field Date, `@<seconds>`, RFC 9745 §2.1) marks when a resource was or will be deprecated, and `Sunset` (an HTTP-date, RFC 8594 §3) marks the removal date. RFC 9745 §4 requires that the Sunset timestamp not be earlier than the Deprecation timestamp; this rule flags the reverse (subject to a small clock-skew tolerance). It also validates the `Sunset` syntax: a `Sunset` header that is not a parseable HTTP-date is reported even when `Deprecation` is absent. Legacy/non-structured `Deprecation` forms are left to `deprecation_header_syntax`."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_8594_3, RFC_9745_2_1, RFC_9745_4, RFC_9651_3_3_7]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2025 07:28:00 GMT\nDeprecation: @1730000000\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nDate: Wed, 21 Oct 2025 07:28:00 GMT\nDeprecation: @4102444800   # year 2100\nSunset: Tue, 01 Jan 2030 00:00:00 GMT",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct HttpVersionSyntax;
 
@@ -59,45 +59,9 @@ const RFC_5234_B_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`DIGIT = %x30-39` — the alphabet the two positions admit",
 };
 
-impl Rule for HttpVersionSyntax {
+impl RuleMeta for HttpVersionSyntax {
     fn id(&self) -> &'static str {
         "http_version_syntax"
-    }
-
-    /// Both directions, and the request half is measured whether or not a
-    /// response arrived. The sentence under this rule is addressed to whoever
-    /// generated the protocol element, and a request whose version is
-    /// unreadable was already unreadable when it was sent -- `Server` would
-    /// have skipped every exchange whose upstream failed and every
-    /// request-only lint.
-    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // The request's version sits in the first line of the request message,
-            // the response's in the first line of the response message. One
-            // production, two start-lines, and the request is asked first because
-            // it is the one a capture always holds.
-            // cite(RFC 9112 § 3): "A request-line begins with a method token, followed by a single space (SP), the request-target, and another single space (SP), and ends with the protocol version."
-            // cite(RFC 9112 § 4): "The first line of a response message is the status-line, consisting of the protocol version, a space (SP), the status code, and another space and ending with an OPTIONAL textual phrase describing the status code."
-            let finding = judge("request", &tx.request.version).or_else(|| {
-                let resp = tx.response.as_ref()?;
-                judge("response", &resp.version)
-            })?;
-
-            Some(self.violation(ctx.severity, finding))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -141,6 +105,44 @@ impl Rule for HttpVersionSyntax {
                 snippet: "GET /path HTTP/1.x\nHost: example\n\nHTTP/1.1 200 OK\nContent-Type: text/plain\n\nHello",
             },
         ]
+    }
+}
+
+impl Rule for HttpVersionSyntax {
+    /// Both directions, and the request half is measured whether or not a
+    /// response arrived. The sentence under this rule is addressed to whoever
+    /// generated the protocol element, and a request whose version is
+    /// unreadable was already unreadable when it was sent -- `Server` would
+    /// have skipped every exchange whose upstream failed and every
+    /// request-only lint.
+    // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // The request's version sits in the first line of the request message,
+            // the response's in the first line of the response message. One
+            // production, two start-lines, and the request is asked first because
+            // it is the one a capture always holds.
+            // cite(RFC 9112 § 3): "A request-line begins with a method token, followed by a single space (SP), the request-target, and another single space (SP), and ends with the protocol version."
+            // cite(RFC 9112 § 4): "The first line of a response message is the status-line, consisting of the protocol version, a space (SP), the status code, and another space and ending with an OPTIONAL textual phrase describing the status code."
+            let finding = judge("request", &tx.request.version).or_else(|| {
+                let resp = tx.response.as_ref()?;
+                judge("response", &resp.version)
+            })?;
+
+            Some(self.violation(ctx.severity, finding))
+        };
+        Vec::from_iter(finding())
     }
 }
 

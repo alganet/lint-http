@@ -11,7 +11,7 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::token::find_invalid_token_char;
 use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The two `server-timing-param-name`s this specification establishes, spelled
 /// as the two getters that read them spell their lookups.
@@ -193,11 +193,67 @@ const RFC_9110_6_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Limitations on Use of Trailers: the sentence that decides whether this field may sit in a trailer section at all. Not asked here — `trailer_fields_valid` owns it — but it is why the second section this rule reads is worth naming: the Server Timing specification puts the field there only in a section marked non-normative",
 };
 
-impl Rule for ServerTimingHeaderSyntax {
+impl RuleMeta for ServerTimingHeaderSyntax {
     fn id(&self) -> &'static str {
         "server_timing_header_syntax"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Server-Timing Header Syntax")
+    }
+
+    fn description(&self) -> &'static str {
+        "Checks that a `Server-Timing` response field derives from the grammar the Server Timing specification prints in § 2: `Server-Timing = #server-timing-metric`, each metric a `metric-name` (a `token`) followed by `*( OWS \";\" OWS server-timing-param )`, each parameter a `token` name, an `=` with `OWS` either side, and a value that is a `token` or a `quoted-string`.\n\n**The requirement is RFC 9110 § 2.2's, not this document's.** The Server Timing specification holds nine BCP 14 keywords. Seven are addressed to the *user agent*: it MUST process and expose repeated metric names, it MAY surface them in any order, it MUST ignore a parameter name it does not recognise, it MUST ignore every occurrence of a repeated parameter after the first, it MUST ignore extraneous characters in two named places — all without signalling an error — and § 4 lets it MAY keep the same-origin restriction anyway. The eighth is a MAY permitting a response to repeat a metric name. Exactly one measures what a server wrote, and it is the SHOULD NOT below. So a rule that reports a server has to reach out of the document for its modal, and \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules\" is it. A recipient being told to tolerate something is not the sender being told it may write it.\n\n**A `quoted-string` may hold a comma and a semicolon, and both are separators here.** `Server-Timing: cache;desc=\"Cache Read, DB\"` is one metric with one parameter. This rule splits both levels quote-aware; the value used to be split on bare `,` and `;`, which reported that field for an unterminated `quoted-string` it does not have.\n\n**The one sentence the document does address to the field's content is reported.** \"To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric.\" A repeated parameter name is a finding, and it is the only advice-shaped one that comes from this document rather than from the grammar. The rule used to implement the user agent's *ignore the rest* MUST as its own silence, which made the SHOULD NOT the one thing in the document nothing enforced.\n\n**Both field sections are read.** The specification's only worked exchange announces `Trailer: Server-Timing` and writes a fourth metric after the content. The lines of one section are joined into one list, in order; the two sections are not joined to each other. Whether the field may sit in a trailer section at all is RFC 9110 § 6.5.1's question and `trailer_fields_valid`'s to ask.\n\n**`dur` is measured against HTML's *valid floating-point number*, and the finding is advice.** No sentence anywhere requires `dur` to be a number: § 3.2 parses it with HTML's rules for parsing floating-point number values and returns 0 if that is an error, which is a consequence and not a violation. The production is not `f64::from_str` either — that one accepts `inf`, `NaN` and a leading `+`, none of which HTML admits, and refuses `53abc`, which HTML's parser reads as 53. The rule's own doc comment used to state a SHOULD that appears in no document.\n\n**A parameter name that is `dur` or `desc` in another case is reported as advice.** § 3.2 reads `params[\"dur\"]` and § 3.3 reads `params[\"desc\"]` — an ordered map keyed by the name as written — so `db;DUR=53` surfaces a duration of 0 and `db;DESC=x` an empty description. Nothing forbids the name; it is simply a parameter no user agent will recognise, which the document says is to be ignored without error.\n\n**What is not reported.** An empty field value: `#server-timing-metric` has no floor, so `Server-Timing:` is zero metrics rather than an empty one — an empty *element* between commas is reported, on § 5.6.1.1's sender MUST NOT. Repeated `metric-name`s across metrics: § 2 grants a response a MAY to send them and requires the user agent to expose all of them. The order of metrics: the user agent MAY surface them in any order. An unregistered parameter name, which the document establishes exactly two of and tells recipients to ignore the rest of. And whether the numbers are true, which no capture can answer."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            SERVER_TIMING_2,
+            SERVER_TIMING_3_2,
+            SERVER_TIMING_3_3,
+            IANA_HTTP_FIELD_NAME_REGISTRY,
+            HTML_COMMON_MICROSYNTAXES_2_3_4_3,
+            RFC_9110_2_2,
+            RFC_9110_5_6_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+            RFC_9110_6_5_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("The specification's own worked exchange, including the trailer line"),
+                snippet: "Server-Timing: miss, db;dur=53, app;dur=47.2\nServer-Timing: customView, dc;desc=atl\nServer-Timing: cache;desc=\"Cache Read\";dur=23.2\nTrailer: Server-Timing\nServer-Timing: total;dur=123.4",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("A comma and a semicolon inside a quoted-string are data, not separators"),
+                snippet: "Server-Timing: cache;desc=\"Cache Read, DB Write\", db;dur=.5e1",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("An empty field value is zero metrics, which the list production allows"),
+                snippet: "Server-Timing:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Grammar: an empty list element, a metric-name that is not a token, a parameter with no value, and a value that is neither a token nor a quoted-string"),
+                snippet: "Server-Timing: ,miss\nServer-Timing: b@d;dur=5\nServer-Timing: db;desc\nServer-Timing: db;desc=Cache Read\nServer-Timing: db;desc=\"abc\"x",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Advice: a repeated parameter name, a `dur` that is not a valid floating-point number, and a name the getters will not find"),
+                snippet: "Server-Timing: db;dur=50;dur=51\nServer-Timing: db;dur=NaN\nServer-Timing: db;dur=+5\nServer-Timing: db;DUR=53",
+            },
+        ]
+    }
+}
+
+impl Rule for ServerTimingHeaderSyntax {
     /// The field is a response field, and every finding here is about what a
     /// server wrote. RFC 9110 § 3.7 is why a capture of a gateway's answer is
     /// measured by the same sentences.
@@ -264,60 +320,6 @@ impl Rule for ServerTimingHeaderSyntax {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Server-Timing Header Syntax")
-    }
-
-    fn description(&self) -> &'static str {
-        "Checks that a `Server-Timing` response field derives from the grammar the Server Timing specification prints in § 2: `Server-Timing = #server-timing-metric`, each metric a `metric-name` (a `token`) followed by `*( OWS \";\" OWS server-timing-param )`, each parameter a `token` name, an `=` with `OWS` either side, and a value that is a `token` or a `quoted-string`.\n\n**The requirement is RFC 9110 § 2.2's, not this document's.** The Server Timing specification holds nine BCP 14 keywords. Seven are addressed to the *user agent*: it MUST process and expose repeated metric names, it MAY surface them in any order, it MUST ignore a parameter name it does not recognise, it MUST ignore every occurrence of a repeated parameter after the first, it MUST ignore extraneous characters in two named places — all without signalling an error — and § 4 lets it MAY keep the same-origin restriction anyway. The eighth is a MAY permitting a response to repeat a metric name. Exactly one measures what a server wrote, and it is the SHOULD NOT below. So a rule that reports a server has to reach out of the document for its modal, and \"A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules\" is it. A recipient being told to tolerate something is not the sender being told it may write it.\n\n**A `quoted-string` may hold a comma and a semicolon, and both are separators here.** `Server-Timing: cache;desc=\"Cache Read, DB\"` is one metric with one parameter. This rule splits both levels quote-aware; the value used to be split on bare `,` and `;`, which reported that field for an unterminated `quoted-string` it does not have.\n\n**The one sentence the document does address to the field's content is reported.** \"To avoid any possible ambiguity, individual server-timing-param-names SHOULD NOT appear multiple times within a server-timing-metric.\" A repeated parameter name is a finding, and it is the only advice-shaped one that comes from this document rather than from the grammar. The rule used to implement the user agent's *ignore the rest* MUST as its own silence, which made the SHOULD NOT the one thing in the document nothing enforced.\n\n**Both field sections are read.** The specification's only worked exchange announces `Trailer: Server-Timing` and writes a fourth metric after the content. The lines of one section are joined into one list, in order; the two sections are not joined to each other. Whether the field may sit in a trailer section at all is RFC 9110 § 6.5.1's question and `trailer_fields_valid`'s to ask.\n\n**`dur` is measured against HTML's *valid floating-point number*, and the finding is advice.** No sentence anywhere requires `dur` to be a number: § 3.2 parses it with HTML's rules for parsing floating-point number values and returns 0 if that is an error, which is a consequence and not a violation. The production is not `f64::from_str` either — that one accepts `inf`, `NaN` and a leading `+`, none of which HTML admits, and refuses `53abc`, which HTML's parser reads as 53. The rule's own doc comment used to state a SHOULD that appears in no document.\n\n**A parameter name that is `dur` or `desc` in another case is reported as advice.** § 3.2 reads `params[\"dur\"]` and § 3.3 reads `params[\"desc\"]` — an ordered map keyed by the name as written — so `db;DUR=53` surfaces a duration of 0 and `db;DESC=x` an empty description. Nothing forbids the name; it is simply a parameter no user agent will recognise, which the document says is to be ignored without error.\n\n**What is not reported.** An empty field value: `#server-timing-metric` has no floor, so `Server-Timing:` is zero metrics rather than an empty one — an empty *element* between commas is reported, on § 5.6.1.1's sender MUST NOT. Repeated `metric-name`s across metrics: § 2 grants a response a MAY to send them and requires the user agent to expose all of them. The order of metrics: the user agent MAY surface them in any order. An unregistered parameter name, which the document establishes exactly two of and tells recipients to ignore the rest of. And whether the numbers are true, which no capture can answer."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            SERVER_TIMING_2,
-            SERVER_TIMING_3_2,
-            SERVER_TIMING_3_3,
-            IANA_HTTP_FIELD_NAME_REGISTRY,
-            HTML_COMMON_MICROSYNTAXES_2_3_4_3,
-            RFC_9110_2_2,
-            RFC_9110_5_6_1,
-            RFC_9110_5_6_2,
-            RFC_9110_5_6_4,
-            RFC_9110_6_5_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("The specification's own worked exchange, including the trailer line"),
-                snippet: "Server-Timing: miss, db;dur=53, app;dur=47.2\nServer-Timing: customView, dc;desc=atl\nServer-Timing: cache;desc=\"Cache Read\";dur=23.2\nTrailer: Server-Timing\nServer-Timing: total;dur=123.4",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("A comma and a semicolon inside a quoted-string are data, not separators"),
-                snippet: "Server-Timing: cache;desc=\"Cache Read, DB Write\", db;dur=.5e1",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("An empty field value is zero metrics, which the list production allows"),
-                snippet: "Server-Timing:",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Grammar: an empty list element, a metric-name that is not a token, a parameter with no value, and a value that is neither a token nor a quoted-string"),
-                snippet: "Server-Timing: ,miss\nServer-Timing: b@d;dur=5\nServer-Timing: db;desc\nServer-Timing: db;desc=Cache Read\nServer-Timing: db;desc=\"abc\"x",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Advice: a repeated parameter name, a `dur` that is not a valid floating-point number, and a name the getters will not find"),
-                snippet: "Server-Timing: db;dur=50;dur=51\nServer-Timing: db;dur=NaN\nServer-Timing: db;dur=+5\nServer-Timing: db;DUR=53",
-            },
-        ]
     }
 }
 

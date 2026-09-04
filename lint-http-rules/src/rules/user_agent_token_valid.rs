@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct UserAgentTokenValid;
 
@@ -23,11 +23,67 @@ const RFC_9110_5_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`comment = \"(\" *( ctext / quoted-pair / comment ) \")\"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash",
 };
 
-impl Rule for UserAgentTokenValid {
+impl RuleMeta for UserAgentTokenValid {
     fn id(&self) -> &'static str {
         "user_agent_token_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate a `User-Agent` request header against `User-Agent = product *( RWS ( product / comment ) )`. Each product is a `token` with an optional `/`-separated version token; parenthesized comments may nest and may hold a `quoted-pair`, but a comment can only follow a product, so a value that opens with one — or holds nothing else — does not match the grammar. Required whitespace between elements is enforced, and `obs-text` is accepted inside a comment, where `ctext` allows it, and nowhere else. What §10.1.5 asks beyond the grammar — that a product identifier carry no advertising or other nonessential information, and no needlessly fine-grained detail — is a question about intent that the octets cannot answer, and is not checked."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_10_1_5, RFC_9110_5_6_5]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: curl/7.68.0",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("the example RFC 9110 prints for the field"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: CERN-LineMode/2.15 libwww/2.17b3",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("comments following a product"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0 (compatible; Bot/1.0; +http://example.com)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("no leading product identifier"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: /1.0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a comment before the first product"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: (compatible; Bot/1.0) Mozilla/5.0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("illegal character in the product token"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Bad@UA/1.0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("no whitespace between the product and the comment"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0(Windows)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("unterminated comment"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0 (unbalanced comment",
+            },
+        ]
+    }
+}
+
+impl Rule for UserAgentTokenValid {
     fn scope(&self) -> crate::rules::RuleScope {
         // `User-Agent` is defined for requests only -- it lives under §10.1,
         // "Request Context Fields", and the field's own first sentence says
@@ -96,60 +152,6 @@ impl Rule for UserAgentTokenValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate a `User-Agent` request header against `User-Agent = product *( RWS ( product / comment ) )`. Each product is a `token` with an optional `/`-separated version token; parenthesized comments may nest and may hold a `quoted-pair`, but a comment can only follow a product, so a value that opens with one — or holds nothing else — does not match the grammar. Required whitespace between elements is enforced, and `obs-text` is accepted inside a comment, where `ctext` allows it, and nowhere else. What §10.1.5 asks beyond the grammar — that a product identifier carry no advertising or other nonessential information, and no needlessly fine-grained detail — is a question about intent that the octets cannot answer, and is not checked."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_10_1_5, RFC_9110_5_6_5]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: curl/7.68.0",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("the example RFC 9110 prints for the field"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: CERN-LineMode/2.15 libwww/2.17b3",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("comments following a product"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0 (compatible; Bot/1.0; +http://example.com)",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("no leading product identifier"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: /1.0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("a comment before the first product"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: (compatible; Bot/1.0) Mozilla/5.0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("illegal character in the product token"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Bad@UA/1.0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("no whitespace between the product and the comment"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0(Windows)",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("unterminated comment"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nUser-Agent: Mozilla/5.0 (unbalanced comment",
-            },
-        ]
     }
 }
 
@@ -506,7 +508,7 @@ mod tests {
 
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = UserAgentTokenValid;
         let cfg =
             crate::test_helpers::make_test_config_with_enabled_rules(&["user_agent_token_valid"]);

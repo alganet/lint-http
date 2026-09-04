@@ -11,7 +11,7 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::token::find_invalid_token_char;
 use crate::helpers::uri::validate_host_and_optional_port;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct WarningHeaderSyntax;
 
@@ -90,37 +90,9 @@ const RFC_3986_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
            §4.1 — including the `reg-name` that derives the empty string",
 };
 
-impl Rule for WarningHeaderSyntax {
+impl RuleMeta for WarningHeaderSyntax {
     fn id(&self) -> &'static str {
         "warning_header_syntax"
-    }
-
-    /// The field is not a response field, and the sentence that says so says it
-    /// while naming the exception: the *codes*, not the field, are what some
-    /// caches-only requirements are about.
-    // cite(RFC 7234 § 5.5): "Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let message = judge(&tx.request.headers, "Request").or_else(|| {
-                tx.response
-                    .as_ref()
-                    .and_then(|resp| judge(&resp.headers, "Response"))
-            })?;
-
-            Some(self.violation(ctx.severity, message))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -274,6 +246,36 @@ impl Rule for WarningHeaderSyntax {
                 snippet: "HTTP/1.1 200 OK\nWarning: 214 host \"x\" \"Saturday, 25-Aug-12 23:34:45 GMT\"",
             },
         ]
+    }
+}
+
+impl Rule for WarningHeaderSyntax {
+    /// The field is not a response field, and the sentence that says so says it
+    /// while naming the exception: the *codes*, not the field, are what some
+    /// caches-only requirements are about.
+    // cite(RFC 7234 § 5.5): "Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let message = judge(&tx.request.headers, "Request").or_else(|| {
+                tx.response
+                    .as_ref()
+                    .and_then(|resp| judge(&resp.headers, "Response"))
+            })?;
+
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 }
 

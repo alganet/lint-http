@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ProblemDetailsContentType;
 
@@ -35,11 +35,42 @@ const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The field this rule reads: that it is a singleton and what recipients do when it is sent twice (the reason a duplicated field line is declined), and, in §8.3.1, that its type and subtype tokens are case-insensitive",
 };
 
-impl Rule for ProblemDetailsContentType {
+impl RuleMeta for ProblemDetailsContentType {
     fn id(&self) -> &'static str {
         "problem_details_content_type"
     }
 
+    fn description(&self) -> &'static str {
+        "Reports an error response (4xx or 5xx) whose `Content-Type` is one of the three **generic** JSON or XML media types — `application/json`, `application/xml`, `text/xml` — as a candidate for problem details, the format RFC 9457 defines to carry machine-readable details of an error as `application/problem+json` or `application/problem+xml`. RFC 9457 obsoletes RFC 7807.\n\n**The finding is advisory: no RFC requires problem details.** RFC 9457 says they \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\", which is where this rule looks, and it twice says that a sender with a format of its own should keep it: §1 notes that where the response is still a representation of a resource \"it's often preferable to describe the relevant details in that application's format\", and §4 that problem details are \"intended to avoid the necessity of establishing new 'fault' or 'error' document formats, not to replace existing domain-specific formats\". A finding means this error response carries no error format at all, not that its sender did anything wrong.\n\nThat is why the reported set stops at the three generic media types. A subtype ending in `+json` or `+xml` (`application/hal+json`, `application/vnd.api+json`) names a specific format, so the sender has the one RFC 9457 prefers and the rule says nothing. It also says nothing about a `Content-Type` it cannot parse, which is `content_type_valid`'s finding, nor about a response carrying no `Content-Type` at all, which is `content_type_present`'s. A response carrying **two** `Content-Type` field lines is declined for a third reason: RFC 9110 §8.3 says recipients often act on the last syntactically valid member, so which media type the peer reads is not knowable, and `content_type_valid` reports the duplication itself."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9457_1, RFC_9457_3, RFC_9457_B, RFC_9110_8_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("problem details, in the media type that names them"),
+                snippet: "HTTP/1.1 400 Bad Request\nContent-Type: application/problem+json\n\n{\"type\":\"https://example.com/probs/out-of-credit\",\"title\":\"You do not have enough credit\",\"status\":400}",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("an application's own error format — RFC 9457 §4 says to keep it"),
+                snippet: "HTTP/1.1 422 Unprocessable Content\nContent-Type: application/vnd.api+json\n\n{\"errors\":[{\"status\":\"422\",\"title\":\"must be a positive integer\"}]}",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("the content is problem details; the media type does not say so"),
+                snippet: "HTTP/1.1 500 Internal Server Error\nContent-Type: application/json\n\n{\"type\":\"https://example.com/probs/internal\",\"title\":\"Internal error\",\"status\":500}",
+            },
+        ]
+    }
+}
+
+impl Rule for ProblemDetailsContentType {
     // No sentence scopes this rule to responses on its own. What does is the
     // status gate below: the question the rule asks is about a status code, and
     // only a response has one. The cite lives there, at its narrowest site,
@@ -132,35 +163,6 @@ impl Rule for ProblemDetailsContentType {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports an error response (4xx or 5xx) whose `Content-Type` is one of the three **generic** JSON or XML media types — `application/json`, `application/xml`, `text/xml` — as a candidate for problem details, the format RFC 9457 defines to carry machine-readable details of an error as `application/problem+json` or `application/problem+xml`. RFC 9457 obsoletes RFC 7807.\n\n**The finding is advisory: no RFC requires problem details.** RFC 9457 says they \"can be used with any HTTP status code, but they most naturally fit the semantics of 4xx and 5xx responses\", which is where this rule looks, and it twice says that a sender with a format of its own should keep it: §1 notes that where the response is still a representation of a resource \"it's often preferable to describe the relevant details in that application's format\", and §4 that problem details are \"intended to avoid the necessity of establishing new 'fault' or 'error' document formats, not to replace existing domain-specific formats\". A finding means this error response carries no error format at all, not that its sender did anything wrong.\n\nThat is why the reported set stops at the three generic media types. A subtype ending in `+json` or `+xml` (`application/hal+json`, `application/vnd.api+json`) names a specific format, so the sender has the one RFC 9457 prefers and the rule says nothing. It also says nothing about a `Content-Type` it cannot parse, which is `content_type_valid`'s finding, nor about a response carrying no `Content-Type` at all, which is `content_type_present`'s. A response carrying **two** `Content-Type` field lines is declined for a third reason: RFC 9110 §8.3 says recipients often act on the last syntactically valid member, so which media type the peer reads is not knowable, and `content_type_valid` reports the duplication itself."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9457_1, RFC_9457_3, RFC_9457_B, RFC_9110_8_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("problem details, in the media type that names them"),
-                snippet: "HTTP/1.1 400 Bad Request\nContent-Type: application/problem+json\n\n{\"type\":\"https://example.com/probs/out-of-credit\",\"title\":\"You do not have enough credit\",\"status\":400}",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("an application's own error format — RFC 9457 §4 says to keep it"),
-                snippet: "HTTP/1.1 422 Unprocessable Content\nContent-Type: application/vnd.api+json\n\n{\"errors\":[{\"status\":\"422\",\"title\":\"must be a positive integer\"}]}",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("the content is problem details; the media type does not say so"),
-                snippet: "HTTP/1.1 500 Internal Server Error\nContent-Type: application/json\n\n{\"type\":\"https://example.com/probs/internal\",\"title\":\"Internal error\",\"status\":500}",
-            },
-        ]
     }
 }
 
@@ -266,7 +268,7 @@ mod tests {
     /// decline costs no coverage. Executed rather than assumed.
     #[test]
     fn the_owning_rule_reports_the_duplication_this_rule_declines() {
-        use crate::rules::Rule as _;
+        use crate::rules::RuleMeta as _;
         let owner = crate::rules::content_type_valid::ContentTypeValid;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             500,
@@ -295,7 +297,7 @@ mod tests {
     /// finding, so the guard cannot pass by never firing.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = ProblemDetailsContentType;
         let mut saw_a_finding = false;
 

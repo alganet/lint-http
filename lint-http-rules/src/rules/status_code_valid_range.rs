@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct StatusCodeValidRange;
 
@@ -41,11 +41,48 @@ const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Conformance: a sender must not generate an element that does not match its ABNF — reached from RFC 9112 §1.1, and the modal behind the one value no `status-code` can express",
 };
 
-impl Rule for StatusCodeValidRange {
+impl RuleMeta for StatusCodeValidRange {
     fn id(&self) -> &'static str {
         "status_code_valid_range"
     }
 
+    fn description(&self) -> &'static str {
+        "Reports a response whose status code falls outside the range RFC 9110 §15 defines — *\"All valid status codes are within the range of 100 to 599, inclusive\"* — and which the same section then calls invalid in as many words: *\"Values outside the range 100..599 are invalid.\"*\n\nNo sentence spells this as a MUST, and it does not need one: the RFC states the invalidity outright, and §16.2.2 closes the range against ever widening, because new status codes *\"are required to fall under one of the categories defined in Section 15\"* and those five categories are 1xx through 5xx. Either way the recipient gets nothing it can act on — §15 directs a client receiving an invalid status code to process the response as if it had a 5xx.\n\n**The three out-of-range cases have different causes, and the finding names which one it is.** A code in 600..999 is a three-digit value a status-line can carry, and §15 names that range as the one implementations use for internal, non-HTTP status such as library errors — so a finding there usually means an internal status leaked onto the wire. A value above 999 cannot be written as a `status-code` at all (RFC 9112 §4: `status-code = 3DIGIT`), and one below 100 only as a leading-zero code such as `007`, which the status parser on the capture path rejects for every version; both of those reach the rule from a capture file supplied to the `lint` subcommand, where the status is read as a plain integer. That is also why only the first has a published example: an example is a message, and no message this toolchain can parse carries the other two.\n\n**It does not check whether the code is registered, and an unregistered code in range is not a finding.** §15 requires a client to understand a status code's *class* and to treat an unrecognized code as equivalent to the x00 of that class — the RFC's own example is a 471 read as a 400 — so an in-range code nobody has registered is still well defined for every recipient. §15.1 asks only that additional codes *\"ought to be\"* registered, which is weaker than SHOULD, and the registry is open.\n\nThe reason-phrase beside the code is not read: RFC 9112 §4 makes it optional and asks clients to ignore it. What a *valid* status code implies for the rest of the message — which fields it may carry, whether it may have content, whether it is cacheable — belongs to the rules for each of those questions."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_15,
+            RFC_9110_15_1,
+            RFC_9110_16_2_2,
+            RFC_9112_4,
+            RFC_9110_2_2,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response"),
+                snippet: "HTTP/1.1 200 OK",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Response (unregistered code, in range)"),
+                snippet: "HTTP/1.1 471 Unrecognized",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("Response (internal non-HTTP status on the wire)"),
+                snippet: "HTTP/1.1 600 Internal Library Error",
+            },
+        ]
+    }
+}
+
+impl Rule for StatusCodeValidRange {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -142,41 +179,6 @@ impl Rule for StatusCodeValidRange {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a response whose status code falls outside the range RFC 9110 §15 defines — *\"All valid status codes are within the range of 100 to 599, inclusive\"* — and which the same section then calls invalid in as many words: *\"Values outside the range 100..599 are invalid.\"*\n\nNo sentence spells this as a MUST, and it does not need one: the RFC states the invalidity outright, and §16.2.2 closes the range against ever widening, because new status codes *\"are required to fall under one of the categories defined in Section 15\"* and those five categories are 1xx through 5xx. Either way the recipient gets nothing it can act on — §15 directs a client receiving an invalid status code to process the response as if it had a 5xx.\n\n**The three out-of-range cases have different causes, and the finding names which one it is.** A code in 600..999 is a three-digit value a status-line can carry, and §15 names that range as the one implementations use for internal, non-HTTP status such as library errors — so a finding there usually means an internal status leaked onto the wire. A value above 999 cannot be written as a `status-code` at all (RFC 9112 §4: `status-code = 3DIGIT`), and one below 100 only as a leading-zero code such as `007`, which the status parser on the capture path rejects for every version; both of those reach the rule from a capture file supplied to the `lint` subcommand, where the status is read as a plain integer. That is also why only the first has a published example: an example is a message, and no message this toolchain can parse carries the other two.\n\n**It does not check whether the code is registered, and an unregistered code in range is not a finding.** §15 requires a client to understand a status code's *class* and to treat an unrecognized code as equivalent to the x00 of that class — the RFC's own example is a 471 read as a 400 — so an in-range code nobody has registered is still well defined for every recipient. §15.1 asks only that additional codes *\"ought to be\"* registered, which is weaker than SHOULD, and the registry is open.\n\nThe reason-phrase beside the code is not read: RFC 9112 §4 makes it optional and asks clients to ignore it. What a *valid* status code implies for the rest of the message — which fields it may carry, whether it may have content, whether it is cacheable — belongs to the rules for each of those questions."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_15,
-            RFC_9110_15_1,
-            RFC_9110_16_2_2,
-            RFC_9112_4,
-            RFC_9110_2_2,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response"),
-                snippet: "HTTP/1.1 200 OK",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Response (unregistered code, in range)"),
-                snippet: "HTTP/1.1 471 Unrecognized",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("Response (internal non-HTTP status on the wire)"),
-                snippet: "HTTP/1.1 600 Internal Library Error",
-            },
-        ]
     }
 }
 
@@ -315,7 +317,7 @@ mod tests {
     /// Every published snippet is run through the rule.
     #[test]
     fn published_examples_are_judged_by_this_rule() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = StatusCodeValidRange;
 
         for ex in rule.examples() {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The fields that actually arrive after the content, and whether they may.
 ///
@@ -68,50 +68,9 @@ const RFC_9112_7_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The chunked transfer coding's trailer section — HTTP/1.1's framing mechanism for the section this rule reads, and the reason the framing precondition in §6.5.1 needs no check here",
 };
 
-impl Rule for TrailerFieldsValid {
+impl RuleMeta for TrailerFieldsValid {
     fn id(&self) -> &'static str {
         "trailer_fields_valid"
-    }
-
-    /// A trailer section is a sender's, and either party is a sender. The
-    /// requirement names no direction, and a request's trailer section is reachable
-    /// here — HTTP/1.1 chunked framing runs both ways.
-    ///
-    /// cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Each trailer section is measured against the header section of its own
-            // message. A request's `Trailer` announces what that request will send and
-            // its `Connection` names options for that message, so neither says anything
-            // about what the response may put after its content.
-            if let Some(ref trailers) = tx.request.trailers {
-                if let Some(v) = check_trailers(self, ctx.severity, trailers, &tx.request.headers) {
-                    return Some(v);
-                }
-            }
-
-            if let Some(ref resp) = tx.response {
-                if let Some(ref trailers) = resp.trailers {
-                    if let Some(v) = check_trailers(self, ctx.severity, trailers, &resp.headers) {
-                        return Some(v);
-                    }
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -165,6 +124,49 @@ impl Rule for TrailerFieldsValid {
                 snippet: "HTTP/1.1 200 OK\nTrailer: X-Checksum\nTransfer-Encoding: chunked\n\n<chunked body>\nX-Signature: sig-value",
             },
         ]
+    }
+}
+
+impl Rule for TrailerFieldsValid {
+    /// A trailer section is a sender's, and either party is a sender. The
+    /// requirement names no direction, and a request's trailer section is reachable
+    /// here — HTTP/1.1 chunked framing runs both ways.
+    ///
+    /// cite(RFC 9110 § 6.5.1): "A sender MUST NOT generate a trailer field unless the sender knows the corresponding header field name's definition permits the field to be sent in trailers."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Each trailer section is measured against the header section of its own
+            // message. A request's `Trailer` announces what that request will send and
+            // its `Connection` names options for that message, so neither says anything
+            // about what the response may put after its content.
+            if let Some(ref trailers) = tx.request.trailers {
+                if let Some(v) = check_trailers(self, ctx.severity, trailers, &tx.request.headers) {
+                    return Some(v);
+                }
+            }
+
+            if let Some(ref resp) = tx.response {
+                if let Some(ref trailers) = resp.trailers {
+                    if let Some(v) = check_trailers(self, ctx.severity, trailers, &resp.headers) {
+                        return Some(v);
+                    }
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -936,7 +938,7 @@ mod tests {
     /// this rule rejects; this is the same guard pointing the other way.
     #[test]
     fn published_examples_are_judged_by_this_rule_and_by_the_one_that_owns_the_declaration() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = TrailerFieldsValid;
         let owner = crate::rules::trailer_header_valid::TrailerHeaderValid;
         let owner_cfg =

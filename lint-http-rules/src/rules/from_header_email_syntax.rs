@@ -7,7 +7,7 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::mailbox::{parse_mailbox, MailboxDefect};
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct FromHeaderEmailSyntax;
 
@@ -94,11 +94,101 @@ const RFC_1123_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Relaxes RFC 1035's first-character rule to a letter or a digit",
 };
 
-impl Rule for FromHeaderEmailSyntax {
+impl RuleMeta for FromHeaderEmailSyntax {
     fn id(&self) -> &'static str {
         "from_header_email_syntax"
     }
 
+    fn description(&self) -> &'static str {
+        "This rule measures the `From` request header against the one production RFC 9110 §10.1.2 gives it: `From = mailbox`, imported by reference from RFC 5322 §3.4. It is a single mailbox and not a list — `mailbox-list` is defined two lines below it in the same section and is not what the field imports — so a comma outside every `quoted-string`, `comment` and `angle-addr` is reported, and so is a second `From` field line, which a recipient recombines into exactly that comma-separated shape (RFC 9110 §5.3). The value is read one `char` per octet, so an octet above %x7E is named at the character class that excludes it rather than folded into a claim about UTF-8; RFC 5322 writes `atext`, `qtext`, `ctext` and `dtext` as ranges that all stop at %x7E. Parenthesised comments and folding whitespace are part of the grammar and are accepted wherever `CFWS` may appear — `alice@example.com (Alice)` is one conforming mailbox. Only §3's grammar is accepted: §4's obsolete alternatives must be accepted by a receiver and must not be generated, and this rule reports on senders. One finding is weaker than the rest and says so in its own text: a `dot-atom` domain outside RFC 1035 §2.3.1's preferred name syntax (an `_`, a label opening or closing on `-`, a label over 63 characters) is a conforming `dot-atom` and is reported as advice. §10.1.2's three other requirements are declined and none of them is about syntax: the user agent SHOULD NOT that turns on whether the user configured the field, the SHOULD on a *robotic* user agent, and the SHOULD NOT on a server *using* the field for access control are each about a party or an intent no captured message states. RFC 5322's own advice to its generators — prefer a `dot-atom` local-part over a quoted one (§3.4.1), keep comments out of address fields (§3.4) — is likewise not enforced: RFC 9110 imports a production, not the document's style guidance."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_10_1_2,
+            RFC_9110_10_1,
+            RFC_9110_5_3,
+            RFC_9110_5_5,
+            RFC_9110_2_2,
+            RFC_5322_3_4,
+            RFC_5322_3_4_1,
+            RFC_5322_3_2_2,
+            RFC_5322_3_2_3,
+            RFC_5322_3_2_4,
+            RFC_5322_4,
+            RFC_1035_2_3_1,
+            RFC_1123_2_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the section's own example)"),
+                snippet: "GET / HTTP/1.1\nFrom: spider-admin@example.org",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(display-name and angle-addr)"),
+                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com>",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a comma inside a quoted display-name is data)"),
+                snippet: "GET / HTTP/1.1\nFrom: \"Doe, John\" <john@example.com>",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a parenthesized comment is part of the grammar)"),
+                snippet: "GET / HTTP/1.1\nFrom: alice@example.com (Alice)",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(domain-literal)"),
+                snippet: "GET / HTTP/1.1\nFrom: alice@[192.0.2.1]",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(two addresses — the field holds one mailbox, not a mailbox-list)"),
+                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com>, bob@example.org",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(two field lines, which a recipient recombines with a comma)"),
+                snippet: "GET / HTTP/1.1\nFrom: alice@example.com\nFrom: bob@example.org",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(no at-sign)"),
+                snippet: "GET / HTTP/1.1\nFrom: not-an-email",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(empty domain)"),
+                snippet: "GET / HTTP/1.1\nFrom: alice@",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unbalanced angle-brackets)"),
+                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(obs-phrase — a bare dot in a display-name)"),
+                snippet: "GET / HTTP/1.1\nFrom: John Q. Public <jqp@example.com>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a dot-atom domain outside the preferred name syntax)"),
+                snippet: "GET / HTTP/1.1\nFrom: alice@my_host.example",
+            },
+        ]
+    }
+}
+
+impl Rule for FromHeaderEmailSyntax {
     /// `From` is defined in § 10.1, *Request Context Fields* — the section is
     /// about the party the field names, and there is no response half of it for
     /// a server to write.
@@ -262,94 +352,6 @@ impl Rule for FromHeaderEmailSyntax {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule measures the `From` request header against the one production RFC 9110 §10.1.2 gives it: `From = mailbox`, imported by reference from RFC 5322 §3.4. It is a single mailbox and not a list — `mailbox-list` is defined two lines below it in the same section and is not what the field imports — so a comma outside every `quoted-string`, `comment` and `angle-addr` is reported, and so is a second `From` field line, which a recipient recombines into exactly that comma-separated shape (RFC 9110 §5.3). The value is read one `char` per octet, so an octet above %x7E is named at the character class that excludes it rather than folded into a claim about UTF-8; RFC 5322 writes `atext`, `qtext`, `ctext` and `dtext` as ranges that all stop at %x7E. Parenthesised comments and folding whitespace are part of the grammar and are accepted wherever `CFWS` may appear — `alice@example.com (Alice)` is one conforming mailbox. Only §3's grammar is accepted: §4's obsolete alternatives must be accepted by a receiver and must not be generated, and this rule reports on senders. One finding is weaker than the rest and says so in its own text: a `dot-atom` domain outside RFC 1035 §2.3.1's preferred name syntax (an `_`, a label opening or closing on `-`, a label over 63 characters) is a conforming `dot-atom` and is reported as advice. §10.1.2's three other requirements are declined and none of them is about syntax: the user agent SHOULD NOT that turns on whether the user configured the field, the SHOULD on a *robotic* user agent, and the SHOULD NOT on a server *using* the field for access control are each about a party or an intent no captured message states. RFC 5322's own advice to its generators — prefer a `dot-atom` local-part over a quoted one (§3.4.1), keep comments out of address fields (§3.4) — is likewise not enforced: RFC 9110 imports a production, not the document's style guidance."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_10_1_2,
-            RFC_9110_10_1,
-            RFC_9110_5_3,
-            RFC_9110_5_5,
-            RFC_9110_2_2,
-            RFC_5322_3_4,
-            RFC_5322_3_4_1,
-            RFC_5322_3_2_2,
-            RFC_5322_3_2_3,
-            RFC_5322_3_2_4,
-            RFC_5322_4,
-            RFC_1035_2_3_1,
-            RFC_1123_2_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(the section's own example)"),
-                snippet: "GET / HTTP/1.1\nFrom: spider-admin@example.org",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(display-name and angle-addr)"),
-                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com>",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a comma inside a quoted display-name is data)"),
-                snippet: "GET / HTTP/1.1\nFrom: \"Doe, John\" <john@example.com>",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a parenthesized comment is part of the grammar)"),
-                snippet: "GET / HTTP/1.1\nFrom: alice@example.com (Alice)",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(domain-literal)"),
-                snippet: "GET / HTTP/1.1\nFrom: alice@[192.0.2.1]",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(two addresses — the field holds one mailbox, not a mailbox-list)"),
-                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com>, bob@example.org",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(two field lines, which a recipient recombines with a comma)"),
-                snippet: "GET / HTTP/1.1\nFrom: alice@example.com\nFrom: bob@example.org",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(no at-sign)"),
-                snippet: "GET / HTTP/1.1\nFrom: not-an-email",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(empty domain)"),
-                snippet: "GET / HTTP/1.1\nFrom: alice@",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(unbalanced angle-brackets)"),
-                snippet: "GET / HTTP/1.1\nFrom: Alice <alice@example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(obs-phrase — a bare dot in a display-name)"),
-                snippet: "GET / HTTP/1.1\nFrom: John Q. Public <jqp@example.com>",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a dot-atom domain outside the preferred name syntax)"),
-                snippet: "GET / HTTP/1.1\nFrom: alice@my_host.example",
-            },
-        ]
     }
 }
 

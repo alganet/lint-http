@@ -16,7 +16,7 @@
 
 use crate::lint::Violation;
 use crate::protocol_event::{ProtocolEvent, ProtocolEventHistory, ProtocolEventKind};
-use crate::rules::ProtocolRule;
+use crate::rules::{ProtocolRule, RuleMeta};
 
 pub struct Http3SettingsFrame;
 
@@ -55,11 +55,51 @@ const RFC_9114_11_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Settings Parameters (Table 3: the Reserved rows)",
 };
 
-impl ProtocolRule for Http3SettingsFrame {
+impl RuleMeta for Http3SettingsFrame {
     fn id(&self) -> &'static str {
         "http3_settings_frame"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("HTTP/3 SETTINGS Frame")
+    }
+
+    fn description(&self) -> &'static str {
+        "Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:\n\n* **No duplicate SETTINGS** — a SETTINGS frame MUST be sent as the first frame of each control stream by each peer, and it MUST NOT be sent subsequently (RFC 9114 §7.2.4).  SETTINGS applies to the entire connection, never a single stream, so a second `H3SettingsReceived` event *from the same peer* on the connection is a violation.  Because the obligation is per peer, the other peer's SETTINGS (observable on the upstream leg) is its own legitimate first frame, not a duplicate.\n* **No reserved setting identifiers** — the `Reserved` rows of the \"HTTP/3 Settings\" registry (RFC 9114 Table 3, §11.2.2) MUST NOT be sent, and their receipt MUST be treated as a connection error of type `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers are `0x00` (no HTTP/2 counterpart), `0x02` (SETTINGS_ENABLE_PUSH in HTTP/2), `0x03` (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04` (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE).\n\n* **No repeated setting identifier** — the same setting identifier MUST NOT occur more than once in the SETTINGS frame (RFC 9114 §7.2.4).  A receiver MAY treat duplicates as a connection error of type `H3_SETTINGS_ERROR`; the sender's obligation is unconditional, so a repeated identifier within one frame is a violation.\n\nIdentifiers outside the reserved set — including the `0x1f * N + 0x21` greasing values and unregistered extensions — are ignored, per RFC 9114 §7.2.4's requirement that unknown parameters be ignored."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9114_7_2_4, RFC_9114_7_2_4_1, RFC_9114_11_2_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "# Control stream sends SETTINGS:\n#   SETTINGS_MAX_FIELD_SECTION_SIZE (0x06) = 8192\n#   SETTINGS_QPACK_MAX_TABLE_CAPACITY (0x01) = 4096\n#   SETTINGS_QPACK_BLOCKED_STREAMS (0x07) = 100\n# No further SETTINGS frames on this connection",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(duplicate SETTINGS)"),
+                snippet: "# Control stream sends SETTINGS { 0x06 = 8192 }\n# Control stream sends SETTINGS { 0x06 = 4096 }\n# Violation: duplicate SETTINGS frame on the same connection (RFC 9114 §7.2.4)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(reserved HTTP/2 setting identifier)"),
+                snippet: "# Control stream sends SETTINGS { 0x03 = 100 }\n# Violation: SETTINGS contains reserved HTTP/2 setting identifier 0x03 (RFC 9114 §7.2.4.1)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(repeated setting identifier)"),
+                snippet: "# Control stream sends SETTINGS { 0x06 = 8192, 0x06 = 4096 }\n# Violation: SETTINGS contains setting identifier 0x06 more than once (RFC 9114 §7.2.4)",
+            },
+        ]
+    }
+}
+
+impl ProtocolRule for Http3SettingsFrame {
     fn findings(
         &self,
         event: &ProtocolEvent,
@@ -151,44 +191,6 @@ impl ProtocolRule for Http3SettingsFrame {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("HTTP/3 SETTINGS Frame")
-    }
-
-    fn description(&self) -> &'static str {
-        "Validates HTTP/3 SETTINGS frame semantics on the control stream.  This rule inspects protocol-level events emitted by the QUIC stream wrapper and checks:\n\n* **No duplicate SETTINGS** — a SETTINGS frame MUST be sent as the first frame of each control stream by each peer, and it MUST NOT be sent subsequently (RFC 9114 §7.2.4).  SETTINGS applies to the entire connection, never a single stream, so a second `H3SettingsReceived` event *from the same peer* on the connection is a violation.  Because the obligation is per peer, the other peer's SETTINGS (observable on the upstream leg) is its own legitimate first frame, not a duplicate.\n* **No reserved setting identifiers** — the `Reserved` rows of the \"HTTP/3 Settings\" registry (RFC 9114 Table 3, §11.2.2) MUST NOT be sent, and their receipt MUST be treated as a connection error of type `H3_SETTINGS_ERROR` (RFC 9114 §7.2.4.1).  The reserved identifiers are `0x00` (no HTTP/2 counterpart), `0x02` (SETTINGS_ENABLE_PUSH in HTTP/2), `0x03` (SETTINGS_MAX_CONCURRENT_STREAMS), `0x04` (SETTINGS_INITIAL_WINDOW_SIZE), and `0x05` (SETTINGS_MAX_FRAME_SIZE).\n\n* **No repeated setting identifier** — the same setting identifier MUST NOT occur more than once in the SETTINGS frame (RFC 9114 §7.2.4).  A receiver MAY treat duplicates as a connection error of type `H3_SETTINGS_ERROR`; the sender's obligation is unconditional, so a repeated identifier within one frame is a violation.\n\nIdentifiers outside the reserved set — including the `0x1f * N + 0x21` greasing values and unregistered extensions — are ignored, per RFC 9114 §7.2.4's requirement that unknown parameters be ignored."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9114_7_2_4, RFC_9114_7_2_4_1, RFC_9114_11_2_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "# Control stream sends SETTINGS:\n#   SETTINGS_MAX_FIELD_SECTION_SIZE (0x06) = 8192\n#   SETTINGS_QPACK_MAX_TABLE_CAPACITY (0x01) = 4096\n#   SETTINGS_QPACK_BLOCKED_STREAMS (0x07) = 100\n# No further SETTINGS frames on this connection",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(duplicate SETTINGS)"),
-                snippet: "# Control stream sends SETTINGS { 0x06 = 8192 }\n# Control stream sends SETTINGS { 0x06 = 4096 }\n# Violation: duplicate SETTINGS frame on the same connection (RFC 9114 §7.2.4)",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(reserved HTTP/2 setting identifier)"),
-                snippet: "# Control stream sends SETTINGS { 0x03 = 100 }\n# Violation: SETTINGS contains reserved HTTP/2 setting identifier 0x03 (RFC 9114 §7.2.4.1)",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(repeated setting identifier)"),
-                snippet: "# Control stream sends SETTINGS { 0x06 = 8192, 0x06 = 4096 }\n# Violation: SETTINGS contains setting identifier 0x06 more than once (RFC 9114 §7.2.4)",
-            },
-        ]
     }
 }
 

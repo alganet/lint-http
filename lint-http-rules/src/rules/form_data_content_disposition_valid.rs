@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct FormDataContentDispositionValid;
 
@@ -23,11 +23,41 @@ const RFC_6266_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The disposition types HTTP messages actually use (`inline`, `attachment`); a message-level `form-data` is outside this grammar, which is why the type gate skips everything else",
 };
 
-impl Rule for FormDataContentDispositionValid {
+impl RuleMeta for FormDataContentDispositionValid {
     fn id(&self) -> &'static str {
         "form_data_content_disposition_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Form-Data Content-Disposition Validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "Ensure that a `form-data` `Content-Disposition` includes a non-empty `name` parameter. RFC 7578 §4.2 requires the parameter and defines its value as the original field name from the form; receiving applications rely on it to associate part data with form fields, so a missing or empty `name` breaks form processing.\n\n**Scope:** RFC 7578 places this requirement on each *part* of a multipart body, but the linter inspects message header fields rather than parsed body parts, so what it checks is a message-level `Content-Disposition`. That position is itself unusual — RFC 6266 defines `inline` and `attachment` for HTTP messages, not `form-data` — so this is a best-effort approximation of the §4.2 check rather than the check itself. Dispositions other than `form-data` are ignored.\n\nAn empty `name` value is reported as a defect. The specification requires the parameter and says what it means, but does not literally say \"non-empty\"; treating an empty field name as broken is this linter's judgement.\n\n**Quoting that never closes is declined, not guessed at.** After a stray `\"` no separator can be trusted, so `form-data; p=\"x; name=\"a\"` is not reported as missing a name — whether that text is a parameter is exactly what the broken quoting makes unknowable. This applies only to the *absence* claim: a `name` the scan did find is still judged."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_7578_4_2, RFC_6266_4_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Disposition: form-data; name=\"user\"\nContent-Disposition: form-data; name=user; filename=\"photo.png\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Disposition: form-data; filename=\"photo.png\"   # missing 'name'\nContent-Disposition: form-data; name=   # empty 'name'",
+            },
+        ]
+    }
+}
+
+impl Rule for FormDataContentDispositionValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -190,34 +220,6 @@ impl Rule for FormDataContentDispositionValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Form-Data Content-Disposition Validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "Ensure that a `form-data` `Content-Disposition` includes a non-empty `name` parameter. RFC 7578 §4.2 requires the parameter and defines its value as the original field name from the form; receiving applications rely on it to associate part data with form fields, so a missing or empty `name` breaks form processing.\n\n**Scope:** RFC 7578 places this requirement on each *part* of a multipart body, but the linter inspects message header fields rather than parsed body parts, so what it checks is a message-level `Content-Disposition`. That position is itself unusual — RFC 6266 defines `inline` and `attachment` for HTTP messages, not `form-data` — so this is a best-effort approximation of the §4.2 check rather than the check itself. Dispositions other than `form-data` are ignored.\n\nAn empty `name` value is reported as a defect. The specification requires the parameter and says what it means, but does not literally say \"non-empty\"; treating an empty field name as broken is this linter's judgement.\n\n**Quoting that never closes is declined, not guessed at.** After a stray `\"` no separator can be trusted, so `form-data; p=\"x; name=\"a\"` is not reported as missing a name — whether that text is a parameter is exactly what the broken quoting makes unknowable. This applies only to the *absence* claim: a `name` the scan did find is still judged."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7578_4_2, RFC_6266_4_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Disposition: form-data; name=\"user\"\nContent-Disposition: form-data; name=user; filename=\"photo.png\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Disposition: form-data; filename=\"photo.png\"   # missing 'name'\nContent-Disposition: form-data; name=   # empty 'name'",
-            },
-        ]
     }
 }
 

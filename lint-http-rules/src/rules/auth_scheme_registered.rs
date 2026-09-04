@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AuthSchemeRegistered;
 
@@ -29,13 +29,9 @@ const IANA_HTTP_AUTHENTICATION_SCHEMES: crate::rules::SpecRef = crate::rules::Sp
     note: "IANA HTTP Authentication Scheme Registry",
 };
 
-impl Rule for AuthSchemeRegistered {
+impl RuleMeta for AuthSchemeRegistered {
     fn id(&self) -> &'static str {
         "auth_scheme_registered"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -54,6 +50,40 @@ impl Rule for AuthSchemeRegistered {
             severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate authentication schemes used in `WWW-Authenticate` and `Authorization` headers. The `auth-scheme` is a `token` and SHOULD be an IANA-registered authentication scheme (for example, `Basic`, `Bearer`, `Digest`). This rule allows an operator-configured allowlist of acceptable schemes; values not present in the allowlist are flagged."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_11_1,
+            RFC_9110_16_4_1,
+            IANA_HTTP_AUTHENTICATION_SCHEMES,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "WWW-Authenticate: Basic realm=\"example\"\nAuthorization: Bearer abc123",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "WWW-Authenticate: NewScheme abc=\nAuthorization: X-MyAuth abc",
+            },
+        ]
+    }
+}
+
+impl Rule for AuthSchemeRegistered {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
     }
 
     fn findings(
@@ -152,34 +182,6 @@ impl Rule for AuthSchemeRegistered {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate authentication schemes used in `WWW-Authenticate` and `Authorization` headers. The `auth-scheme` is a `token` and SHOULD be an IANA-registered authentication scheme (for example, `Basic`, `Bearer`, `Digest`). This rule allows an operator-configured allowlist of acceptable schemes; values not present in the allowlist are flagged."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_11_1,
-            RFC_9110_16_4_1,
-            IANA_HTTP_AUTHENTICATION_SCHEMES,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "WWW-Authenticate: Basic realm=\"example\"\nAuthorization: Bearer abc123",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "WWW-Authenticate: NewScheme abc=\nAuthorization: X-MyAuth abc",
-            },
-        ]
     }
 }
 

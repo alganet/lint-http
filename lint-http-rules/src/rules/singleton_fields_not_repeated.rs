@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct SingletonFieldsNotRepeated;
 
@@ -131,34 +131,9 @@ const RFC_9111_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
            SHOULD and not a sender's licence",
 };
 
-impl Rule for SingletonFieldsNotRepeated {
+impl RuleMeta for SingletonFieldsNotRepeated {
     fn id(&self) -> &'static str {
         "singleton_fields_not_repeated"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let message = judge(&tx.request.headers, tx.request.trailers.as_ref(), "Request")
-                .or_else(|| {
-                    tx.response
-                        .as_ref()
-                        .and_then(|resp| judge(&resp.headers, resp.trailers.as_ref(), "Response"))
-                })?;
-
-            Some(self.violation(ctx.severity, message))
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -229,6 +204,33 @@ impl Rule for SingletonFieldsNotRepeated {
                 snippet: "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Type: text/plain",
             },
         ]
+    }
+}
+
+impl Rule for SingletonFieldsNotRepeated {
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let message = judge(&tx.request.headers, tx.request.trailers.as_ref(), "Request")
+                .or_else(|| {
+                    tx.response
+                        .as_ref()
+                        .and_then(|resp| judge(&resp.headers, resp.trailers.as_ref(), "Response"))
+                })?;
+
+            Some(self.violation(ctx.severity, message))
+        };
+        Vec::from_iter(finding())
     }
 }
 

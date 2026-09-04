@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Detect obvious contradictions in Cache-Control directives. Flagged:
 /// - `public` and `private` present simultaneously (contradictory visibility)
@@ -36,11 +36,37 @@ const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "List (`#rule`) syntax: a sender MUST NOT generate empty list elements",
 };
 
-impl Rule for CachingDirectiveInteraction {
+impl RuleMeta for CachingDirectiveInteraction {
     fn id(&self) -> &'static str {
         "caching_directive_interaction"
     }
 
+    fn description(&self) -> &'static str {
+        "Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`/`private`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0` is a legal combination and is not flagged."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_5_2_2, RFC_9111_4_2_1, RFC_9110_5_6_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Cache-Control: public, max-age=3600",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Cache-Control: public, private\n\nCache-Control: no-store, public\n\nCache-Control: max-age=60, max-age=30",
+            },
+        ]
+    }
+}
+
+impl Rule for CachingDirectiveInteraction {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -167,30 +193,6 @@ impl Rule for CachingDirectiveInteraction {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`/`private`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0` is a legal combination and is not flagged."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2_2, RFC_9111_4_2_1, RFC_9110_5_6_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Cache-Control: public, max-age=3600",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Cache-Control: public, private\n\nCache-Control: no-store, public\n\nCache-Control: max-age=60, max-age=30",
-            },
-        ]
     }
 }
 

@@ -21,7 +21,7 @@ pub fn validate_rule_table(cfg: &crate::config::Config, rule_id: &str) -> anyhow
 }
 
 /// Everything a rule derives from its configuration, resolved once when the
-/// engine is built. What [`Rule::prepare`] returns.
+/// engine is built. What [`RuleMeta::prepare`] returns.
 ///
 /// `state` is the rule's own resolved shape — an allowed-list, a set of
 /// header names — behind `dyn Any` so the trait stays object-safe (the
@@ -74,8 +74,6 @@ impl<'a> RuleContext<'a> {
     }
 }
 
-/// The `Rule` trait defines a single hook that runs on the canonical
-/// `HttpTransaction`. All rules must implement `findings`.
 /// Scope of a rule: whether it applies to client-only traffic (requests),
 /// server-only traffic (responses), or both (full transactions).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -171,55 +169,27 @@ impl std::fmt::Display for SpecRef {
     }
 }
 
-/// The three bodies [`Rule`] and [`ProtocolRule`] provide identically.
+/// Everything a rule says about itself, whatever subject it examines.
 ///
-/// The two traits describe different subjects — a transaction and a protocol
-/// event — but they build findings the same way, because a `Violation` names
-/// the rule by its id whichever trait produced it. That was written down twice,
-/// with a comment on the second copy saying it was the same as the first; a
-/// reader who has to be told two functions agree is reading one function too
-/// many.
-fn resolve_shared_table(cfg: &crate::config::Config, id: &str) -> anyhow::Result<ResolvedRule> {
-    validate_rule_table(cfg, id)?;
-    Ok(ResolvedRule {
-        severity: get_rule_severity_required(cfg, id)?,
-        state: Box::new(()),
-    })
-}
-
-/// Build a finding attributed to `id`.
-fn finding_of(id: &str, severity: crate::lint::Severity, message: String) -> Violation {
-    Violation {
-        rule: id.into(),
-        severity,
-        message,
-        cite: None,
-    }
-}
-
-/// Build a finding attributed to `id`, carrying the sentence it enforces.
+/// [`Rule`] and [`ProtocolRule`] are handed different subjects — a transaction,
+/// a protocol event — and agreed on everything else. That agreement was written
+/// out twice, with a comment on the second copy saying it matched the first,
+/// and the three bodies the copies shared were extracted into free functions
+/// called from both. A reader who has to be told two declarations agree is
+/// reading one declaration too many: the eight members live here once, each
+/// trait keeps only the hook that takes its own subject, and the three
+/// go-betweens are gone because there is no longer a second caller to reach
+/// them from.
 ///
-/// `declared` is the rule's own reference list, and the assertion is the whole
-/// reason this takes it: a finding may only cite a reference its rule declares.
-fn cited_finding_of(
-    id: &str,
-    declared: &[SpecRef],
-    spec: &SpecRef,
-    severity: crate::lint::Severity,
-    message: String,
-) -> Violation {
-    debug_assert!(
-        declared.contains(spec),
-        "{}: a finding may only cite a spec the rule declares",
-        id
-    );
-    Violation {
-        cite: Some(spec.citation()),
-        ..finding_of(id, severity, message)
-    }
-}
-
-pub trait Rule: Send + Sync {
+/// The upcast is the other half of what this buys. `&dyn Rule` and
+/// `&dyn ProtocolRule` both coerce to `&dyn RuleMeta`, so a check that reads
+/// only metadata runs once over [`all_rules`] instead of once over `RULES` and
+/// again over `PROTOCOL_RULES` — which is what a dozen gates were doing, each
+/// carrying a second loop free to fall out of step with the first.
+pub trait RuleMeta: Send + Sync {
+    /// This rule's id: the `[rules.<id>]` section that configures it, the
+    /// `Violation.rule` its findings carry, and the `docs/rules/<id>.md` page
+    /// that documents it.
     fn id(&self) -> &'static str;
 
     /// Resolve this rule's configuration once, when the engine is built —
@@ -234,21 +204,11 @@ pub trait Rule: Send + Sync {
     /// forward); a rule with a custom config section overrides this to parse
     /// it into its own `state`.
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<ResolvedRule> {
-        resolve_shared_table(cfg, self.id())
-    }
-
-    /// The scope where the rule should be executed. Default is `Both`;
-    /// rules may override for better precision.
-    ///
-    /// The engine partitions rules by scope and dispatches accordingly:
-    /// - `Client` and `Both` rules run on every transaction.
-    /// - `Server` rules run only when `tx.response.is_some()`.
-    ///
-    /// A rule that returns `Server` may therefore assume the response is
-    /// present, but existing implementations still defensively check —
-    /// tightening those is left as follow-up cleanup.
-    fn scope(&self) -> RuleScope {
-        RuleScope::Both
+        validate_rule_table(cfg, self.id())?;
+        Ok(ResolvedRule {
+            severity: get_rule_severity_required(cfg, self.id())?,
+            state: Box::new(()),
+        })
     }
 
     /// Build one of this rule's findings.
@@ -273,40 +233,36 @@ pub trait Rule: Send + Sync {
     /// which is why `structured_headers_valid`'s private finding
     /// builder is named for its failure rather than for what it returns.
     fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        finding_of(self.id(), severity, message)
+        Violation {
+            rule: self.id().into(),
+            severity,
+            message,
+            cite: None,
+        }
     }
 
     /// Build one of this rule's findings, carrying the specification text it
-    /// enforces. `spec` must be one of the rule's own [`Rule::specifications`]
-    /// — a finding may only cite a reference its rule declares, which also
-    /// keeps the docs' Specifications section covering every citable target.
-    /// Checked in debug builds, so the whole test suite enforces it.
+    /// enforces. `spec` must be one of the rule's own
+    /// [`specifications`](RuleMeta::specifications) — a finding may only cite a
+    /// reference its rule declares, which also keeps the docs' Specifications
+    /// section covering every citable target. Checked in debug builds, so the
+    /// whole test suite enforces it.
     ///
     /// Attachment is per violation site and opt-in, never derived from the
     /// rule: the median rule declares several references, and a wrong
     /// citation is worse than none. The `// cite` comment beside the call is
     /// the reviewer's oracle that the right one was named.
     fn cited(&self, spec: &SpecRef, severity: crate::lint::Severity, message: String) -> Violation {
-        cited_finding_of(self.id(), self.specifications(), spec, severity, message)
+        debug_assert!(
+            self.specifications().contains(spec),
+            "{}: a finding may only cite a spec the rule declares",
+            self.id()
+        );
+        Violation {
+            cite: Some(spec.citation()),
+            ..self.violation(severity, message)
+        }
     }
-
-    /// Every finding this rule has about the transaction; empty means clean.
-    /// Everything the rule derived from its configuration arrives resolved in
-    /// `ctx` — its own `prepare` ran when the engine was built, so nothing
-    /// here reads TOML.
-    ///
-    /// `Vec`, deliberately: a field with three defects is three findings, and
-    /// the previous `Option` return capped every rule at one per message —
-    /// ten rules were string-joining defects into a single message to get
-    /// around it. `Vec::new()` does not allocate, so the clean path — nearly
-    /// every message — still costs nothing. A single-finding rule keeps its
-    /// `?`-shaped body behind a private `Option` adapter and collects it.
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        history: &crate::transaction_history::TransactionHistory,
-        ctx: &RuleContext<'_>,
-    ) -> Vec<Violation>;
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).
     /// Defaults to `None`, which makes the generator derive the title from the
@@ -335,6 +291,43 @@ pub trait Rule: Send + Sync {
     fn examples(&self) -> &'static [Example] {
         &[]
     }
+}
+
+/// A rule that reads one canonical `HttpTransaction`. Everything it says about
+/// itself comes from [`RuleMeta`]; what it adds is the subject it examines and
+/// the half of the transaction it needs to see.
+pub trait Rule: RuleMeta {
+    /// The scope where the rule should be executed. Default is `Both`;
+    /// rules may override for better precision.
+    ///
+    /// The engine partitions rules by scope and dispatches accordingly:
+    /// - `Client` and `Both` rules run on every transaction.
+    /// - `Server` rules run only when `tx.response.is_some()`.
+    ///
+    /// A rule that returns `Server` may therefore assume the response is
+    /// present, but existing implementations still defensively check —
+    /// tightening those is left as follow-up cleanup.
+    fn scope(&self) -> RuleScope {
+        RuleScope::Both
+    }
+
+    /// Every finding this rule has about the transaction; empty means clean.
+    /// Everything the rule derived from its configuration arrives resolved in
+    /// `ctx` — its own `prepare` ran when the engine was built, so nothing
+    /// here reads TOML.
+    ///
+    /// `Vec`, deliberately: a field with three defects is three findings, and
+    /// the previous `Option` return capped every rule at one per message —
+    /// ten rules were string-joining defects into a single message to get
+    /// around it. `Vec::new()` does not allocate, so the clean path — nearly
+    /// every message — still costs nothing. A single-finding rule keeps its
+    /// `?`-shaped body behind a private `Option` adapter and collects it.
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        history: &crate::transaction_history::TransactionHistory,
+        ctx: &RuleContext<'_>,
+    ) -> Vec<Violation>;
 }
 
 /// Get rule enabled flag, failing if not explicitly configured.
@@ -461,9 +454,7 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
     // the catalogue was rewritten at once, and a hint listing 193 pairs is a
     // document, not an error message.
     for rule_name in config.rules.keys() {
-        let known = RULES.iter().any(|r| r.id() == rule_name)
-            || PROTOCOL_RULES.iter().any(|r| r.id() == rule_name);
-        if !known {
+        if !all_rules().any(|r| r.id() == rule_name) {
             return Err(anyhow::anyhow!(
                 "Configuration names a rule '{}' that does not exist. Every rule id is listed \
                  in docs/rules.md",
@@ -474,14 +465,7 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
 
     // Per-rule validation: every enabled rule parses its own config section so
     // a malformed section (including custom fields) fails fast at startup.
-    for rule in RULES.iter() {
-        if config.is_enabled(rule.id()) {
-            rule.prepare(config).map_err(|e| {
-                anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
-            })?;
-        }
-    }
-    for rule in PROTOCOL_RULES.iter() {
+    for rule in all_rules() {
         if config.is_enabled(rule.id()) {
             rule.prepare(config).map_err(|e| {
                 anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
@@ -505,36 +489,12 @@ include!(concat!(env!("OUT_DIR"), "/rule_modules.rs"));
 
 /// A rule that evaluates protocol-level events (WebSocket frames, HTTP/3
 /// control frames, QUIC transport events) rather than HTTP transactions.
-pub trait ProtocolRule: Send + Sync {
-    fn id(&self) -> &'static str;
-
-    /// Resolve this rule's configuration once, when the engine is built. See
-    /// [`Rule::prepare`] for the contract.
-    fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<ResolvedRule> {
-        resolve_shared_table(cfg, self.id())
-    }
-
-    /// Build one of this rule's findings. See [`Rule::violation`] for the
-    /// contract; the body is the same because `Violation.rule` is the id
-    /// whichever trait the rule implements.
-    fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
-        finding_of(self.id(), severity, message)
-    }
-
-    /// Build one of this rule's findings, carrying the specification text it
-    /// enforces. `spec` must be one of the rule's own [`ProtocolRule::specifications`]
-    /// — a finding may only cite a reference its rule declares, which also
-    /// keeps the docs' Specifications section covering every citable target.
-    /// Checked in debug builds, so the whole test suite enforces it.
-    ///
-    /// Attachment is per violation site and opt-in, never derived from the
-    /// rule: the median rule declares several references, and a wrong
-    /// citation is worse than none. The `// cite` comment beside the call is
-    /// the reviewer's oracle that the right one was named.
-    fn cited(&self, spec: &SpecRef, severity: crate::lint::Severity, message: String) -> Violation {
-        cited_finding_of(self.id(), self.specifications(), spec, severity, message)
-    }
-
+///
+/// It says the same things about itself a transaction rule does — that is
+/// [`RuleMeta`] — and differs in the one member below, which is the whole of
+/// what "protocol-level" means here. Scope is absent because it partitions a
+/// transaction into its request and response halves, and an event has neither.
+pub trait ProtocolRule: RuleMeta {
     /// Every finding this rule has about the event; empty means clean. See
     /// [`Rule::findings`] for the contract — everything config-derived
     /// arrives resolved in `ctx`, and the `Vec` return is what lets one
@@ -545,32 +505,6 @@ pub trait ProtocolRule: Send + Sync {
         history: &crate::protocol_event::ProtocolEventHistory,
         ctx: &RuleContext<'_>,
     ) -> Vec<Violation>;
-
-    /// Doc title override (the `# ` heading of the generated per-rule doc).
-    /// See [`Rule::title`] for the contract.
-    fn title(&self) -> Option<&'static str> {
-        None
-    }
-
-    /// Human-readable summary of what this rule checks and why it matters.
-    /// Renders as the "Description" section of the generated per-rule doc.
-    /// Empty by default; rules override it with content sourced from
-    /// `docs/rules/`.
-    fn description(&self) -> &'static str {
-        ""
-    }
-
-    /// The specification text this rule enforces. Renders into the
-    /// "Specifications" section of the generated doc; empty by default.
-    fn specifications(&self) -> &'static [SpecRef] {
-        &[]
-    }
-
-    /// Compliant / non-compliant traffic examples for the generated doc's
-    /// "Examples" section. Empty by default.
-    fn examples(&self) -> &'static [Example] {
-        &[]
-    }
 }
 
 /// Every transaction rule, self-registered at link time via
@@ -603,6 +537,25 @@ pub static RULES: LazyLock<Vec<&'static dyn Rule>> = LazyLock::new(|| {
     v.sort_by_key(|r| r.id());
     v
 });
+
+/// The whole catalogue — every transaction rule, then every protocol rule — as
+/// the metadata face the two kinds share.
+///
+/// Nothing here is a third catalogue: it chains the two sorted views through
+/// the [`RuleMeta`] upcast, so it cannot disagree with them about membership or
+/// order. What it retires is the doubled loop. A check phrased against metadata
+/// has no reason to know which trait a rule implements, and every such check
+/// used to say so twice — a `for` over `RULES` and a second `for` over
+/// `PROTOCOL_RULES`, the second free to drift, or to be forgotten entirely when
+/// the check was written. Reach for the individual views only when the
+/// difference matters: dispatch, `scope`, and the docs index, which groups
+/// transaction rules by a scope protocol rules do not have.
+pub fn all_rules() -> impl Iterator<Item = &'static dyn RuleMeta> {
+    RULES
+        .iter()
+        .map(|r| *r as &'static dyn RuleMeta)
+        .chain(PROTOCOL_RULES.iter().map(|r| *r as &'static dyn RuleMeta))
+}
 
 /// Rules that read cross-transaction history, each paired with the state query
 /// that builds the history it needs.
@@ -930,25 +883,11 @@ severity = "warn"
     fn metadata_accessors_are_populated_and_dispatch() {
         // #11c fills real per-rule metadata sourced from `docs/rules/`. Every
         // rule must now report a non-empty description and a specification
-        // reference, dispatched through `&dyn Rule` / `&dyn ProtocolRule`. This
-        // doubles as a completeness gate: a future rule added without metadata
-        // fails here. Examples are exercised for dispatch only — a handful of
-        // docs carry no `http` snippet, so emptiness is not asserted.
-        for r in RULES.iter() {
-            assert!(
-                !r.description().trim().is_empty(),
-                "{} missing description",
-                r.id()
-            );
-            assert!(
-                !r.specifications().is_empty(),
-                "{} missing specifications",
-                r.id()
-            );
-            let _ = r.examples();
-            let _ = r.title();
-        }
-        for r in PROTOCOL_RULES.iter() {
+        // reference, dispatched through `&dyn RuleMeta`. This doubles as a
+        // completeness gate: a future rule added without metadata fails here.
+        // Examples are exercised for dispatch only — a handful of docs carry no
+        // `http` snippet, so emptiness is not asserted.
+        for r in all_rules() {
             assert!(
                 !r.description().trim().is_empty(),
                 "{} missing description",
@@ -1076,14 +1015,9 @@ severity = "warn"
     #[test]
     fn rule_ids_unique_and_non_empty() {
         let mut ids = std::collections::HashSet::new();
-        for rule in RULES.iter() {
+        for rule in all_rules() {
             let id = rule.id();
             assert!(!id.is_empty(), "Rule id should not be empty");
-            assert!(ids.insert(id), "Duplicate rule id found: {}", id);
-        }
-        for rule in PROTOCOL_RULES.iter() {
-            let id = rule.id();
-            assert!(!id.is_empty(), "ProtocolRule id should not be empty");
             assert!(ids.insert(id), "Duplicate rule id found: {}", id);
         }
     }
@@ -1229,21 +1163,12 @@ severity = "warn"
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
         )?;
 
-        for rule in RULES.iter() {
+        for rule in all_rules() {
             let id = rule.id();
             let marker = format!("[rules.{}]", id);
             assert!(
                 s.contains(&marker),
                 "config_example.toml missing example for rule '{}'",
-                id
-            );
-        }
-        for rule in PROTOCOL_RULES.iter() {
-            let id = rule.id();
-            let marker = format!("[rules.{}]", id);
-            assert!(
-                s.contains(&marker),
-                "config_example.toml missing example for protocol rule '{}'",
                 id
             );
         }
@@ -1395,11 +1320,12 @@ severity = "warn"
     #[test]
     fn default_rule_scope_is_both() {
         struct DummyRule;
-        impl Rule for DummyRule {
+        impl RuleMeta for DummyRule {
             fn id(&self) -> &'static str {
                 "dummy_rule"
             }
-
+        }
+        impl Rule for DummyRule {
             fn findings(
                 &self,
                 _tx: &crate::http_transaction::HttpTransaction,
@@ -1429,11 +1355,7 @@ severity = "warn"
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),
         )?;
         let cfg: crate::config::Config = toml::from_str(&toml_src)?;
-        for rule in RULES.iter() {
-            rule.prepare(&cfg)
-                .map_err(|e| anyhow::anyhow!("rule '{}' failed to prepare: {e}", rule.id()))?;
-        }
-        for rule in PROTOCOL_RULES.iter() {
+        for rule in all_rules() {
             rule.prepare(&cfg)
                 .map_err(|e| anyhow::anyhow!("rule '{}' failed to prepare: {e}", rule.id()))?;
         }

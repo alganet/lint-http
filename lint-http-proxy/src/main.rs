@@ -207,45 +207,35 @@ struct RuleInfo {
 
 /// Collect every transaction rule then every protocol rule, each already
 /// id-sorted by its `LazyLock` view. `cfg` (from `--config`) fills `enabled`.
-/// The two rule traits share their metadata surface, so each iterator only
-/// extracts a tuple and the `RuleInfo` literal exists once.
+///
+/// Only `kind` and `scope` distinguish the two halves; everything else is
+/// [`rules::RuleMeta`], which both traits carry, so each iterator pairs a rule
+/// with the two labels its trait decides and the `RuleInfo` literal is written
+/// once. Protocol rules are labelled `"protocol"` for both, having no scope to
+/// report.
 fn collect_rule_info(cfg: Option<&config::Config>) -> Vec<RuleInfo> {
     let transaction = rules::RULES.iter().map(|r| {
         (
-            r.id(),
+            *r as &dyn rules::RuleMeta,
             "transaction",
             scope_label(r.scope()),
-            r.title(),
-            r.description(),
-            r.specifications(),
-            r.examples(),
         )
     });
-    let protocol = rules::PROTOCOL_RULES.iter().map(|r| {
-        (
-            r.id(),
-            "protocol",
-            "protocol",
-            r.title(),
-            r.description(),
-            r.specifications(),
-            r.examples(),
-        )
-    });
+    let protocol = rules::PROTOCOL_RULES
+        .iter()
+        .map(|r| (*r as &dyn rules::RuleMeta, "protocol", "protocol"));
     transaction
         .chain(protocol)
-        .map(
-            |(id, kind, scope, title, description, specifications, examples)| RuleInfo {
-                id,
-                kind,
-                scope,
-                title,
-                description,
-                specifications,
-                examples,
-                enabled: cfg.map(|c| c.is_enabled(id)),
-            },
-        )
+        .map(|(rule, kind, scope)| RuleInfo {
+            id: rule.id(),
+            kind,
+            scope,
+            title: rule.title(),
+            description: rule.description(),
+            specifications: rule.specifications(),
+            examples: rule.examples(),
+            enabled: cfg.map(|c| c.is_enabled(rule.id())),
+        })
         .collect()
 }
 

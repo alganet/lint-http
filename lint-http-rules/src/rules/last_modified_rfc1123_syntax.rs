@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct LastModifiedRfc1123Syntax;
 
@@ -17,11 +17,41 @@ const RFC_9110_5_6_7: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Date/Time Formats",
 };
 
-impl Rule for LastModifiedRfc1123Syntax {
+impl RuleMeta for LastModifiedRfc1123Syntax {
     fn id(&self) -> &'static str {
         "last_modified_rfc1123_syntax"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Last-Modified RFC 1123 Format")
+    }
+
+    fn description(&self) -> &'static str {
+        "Verifies that the `Last-Modified` header (when present) uses the IMF-fixdate format (a.k.a. RFC 1123 date) as required by HTTP date formatting rules."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_5_6_7]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\nContent-Type: text/plain\n\nHello",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nLast-Modified: 2015-10-21T07:28:00Z\nContent-Type: text/plain\n\nHello",
+            },
+        ]
+    }
+}
+
+impl Rule for LastModifiedRfc1123Syntax {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -74,34 +104,6 @@ impl Rule for LastModifiedRfc1123Syntax {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Last-Modified RFC 1123 Format")
-    }
-
-    fn description(&self) -> &'static str {
-        "Verifies that the `Last-Modified` header (when present) uses the IMF-fixdate format (a.k.a. RFC 1123 date) as required by HTTP date formatting rules."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_5_6_7]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nLast-Modified: Wed, 21 Oct 2015 07:28:00 GMT\nContent-Type: text/plain\n\nHello",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nLast-Modified: 2015-10-21T07:28:00Z\nContent-Type: text/plain\n\nHello",
-            },
-        ]
     }
 }
 

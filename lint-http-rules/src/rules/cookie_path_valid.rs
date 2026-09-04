@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CookiePathValid;
 
@@ -29,11 +29,58 @@ const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Whitespace — rationale for being conservative about whitespace in header fields; this rule adopts a stricter profile by disallowing unencoded whitespace in cookie paths",
 };
 
-impl Rule for CookiePathValid {
+impl RuleMeta for CookiePathValid {
     fn id(&self) -> &'static str {
         "cookie_path_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate the `Path` attribute in `Set-Cookie` header fields. The `Path` attribute should be a valid RFC 6265 `path-value` that begins with `/`, does not contain control characters or `;`, and uses valid percent-encodings where applicable. Raw non-ASCII characters are rejected by this rule — non-ASCII data should be percent-encoded (see RFC 3986 §2.1). This rule is intentionally stricter than RFC 6265: it also rejects unencoded whitespace in the `Path` attribute (spaces should be sent as `%20`) to reduce ambiguity in cookie scope and avoid syntactic errors that can affect cookie delivery and security."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_6265_4_1_1, RFC_6265_5_2_4, RFC_9110_5_6_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet:
+                    "HTTP/1.1 200 OK\nSet-Cookie: SID=31d4d96e407aad42; Path=/; HttpOnly; Secure",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(percent-encoded)"),
+                snippet: "HTTP/1.1 200 OK\nSet-Cookie: user=alice; Path=/users/alice%2Fprofile",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(missing leading slash)"),
+                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=abcd; Path=login",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(contains space)"),
+                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=abcd; Path=/has space",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(raw non-ASCII)"),
+                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=abcd; Path=/café",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(non-ASCII percent-encoded)"),
+                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=abcd; Path=/caf%C3%A9",
+            },
+        ]
+    }
+}
+
+impl Rule for CookiePathValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -101,51 +148,6 @@ impl Rule for CookiePathValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate the `Path` attribute in `Set-Cookie` header fields. The `Path` attribute should be a valid RFC 6265 `path-value` that begins with `/`, does not contain control characters or `;`, and uses valid percent-encodings where applicable. Raw non-ASCII characters are rejected by this rule — non-ASCII data should be percent-encoded (see RFC 3986 §2.1). This rule is intentionally stricter than RFC 6265: it also rejects unencoded whitespace in the `Path` attribute (spaces should be sent as `%20`) to reduce ambiguity in cookie scope and avoid syntactic errors that can affect cookie delivery and security."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6265_4_1_1, RFC_6265_5_2_4, RFC_9110_5_6_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet:
-                    "HTTP/1.1 200 OK\nSet-Cookie: SID=31d4d96e407aad42; Path=/; HttpOnly; Secure",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(percent-encoded)"),
-                snippet: "HTTP/1.1 200 OK\nSet-Cookie: user=alice; Path=/users/alice%2Fprofile",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(missing leading slash)"),
-                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=abcd; Path=login",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(contains space)"),
-                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=abcd; Path=/has space",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(raw non-ASCII)"),
-                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=abcd; Path=/café",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(non-ASCII percent-encoded)"),
-                snippet: "HTTP/1.1 200 OK\nSet-Cookie: SID=abcd; Path=/caf%C3%A9",
-            },
-        ]
     }
 }
 

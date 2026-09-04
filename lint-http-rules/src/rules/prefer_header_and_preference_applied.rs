@@ -7,7 +7,7 @@ use crate::helpers::list::list_members_as_written;
 use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct PreferHeaderAndPreferenceApplied;
 
@@ -140,11 +140,78 @@ const RFC_9111_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "What the `Vary` this rule asks for buys: without it a stored response is matched on the target URI alone, and the request field that selected it is not part of the key",
 };
 
-impl Rule for PreferHeaderAndPreferenceApplied {
+impl RuleMeta for PreferHeaderAndPreferenceApplied {
     fn id(&self) -> &'static str {
         "prefer_header_and_preference_applied"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Prefer, Preference-Applied and the Vary a cache needs")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports a response that states a preference was applied — `Preference-Applied` naming one of the four preferences RFC 7240 defines — without the `Vary` that §2 requires of a server whose preferences affect caching: *\"If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request.\"* §2 admits `Vary: *` as the alternative, and either spelling satisfies the rule.\n\n**The trigger is the response, not the request.** A `Prefer` request header says what a client asked for and nothing about what the server supports; a `Preference-Applied` response header is the server stating that it applies that preference. That is the half of the sentence's antecedent a captured exchange can establish, and it is what the *\"regardless of whether the client actually used Prefer in the request\"* clause points at.\n\n**Only GET and HEAD.** The requirement is conditioned on a variance to *a cache's* handling of the entity, and a single exchange shows that only where a cache would store the response under the target URI alone. POST is a cacheable method but its responses become storable only with explicit freshness information and a `Content-Location` (RFC 9110 §9.3.3), so `Preference-Applied` on a POST is not by itself evidence that anything is stored — which is why RFC 7240 §4.2's own `POST /collection` example and §3's own `PATCH` example are not findings here.\n\n**Only the four preferences RFC 7240 defines.** `return` decides whether the response carries a representation or as little as the server can send (§4.2); `respond-async` and `wait` decide whether the response is the result or a 202 standing in for it (§4.1, §4.3); `handling` decides whether a request the server could still process is rejected with a 4xx (§4.4). Each of those is a variance the document itself describes. A preference registered elsewhere has its effect written in its own registration (§5.1), so whether it varies the entity is not readable here and the rule stays silent rather than invent the antecedent of a MUST.\n\n**What this rule does not report, and why.** A response that omits `Preference-Applied` after a `Prefer` request is not a finding. §3 makes the field a MAY; §2 says outright that *\"servers are allowed to ignore stated preferences\"*, so silence may correctly mean nothing was applied; and §3's own next sentence narrows it further — *\"Use of the Preference-Applied header is only necessary when it is not readily and obviously apparent that a server applied a given preference and such ambiguity might have an impact on the client's handling of the response.\"* — a condition about what a client application can determine, which no message states. RFC 7240 §4.2's two example responses honor `return` and carry no `Preference-Applied` at all.\n\n**The boundary.** §2's MUST binds a server that *supports* applying such a preference, whether or not it applied one here and whether or not the client asked. The only in-message evidence of that support is `Preference-Applied`, and §3 leaves a server free to apply a preference and say nothing — so a server that varies its responses silently is outside what any single capture can show. `prefer_header_valid` reads the request's field against its grammar and `preference_applied_header_valid` reads the response's against its own and against what was asked for; neither looks at `Vary`."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_7240_2,
+            RFC_7240_3,
+            RFC_7240_4,
+            RFC_7240_5_1,
+            RFC_9110_12_5_5,
+            RFC_9110_9_2_3,
+            RFC_9110_9_1,
+            RFC_9111_4_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(the applied preference is named, and Vary makes it part of the cache key)",
+                ),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=minimal\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=minimal\nVary: Prefer",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(RFC 7240 §2's alternative spelling)"),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: respond-async\n\nHTTP/1.1 200 OK\nPreference-Applied: respond-async\nVary: *",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(RFC 7240 §3's own example — a PATCH response is not one a cache holds under the target URI)",
+                ),
+                snippet: "PATCH /my-document HTTP/1.1\nHost: example.org\nContent-Type: application/example-patch\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=representation\nContent-Location: /my-document",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "(a preference registered elsewhere; RFC 7240 does not say what applying it changes)",
+                ),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: depth-noroot\n\nHTTP/1.1 200 OK\nPreference-Applied: depth-noroot",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some(
+                    "(the server states it varied the entity and left it out of the cache key)",
+                ),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=minimal\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=minimal",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(Vary is present but does not list Prefer)"),
+                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=representation\nVary: Accept-Encoding",
+            },
+        ]
+    }
+}
+
+impl Rule for PreferHeaderAndPreferenceApplied {
     /// The evidence is a field the server wrote and the finding is a field it
     /// omitted, so the rule has nothing to measure on a capture whose upstream
     /// never answered. The id keeps its `client_` prefix because it is the
@@ -248,71 +315,6 @@ impl Rule for PreferHeaderAndPreferenceApplied {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Prefer, Preference-Applied and the Vary a cache needs")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a response that states a preference was applied — `Preference-Applied` naming one of the four preferences RFC 7240 defines — without the `Vary` that §2 requires of a server whose preferences affect caching: *\"If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request.\"* §2 admits `Vary: *` as the alternative, and either spelling satisfies the rule.\n\n**The trigger is the response, not the request.** A `Prefer` request header says what a client asked for and nothing about what the server supports; a `Preference-Applied` response header is the server stating that it applies that preference. That is the half of the sentence's antecedent a captured exchange can establish, and it is what the *\"regardless of whether the client actually used Prefer in the request\"* clause points at.\n\n**Only GET and HEAD.** The requirement is conditioned on a variance to *a cache's* handling of the entity, and a single exchange shows that only where a cache would store the response under the target URI alone. POST is a cacheable method but its responses become storable only with explicit freshness information and a `Content-Location` (RFC 9110 §9.3.3), so `Preference-Applied` on a POST is not by itself evidence that anything is stored — which is why RFC 7240 §4.2's own `POST /collection` example and §3's own `PATCH` example are not findings here.\n\n**Only the four preferences RFC 7240 defines.** `return` decides whether the response carries a representation or as little as the server can send (§4.2); `respond-async` and `wait` decide whether the response is the result or a 202 standing in for it (§4.1, §4.3); `handling` decides whether a request the server could still process is rejected with a 4xx (§4.4). Each of those is a variance the document itself describes. A preference registered elsewhere has its effect written in its own registration (§5.1), so whether it varies the entity is not readable here and the rule stays silent rather than invent the antecedent of a MUST.\n\n**What this rule does not report, and why.** A response that omits `Preference-Applied` after a `Prefer` request is not a finding. §3 makes the field a MAY; §2 says outright that *\"servers are allowed to ignore stated preferences\"*, so silence may correctly mean nothing was applied; and §3's own next sentence narrows it further — *\"Use of the Preference-Applied header is only necessary when it is not readily and obviously apparent that a server applied a given preference and such ambiguity might have an impact on the client's handling of the response.\"* — a condition about what a client application can determine, which no message states. RFC 7240 §4.2's two example responses honor `return` and carry no `Preference-Applied` at all.\n\n**The boundary.** §2's MUST binds a server that *supports* applying such a preference, whether or not it applied one here and whether or not the client asked. The only in-message evidence of that support is `Preference-Applied`, and §3 leaves a server free to apply a preference and say nothing — so a server that varies its responses silently is outside what any single capture can show. `prefer_header_valid` reads the request's field against its grammar and `preference_applied_header_valid` reads the response's against its own and against what was asked for; neither looks at `Vary`."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_7240_2,
-            RFC_7240_3,
-            RFC_7240_4,
-            RFC_7240_5_1,
-            RFC_9110_12_5_5,
-            RFC_9110_9_2_3,
-            RFC_9110_9_1,
-            RFC_9111_4_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "(the applied preference is named, and Vary makes it part of the cache key)",
-                ),
-                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=minimal\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=minimal\nVary: Prefer",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(RFC 7240 §2's alternative spelling)"),
-                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: respond-async\n\nHTTP/1.1 200 OK\nPreference-Applied: respond-async\nVary: *",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "(RFC 7240 §3's own example — a PATCH response is not one a cache holds under the target URI)",
-                ),
-                snippet: "PATCH /my-document HTTP/1.1\nHost: example.org\nContent-Type: application/example-patch\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=representation\nContent-Location: /my-document",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "(a preference registered elsewhere; RFC 7240 does not say what applying it changes)",
-                ),
-                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: depth-noroot\n\nHTTP/1.1 200 OK\nPreference-Applied: depth-noroot",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some(
-                    "(the server states it varied the entity and left it out of the cache key)",
-                ),
-                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=minimal\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=minimal",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(Vary is present but does not list Prefer)"),
-                snippet: "GET /my-document HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=representation\nVary: Accept-Encoding",
-            },
-        ]
     }
 }
 

@@ -14,7 +14,7 @@ use crate::lint::Violation;
 use crate::protocol_event::{
     MessageDirection, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
-use crate::rules::ProtocolRule;
+use crate::rules::{ProtocolRule, RuleMeta};
 
 pub struct Http3MaxPushId;
 
@@ -34,11 +34,46 @@ const RFC_9114_8_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HTTP/3 error codes (`H3_ID_ERROR`)",
 };
 
-impl ProtocolRule for Http3MaxPushId {
+impl RuleMeta for Http3MaxPushId {
     fn id(&self) -> &'static str {
         "http3_max_push_id"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("HTTP/3 MAX_PUSH_ID Monotonicity")
+    }
+
+    fn description(&self) -> &'static str {
+        "Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connection.  This rule inspects protocol-level events emitted by the HTTP/3 control-stream parser and checks:\n\n* **A server must not send `MAX_PUSH_ID`** — `MAX_PUSH_ID` is a client-only frame; a `MAX_PUSH_ID` observed from a server is a connection error of type `H3_FRAME_UNEXPECTED` (RFC 9114 §7.2.7), regardless of its value.\n\n* **MAX_PUSH_ID must not decrease** — when multiple `MAX_PUSH_ID` frames are received on the same connection, each successive value MUST be greater than or equal to the previous one.  Receipt of a smaller value is a connection error of type `H3_ID_ERROR` (RFC 9114 §7.2.7).\n\nThe first `MAX_PUSH_ID` on a connection establishes the initial limit and is always accepted, regardless of value (zero is valid and means the server is not allowed to push)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9114_7_2_7, RFC_9114_8_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "# Client sends MAX_PUSH_ID { push_id: 0 }   (no pushes yet)\n# Client sends MAX_PUSH_ID { push_id: 10 }  (raise limit)\n# Client sends MAX_PUSH_ID { push_id: 10 }  (idempotent re-send: allowed)\n# Client sends MAX_PUSH_ID { push_id: 25 }  (raise further: allowed)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(decreasing MAX_PUSH_ID)"),
+                snippet: "# Client sends MAX_PUSH_ID { push_id: 10 }\n# Client sends MAX_PUSH_ID { push_id: 4 }\n# Violation: MAX_PUSH_ID 4 decreased from previous 10 (RFC 9114 §7.2.7, H3_ID_ERROR)",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(server-sent MAX_PUSH_ID)"),
+                snippet: "# Server sends MAX_PUSH_ID { push_id: 5 }\n# Violation: a server MUST NOT send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)",
+            },
+        ]
+    }
+}
+
+impl ProtocolRule for Http3MaxPushId {
     fn findings(
         &self,
         event: &ProtocolEvent,
@@ -111,39 +146,6 @@ impl ProtocolRule for Http3MaxPushId {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("HTTP/3 MAX_PUSH_ID Monotonicity")
-    }
-
-    fn description(&self) -> &'static str {
-        "Validates HTTP/3 `MAX_PUSH_ID` frame semantics across the lifetime of a connection.  This rule inspects protocol-level events emitted by the HTTP/3 control-stream parser and checks:\n\n* **A server must not send `MAX_PUSH_ID`** — `MAX_PUSH_ID` is a client-only frame; a `MAX_PUSH_ID` observed from a server is a connection error of type `H3_FRAME_UNEXPECTED` (RFC 9114 §7.2.7), regardless of its value.\n\n* **MAX_PUSH_ID must not decrease** — when multiple `MAX_PUSH_ID` frames are received on the same connection, each successive value MUST be greater than or equal to the previous one.  Receipt of a smaller value is a connection error of type `H3_ID_ERROR` (RFC 9114 §7.2.7).\n\nThe first `MAX_PUSH_ID` on a connection establishes the initial limit and is always accepted, regardless of value (zero is valid and means the server is not allowed to push)."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9114_7_2_7, RFC_9114_8_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "# Client sends MAX_PUSH_ID { push_id: 0 }   (no pushes yet)\n# Client sends MAX_PUSH_ID { push_id: 10 }  (raise limit)\n# Client sends MAX_PUSH_ID { push_id: 10 }  (idempotent re-send: allowed)\n# Client sends MAX_PUSH_ID { push_id: 25 }  (raise further: allowed)",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(decreasing MAX_PUSH_ID)"),
-                snippet: "# Client sends MAX_PUSH_ID { push_id: 10 }\n# Client sends MAX_PUSH_ID { push_id: 4 }\n# Violation: MAX_PUSH_ID 4 decreased from previous 10 (RFC 9114 §7.2.7, H3_ID_ERROR)",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(server-sent MAX_PUSH_ID)"),
-                snippet: "# Server sends MAX_PUSH_ID { push_id: 5 }\n# Violation: a server MUST NOT send MAX_PUSH_ID (RFC 9114 §7.2.7, H3_FRAME_UNEXPECTED)",
-            },
-        ]
     }
 }
 

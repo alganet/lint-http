@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct XFrameOptionsValueValid;
 
@@ -23,11 +23,52 @@ const RFC_7034_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Historical definition (including the dropped `ALLOW-FROM` variant); superseded by the HTML Standard",
 };
 
-impl Rule for XFrameOptionsValueValid {
+impl RuleMeta for XFrameOptionsValueValid {
     fn id(&self) -> &'static str {
         "x_frame_options_value_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the two values in the HTML Standard's conformance ABNF: `DENY` or `SAMEORIGIN` (matched case-insensitively). The `ALLOW-FROM` variant from RFC 7034 is flagged: the HTML Standard supersedes that document, browsers do not implement it, and a resource relying on it is unprotected — use the CSP `frame-ancestors` directive instead. Multiple header occurrences are also rejected."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[HTML_SPECULATIVE_LOADING_7_7, RFC_7034_2_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n...response body...",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: SAMEORIGIN\n\n...response body...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("`ALLOW-FROM` is obsolete and not implemented"),
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: ALLOW-FROM https://example.com/\n\n...response body...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: DENY, SAMEORIGIN\n\n...response body...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: SOMETHINGELSE\n\n...response body...",
+            },
+        ]
+    }
+}
+
+impl Rule for XFrameOptionsValueValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -107,45 +148,6 @@ impl Rule for XFrameOptionsValueValid {
             ))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "The `X-Frame-Options` response header protects content from being embedded in frames by other origins. This rule validates that the header, when present, uses one of the two values in the HTML Standard's conformance ABNF: `DENY` or `SAMEORIGIN` (matched case-insensitively). The `ALLOW-FROM` variant from RFC 7034 is flagged: the HTML Standard supersedes that document, browsers do not implement it, and a resource relying on it is unprotected — use the CSP `frame-ancestors` directive instead. Multiple header occurrences are also rejected."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[HTML_SPECULATIVE_LOADING_7_7, RFC_7034_2_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: DENY\n\n...response body...",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: SAMEORIGIN\n\n...response body...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("`ALLOW-FROM` is obsolete and not implemented"),
-                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: ALLOW-FROM https://example.com/\n\n...response body...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: DENY, SAMEORIGIN\n\n...response body...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nX-Frame-Options: SOMETHINGELSE\n\n...response body...",
-            },
-        ]
     }
 }
 

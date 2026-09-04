@@ -6,7 +6,7 @@ use crate::helpers::structured_fields::{
     is_boolean, is_integer, parse_dictionary, sf_field_bytes_invalid,
 };
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct PriorityHeaderSyntax;
 
@@ -132,39 +132,9 @@ const RFC_9651_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Structured Fields parsing — the MUST to join field lines, and the discard rule that makes one malformed parameter cost the whole field",
 };
 
-impl Rule for PriorityHeaderSyntax {
+impl RuleMeta for PriorityHeaderSyntax {
     fn id(&self) -> &'static str {
         "priority_header_syntax"
-    }
-
-    /// Both directions, because the field is defined for both.
-    ///
-    // cite(RFC 9218 § 5): "The Priority HTTP header field is a Dictionary that carries priority parameters (see Section 4)."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // The two sections are judged separately and never joined across the
-        // pair: the sentence on `check_section` gathers the lines "in the same
-        // section", and § 8 has an intermediary combine the two afterwards as
-        // two signals rather than reading them as one field.
-        //
-        // Two sections, so two sets of findings. They are also two signals with
-        // two costs -- § 8 says an ignored request parameter falls back to its
-        // default while an ignored response parameter loses the server's view
-        // outright -- and returning at the request's finding described one
-        // signal and left the other unmeasured.
-        let mut out = self.check_section(&tx.request.headers, Section::Request, ctx.severity);
-        if let Some(resp) = &tx.response {
-            out.extend(self.check_section(&resp.headers, Section::Response, ctx.severity));
-        }
-        out
     }
 
     fn description(&self) -> &'static str {
@@ -221,6 +191,38 @@ impl Rule for PriorityHeaderSyntax {
                 snippet: "GET /image.jpg HTTP/1.1\nPriority: u=1, u=5",
             },
         ]
+    }
+}
+
+impl Rule for PriorityHeaderSyntax {
+    /// Both directions, because the field is defined for both.
+    ///
+    // cite(RFC 9218 § 5): "The Priority HTTP header field is a Dictionary that carries priority parameters (see Section 4)."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // The two sections are judged separately and never joined across the
+        // pair: the sentence on `check_section` gathers the lines "in the same
+        // section", and § 8 has an intermediary combine the two afterwards as
+        // two signals rather than reading them as one field.
+        //
+        // Two sections, so two sets of findings. They are also two signals with
+        // two costs -- § 8 says an ignored request parameter falls back to its
+        // default while an ignored response parameter loses the server's view
+        // outright -- and returning at the request's finding described one
+        // signal and left the other unmeasured.
+        let mut out = self.check_section(&tx.request.headers, Section::Request, ctx.severity);
+        if let Some(resp) = &tx.response {
+            out.extend(self.check_section(&resp.headers, Section::Response, ctx.severity));
+        }
+        out
     }
 }
 
@@ -705,7 +707,7 @@ mod tests {
 
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = PriorityHeaderSyntax;
 
         let mut saw_a_finding = false;

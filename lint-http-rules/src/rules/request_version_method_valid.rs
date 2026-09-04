@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Report a request that carries content under a method whose definition says
 /// content has no meaning there.
@@ -90,11 +90,55 @@ const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Content-Length as the amount of data enclosed — the fallback evidence when no body was captured",
 };
 
-impl Rule for RequestVersionMethodValid {
+impl RuleMeta for RequestVersionMethodValid {
     fn id(&self) -> &'static str {
         "request_version_method_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Reports a request that carries content under a method whose definition gives content no meaning there. RFC 9110 says it about GET (§9.3.1), HEAD (§9.3.2) and DELETE (§9.3.5) in three identical paragraphs: content in such a request \"has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack\". CONNECT (§9.3.6) is stated differently and reported differently — see below.\n\n**A SHOULD NOT with a condition this rule cannot check.** The GET/HEAD/DELETE sentences end \"unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported\". An agreement reached out of band leaves no trace in the message, so a request under such an agreement is reported like any other. The exemption is not simply ignored, though: the next sentence in each of those three paragraphs says \"An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain\" — and a request this tool observed at a proxy has, by construction, an intermediary in its chain.\n\n**CONNECT is a different kind of finding.** §9.3.6 states \"A CONNECT request message does not have content.\" — a definition, not a modal a sender disobeys. So the report is that the message contradicts its own method's definition. It is also the one method judged on its header section alone: §9.3.6 says \"The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use\", so a per-transaction octet count carries no version-independent claim that those octets are content — and where the CONNECT succeeded they are the tunnel's own traffic.\n\n**Content, not framing.** Each of the three paragraphs opens \"Although request message framing is independent of the method used\", so a `Transfer-Encoding` is not by itself content: a chunked request whose first chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured, its octet count is what decides; otherwise the request's own `Content-Length` is.\n\n**Not checked here.** TRACE's §9.3.8 MUST NOT is `trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it — that is `options_method_capabilities`'s finding, not this rule's. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_9_1,
+            RFC_9110_9_3_1,
+            RFC_9110_9_3_2,
+            RFC_9110_9_3_5,
+            RFC_9110_9_3_6,
+            RFC_9110_8_6,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet:
+                    "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 123\n\n<binary data>",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(DELETE with no body)"),
+                snippet: "DELETE /resource/42 HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(GET with a body)"),
+                snippet: "GET /search HTTP/1.1\nHost: example.com\nContent-Length: 5\n\nhello",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(CONNECT declaring content)"),
+                snippet: "CONNECT server.example.com:443 HTTP/1.1\nHost: server.example.com:443\nContent-Length: 1\n\nx",
+            },
+        ]
+    }
+}
+
+impl Rule for RequestVersionMethodValid {
     /// Every sentence this rule enforces addresses the client.
     // cite(RFC 9110 § 9.3.1): "A client SHOULD NOT generate content in a GET request unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported."
     fn scope(&self) -> crate::rules::RuleScope {
@@ -156,48 +200,6 @@ impl Rule for RequestVersionMethodValid {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a request that carries content under a method whose definition gives content no meaning there. RFC 9110 says it about GET (§9.3.1), HEAD (§9.3.2) and DELETE (§9.3.5) in three identical paragraphs: content in such a request \"has no generally defined semantics, cannot alter the meaning or target of the request, and might lead some implementations to reject the request and close the connection because of its potential as a request smuggling attack\". CONNECT (§9.3.6) is stated differently and reported differently — see below.\n\n**A SHOULD NOT with a condition this rule cannot check.** The GET/HEAD/DELETE sentences end \"unless it is made directly to an origin server that has previously indicated, in or out of band, that such a request has a purpose and will be adequately supported\". An agreement reached out of band leaves no trace in the message, so a request under such an agreement is reported like any other. The exemption is not simply ignored, though: the next sentence in each of those three paragraphs says \"An origin server SHOULD NOT rely on private agreements to receive content, since participants in HTTP communication are often unaware of intermediaries along the request chain\" — and a request this tool observed at a proxy has, by construction, an intermediary in its chain.\n\n**CONNECT is a different kind of finding.** §9.3.6 states \"A CONNECT request message does not have content.\" — a definition, not a modal a sender disobeys. So the report is that the message contradicts its own method's definition. It is also the one method judged on its header section alone: §9.3.6 says \"The interpretation of data sent after the header section of the CONNECT request message is specific to the version of HTTP in use\", so a per-transaction octet count carries no version-independent claim that those octets are content — and where the CONNECT succeeded they are the tunnel's own traffic.\n\n**Content, not framing.** Each of the three paragraphs opens \"Although request message framing is independent of the method used\", so a `Transfer-Encoding` is not by itself content: a chunked request whose first chunk is the terminator carries none, and over HTTP/2 and HTTP/3 content arrives with no framing field at all. Where a body was captured, its octet count is what decides; otherwise the request's own `Content-Length` is.\n\n**Not checked here.** TRACE's §9.3.8 MUST NOT is `trace_method_echo`'s, so enabling this rule alone leaves TRACE unreported. OPTIONS may carry content (§9.3.7), which comes with a MUST on the `Content-Type` describing it — that is `options_method_capabilities`'s finding, not this rule's. Neither does any other method: a method this specification does not define has no content semantics to contradict. And nothing here reads `tx.request.version`, despite the id."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_9_1,
-            RFC_9110_9_3_1,
-            RFC_9110_9_3_2,
-            RFC_9110_9_3_5,
-            RFC_9110_9_3_6,
-            RFC_9110_8_6,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet:
-                    "POST /upload HTTP/1.1\nHost: example.com\nContent-Length: 123\n\n<binary data>",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(DELETE with no body)"),
-                snippet: "DELETE /resource/42 HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(GET with a body)"),
-                snippet: "GET /search HTTP/1.1\nHost: example.com\nContent-Length: 5\n\nhello",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(CONNECT declaring content)"),
-                snippet: "CONNECT server.example.com:443 HTTP/1.1\nHost: server.example.com:443\nContent-Length: 1\n\nx",
-            },
-        ]
     }
 }
 

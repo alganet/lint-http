@@ -8,7 +8,7 @@ use crate::helpers::uri::{
     scheme_authority_marker,
 };
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct WellKnownUriSyntax;
 
@@ -146,11 +146,85 @@ const RFC_9112_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Request Target — the four forms, two of which carry no path component",
 };
 
-impl Rule for WellKnownUriSyntax {
+impl RuleMeta for WellKnownUriSyntax {
     fn id(&self) -> &'static str {
         "well_known_uri_syntax"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Well-Known URI Format")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reads the request target's path component against RFC 8615's definition of a well-known URI: *\"A well-known URI is a URI [RFC3986] whose path component begins with the characters \"/.well-known/\", provided that the scheme is explicitly defined to support well-known URIs.\"*\n\n**Every finding here is advice, and the rule says so in each message.** RFC 8615 states five BCP 14 requirements and all five are addressed to an application minting or registering a name — it MUST register it, the name MUST conform to `segment-nz`, the name SHOULD be precise, an alternative port MUST be specified by the application, and a registration MAY carry additional path components. **None of them is a requirement on a request target.** The sentences a request can be measured against are definitions, so what this rule reports is that a path is not a well-known URI, never that sending it was forbidden: §1 names an origin's control over its own URI space as the thing this memo takes care not to usurp, and the paths below are ordinary resources of that origin.\n\n**What is reported.**\n\n- **A `.well-known` segment that is not the first one.** §3: *\"Well-known URIs are rooted in the top of the path's hierarchy; they are not well-known by definition in other parts of the path.\"* — with the document's own counter-example, `/foo/.well-known/example`.\n- **A path that is exactly `/.well-known`.** The prefix §1 reserves includes its trailing slash, so this is one character short of it.\n- **An empty name after the prefix** (`/.well-known/`, and `/.well-known//name`). A registered name *\"MUST conform to the \"segment-nz\" production\"*, which is `1*pchar` — a cardinality floor an empty segment does not clear — and §3 adds that it defines no format or media type for the resource at the prefix itself.\n- **A name holding a character `pchar` does not generate.** The same `segment-nz`, read for its alphabet.\n\n**Only the first segment after the prefix is the name.** *\"This means they cannot contain the \"/\" character.\"* is about the registered name, and the MAY beside it licenses *\"the syntax of additional path components, query strings, and/or fragment identifiers to be appended to the well-known URI\"* — so `/.well-known/est/simpleenroll` names `est` and is not a finding.\n\n**The path is read as a path, not as a string.** It is walked as segments, so `/.well-knownfoo` — an ordinary path that happens to begin with the same characters — draws nothing. The percent-encoded `unreserved` octets are decoded first — RFC 3986 §2.4's exception says they can be decoded at any time, needing no component boundary established for them — and the dot segments are removed from the decoded path (§6.2.2.3), so `/a/../.well-known/x` and `/a/%2E%2E/.well-known/x` are the one path they both name, and `%2Ewell-known` and `.well-known` are the one segment §2.3 makes them. Nothing else is decoded, since decoding a delimiter would move the component boundaries (§2.4). Case is **not** normalized: §6.2.2.1 leaves path components case-sensitive, so `/.WELL-KNOWN/x` is a different path.\n\n**The scheme proviso is the second half of the definition.** RFC 8615 updates the `http` and `https` schemes to support well-known URIs and no others; other schemes carry them *\"only when those schemes' definitions explicitly allow it\"*, which the \"Well-Known URI Support\" column of the URI Schemes registry tracks (§5.2). An origin-form target names no scheme and needs none, because an HTTP request's target URI is an `http` or an `https` one either way. An **absolute-form target naming any other scheme** — how a request to a forward proxy is written — draws nothing: which schemes have been added to that column since 2019 is an open registry this rule does not read, so the effect is a finding not made, never a finding made wrongly.\n\n**What this rule declines, and why.**\n\n- **Whether the name is registered.** The registry is Specification Required and §3.1 lets third parties register a widely deployed name, so an unregistered name is a name awaiting a registration, not a defect. No sentence makes requesting one wrong, and there is no list to check it against that would not go stale between releases.\n- **The `SHOULD` for precise names.** *\"Registered names for a specific application SHOULD be correspondingly precise; \"squatting\" on generic terms is not encouraged.\"* — a judgement about a name's meaning, made by the registry's experts.\n- **The port.** *\"Typically, applications will use the default port for the given scheme; if an alternative port is used, it MUST be explicitly specified by the application in question.\"* Deciding it means reading the registration that named the port, which no capture carries.\n- **Whether a resource exists at the prefix.** §3's *\"clients should not expect a resource to exist at that location\"* is lowercase, and §2 makes the BCP 14 keywords apply *\"when, and only when, they appear in all capitals\"*.\n\n**What other rules own.** A malformed percent-encoding anywhere in the request target, and any character outside the set a URI is composed from, are `request_uri_percent_encoding_valid`'s findings, asked of the whole target; the `pchar` check here is the same question at a narrower width, and within a path segment the only characters it adds are `[` and `]`. A fragment on the request target is `request_target_no_fragment`'s, and which of the four request-target forms may carry a path is `request_target_form_valid`'."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_8615_1,
+            RFC_8615_2,
+            RFC_8615_3,
+            RFC_8615_3_1,
+            RFC_8615_5_1,
+            RFC_8615_5_2,
+            RFC_3986_3_3,
+            RFC_3986_2_3,
+            RFC_3986_6_2_2_1,
+            RFC_3986_6_2_2_3,
+            RFC_9112_3_2,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("The URI §3 prints for a registered name 'example'"),
+                snippet: "GET /.well-known/example HTTP/1.1\nHost: www.example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "Additional path components appended to the name, which §3's MAY licenses",
+                ),
+                snippet: "GET /.well-known/est/simpleenroll HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("An ordinary path that merely begins with the same characters"),
+                snippet: "GET /.well-knownfoo HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("Dot segments resolve to the reserved prefix"),
+                snippet: "GET /a/../.well-known/security.txt HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("§3's own counter-example — not at the top of the path's hierarchy"),
+                snippet: "GET /foo/.well-known/example HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("The reserved prefix without its trailing slash"),
+                snippet: "GET /.well-known HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("No name after the prefix — `segment-nz` is `1*pchar`"),
+                snippet: "GET /.well-known/ HTTP/1.1\nHost: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("A name holding a character `pchar` does not generate"),
+                snippet: "GET /.well-known/a[b] HTTP/1.1\nHost: example.com",
+            },
+        ]
+    }
+}
+
+impl Rule for WellKnownUriSyntax {
     /// Every finding here is about the path a client put in the request target,
     /// which is what makes this a client-scoped rule — but not because RFC 8615
     /// asks a client for anything. **The document holds five BCP 14 modals and
@@ -345,78 +419,6 @@ impl Rule for WellKnownUriSyntax {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Well-Known URI Format")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reads the request target's path component against RFC 8615's definition of a well-known URI: *\"A well-known URI is a URI [RFC3986] whose path component begins with the characters \"/.well-known/\", provided that the scheme is explicitly defined to support well-known URIs.\"*\n\n**Every finding here is advice, and the rule says so in each message.** RFC 8615 states five BCP 14 requirements and all five are addressed to an application minting or registering a name — it MUST register it, the name MUST conform to `segment-nz`, the name SHOULD be precise, an alternative port MUST be specified by the application, and a registration MAY carry additional path components. **None of them is a requirement on a request target.** The sentences a request can be measured against are definitions, so what this rule reports is that a path is not a well-known URI, never that sending it was forbidden: §1 names an origin's control over its own URI space as the thing this memo takes care not to usurp, and the paths below are ordinary resources of that origin.\n\n**What is reported.**\n\n- **A `.well-known` segment that is not the first one.** §3: *\"Well-known URIs are rooted in the top of the path's hierarchy; they are not well-known by definition in other parts of the path.\"* — with the document's own counter-example, `/foo/.well-known/example`.\n- **A path that is exactly `/.well-known`.** The prefix §1 reserves includes its trailing slash, so this is one character short of it.\n- **An empty name after the prefix** (`/.well-known/`, and `/.well-known//name`). A registered name *\"MUST conform to the \"segment-nz\" production\"*, which is `1*pchar` — a cardinality floor an empty segment does not clear — and §3 adds that it defines no format or media type for the resource at the prefix itself.\n- **A name holding a character `pchar` does not generate.** The same `segment-nz`, read for its alphabet.\n\n**Only the first segment after the prefix is the name.** *\"This means they cannot contain the \"/\" character.\"* is about the registered name, and the MAY beside it licenses *\"the syntax of additional path components, query strings, and/or fragment identifiers to be appended to the well-known URI\"* — so `/.well-known/est/simpleenroll` names `est` and is not a finding.\n\n**The path is read as a path, not as a string.** It is walked as segments, so `/.well-knownfoo` — an ordinary path that happens to begin with the same characters — draws nothing. The percent-encoded `unreserved` octets are decoded first — RFC 3986 §2.4's exception says they can be decoded at any time, needing no component boundary established for them — and the dot segments are removed from the decoded path (§6.2.2.3), so `/a/../.well-known/x` and `/a/%2E%2E/.well-known/x` are the one path they both name, and `%2Ewell-known` and `.well-known` are the one segment §2.3 makes them. Nothing else is decoded, since decoding a delimiter would move the component boundaries (§2.4). Case is **not** normalized: §6.2.2.1 leaves path components case-sensitive, so `/.WELL-KNOWN/x` is a different path.\n\n**The scheme proviso is the second half of the definition.** RFC 8615 updates the `http` and `https` schemes to support well-known URIs and no others; other schemes carry them *\"only when those schemes' definitions explicitly allow it\"*, which the \"Well-Known URI Support\" column of the URI Schemes registry tracks (§5.2). An origin-form target names no scheme and needs none, because an HTTP request's target URI is an `http` or an `https` one either way. An **absolute-form target naming any other scheme** — how a request to a forward proxy is written — draws nothing: which schemes have been added to that column since 2019 is an open registry this rule does not read, so the effect is a finding not made, never a finding made wrongly.\n\n**What this rule declines, and why.**\n\n- **Whether the name is registered.** The registry is Specification Required and §3.1 lets third parties register a widely deployed name, so an unregistered name is a name awaiting a registration, not a defect. No sentence makes requesting one wrong, and there is no list to check it against that would not go stale between releases.\n- **The `SHOULD` for precise names.** *\"Registered names for a specific application SHOULD be correspondingly precise; \"squatting\" on generic terms is not encouraged.\"* — a judgement about a name's meaning, made by the registry's experts.\n- **The port.** *\"Typically, applications will use the default port for the given scheme; if an alternative port is used, it MUST be explicitly specified by the application in question.\"* Deciding it means reading the registration that named the port, which no capture carries.\n- **Whether a resource exists at the prefix.** §3's *\"clients should not expect a resource to exist at that location\"* is lowercase, and §2 makes the BCP 14 keywords apply *\"when, and only when, they appear in all capitals\"*.\n\n**What other rules own.** A malformed percent-encoding anywhere in the request target, and any character outside the set a URI is composed from, are `request_uri_percent_encoding_valid`'s findings, asked of the whole target; the `pchar` check here is the same question at a narrower width, and within a path segment the only characters it adds are `[` and `]`. A fragment on the request target is `request_target_no_fragment`'s, and which of the four request-target forms may carry a path is `request_target_form_valid`'."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_8615_1,
-            RFC_8615_2,
-            RFC_8615_3,
-            RFC_8615_3_1,
-            RFC_8615_5_1,
-            RFC_8615_5_2,
-            RFC_3986_3_3,
-            RFC_3986_2_3,
-            RFC_3986_6_2_2_1,
-            RFC_3986_6_2_2_3,
-            RFC_9112_3_2,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("The URI §3 prints for a registered name 'example'"),
-                snippet: "GET /.well-known/example HTTP/1.1\nHost: www.example.com",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "Additional path components appended to the name, which §3's MAY licenses",
-                ),
-                snippet: "GET /.well-known/est/simpleenroll HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("An ordinary path that merely begins with the same characters"),
-                snippet: "GET /.well-knownfoo HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("Dot segments resolve to the reserved prefix"),
-                snippet: "GET /a/../.well-known/security.txt HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("§3's own counter-example — not at the top of the path's hierarchy"),
-                snippet: "GET /foo/.well-known/example HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("The reserved prefix without its trailing slash"),
-                snippet: "GET /.well-known HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("No name after the prefix — `segment-nz` is `1*pchar`"),
-                snippet: "GET /.well-known/ HTTP/1.1\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("A name holding a character `pchar` does not generate"),
-                snippet: "GET /.well-known/a[b] HTTP/1.1\nHost: example.com",
-            },
-        ]
     }
 }
 

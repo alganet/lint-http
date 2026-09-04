@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Validate `ETag` header values: must be a single entity-tag (strong or weak quoted-string)
 /// per RFC 9110 §8.8.3. Also flags invalid UTF-8 and multiple header fields.
@@ -25,11 +25,56 @@ const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Field Order: a non-list field (such as `ETag = entity-tag`) must not appear as multiple field lines",
 };
 
-impl Rule for EtagSyntax {
+impl RuleMeta for EtagSyntax {
     fn id(&self) -> &'static str {
         "etag_syntax"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message ETag Syntax")
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate that the `ETag` response header contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags non-UTF-8 header values, the use of the special `*` value (which is only meaningful in conditional request headers), and the presence of multiple `ETag` header fields."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_8_8_3, RFC_9110_5_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(strong ETag)"),
+                snippet: "HTTP/1.1 200 OK\nETag: \"33a64df551425fcc55e4d42a148795d9f25f89d4\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(weak ETag)"),
+                snippet: "HTTP/1.1 200 OK\nETag: W/\"67ab43\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`*` used in response)"),
+                snippet: "HTTP/1.1 200 OK\nETag: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(missing quotes)"),
+                snippet: "HTTP/1.1 200 OK\nETag: abc",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(multiple header fields)"),
+                snippet: "HTTP/1.1 200 OK\nETag: \"a\"\nETag: \"b\"",
+            },
+        ]
+    }
+}
+
+impl Rule for EtagSyntax {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -95,49 +140,6 @@ impl Rule for EtagSyntax {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message ETag Syntax")
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate that the `ETag` response header contains a single, syntactically valid entity-tag (strong or weak) as defined by RFC 9110. This rule flags non-UTF-8 header values, the use of the special `*` value (which is only meaningful in conditional request headers), and the presence of multiple `ETag` header fields."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_8_3, RFC_9110_5_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(strong ETag)"),
-                snippet: "HTTP/1.1 200 OK\nETag: \"33a64df551425fcc55e4d42a148795d9f25f89d4\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(weak ETag)"),
-                snippet: "HTTP/1.1 200 OK\nETag: W/\"67ab43\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(`*` used in response)"),
-                snippet: "HTTP/1.1 200 OK\nETag: *",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(missing quotes)"),
-                snippet: "HTTP/1.1 200 OK\nETag: abc",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(multiple header fields)"),
-                snippet: "HTTP/1.1 200 OK\nETag: \"a\"\nETag: \"b\"",
-            },
-        ]
     }
 }
 

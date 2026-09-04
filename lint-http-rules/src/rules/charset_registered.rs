@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CharsetRegistered;
 
@@ -35,17 +35,9 @@ const IANA_CHARACTER_SETS: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The registry this rule is named after but does not read; the configured `allowed` array stands in for it",
 };
 
-impl Rule for CharsetRegistered {
+impl RuleMeta for CharsetRegistered {
     fn id(&self) -> &'static str {
         "charset_registered"
-    }
-
-    // The parameter this rule reads lives in Content-Type, and it is that field's
-    // definition — not the charset section — that puts both directions in scope:
-    // a request and a response each carry a representation.
-    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -68,6 +60,55 @@ impl Rule for CharsetRegistered {
             severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
+    }
+
+    fn description(&self) -> &'static str {
+        "If a `Content-Type` header carries a `charset` parameter, this rule checks the name against an allowlist you configure. It also reports an empty `charset`, a malformed quoted-string, and characters that do not belong in the name.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a charset is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 §8.3.2 says charset names *ought to* be registered, which is the motivation for the rule, but the check itself is your policy. Matching is case-insensitive, as §8.3.2 requires, and a quoted value is compared after unescaping, since the quoted and unquoted forms are equivalent.\n\n**`token` is not the charset production.** An unquoted name is checked against `token`, while a charset name follows `mime-charset` (RFC 2978 §2.3). The two sets are *incomparable*: `mime-charset` admits `{` and `}` that `token` rejects, and `token` admits `*`, `.` and `|` that `mime-charset` rejects — so `charset=utf.8` reaches the allowlist rather than being called malformed. Neither direction changes a verdict: RFC 9110 §8.3.2 says no registered charset name uses braces, and a name carrying `.` or `*` is reported by the allowlist check if it is not configured. Only the wording of the finding differs.\n\n**Scope:** this rule reports only on charsets. A `Content-Type` that does not parse as a `media-type`, and the presence of more than one `Content-Type` field line, are both `content_type_valid`'s findings. It reads every `Content-Type` line in the header section of each message; trailers are not read, since a `Content-Type` there is malformed framing rather than a charset question.\n\n**One silence worth knowing about:** an unbalanced quote in an *earlier* parameter swallows the rest of the value, so `boundary=\"unterminated; charset=bogus` yields no charset finding here. The value is malformed and `content_type_valid` reports it; there is genuinely no parameter list left to read once the quoting breaks."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_8_3_2,
+            RFC_9110_5_6_6,
+            RFC_2978_2_3,
+            IANA_CHARACTER_SETS,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET / HTTP/1.1\nHost: example.com\nContent-Type: text/plain; charset=utf-8",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html; charset=\"UTF-8\"\nX-Content-Type-Options: nosniff\n\n<html>...</html>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain; charset=unknown-charset",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain; charset=\"unfinished",
+            },
+        ]
+    }
+}
+
+impl Rule for CharsetRegistered {
+    // The parameter this rule reads lives in Content-Type, and it is that field's
+    // definition — not the charset section — that puts both directions in scope:
+    // a request and a response each carry a representation.
+    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
     }
 
     fn findings(
@@ -245,45 +286,6 @@ impl Rule for CharsetRegistered {
         };
         Vec::from_iter(finding())
     }
-
-    fn description(&self) -> &'static str {
-        "If a `Content-Type` header carries a `charset` parameter, this rule checks the name against an allowlist you configure. It also reports an empty `charset`, a malformed quoted-string, and characters that do not belong in the name.\n\n**It does not consult the IANA registry**, despite the rule's name: there is no lookup, and a charset is \"registered\" as far as this rule is concerned exactly when your `allowed` array covers it. RFC 9110 §8.3.2 says charset names *ought to* be registered, which is the motivation for the rule, but the check itself is your policy. Matching is case-insensitive, as §8.3.2 requires, and a quoted value is compared after unescaping, since the quoted and unquoted forms are equivalent.\n\n**`token` is not the charset production.** An unquoted name is checked against `token`, while a charset name follows `mime-charset` (RFC 2978 §2.3). The two sets are *incomparable*: `mime-charset` admits `{` and `}` that `token` rejects, and `token` admits `*`, `.` and `|` that `mime-charset` rejects — so `charset=utf.8` reaches the allowlist rather than being called malformed. Neither direction changes a verdict: RFC 9110 §8.3.2 says no registered charset name uses braces, and a name carrying `.` or `*` is reported by the allowlist check if it is not configured. Only the wording of the finding differs.\n\n**Scope:** this rule reports only on charsets. A `Content-Type` that does not parse as a `media-type`, and the presence of more than one `Content-Type` field line, are both `content_type_valid`'s findings. It reads every `Content-Type` line in the header section of each message; trailers are not read, since a `Content-Type` there is malformed framing rather than a charset question.\n\n**One silence worth knowing about:** an unbalanced quote in an *earlier* parameter swallows the rest of the value, so `boundary=\"unterminated; charset=bogus` yields no charset finding here. The value is malformed and `content_type_valid` reports it; there is genuinely no parameter list left to read once the quoting breaks."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_8_3_2,
-            RFC_9110_5_6_6,
-            RFC_2978_2_3,
-            IANA_CHARACTER_SETS,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET / HTTP/1.1\nHost: example.com\nContent-Type: text/plain; charset=utf-8",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Type: text/html; charset=\"UTF-8\"\nX-Content-Type-Options: nosniff\n\n<html>...</html>",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain; charset=unknown-charset",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Type: text/plain; charset=\"unfinished",
-            },
-        ]
-    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -376,7 +378,7 @@ mod tests {
     /// Content-Type — a fixture artefact, not a disagreement about the snippet.
     #[test]
     fn published_examples_survive_the_other_content_type_rules() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = CharsetRegistered;
         // The example config is the one the docs describe, so the allowlist the
         // examples are judged against is the one a reader would have.

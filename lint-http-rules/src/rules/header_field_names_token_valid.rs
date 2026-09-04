@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct HeaderFieldNamesTokenValid;
 
@@ -41,41 +41,9 @@ const RFC_9114_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "HTTP Fields (HTTP/3 defers field-name properties to §5.1)",
 };
 
-impl Rule for HeaderFieldNamesTokenValid {
+impl RuleMeta for HeaderFieldNamesTokenValid {
     fn id(&self) -> &'static str {
         "header_field_names_token_valid"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        // The grammar is stated for fields, with no clause naming a direction or a
-        // section, so every field the transaction carries is in scope.
-        // cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // All four, in wire order, from the shared walk. A trailer field name is
-            // a field name, so the same grammar reaches it; a transaction the
-            // upstream never answered has no response half; and which sections exist
-            // at all is the framing's answer, not this rule's.
-            // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
-            for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-                if let Some(v) = check_section(section, headers, ctx.severity) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -111,6 +79,40 @@ impl Rule for HeaderFieldNamesTokenValid {
                 snippet: "x\"checksum: abc123",
             },
         ]
+    }
+}
+
+impl Rule for HeaderFieldNamesTokenValid {
+    fn scope(&self) -> crate::rules::RuleScope {
+        // The grammar is stated for fields, with no clause naming a direction or a
+        // section, so every field the transaction carries is in scope.
+        // cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // All four, in wire order, from the shared walk. A trailer field name is
+            // a field name, so the same grammar reaches it; a transaction the
+            // upstream never answered has no response half; and which sections exist
+            // at all is the framing's answer, not this rule's.
+            // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
+            for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
+                if let Some(v) = check_section(section, headers, ctx.severity) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -336,7 +338,7 @@ mod tests {
     /// does; `from_lowercase` is the HTTP/2 and HTTP/3 path.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = HeaderFieldNamesTokenValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
 

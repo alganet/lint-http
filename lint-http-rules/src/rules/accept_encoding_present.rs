@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AcceptEncodingPresent;
 
@@ -29,11 +29,56 @@ const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Why a field value of `,` lists no codings and reads as empty",
 };
 
-impl Rule for AcceptEncodingPresent {
+impl RuleMeta for AcceptEncodingPresent {
     fn id(&self) -> &'static str {
         "accept_encoding_present"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Client Accept-Encoding Present")
+    }
+
+    fn description(&self) -> &'static str {
+        "Advice, not conformance: nothing in HTTP requires a client to send `Accept-Encoding`. The rule reports the two request shapes that will not receive compressed content, and they are different findings.\n\n**No `Accept-Encoding` at all.** RFC 9110 §12.5.3 is explicit that this is the *most permissive* state, not the least: \"If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.\" A server that compresses anyway is conforming. It is still worth reporting, but on honest ground — in practice most deployed servers will not compress without an explicit signal, and that is a fact about servers rather than about the protocol. This rule used to say the opposite, describing absence as meaning \"identity only\".\n\n**An empty `Accept-Encoding`.** This is the value that means what absence was being blamed for: \"An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.\" It used to pass without a word. A value listing no members — `,` — reads the same way, since an empty element is not an element (§5.6.1.2).\n\n**`identity` is a preference, not a silence.** §12.5.3 calls it \"a synonym for 'no encoding'\", so a client that sends it has expressed exactly what this field is for and is not reported.\n\n**`CONNECT` is skipped.** It asks for a tunnel rather than a representation (§9.3.6), so no content coding applies to what comes back."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_12_5_3, RFC_9110_9_3_6, RFC_9110_5_6_1_2]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip, deflate, br\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(identity is a stated preference)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAccept-Encoding: identity\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a tunnel has no representation to encode)"),
+                snippet: "CONNECT server.example.com:443 HTTP/1.1\nHost: server.example.com\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(no preference expressed)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nUser-Agent: my-script/1.0\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(every content coding declined)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAccept-Encoding: \n",
+            },
+        ]
+    }
+}
+
+impl Rule for AcceptEncodingPresent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Client
     }
@@ -119,49 +164,6 @@ impl Rule for AcceptEncodingPresent {
         };
         Vec::from_iter(finding())
     }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Client Accept-Encoding Present")
-    }
-
-    fn description(&self) -> &'static str {
-        "Advice, not conformance: nothing in HTTP requires a client to send `Accept-Encoding`. The rule reports the two request shapes that will not receive compressed content, and they are different findings.\n\n**No `Accept-Encoding` at all.** RFC 9110 §12.5.3 is explicit that this is the *most permissive* state, not the least: \"If no Accept-Encoding header field is in the request, any content coding is considered acceptable by the user agent.\" A server that compresses anyway is conforming. It is still worth reporting, but on honest ground — in practice most deployed servers will not compress without an explicit signal, and that is a fact about servers rather than about the protocol. This rule used to say the opposite, describing absence as meaning \"identity only\".\n\n**An empty `Accept-Encoding`.** This is the value that means what absence was being blamed for: \"An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.\" It used to pass without a word. A value listing no members — `,` — reads the same way, since an empty element is not an element (§5.6.1.2).\n\n**`identity` is a preference, not a silence.** §12.5.3 calls it \"a synonym for 'no encoding'\", so a client that sends it has expressed exactly what this field is for and is not reported.\n\n**`CONNECT` is skipped.** It asks for a tunnel rather than a representation (§9.3.6), so no content coding applies to what comes back."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_12_5_3, RFC_9110_9_3_6, RFC_9110_5_6_1_2]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAccept-Encoding: gzip, deflate, br\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(identity is a stated preference)"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAccept-Encoding: identity\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a tunnel has no representation to encode)"),
-                snippet: "CONNECT server.example.com:443 HTTP/1.1\nHost: server.example.com\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(no preference expressed)"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nUser-Agent: my-script/1.0\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(every content coding declined)"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nAccept-Encoding: \n",
-            },
-        ]
-    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -194,7 +196,7 @@ mod tests {
     /// which is how the rule came to describe one and report the other.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = AcceptEncodingPresent;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let reasons: [(&str, &str); 2] = [

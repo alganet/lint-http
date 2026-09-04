@@ -7,7 +7,7 @@ use crate::helpers::list::{list_members_as_written, split_semicolons_respecting_
 use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct PreferHeaderValid;
 
@@ -144,11 +144,91 @@ const RFC_5234_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "An ABNF string literal matches any case, which is why `return=Minimal` is not reported against §4.2's `\"minimal\"`",
 };
 
-impl Rule for PreferHeaderValid {
+impl RuleMeta for PreferHeaderValid {
     fn id(&self) -> &'static str {
         "prefer_header_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Prefer header syntax")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reads a request's `Prefer` field against RFC 7240 §2's grammar — `Prefer = 1#preference`, `preference = token [ BWS \"=\" BWS word ] *( OWS \";\" [ OWS parameter ] )`, `parameter = token [ BWS \"=\" BWS word ]` — and against the productions §4 writes for the four preferences it defines.\n\n**The field is read as one list of octets.** A client MAY spread its preferences over several `Prefer` field lines, and §2 says that is equivalent to one field carrying their comma-separated concatenation, so the lines are joined before the members are counted and a member written at a line boundary is one member. The value is not decoded: a `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and refusing the field over an octet above %x7E would hide the legal value and the illegal one alike. Commas and semicolons inside a `quoted-string` are `qdtext` and not separators.\n\n**`1#preference` requires one non-empty member.** `Prefer:`, `Prefer: ,` and `Prefer: ,   ,` are three spellings of the same defect, and an empty element beside a real one is §5.6.1.1's separate sender MUST NOT. A bare `;` is *not* one: §2 writes the parameter inside an optional bracket, so `foo; ; bar` derives from the grammar as written.\n\n**A value is a `word`, and `word` is `token / quoted-string`.** Neither derives the empty string, so `foo=` matches nothing — the spelling for a preference with no value is `foo`, or `foo=\"\"`, which §2 says means the same thing. The quoting is not part of the value: `return=\"minimal\"` and `return=minimal` are the same preference.\n\n**The four preferences RFC 7240 defines are checked against their own productions.** `respond-async` is the token alone and admits no value; `return` admits `representation` or `minimal`; `handling` admits `strict` or `lenient`; `wait` admits a `delta-seconds`, which is `1*DIGIT` and so has no sign and no decimal point. RFC 7240 states no requirement about any of these values — it writes the grammar and stops — so what makes a value outside them a finding is RFC 9110 §2.2's MUST NOT on generating elements that do not match the corresponding ABNF. The comparison folds case because an ABNF string literal matches any case (RFC 5234 §2.3); §2's rule that *values* are case sensitive decides whether two values written in two messages are the same value, which is `preference_applied_header_valid`'s question and not this one's.\n\n**Any other preference name is left alone.** The \"HTTP Preferences\" registry is open, and §5.1's template puts a registered preference's admitted values in its own registration — so the value of a preference defined elsewhere is not readable from RFC 7240, and §2 requires a server that cannot place a token to ignore it rather than signal an error. Parameters are not judged beyond their grammar for the same reason: §2 makes their meaning depend on the preference's own definition.\n\n**A repeated preference token is reported.** §2 asks clients not to write one twice and says the first instance is the one considered, so the second is text no recipient acts on; §4.2 and §4.4 add that `return` and `handling` written twice can cost the client both instances.\n\n**Not decided here:** whether the server honored anything — `preference_applied_header_valid` compares this field against the response's `Preference-Applied`. Nor §2's `Vary` MUST: its antecedent is a fact about the *server*, so the message that can state it is the response rather than this one. `prefer_header_and_preference_applied` reads a `Preference-Applied` as the server saying it applies that preference and asks for the `Vary` there."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_7240_2,
+            RFC_7240_4,
+            RFC_7240_5_1,
+            RFC_7240_1_1,
+            RFC_9110_2_2,
+            RFC_9110_5_6_1,
+            RFC_9110_5_6_3,
+            RFC_9111_1_2_2,
+            RFC_5234_2_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(RFC 7240 §2's own example of three preferences over two field lines)"),
+                snippet: "POST /foo HTTP/1.1\nHost: example.org\nPrefer: respond-async, wait=100\nPrefer: handling=lenient\nDate: Tue, 20 Dec 2011 12:34:56 GMT",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a parameter, and a quoted-string carrying the grammar's own delimiters)"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return=representation; foo=\"a,b;c\"",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(`foo`, `foo=\"\"` and a bare `;` all derive from the grammar)"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: respond-async; bar=\"\"; ; baz",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`word` is `token / quoted-string`; neither derives the empty string)"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return=",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`return` admits only \"representation\" or \"minimal\")"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return=whatever",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`wait` takes a delta-seconds, which has no sign)"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: wait=-1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`respond-async` is the token alone and defines no value)"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: respond-async=1",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(only the first instance of a preference is considered)"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return=minimal, return=representation",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(BWS around the '=' is admitted by the grammar and forbidden to senders)"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return = minimal",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(1#preference requires one non-empty member)"),
+                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: ,",
+            },
+        ]
+    }
+}
+
+impl Rule for PreferHeaderValid {
     /// A request header field, and every sentence below measures the client
     /// that wrote it. `Client` is what lets the rule speak on a capture whose
     /// upstream never answered, which is exactly a request-only lint.
@@ -352,84 +432,6 @@ impl Rule for PreferHeaderValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Prefer header syntax")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reads a request's `Prefer` field against RFC 7240 §2's grammar — `Prefer = 1#preference`, `preference = token [ BWS \"=\" BWS word ] *( OWS \";\" [ OWS parameter ] )`, `parameter = token [ BWS \"=\" BWS word ]` — and against the productions §4 writes for the four preferences it defines.\n\n**The field is read as one list of octets.** A client MAY spread its preferences over several `Prefer` field lines, and §2 says that is equivalent to one field carrying their comma-separated concatenation, so the lines are joined before the members are counted and a member written at a line boundary is one member. The value is not decoded: a `word` may be a `quoted-string`, `qdtext` admits `obs-text`, and refusing the field over an octet above %x7E would hide the legal value and the illegal one alike. Commas and semicolons inside a `quoted-string` are `qdtext` and not separators.\n\n**`1#preference` requires one non-empty member.** `Prefer:`, `Prefer: ,` and `Prefer: ,   ,` are three spellings of the same defect, and an empty element beside a real one is §5.6.1.1's separate sender MUST NOT. A bare `;` is *not* one: §2 writes the parameter inside an optional bracket, so `foo; ; bar` derives from the grammar as written.\n\n**A value is a `word`, and `word` is `token / quoted-string`.** Neither derives the empty string, so `foo=` matches nothing — the spelling for a preference with no value is `foo`, or `foo=\"\"`, which §2 says means the same thing. The quoting is not part of the value: `return=\"minimal\"` and `return=minimal` are the same preference.\n\n**The four preferences RFC 7240 defines are checked against their own productions.** `respond-async` is the token alone and admits no value; `return` admits `representation` or `minimal`; `handling` admits `strict` or `lenient`; `wait` admits a `delta-seconds`, which is `1*DIGIT` and so has no sign and no decimal point. RFC 7240 states no requirement about any of these values — it writes the grammar and stops — so what makes a value outside them a finding is RFC 9110 §2.2's MUST NOT on generating elements that do not match the corresponding ABNF. The comparison folds case because an ABNF string literal matches any case (RFC 5234 §2.3); §2's rule that *values* are case sensitive decides whether two values written in two messages are the same value, which is `preference_applied_header_valid`'s question and not this one's.\n\n**Any other preference name is left alone.** The \"HTTP Preferences\" registry is open, and §5.1's template puts a registered preference's admitted values in its own registration — so the value of a preference defined elsewhere is not readable from RFC 7240, and §2 requires a server that cannot place a token to ignore it rather than signal an error. Parameters are not judged beyond their grammar for the same reason: §2 makes their meaning depend on the preference's own definition.\n\n**A repeated preference token is reported.** §2 asks clients not to write one twice and says the first instance is the one considered, so the second is text no recipient acts on; §4.2 and §4.4 add that `return` and `handling` written twice can cost the client both instances.\n\n**Not decided here:** whether the server honored anything — `preference_applied_header_valid` compares this field against the response's `Preference-Applied`. Nor §2's `Vary` MUST: its antecedent is a fact about the *server*, so the message that can state it is the response rather than this one. `prefer_header_and_preference_applied` reads a `Preference-Applied` as the server saying it applies that preference and asks for the `Vary` there."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_7240_2,
-            RFC_7240_4,
-            RFC_7240_5_1,
-            RFC_7240_1_1,
-            RFC_9110_2_2,
-            RFC_9110_5_6_1,
-            RFC_9110_5_6_3,
-            RFC_9111_1_2_2,
-            RFC_5234_2_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(RFC 7240 §2's own example of three preferences over two field lines)"),
-                snippet: "POST /foo HTTP/1.1\nHost: example.org\nPrefer: respond-async, wait=100\nPrefer: handling=lenient\nDate: Tue, 20 Dec 2011 12:34:56 GMT",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a parameter, and a quoted-string carrying the grammar's own delimiters)"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return=representation; foo=\"a,b;c\"",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(`foo`, `foo=\"\"` and a bare `;` all derive from the grammar)"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: respond-async; bar=\"\"; ; baz",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(`word` is `token / quoted-string`; neither derives the empty string)"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return=",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(`return` admits only \"representation\" or \"minimal\")"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return=whatever",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(`wait` takes a delta-seconds, which has no sign)"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: wait=-1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(`respond-async` is the token alone and defines no value)"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: respond-async=1",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(only the first instance of a preference is considered)"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return=minimal, return=representation",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(BWS around the '=' is admitted by the grammar and forbidden to senders)"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: return = minimal",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(1#preference requires one non-empty member)"),
-                snippet: "POST /items HTTP/1.1\nHost: example.org\nPrefer: ,",
-            },
-        ]
     }
 }
 

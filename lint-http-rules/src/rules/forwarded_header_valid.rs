@@ -15,7 +15,7 @@ use crate::helpers::list::{split_commas_respecting_quotes, split_semicolons_resp
 use crate::helpers::quoted_string::unescape_quoted_string;
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Every octet of a field line as the `char` of the same value.
 ///
@@ -307,11 +307,44 @@ const RFC_3986_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, which §5.4 makes the syntax of a `proto` parameter",
 };
 
-impl Rule for ForwardedHeaderValid {
+impl RuleMeta for ForwardedHeaderValid {
     fn id(&self) -> &'static str {
         "forwarded_header_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Validates `Forwarded` (RFC 7239 §4) against the grammar that defines it: the field is a list of elements, each a semicolon-separated sublist of `name=value` pairs whose names are tokens and whose values are tokens or quoted-strings, with no whitespace inside an element and no parameter named twice in one element.\n\nThe four registered parameters are checked against the sentences that define them. `for` and `by` must be a node identifier (RFC 7239 §6): an IPv4 address, a bracketed IPv6 address, `unknown`, or an obfuscated identifier — which **must begin with an underscore** and hold only letters, digits, `.`, `_` and `-` — each optionally followed by `:` and a port of one to five digits or an obfuscated port. An IPv6 address, and any node identifier carrying a port, must be written as a quoted-string, since `:` and `[]` are not token characters. `host` must conform to the `Host` field ABNF (RFC 9110 §7.2) and `proto` to a URI scheme name (RFC 3986 §3.1).\n\nA `Forwarded` field in a **response** is reported: RFC 7239 §4 restricts the field to requests, and §8.2 explains that copying it into a response reveals the whole proxy chain to the client.\n\nWhat this rule does not check: an extension parameter's name against the IANA \"HTTP Forwarded Parameters\" registry, or a `proto` value against the URI scheme registry — both registries are open and live elsewhere. A `Forwarded` field in a trailer section is reported by the trailer-fields rule, not here. The IPv6 recommendation of RFC 7239 §6.1 (RFC 5952 form: lowercase, zeroes compressed) is a SHOULD, and a value that parses but is written differently is reported as one."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_7239_4,
+            RFC_7239_6,
+            RFC_7239_5,
+            RFC_7239_8_2,
+            RFC_9110_7_2,
+            RFC_3986_3_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Forwarded: for=192.0.2.43;proto=https;by=203.0.113.5\n\nForwarded: for=\"[2001:db8::1]\";host=example.com\n\nForwarded: for=\"192.0.2.43:47011\", for=_gazonk\n\nForwarded: for=unknown;by=_SEVKISEK",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Forwarded: for=999.999.999.999\n# not an IPv4 address, and not a node identifier of any other kind\n\nForwarded: for=x-foo\n# an obfuscated identifier must begin with an underscore\n\nForwarded: for=192.0.2.43:4711\n# a node identifier with a port must be quoted: ':' is not a token character\n\nForwarded: for=\"192.0.2.43:123456\"\n# a numeric node-port is one to five digits\n\nForwarded: for=192.0.2.43;for=198.51.100.17\n# a parameter may be named only once per element\n\nForwarded: proto=ht_tp\n# a URI scheme name holds no underscore",
+            },
+        ]
+    }
+}
+
+impl Rule for ForwardedHeaderValid {
     /// Both, and the response half is not a second place to look for the field:
     /// it is where finding the field at all is the finding. `Client` and `Both`
     /// dispatch identically in this engine — only `Server` filters, by skipping
@@ -380,37 +413,6 @@ impl Rule for ForwardedHeaderValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validates `Forwarded` (RFC 7239 §4) against the grammar that defines it: the field is a list of elements, each a semicolon-separated sublist of `name=value` pairs whose names are tokens and whose values are tokens or quoted-strings, with no whitespace inside an element and no parameter named twice in one element.\n\nThe four registered parameters are checked against the sentences that define them. `for` and `by` must be a node identifier (RFC 7239 §6): an IPv4 address, a bracketed IPv6 address, `unknown`, or an obfuscated identifier — which **must begin with an underscore** and hold only letters, digits, `.`, `_` and `-` — each optionally followed by `:` and a port of one to five digits or an obfuscated port. An IPv6 address, and any node identifier carrying a port, must be written as a quoted-string, since `:` and `[]` are not token characters. `host` must conform to the `Host` field ABNF (RFC 9110 §7.2) and `proto` to a URI scheme name (RFC 3986 §3.1).\n\nA `Forwarded` field in a **response** is reported: RFC 7239 §4 restricts the field to requests, and §8.2 explains that copying it into a response reveals the whole proxy chain to the client.\n\nWhat this rule does not check: an extension parameter's name against the IANA \"HTTP Forwarded Parameters\" registry, or a `proto` value against the URI scheme registry — both registries are open and live elsewhere. A `Forwarded` field in a trailer section is reported by the trailer-fields rule, not here. The IPv6 recommendation of RFC 7239 §6.1 (RFC 5952 form: lowercase, zeroes compressed) is a SHOULD, and a value that parses but is written differently is reported as one."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_7239_4,
-            RFC_7239_6,
-            RFC_7239_5,
-            RFC_7239_8_2,
-            RFC_9110_7_2,
-            RFC_3986_3_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Forwarded: for=192.0.2.43;proto=https;by=203.0.113.5\n\nForwarded: for=\"[2001:db8::1]\";host=example.com\n\nForwarded: for=\"192.0.2.43:47011\", for=_gazonk\n\nForwarded: for=unknown;by=_SEVKISEK",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Forwarded: for=999.999.999.999\n# not an IPv4 address, and not a node identifier of any other kind\n\nForwarded: for=x-foo\n# an obfuscated identifier must begin with an underscore\n\nForwarded: for=192.0.2.43:4711\n# a node identifier with a port must be quoted: ':' is not a token character\n\nForwarded: for=\"192.0.2.43:123456\"\n# a numeric node-port is one to five digits\n\nForwarded: for=192.0.2.43;for=198.51.100.17\n# a parameter may be named only once per element\n\nForwarded: proto=ht_tp\n# a URI scheme name holds no underscore",
-            },
-        ]
     }
 }
 

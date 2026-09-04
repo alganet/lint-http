@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AccessControlAllowOriginValid;
 
@@ -35,11 +35,71 @@ const RFC_6454_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Historical origin syntax the non-`*` value is validated against — `serialized-origin = scheme \"://\" host [ \":\" port ]`, and `null` via origin-list-or-null; Fetch §3.2 supplants it",
 };
 
-impl Rule for AccessControlAllowOriginValid {
+impl RuleMeta for AccessControlAllowOriginValid {
     fn id(&self) -> &'static str {
         "access_control_allow_origin_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Access-Control-Allow-Origin Syntax")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks that the `Access-Control-Allow-Origin` response header is syntactically valid: it must be a single value and that value must be either `*`, `null`, or a valid serialized-origin (scheme://host[:port]). Multiple header fields or comma-separated lists are not allowed per the CORS semantics and will be flagged as violations."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
+            FETCH_3_3_3,
+            FETCH_3_2,
+            RFC_6454_7_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: null",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://a, https://b",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://a\nAccess-Control-Allow-Origin: https://b",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a serialized origin has no path, not even a trailing slash"),
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com/",
+            },
+        ]
+    }
+}
+
+impl Rule for AccessControlAllowOriginValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -110,64 +170,6 @@ impl Rule for AccessControlAllowOriginValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Access-Control-Allow-Origin Syntax")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks that the `Access-Control-Allow-Origin` response header is syntactically valid: it must be a single value and that value must be either `*`, `null`, or a valid serialized-origin (scheme://host[:port]). Multiple header fields or comma-separated lists are not allowed per the CORS semantics and will be flagged as violations."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
-            FETCH_3_3_3,
-            FETCH_3_2,
-            RFC_6454_7_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: null",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://a, https://b",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://a\nAccess-Control-Allow-Origin: https://b",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("a serialized origin has no path, not even a trailing slash"),
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com/",
-            },
-        ]
     }
 }
 

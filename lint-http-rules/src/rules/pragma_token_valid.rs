@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// `Pragma` header directives must follow `directive = token ["=" ( token / quoted-string )]`
 /// and be syntactically valid. This rule flags invalid tokens, malformed quoted-strings,
@@ -26,11 +26,42 @@ const RFC_9111_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Pragma",
 };
 
-impl Rule for PragmaTokenValid {
+impl RuleMeta for PragmaTokenValid {
     fn id(&self) -> &'static str {
         "pragma_token_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "The `Pragma` header directives must follow directive syntax: a `token` optionally followed by `=token` or `=\"quoted-string\"`.\nThis rule flags malformed directives, invalid token characters, empty members, and non-UTF8 header values.\n`Pragma` is deprecated by RFC 9111 §5.4, which no longer specifies its grammar; this validates the historical HTTP/1.0 directive syntax (originally RFC 7234 §5.4)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_5_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nPragma: no-cache\nPragma: no-cache, foo=bar\nPragma: token=\"quoted,comma\"",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nPragma: not a token",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nPragma: =abc",
+            },
+        ]
+    }
+}
+
+impl Rule for PragmaTokenValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -98,35 +129,6 @@ impl Rule for PragmaTokenValid {
                 None
             };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "The `Pragma` header directives must follow directive syntax: a `token` optionally followed by `=token` or `=\"quoted-string\"`.\nThis rule flags malformed directives, invalid token characters, empty members, and non-UTF8 header values.\n`Pragma` is deprecated by RFC 9111 §5.4, which no longer specifies its grammar; this validates the historical HTTP/1.0 directive syntax (originally RFC 7234 §5.4)."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nPragma: no-cache\nPragma: no-cache, foo=bar\nPragma: token=\"quoted,comma\"",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nPragma: not a token",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nPragma: =abc",
-            },
-        ]
     }
 }
 

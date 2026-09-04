@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct DeprecationHeaderSyntax;
 
@@ -29,11 +29,37 @@ const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Field Order: an Item field (non-list) must not appear as multiple field lines",
 };
 
-impl Rule for DeprecationHeaderSyntax {
+impl RuleMeta for DeprecationHeaderSyntax {
     fn id(&self) -> &'static str {
         "deprecation_header_syntax"
     }
 
+    fn description(&self) -> &'static str {
+        "The `Deprecation` response header signals that a resource is deprecated. RFC 9745 defines the header as a Structured Field `Date` item (a numeric timestamp expressed as `@<seconds>`). This rule validates the canonical structured form and flags legacy or invalid forms (literal `true`, HTTP-date, non-numeric `@` values) with helpful messages."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9745_2_1, RFC_9651_3_3_7, RFC_9110_5_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Deprecation: @1688169599\nDeprecation:   @0",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Deprecation: true\nDeprecation: Wed, 11 Nov 2015 07:28:00 GMT\nDeprecation: @\nDeprecation: @-1\nDeprecation: @abc",
+            },
+        ]
+    }
+}
+
+impl Rule for DeprecationHeaderSyntax {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -104,30 +130,6 @@ impl Rule for DeprecationHeaderSyntax {
             Some(self.violation(ctx.severity, format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", s)))
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "The `Deprecation` response header signals that a resource is deprecated. RFC 9745 defines the header as a Structured Field `Date` item (a numeric timestamp expressed as `@<seconds>`). This rule validates the canonical structured form and flags legacy or invalid forms (literal `true`, HTTP-date, non-numeric `@` values) with helpful messages."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9745_2_1, RFC_9651_3_3_7, RFC_9110_5_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Deprecation: @1688169599\nDeprecation:   @0",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Deprecation: true\nDeprecation: Wed, 11 Nov 2015 07:28:00 GMT\nDeprecation: @\nDeprecation: @-1\nDeprecation: @abc",
-            },
-        ]
     }
 }
 

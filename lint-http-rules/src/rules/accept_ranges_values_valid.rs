@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// The `Accept-Ranges` response field is a list of range units, and this rule
 /// reads it as one.
@@ -49,11 +49,58 @@ const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Field Order: multiple field lines of one name within a field section are combined in order, separated by comma SP, when the field's definition allows a comma-separated list — which `1#range-unit` is. So several `Accept-Ranges` lines are one list to read rather than a duplication to report, and the joining stops at the section boundary the sentence names",
 };
 
-impl Rule for AcceptRangesValuesValid {
+impl RuleMeta for AcceptRangesValuesValid {
     fn id(&self) -> &'static str {
         "accept_ranges_values_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Accept-Ranges Values Valid")
+    }
+
+    fn description(&self) -> &'static str {
+        "Checks that an `Accept-Ranges` response header field is what RFC 9110 §14.3 defines it to be: a non-empty comma-separated list of range units, each of them a `token`.\n\n**Any range unit name is accepted.** `range-unit = token`, names are case-insensitive, and §14.1 says they \"are intended to be extensible\". The \"HTTP Range Unit Registry\" holds two entries today — `bytes` and `none` — and adding a third takes IETF Review, not a change here, so `Accept-Ranges: pages` is not reported. This rule used to accept `bytes` and `none` only, \"for practical compatibility\", and called every other name an unexpected range-unit.\n\n**An unregistered name is not reported either.** §14.1 says names \"ought to be registered\", which is weaker than SHOULD, and nothing follows from a client meeting a unit it does not know: §14.3 makes the whole field advice a client MAY ignore.\n\n**Both of the field's sections are read, and the lines of each are joined.** §14.3 says `Accept-Ranges` MAY be sent in a trailer section, so a response that advertises only there is advertising. Within one section, `acceptable-ranges = 1#range-unit` makes several field lines one list, appended in order and separated by comma SP — a response saying `bytes` on one line and `none` on the next is saying both. The sections are not joined to each other: appending a field line to the one before it is defined within a field section, and a trailer arrives after the content as a section of its own.\n\n**The list is measured as a sender's, not as a recipient's.** §5.6.1.2 tells recipients to parse and ignore empty list elements, which is what the shared list reader does and why it cannot answer this rule's question: §5.6.1.1 says \"a sender MUST NOT generate empty list elements\", so `Accept-Ranges: bytes,,none` is reported for the hole rather than counted as two units. A value with no non-empty element at all — `Accept-Ranges: ,` or an empty field line — is not `1#range-unit` either. An octet outside visible US-ASCII is reported for what it is: every character of a `token` is visible US-ASCII, so being valid UTF-8 does not make one admissible.\n\n**`none` beside another unit is reported as advice, not as a violation.** §14.3 grants a MAY to a server that \"does not support any kind of range request for the target resource\" to send `Accept-Ranges: none`, and reserves the name for that purpose. A field that lists `none` next to a unit it does support says both things at once; no sentence forbids it, and a client will act on one of the two halves.\n\n**What else it does not report.** A trailer section carrying the field rather than a header section — §14.3 prefers the header section, gives its reason, and attaches no modal. And a response whose next range request is answered in full: §14.3 says in as many words that a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", which is addressed to the client and measures nothing about the response that carried the field."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_14_3,
+            RFC_9110_14_1,
+            RFC_9110_16_5_1,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nHTTP/1.1 200 OK\nAccept-Ranges: none\n\nHTTP/1.1 200 OK\nAccept-Ranges: BYTES",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(a range unit this rule does not have to know)"),
+                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: pages",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(`none` says no range request is supported, beside a unit that is)"),
+                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: none, bytes",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(a range unit is a token, and a space is not a token character)"),
+                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: b ytes",
+            },
+        ]
+    }
+}
+
+impl Rule for AcceptRangesValuesValid {
     /// The field is defined on a response and nothing defines it on a request,
     /// which is what the enum records. It also filters: `Server` is the one
     /// variant this engine acts on, and it means "skip a transaction with no
@@ -220,51 +267,6 @@ impl Rule for AcceptRangesValuesValid {
         // cite(RFC 9110 § 14.3): "The Accept-Ranges field MAY be sent in a trailer section, but is preferred to be sent as a header field because the information is particularly useful for restarting large information transfers that have failed in mid-content (before the trailer section is received)."
         // cite(RFC 9110 § 14.3): "Conversely, a client MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses."
         out
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Accept-Ranges Values Valid")
-    }
-
-    fn description(&self) -> &'static str {
-        "Checks that an `Accept-Ranges` response header field is what RFC 9110 §14.3 defines it to be: a non-empty comma-separated list of range units, each of them a `token`.\n\n**Any range unit name is accepted.** `range-unit = token`, names are case-insensitive, and §14.1 says they \"are intended to be extensible\". The \"HTTP Range Unit Registry\" holds two entries today — `bytes` and `none` — and adding a third takes IETF Review, not a change here, so `Accept-Ranges: pages` is not reported. This rule used to accept `bytes` and `none` only, \"for practical compatibility\", and called every other name an unexpected range-unit.\n\n**An unregistered name is not reported either.** §14.1 says names \"ought to be registered\", which is weaker than SHOULD, and nothing follows from a client meeting a unit it does not know: §14.3 makes the whole field advice a client MAY ignore.\n\n**Both of the field's sections are read, and the lines of each are joined.** §14.3 says `Accept-Ranges` MAY be sent in a trailer section, so a response that advertises only there is advertising. Within one section, `acceptable-ranges = 1#range-unit` makes several field lines one list, appended in order and separated by comma SP — a response saying `bytes` on one line and `none` on the next is saying both. The sections are not joined to each other: appending a field line to the one before it is defined within a field section, and a trailer arrives after the content as a section of its own.\n\n**The list is measured as a sender's, not as a recipient's.** §5.6.1.2 tells recipients to parse and ignore empty list elements, which is what the shared list reader does and why it cannot answer this rule's question: §5.6.1.1 says \"a sender MUST NOT generate empty list elements\", so `Accept-Ranges: bytes,,none` is reported for the hole rather than counted as two units. A value with no non-empty element at all — `Accept-Ranges: ,` or an empty field line — is not `1#range-unit` either. An octet outside visible US-ASCII is reported for what it is: every character of a `token` is visible US-ASCII, so being valid UTF-8 does not make one admissible.\n\n**`none` beside another unit is reported as advice, not as a violation.** §14.3 grants a MAY to a server that \"does not support any kind of range request for the target resource\" to send `Accept-Ranges: none`, and reserves the name for that purpose. A field that lists `none` next to a unit it does support says both things at once; no sentence forbids it, and a client will act on one of the two halves.\n\n**What else it does not report.** A trailer section carrying the field rather than a header section — §14.3 prefers the header section, gives its reason, and attaches no modal. And a response whose next range request is answered in full: §14.3 says in as many words that a client \"MUST NOT assume that receiving an Accept-Ranges field means that future range requests will return partial responses\", which is addressed to the client and measures nothing about the response that carried the field."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_14_3,
-            RFC_9110_14_1,
-            RFC_9110_16_5_1,
-            RFC_9110_5_6_1_1,
-            RFC_9110_5_6_2,
-            RFC_9110_5_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: bytes\n\nHTTP/1.1 200 OK\nAccept-Ranges: none\n\nHTTP/1.1 200 OK\nAccept-Ranges: BYTES",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(a range unit this rule does not have to know)"),
-                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: pages",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(`none` says no range request is supported, beside a unit that is)"),
-                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: none, bytes",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(a range unit is a token, and a space is not a token character)"),
-                snippet: "HTTP/1.1 200 OK\nAccept-Ranges: b ytes",
-            },
-        ]
     }
 }
 

@@ -24,7 +24,7 @@ use crate::lint::Violation;
 use crate::protocol_event::{
     MessageDirection, NegotiatedExtensions, ProtocolEvent, ProtocolEventHistory, ProtocolEventKind,
 };
-use crate::rules::ProtocolRule;
+use crate::rules::{ProtocolRule, RuleMeta};
 
 /// The frame fields this rule reads, lifted out of the event.
 ///
@@ -361,60 +361,9 @@ const RFC_6455_11_8: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "WebSocket Opcode Registry: the field's range and its registration policy",
 };
 
-impl ProtocolRule for WebsocketFrameOpcodeSequence {
+impl RuleMeta for WebsocketFrameOpcodeSequence {
     fn id(&self) -> &'static str {
         "websocket_frame_opcode_sequence"
-    }
-
-    fn findings(
-        &self,
-        event: &ProtocolEvent,
-        history: &ProtocolEventHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let ProtocolEventKind::WebSocketFrame {
-                session_id,
-                direction,
-                fin,
-                opcode,
-                payload_length,
-                extensions,
-                rsv: _,
-                masked: _,
-            } = &event.kind
-            else {
-                return None;
-            };
-            let frame = Frame {
-                session_id: *session_id,
-                direction: *direction,
-                fin: *fin,
-                opcode: *opcode,
-                payload_length: *payload_length,
-                extensions: extensions.clone(),
-            };
-
-            // One frame carries one finding, and the order is the order a receiver
-            // reaches the questions: an opcode that names no frame type leaves the
-            // class questions nothing to be about, and a frame the class already
-            // rejects is not yet a member of any sequence.
-            let defect = Self::opcode_defect(&frame)
-                .or_else(|| Self::control_frame_defect(&frame))
-                .or_else(|| Self::sequence_defect(&frame, history))?;
-
-            // Every gate above ends the rule, and reading the configuration is
-            // several map probes and a hash of the id — so only a frame about to be
-            // reported pays for it.
-
-            Some(self.violation(
-                ctx.severity,
-                format!("A WebSocket frame the {} sent {}", frame.sender(), defect),
-            ))
-        };
-        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -477,6 +426,59 @@ impl ProtocolRule for WebsocketFrameOpcodeSequence {
                 snippet: "# Client -> Server: opcode=8 (Close), FIN=1, 2 bytes\n# Client -> Server: opcode=1 (Text), FIN=1, 50 bytes\n# A Close ends what that endpoint may send (RFC 6455 §5.5.1)",
             },
         ]
+    }
+}
+
+impl ProtocolRule for WebsocketFrameOpcodeSequence {
+    fn findings(
+        &self,
+        event: &ProtocolEvent,
+        history: &ProtocolEventHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let ProtocolEventKind::WebSocketFrame {
+                session_id,
+                direction,
+                fin,
+                opcode,
+                payload_length,
+                extensions,
+                rsv: _,
+                masked: _,
+            } = &event.kind
+            else {
+                return None;
+            };
+            let frame = Frame {
+                session_id: *session_id,
+                direction: *direction,
+                fin: *fin,
+                opcode: *opcode,
+                payload_length: *payload_length,
+                extensions: extensions.clone(),
+            };
+
+            // One frame carries one finding, and the order is the order a receiver
+            // reaches the questions: an opcode that names no frame type leaves the
+            // class questions nothing to be about, and a frame the class already
+            // rejects is not yet a member of any sequence.
+            let defect = Self::opcode_defect(&frame)
+                .or_else(|| Self::control_frame_defect(&frame))
+                .or_else(|| Self::sequence_defect(&frame, history))?;
+
+            // Every gate above ends the rule, and reading the configuration is
+            // several map probes and a hash of the id — so only a frame about to be
+            // reported pays for it.
+
+            Some(self.violation(
+                ctx.severity,
+                format!("A WebSocket frame the {} sent {}", frame.sender(), defect),
+            ))
+        };
+        Vec::from_iter(finding())
     }
 }
 

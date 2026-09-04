@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentTransferEncodingValid;
 
@@ -29,11 +29,42 @@ const RFC_2045_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Private mechanisms must be spelled with an `X-` prefix, which is why an `x-` value is well-formed MIME rather than an unrecognized one",
 };
 
-impl Rule for ContentTransferEncodingValid {
+impl RuleMeta for ContentTransferEncodingValid {
     fn id(&self) -> &'static str {
         "content_transfer_encoding_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Flags any `Content-Transfer-Encoding` header in an HTTP message. HTTP does not use this field: it belongs to MIME, and a gateway from a MIME-compliant protocol is required to remove it before the message reaches an HTTP client, so one arriving over HTTP means that removal did not happen.\n\nThe consequence is silent corruption rather than a mere style problem — an HTTP recipient ignores the field, so a body that was (say) base64-encoded for MIME transport is read without being decoded.\n\nThe value is reported as detail: a single `token` naming one of `7bit`, `8bit`, `binary`, `quoted-printable`, `base64` (case-insensitive), or a private `x-` mechanism, is well-formed MIME — but being well-formed MIME does not make the field belong in HTTP."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9112_B_5, RFC_2045_6_1, RFC_2045_6_3]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("HTTP carries no transfer encoding of its own here"),
+                snippet: "HTTP/1.1 200 OK\nContent-Type: application/octet-stream\n\n<response body>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("well-formed MIME, but HTTP does not use the field"),
+                snippet: "HTTP/1.1 200 OK\nContent-Transfer-Encoding: base64\n\n<response body>",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("not a MIME mechanism either"),
+                snippet: "HTTP/1.1 200 OK\nContent-Transfer-Encoding: no-such-mechanism\n\n<response body>",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentTransferEncodingValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -128,35 +159,6 @@ impl Rule for ContentTransferEncodingValid {
             report("request", &tx.request.headers)
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Flags any `Content-Transfer-Encoding` header in an HTTP message. HTTP does not use this field: it belongs to MIME, and a gateway from a MIME-compliant protocol is required to remove it before the message reaches an HTTP client, so one arriving over HTTP means that removal did not happen.\n\nThe consequence is silent corruption rather than a mere style problem — an HTTP recipient ignores the field, so a body that was (say) base64-encoded for MIME transport is read without being decoded.\n\nThe value is reported as detail: a single `token` naming one of `7bit`, `8bit`, `binary`, `quoted-printable`, `base64` (case-insensitive), or a private `x-` mechanism, is well-formed MIME — but being well-formed MIME does not make the field belong in HTTP."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9112_B_5, RFC_2045_6_1, RFC_2045_6_3]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("HTTP carries no transfer encoding of its own here"),
-                snippet: "HTTP/1.1 200 OK\nContent-Type: application/octet-stream\n\n<response body>",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("well-formed MIME, but HTTP does not use the field"),
-                snippet: "HTTP/1.1 200 OK\nContent-Transfer-Encoding: base64\n\n<response body>",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("not a MIME mechanism either"),
-                snippet: "HTTP/1.1 200 OK\nContent-Transfer-Encoding: no-such-mechanism\n\n<response body>",
-            },
-        ]
     }
 }
 

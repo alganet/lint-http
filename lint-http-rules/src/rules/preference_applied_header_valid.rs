@@ -9,7 +9,7 @@ use crate::helpers::list::{
 use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 use std::collections::HashMap;
 
 pub struct PreferenceAppliedHeaderValid;
@@ -135,11 +135,72 @@ const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`BWS`: a recipient must remove it before interpreting the element, and a sender must not have written it — both directions are read at the `=` in `applied-pref`",
 };
 
-impl Rule for PreferenceAppliedHeaderValid {
+impl RuleMeta for PreferenceAppliedHeaderValid {
     fn id(&self) -> &'static str {
         "preference_applied_header_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Preference-Applied header validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "Check the `Preference-Applied` response header against its RFC 7240 §3 grammar — `Preference-Applied = 1#applied-pref`, `applied-pref = token [ BWS \"=\" BWS word ]` — and against the request that produced it: the field's members are the preferences the server honored, so a member the request's `Prefer` header never asked for, or one reported with a different value than was asked for, is the message contradicting itself.\n\nThe field's lines are joined before they are split, because a client may spread `Prefer` over several lines and RFC 7240 §2 says several lines are one value; the value is read as octets, because a `word` may be a `quoted-string` and `qdtext` admits `obs-text`. Comparisons follow §2: preference names are matched case-insensitively, values case-sensitively, and a value's quoting is not part of it — `foo=\"bar\"` and `foo=bar` name the same value, and `foo=\"\"` and `foo` both mean no value at all.\n\nWhat it does not decide: whether a value is one the preference's own definition allows (RFC 7240 §4 gives `return` and `handling` closed value sets; `prefer_header_valid` is the rule holding the request those come from), and whether the `Prefer` the capture holds is the one the responding server saw — an intermediary between this observation point and the origin may add preferences of its own, so the comparison is against this exchange as observed. When the request's `Prefer` value cannot be split into members — its quoting never closes, or a member does not parse — both comparisons stand down rather than report as unrequested what is merely unreadable; the grammar checks on the response are unaffected."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_7240_3,
+            RFC_7240_2,
+            RFC_7240_1_1,
+            RFC_9110_5_6_1,
+            RFC_9110_5_6_3,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(RFC 7240 §3's own example exchange)"),
+                snippet: "PATCH /my-document HTTP/1.1\nHost: example.org\nContent-Type: application/example-patch\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=representation\nContent-Location: /my-document",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(the value's quoting is not part of the value)"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=\"representation\"\n\nHTTP/1.1 200 OK\nPreference-Applied: return=representation",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(server names the preference and leaves its value unstated)"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(applied preference the request never asked for)"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\n\nHTTP/1.1 200 OK\nPreference-Applied: respond-async",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(applied-pref has no parameters)"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return; foo=bar",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(1#applied-pref requires one non-empty member)"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: ,",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(BWS around the '=' is admitted by the grammar and forbidden to senders)"),
+                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return = representation",
+            },
+        ]
+    }
+}
+
+impl Rule for PreferenceAppliedHeaderValid {
     /// The field is a response field and every sentence below is addressed to
     /// the server that wrote it. `Server` is also the only scope this engine
     /// acts on — it skips a capture with no response — and this rule has nothing
@@ -301,65 +362,6 @@ impl Rule for PreferenceAppliedHeaderValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Preference-Applied header validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "Check the `Preference-Applied` response header against its RFC 7240 §3 grammar — `Preference-Applied = 1#applied-pref`, `applied-pref = token [ BWS \"=\" BWS word ]` — and against the request that produced it: the field's members are the preferences the server honored, so a member the request's `Prefer` header never asked for, or one reported with a different value than was asked for, is the message contradicting itself.\n\nThe field's lines are joined before they are split, because a client may spread `Prefer` over several lines and RFC 7240 §2 says several lines are one value; the value is read as octets, because a `word` may be a `quoted-string` and `qdtext` admits `obs-text`. Comparisons follow §2: preference names are matched case-insensitively, values case-sensitively, and a value's quoting is not part of it — `foo=\"bar\"` and `foo=bar` name the same value, and `foo=\"\"` and `foo` both mean no value at all.\n\nWhat it does not decide: whether a value is one the preference's own definition allows (RFC 7240 §4 gives `return` and `handling` closed value sets; `prefer_header_valid` is the rule holding the request those come from), and whether the `Prefer` the capture holds is the one the responding server saw — an intermediary between this observation point and the origin may add preferences of its own, so the comparison is against this exchange as observed. When the request's `Prefer` value cannot be split into members — its quoting never closes, or a member does not parse — both comparisons stand down rather than report as unrequested what is merely unreadable; the grammar checks on the response are unaffected."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_7240_3,
-            RFC_7240_2,
-            RFC_7240_1_1,
-            RFC_9110_5_6_1,
-            RFC_9110_5_6_3,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(RFC 7240 §3's own example exchange)"),
-                snippet: "PATCH /my-document HTTP/1.1\nHost: example.org\nContent-Type: application/example-patch\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nContent-Type: application/json\nPreference-Applied: return=representation\nContent-Location: /my-document",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(the value's quoting is not part of the value)"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=\"representation\"\n\nHTTP/1.1 200 OK\nPreference-Applied: return=representation",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(server names the preference and leaves its value unstated)"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(applied preference the request never asked for)"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\n\nHTTP/1.1 200 OK\nPreference-Applied: respond-async",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(applied-pref has no parameters)"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return; foo=bar",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(1#applied-pref requires one non-empty member)"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: ,",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(BWS around the '=' is admitted by the grammar and forbidden to senders)"),
-                snippet: "GET / HTTP/1.1\nHost: example.org\nPrefer: return=representation\n\nHTTP/1.1 200 OK\nPreference-Applied: return = representation",
-            },
-        ]
     }
 }
 

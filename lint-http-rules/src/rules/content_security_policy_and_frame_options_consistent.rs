@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentSecurityPolicyAndFrameOptionsConsistent;
 
@@ -190,11 +190,47 @@ impl ContentSecurityPolicyAndFrameOptionsConsistent {
     }
 }
 
-impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
+impl RuleMeta for ContentSecurityPolicyAndFrameOptionsConsistent {
     fn id(&self) -> &'static str {
         "content_security_policy_and_frame_options_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "Detect contradictory framing directives between `Content-Security-Policy` (the `frame-ancestors` directive) and `X-Frame-Options`. These headers express framing restrictions; when they conflict, they create ambiguity that may cause different user agents to allow or block framing inconsistently.\n\nNote: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[CSP3_6_4_2, HTML_SPECULATIVE_LOADING, MDN_X_FRAME_OPTIONS]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Security-Policy: frame-ancestors 'none'\n# No X-Frame-Options header present",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Security-Policy: frame-ancestors https://example.com\nX-Frame-Options: ALLOW-FROM https://example.com",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Security-Policy: frame-ancestors 'none'\nX-Frame-Options: SAMEORIGIN\n# CSP disallows all framing but XFO says allow same origin -> contradiction",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Security-Policy: frame-ancestors 'self'\nX-Frame-Options: DENY\n# CSP allows same-origin framing while XFO denies all framing -> contradiction",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -251,40 +287,6 @@ impl Rule for ContentSecurityPolicyAndFrameOptionsConsistent {
             }
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Detect contradictory framing directives between `Content-Security-Policy` (the `frame-ancestors` directive) and `X-Frame-Options`. These headers express framing restrictions; when they conflict, they create ambiguity that may cause different user agents to allow or block framing inconsistently.\n\nNote: this check considers only enforceable header-delivered CSP policies (`Content-Security-Policy`); `Content-Security-Policy-Report-Only` is ignored because it does not itself change framing enforcement."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[CSP3_6_4_2, HTML_SPECULATIVE_LOADING, MDN_X_FRAME_OPTIONS]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Security-Policy: frame-ancestors 'none'\n# No X-Frame-Options header present",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Security-Policy: frame-ancestors https://example.com\nX-Frame-Options: ALLOW-FROM https://example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Security-Policy: frame-ancestors 'none'\nX-Frame-Options: SAMEORIGIN\n# CSP disallows all framing but XFO says allow same origin -> contradiction",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Security-Policy: frame-ancestors 'self'\nX-Frame-Options: DENY\n# CSP allows same-origin framing while XFO denies all framing -> contradiction",
-            },
-        ]
     }
 }
 

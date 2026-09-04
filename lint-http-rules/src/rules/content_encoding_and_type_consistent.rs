@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentEncodingAndTypeConsistent;
 
@@ -23,11 +23,42 @@ const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Why a 304 should not carry Content-Encoding: a sender SHOULD NOT include representation metadata beyond the listed fields. (This reference previously pointed at §8.3, which is Content-Type, not message-body rules.) The 1xx and 204 cases have no such sentence and are inferred",
 };
 
-impl Rule for ContentEncodingAndTypeConsistent {
+impl RuleMeta for ContentEncodingAndTypeConsistent {
     fn id(&self) -> &'static str {
         "content_encoding_and_type_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.\n\nResponses that carry no content (1xx, 204, 304) are flagged for sending `Content-Encoding` at all. For 304 this follows RFC 9110 §15.4.5, which tells a sender not to include representation metadata beyond a listed set; for 1xx and 204 it is this rule's inference that a coding describing absent content is a misconfiguration.\n\nRepeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.\n\n**Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_8_4, RFC_9110_15_4_5]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip, br\nContent-Type: application/json; charset=utf-8\n\n...compressed JSON body...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(duplicate coding)"),
+                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip, gzip\nContent-Type: application/json\n\n...compressed JSON body...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(Content-Encoding on no-body response)"),
+                snippet: "HTTP/1.1 204 No Content\nContent-Encoding: gzip",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentEncodingAndTypeConsistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -151,35 +182,6 @@ impl Rule for ContentEncodingAndTypeConsistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.\n\nResponses that carry no content (1xx, 204, 304) are flagged for sending `Content-Encoding` at all. For 304 this follows RFC 9110 §15.4.5, which tells a sender not to include representation metadata beyond a listed set; for 1xx and 204 it is this rule's inference that a coding describing absent content is a misconfiguration.\n\nRepeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.\n\n**Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_4, RFC_9110_15_4_5]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip, br\nContent-Type: application/json; charset=utf-8\n\n...compressed JSON body...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(duplicate coding)"),
-                snippet: "HTTP/1.1 200 OK\nContent-Encoding: gzip, gzip\nContent-Type: application/json\n\n...compressed JSON body...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(Content-Encoding on no-body response)"),
-                snippet: "HTTP/1.1 204 No Content\nContent-Encoding: gzip",
-            },
-        ]
     }
 }
 

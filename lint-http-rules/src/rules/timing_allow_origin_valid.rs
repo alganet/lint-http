@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct TimingAllowOriginValid;
 
@@ -29,11 +29,66 @@ const RFC_6454_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Historical serialized-origin shape (`scheme \"://\" host [ \":\" port ]`) the conservative validator implements; Fetch supplants the serialization",
 };
 
-impl Rule for TimingAllowOriginValid {
+impl RuleMeta for TimingAllowOriginValid {
     fn id(&self) -> &'static str {
         "timing_allow_origin_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Timing-Allow-Origin Header Validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), the lowercase literal `null` (the grammar's `%s\"null\"`\nis case-sensitive), or one or more serialized origins (`scheme://host[:port]`).\nMultiple header fields are allowed and their values are combined using HTTP\nlist semantics. This rule detects header values that cannot be decoded as\nvisible US-ASCII, an entirely empty header value, and invalid origin\nserializations."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RESOURCE_TIMING_3_5_2, FETCH_3_2, RFC_6454_7_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: *",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://example.com",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://a, https://b",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https:///foo",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("`null` is case-sensitive"),
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: NULL",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: \t",
+            },
+        ]
+    }
+}
+
+impl Rule for TimingAllowOriginValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -131,59 +186,6 @@ impl Rule for TimingAllowOriginValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Timing-Allow-Origin Header Validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate the `Timing-Allow-Origin` response header values. The header's value\nmust be `*` (wildcard), the lowercase literal `null` (the grammar's `%s\"null\"`\nis case-sensitive), or one or more serialized origins (`scheme://host[:port]`).\nMultiple header fields are allowed and their values are combined using HTTP\nlist semantics. This rule detects header values that cannot be decoded as\nvisible US-ASCII, an entirely empty header value, and invalid origin\nserializations."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RESOURCE_TIMING_3_5_2, FETCH_3_2, RFC_6454_7_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: *",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://example.com",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https://a, https://b",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: https:///foo",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("`null` is case-sensitive"),
-                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: NULL",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: ",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nTiming-Allow-Origin: \t",
-            },
-        ]
     }
 }
 

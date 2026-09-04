@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct MultipartBoundarySyntax;
 
@@ -35,69 +35,9 @@ const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Media Type: the case-insensitivity of `type`, which is what scopes this rule to `multipart`",
 };
 
-impl Rule for MultipartBoundarySyntax {
+impl RuleMeta for MultipartBoundarySyntax {
     fn id(&self) -> &'static str {
         "multipart_boundary_syntax"
-    }
-
-    // The parameter this rule reads lives in Content-Type, and that field
-    // describes a representation in either direction. RFC 9110 does not leave
-    // this to inference for multipart in particular: it names a request type
-    // and a response type in the same paragraph, multipart/form-data and
-    // multipart/byteranges.
-    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // Every Content-Type field line, not just the first. `HeaderMap::get`
-            // returns one value, and RFC 9110 §8.3 is explicit that implementations
-            // differ over which member of a duplicated Content-Type they act on, so
-            // no line can be dismissed as the one nobody reads. A multipart type
-            // with no boundary is unusable whichever line the recipient picks.
-            //
-            // That there is more than one line is `content_type_valid`'s
-            // finding; this rule says only what it owns.
-            let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
-                for hv in headers.get_all("content-type").iter() {
-                    // Decoded from the raw octets rather than through `to_str`, which
-                    // refuses anything outside visible US-ASCII and so refuses
-                    // `obs-text` — legal inside a `quoted-string`. Skipping such a
-                    // value meant `multipart/mixed; foo="<0xE4>"`, which has no
-                    // boundary parameter at all, was reported by nothing. Where
-                    // obs-text appears in the boundary itself the character check
-                    // below rejects it, as `bcharsnospace` is US-ASCII throughout.
-                    // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                    let s = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(v) = check_multipart_boundary(which, &s, ctx.severity) {
-                        return Some(v);
-                    }
-                }
-                None
-            };
-
-            if let Some(v) = check_all("request", &tx.request.headers) {
-                return Some(v);
-            }
-
-            if let Some(resp) = &tx.response {
-                if let Some(v) = check_all("response", &resp.headers) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -166,6 +106,68 @@ impl Rule for MultipartBoundarySyntax {
                 snippet: "Content-Type: multipart/mixed; boundary=gc0pJq0M:08jU534c0p",
             },
         ]
+    }
+}
+
+impl Rule for MultipartBoundarySyntax {
+    // The parameter this rule reads lives in Content-Type, and that field
+    // describes a representation in either direction. RFC 9110 does not leave
+    // this to inference for multipart in particular: it names a request type
+    // and a response type in the same paragraph, multipart/form-data and
+    // multipart/byteranges.
+    // cite(RFC 9110 § 8.3): "The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // Every Content-Type field line, not just the first. `HeaderMap::get`
+            // returns one value, and RFC 9110 §8.3 is explicit that implementations
+            // differ over which member of a duplicated Content-Type they act on, so
+            // no line can be dismissed as the one nobody reads. A multipart type
+            // with no boundary is unusable whichever line the recipient picks.
+            //
+            // That there is more than one line is `content_type_valid`'s
+            // finding; this rule says only what it owns.
+            let check_all = |which: &str, headers: &hyper::HeaderMap| -> Option<Violation> {
+                for hv in headers.get_all("content-type").iter() {
+                    // Decoded from the raw octets rather than through `to_str`, which
+                    // refuses anything outside visible US-ASCII and so refuses
+                    // `obs-text` — legal inside a `quoted-string`. Skipping such a
+                    // value meant `multipart/mixed; foo="<0xE4>"`, which has no
+                    // boundary parameter at all, was reported by nothing. Where
+                    // obs-text appears in the boundary itself the character check
+                    // below rejects it, as `bcharsnospace` is US-ASCII throughout.
+                    // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
+                    let s = crate::helpers::headers::field_line_as_written(hv);
+                    if let Some(v) = check_multipart_boundary(which, &s, ctx.severity) {
+                        return Some(v);
+                    }
+                }
+                None
+            };
+
+            if let Some(v) = check_all("request", &tx.request.headers) {
+                return Some(v);
+            }
+
+            if let Some(resp) = &tx.response {
+                if let Some(v) = check_all("response", &resp.headers) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -419,7 +421,7 @@ mod tests {
     /// illustration of the right one.
     #[test]
     fn published_examples_survive_the_other_content_type_rules() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = MultipartBoundarySyntax;
         let toml_src = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),

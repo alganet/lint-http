@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct PostCreatesResource;
 
@@ -35,11 +35,51 @@ const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The method token is case-sensitive, which is why `POST` is matched exactly and a lowercase `post` is not a POST",
 };
 
-impl Rule for PostCreatesResource {
+impl RuleMeta for PostCreatesResource {
     fn id(&self) -> &'static str {
         "post_creates_resource"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("A 201 that does not say what it created")
+    }
+
+    fn description(&self) -> &'static str {
+        "RFC 9110 §9.3.3 asks an origin server that has created one or more resources while processing a `POST` request to send a `201 Created` response containing a `Location` header field that provides an identifier for the primary resource created. This rule reports a `201` answering a `POST` that carries no `Location`.\n\n**The status is the evidence for the SHOULD's condition.** The sentence opens *\"If one or more resources has been created on the origin server\"*, which nothing in a message states directly — but §15.3.2 defines the `201` as indicating exactly that, so a server that chose the status has already asserted the condition holds. No other status is read: a `200` or a `204` answering a `POST` asserts no creation, and §9.3.3 asks nothing of it.\n\n**Nothing is malformed without the field.** §15.3.2 says the primary resource created is identified *\"by either a Location header field in the response or, if no Location header field is received, by the target URI\"* — so a `201` with no `Location` does name the created resource, just not explicitly. The finding is that the identifier is left to be inferred, which is what the SHOULD buys.\n\n**The finding names the request-target, not the target URI.** The two are the same string only when the request-target is in absolute-form (RFC 9112 §3.3). Over HTTP/1.1 it arrives in origin-form, where it is the target URI's combined path and query and nothing more — the authority comes from `Host` and the scheme from whether the connection was secured, which no part of the message records. So the message prints what the request addressed and leaves the reconstruction to the reader who knows the connection.\n\n**The sentence is addressed to the origin server.** A capture taken between a client and a proxy cannot tell an origin server's `201` from one a gateway produced on its behalf, and nothing on the wire records which component chose the status. Read the finding as being about whichever one did.\n\n**Only presence is read.** Field names are case-insensitive (§5.1), so the field is found however it was written, and a value that cannot be decoded still counts as present — the message on the wire carries the field. Whether the value is a usable `URI-reference`, whether it is empty, and whether several field lines were sent are `location_header_uri_valid`'s questions. A `Location` in a trailer section is not counted: §6.5.1 permits a trailer field only where the field's own definition permits it, and §10.2.2 does not — so a `201` that writes its `Location` after the content is reported here for not carrying one, and by `trailer_fields_valid` for the `MUST NOT` it broke getting there.\n\n**Not reported: a `Location` on a `POST` response that is not a `201`.** This rule previously reported every other 2xx carrying the field, advising the sender to \"use 201 Created when a new resource is created\" — a claim about what the sender did that no sentence licenses, and one §10.2.2 declines to make by leaving the field's relationship to the response to *\"the combination of request method and status code semantics\"*. `redirect_status_and_location_valid` owns that finding, reports it as advice, and reports it on every status rather than only on the 2xx ones; its description names the `202 Accepted` carrying a status-monitor `Location` as the case that shows why it is advice and not a violation.\n\n**Not reported: a `PUT` that created a resource.** §9.3.4 requires the `201` there with a MUST and asks nothing about `Location`, because the target URI of a `PUT` is already the identifier of what it creates. The method is compared exactly, since §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request, and `request_method_token_valid` is the rule that reports it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_9_3_3,
+            RFC_9110_15_3_2,
+            RFC_9110_10_2_2,
+            RFC_9110_9_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nLocation: /widgets/123\nContent-Type: application/json\n\n{\"id\":123}",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(no creation is claimed, so §9.3.3 asks for nothing)"),
+                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"status\":\"ok\"}",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(the created resource is identified by the target URI, but not stated)"),
+                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nContent-Type: application/json\n\n{\"id\":123}",
+            },
+        ]
+    }
+}
+
+impl Rule for PostCreatesResource {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -129,44 +169,6 @@ impl Rule for PostCreatesResource {
             ))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("A 201 that does not say what it created")
-    }
-
-    fn description(&self) -> &'static str {
-        "RFC 9110 §9.3.3 asks an origin server that has created one or more resources while processing a `POST` request to send a `201 Created` response containing a `Location` header field that provides an identifier for the primary resource created. This rule reports a `201` answering a `POST` that carries no `Location`.\n\n**The status is the evidence for the SHOULD's condition.** The sentence opens *\"If one or more resources has been created on the origin server\"*, which nothing in a message states directly — but §15.3.2 defines the `201` as indicating exactly that, so a server that chose the status has already asserted the condition holds. No other status is read: a `200` or a `204` answering a `POST` asserts no creation, and §9.3.3 asks nothing of it.\n\n**Nothing is malformed without the field.** §15.3.2 says the primary resource created is identified *\"by either a Location header field in the response or, if no Location header field is received, by the target URI\"* — so a `201` with no `Location` does name the created resource, just not explicitly. The finding is that the identifier is left to be inferred, which is what the SHOULD buys.\n\n**The finding names the request-target, not the target URI.** The two are the same string only when the request-target is in absolute-form (RFC 9112 §3.3). Over HTTP/1.1 it arrives in origin-form, where it is the target URI's combined path and query and nothing more — the authority comes from `Host` and the scheme from whether the connection was secured, which no part of the message records. So the message prints what the request addressed and leaves the reconstruction to the reader who knows the connection.\n\n**The sentence is addressed to the origin server.** A capture taken between a client and a proxy cannot tell an origin server's `201` from one a gateway produced on its behalf, and nothing on the wire records which component chose the status. Read the finding as being about whichever one did.\n\n**Only presence is read.** Field names are case-insensitive (§5.1), so the field is found however it was written, and a value that cannot be decoded still counts as present — the message on the wire carries the field. Whether the value is a usable `URI-reference`, whether it is empty, and whether several field lines were sent are `location_header_uri_valid`'s questions. A `Location` in a trailer section is not counted: §6.5.1 permits a trailer field only where the field's own definition permits it, and §10.2.2 does not — so a `201` that writes its `Location` after the content is reported here for not carrying one, and by `trailer_fields_valid` for the `MUST NOT` it broke getting there.\n\n**Not reported: a `Location` on a `POST` response that is not a `201`.** This rule previously reported every other 2xx carrying the field, advising the sender to \"use 201 Created when a new resource is created\" — a claim about what the sender did that no sentence licenses, and one §10.2.2 declines to make by leaving the field's relationship to the response to *\"the combination of request method and status code semantics\"*. `redirect_status_and_location_valid` owns that finding, reports it as advice, and reports it on every status rather than only on the 2xx ones; its description names the `202 Accepted` carrying a status-monitor `Location` as the case that shows why it is advice and not a violation.\n\n**Not reported: a `PUT` that created a resource.** §9.3.4 requires the `201` there with a MUST and asks nothing about `Location`, because the target URI of a `PUT` is already the identifier of what it creates. The method is compared exactly, since §9.1 says the method token is case-sensitive: a request whose method is `post` is not a `POST` request, and `request_method_token_valid` is the rule that reports it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_9_3_3,
-            RFC_9110_15_3_2,
-            RFC_9110_10_2_2,
-            RFC_9110_9_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nLocation: /widgets/123\nContent-Type: application/json\n\n{\"id\":123}",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(no creation is claimed, so §9.3.3 asks for nothing)"),
-                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 200 OK\nContent-Type: application/json\n\n{\"status\":\"ok\"}",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(the created resource is identified by the target URI, but not stated)"),
-                snippet: "POST /widgets HTTP/1.1\nHost: example.com\nContent-Type: application/json\nContent-Length: 17\n\n{\"name\":\"fidget\"}\n\nHTTP/1.1 201 Created\nContent-Type: application/json\n\n{\"id\":123}",
-            },
-        ]
     }
 }
 

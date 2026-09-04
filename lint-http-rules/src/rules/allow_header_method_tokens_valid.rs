@@ -6,7 +6,7 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::sender_list_members;
 use crate::helpers::shown::{describe_octet, shown_in_finding};
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AllowHeaderMethodTokensValid;
 
@@ -191,77 +191,9 @@ const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The sentence that makes a value outside its own grammar a violation, and the reason both halves of the exchange are measured: it addresses whoever generated the element",
 };
 
-impl Rule for AllowHeaderMethodTokensValid {
+impl RuleMeta for AllowHeaderMethodTokensValid {
     fn id(&self) -> &'static str {
         "allow_header_method_tokens_valid"
-    }
-
-    /// The grammar is the whole of this rule and § 2.2 addresses whoever generated
-    /// the element, so both halves of the exchange are read and neither needs the
-    /// other to be present. `Both` is the scope that survives into the request-only
-    /// dispatch; `Server` would skip exactly the captures where the request is all
-    /// there is.
-    ///
-    /// cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Both
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            // One field section is one list however many lines carry it, so the lines are
-            // joined before the members are counted: an `Allow:` written as a second line
-            // is an empty *member* of the joined value, while the same line written alone
-            // is the empty list § 10.2.1 gives a meaning to. Reading the lines one at a
-            // time answered both of those backwards. The join, and the sentence licensing
-            // it, live on the helper.
-            //
-            // Where the field belongs is § 10.2's answer, quoted where the section name
-            // is put into a finding, and it is not a requirement: an `Allow` in a request
-            // is unusual, nothing forbids it, and this rule does not report it for being
-            // there — it measures whatever value it finds.
-            //
-            // The two reads are the two *header* sections. A response's trailer section is
-            // not read: whether a field may arrive as a trailer at all is § 6.5.1's
-            // question, which is asked of every field name by
-            // `trailer_fields_valid` rather than field by field here, and
-            // `description()` says so rather than leaving the silence to be read as a
-            // verdict.
-            //
-            // Each read is one `HeaderMap` probe, and a message carrying no `Allow`
-            // at all is the overwhelming majority of traffic.
-            let request = combined_field_value_as_written(&tx.request.headers, "allow");
-            let response = tx
-                .response
-                .as_ref()
-                .and_then(|resp| combined_field_value_as_written(&resp.headers, "allow"));
-
-            if request.is_none() && response.is_none() {
-                return None;
-            }
-
-            if let Some(value) = &request {
-                if let Some(v) = self.check_field_section(value, "request", ctx.severity) {
-                    return Some(v);
-                }
-            }
-
-            if let Some(value) = &response {
-                if let Some(v) = self.check_field_section(value, "response", ctx.severity) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn title(&self) -> Option<&'static str> {
@@ -334,6 +266,76 @@ impl Rule for AllowHeaderMethodTokensValid {
                 snippet: "HTTP/1.1 200 OK\nAllow: GET, PO@T",
             },
         ]
+    }
+}
+
+impl Rule for AllowHeaderMethodTokensValid {
+    /// The grammar is the whole of this rule and § 2.2 addresses whoever generated
+    /// the element, so both halves of the exchange are read and neither needs the
+    /// other to be present. `Both` is the scope that survives into the request-only
+    /// dispatch; `Server` would skip exactly the captures where the request is all
+    /// there is.
+    ///
+    /// cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            // One field section is one list however many lines carry it, so the lines are
+            // joined before the members are counted: an `Allow:` written as a second line
+            // is an empty *member* of the joined value, while the same line written alone
+            // is the empty list § 10.2.1 gives a meaning to. Reading the lines one at a
+            // time answered both of those backwards. The join, and the sentence licensing
+            // it, live on the helper.
+            //
+            // Where the field belongs is § 10.2's answer, quoted where the section name
+            // is put into a finding, and it is not a requirement: an `Allow` in a request
+            // is unusual, nothing forbids it, and this rule does not report it for being
+            // there — it measures whatever value it finds.
+            //
+            // The two reads are the two *header* sections. A response's trailer section is
+            // not read: whether a field may arrive as a trailer at all is § 6.5.1's
+            // question, which is asked of every field name by
+            // `trailer_fields_valid` rather than field by field here, and
+            // `description()` says so rather than leaving the silence to be read as a
+            // verdict.
+            //
+            // Each read is one `HeaderMap` probe, and a message carrying no `Allow`
+            // at all is the overwhelming majority of traffic.
+            let request = combined_field_value_as_written(&tx.request.headers, "allow");
+            let response = tx
+                .response
+                .as_ref()
+                .and_then(|resp| combined_field_value_as_written(&resp.headers, "allow"));
+
+            if request.is_none() && response.is_none() {
+                return None;
+            }
+
+            if let Some(value) = &request {
+                if let Some(v) = self.check_field_section(value, "request", ctx.severity) {
+                    return Some(v);
+                }
+            }
+
+            if let Some(value) = &response {
+                if let Some(v) = self.check_field_section(value, "response", ctx.severity) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct TransferEncodingChunkedFinal;
 
@@ -35,11 +35,60 @@ const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The transfer-coding grammar the members are parsed with, including the quoted-string a parameter may carry",
 };
 
-impl Rule for TransferEncodingChunkedFinal {
+impl RuleMeta for TransferEncodingChunkedFinal {
     fn id(&self) -> &'static str {
         "transfer_encoding_chunked_final"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Message Transfer-Encoding Chunked Final")
+    }
+
+    fn description(&self) -> &'static str {
+        "Enforces RFC 9112 §6.1's requirements on the sequence of transfer codings: `chunked` may be applied at most once, and when any other coding is applied `chunked` must come last. Codings are read in wire order across every `Transfer-Encoding` field line.\n\n**Three findings, three sentences.**\n\n- *\"A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).\"* — `chunked, chunked` is reported as duplication, not as a position problem.\n- *\"If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.\"* — this is unconditional, so a request reading `Transfer-Encoding: gzip` is reported: it applies a coding and never frames the result.\n- *\"If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.\"* — a **response** therefore has a second way to comply.\n\n**The response exemption, and what it rests on.** A transaction records no connection teardown, so the second alternative is read from `Connection: close`. RFC 9112 §9.6 makes announcing a close a **SHOULD**, not a MUST — so a response that closes silently is still reported here, and that is a known false positive rather than an oversight. It is also, in that state, disregarding §9.6. Narrowing further would mean giving up the response side entirely.\n\n**A response with no body is not judged.** §6.1 permits `Transfer-Encoding` on a response to `HEAD` and on a `304 (Not Modified)`, \"neither of which includes a message body\", where it indicates what the origin *would have* applied to an unconditional `GET`. All three requirements above speak of a coding applied to content, so none of them engage. The *request's* own field is judged as usual, whatever its method.\n\n**§7.1 does not say `chunked` must be last.** It defines the chunked coding — its grammar, its role in framing, and (at the end) that it takes no parameters. This rule's specifications used to cite §7.1 for the ordering requirement, which lives in §6.1.\n\n**Parsing.** Members are split on commas outside quoted-strings, the coding *name* is taken from in front of any parameters (so `chunked;ext=1` is still `chunked`), names are folded case-insensitively per §7, and values are decoded from raw octets — dropping a field line here would not merely lose a finding, it would silently reorder the sequence being judged. A value whose quoting never closes is declined, because its members cannot be delimited; `transfer_coding_registered` is the rule that reports it."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9112_6_1, RFC_9112_9_6, RFC_9112_7_1, RFC_9110_10_1_4]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            // These were not HTTP messages. One jammed two field lines together
+            // with a blank line between them and no start-line; the other
+            // carried `#` comments, which no HTTP message has. `gendocs`
+            // published both.
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: gzip, chunked\n",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(response closes the connection instead of chunking)"),
+                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip\nConnection: close\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(request applies gzip and never frames the result)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: gzip\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(nothing may follow chunked)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: chunked, gzip\n",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(chunking an already chunked message)"),
+                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: chunked, chunked\n",
+            },
+        ]
+    }
+}
+
+impl Rule for TransferEncodingChunkedFinal {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -249,53 +298,6 @@ impl Rule for TransferEncodingChunkedFinal {
 
         out
     }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Message Transfer-Encoding Chunked Final")
-    }
-
-    fn description(&self) -> &'static str {
-        "Enforces RFC 9112 §6.1's requirements on the sequence of transfer codings: `chunked` may be applied at most once, and when any other coding is applied `chunked` must come last. Codings are read in wire order across every `Transfer-Encoding` field line.\n\n**Three findings, three sentences.**\n\n- *\"A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).\"* — `chunked, chunked` is reported as duplication, not as a position problem.\n- *\"If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.\"* — this is unconditional, so a request reading `Transfer-Encoding: gzip` is reported: it applies a coding and never frames the result.\n- *\"If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.\"* — a **response** therefore has a second way to comply.\n\n**The response exemption, and what it rests on.** A transaction records no connection teardown, so the second alternative is read from `Connection: close`. RFC 9112 §9.6 makes announcing a close a **SHOULD**, not a MUST — so a response that closes silently is still reported here, and that is a known false positive rather than an oversight. It is also, in that state, disregarding §9.6. Narrowing further would mean giving up the response side entirely.\n\n**A response with no body is not judged.** §6.1 permits `Transfer-Encoding` on a response to `HEAD` and on a `304 (Not Modified)`, \"neither of which includes a message body\", where it indicates what the origin *would have* applied to an unconditional `GET`. All three requirements above speak of a coding applied to content, so none of them engage. The *request's* own field is judged as usual, whatever its method.\n\n**§7.1 does not say `chunked` must be last.** It defines the chunked coding — its grammar, its role in framing, and (at the end) that it takes no parameters. This rule's specifications used to cite §7.1 for the ordering requirement, which lives in §6.1.\n\n**Parsing.** Members are split on commas outside quoted-strings, the coding *name* is taken from in front of any parameters (so `chunked;ext=1` is still `chunked`), names are folded case-insensitively per §7, and values are decoded from raw octets — dropping a field line here would not merely lose a finding, it would silently reorder the sequence being judged. A value whose quoting never closes is declined, because its members cannot be delimited; `transfer_coding_registered` is the rule that reports it."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9112_6_1, RFC_9112_9_6, RFC_9112_7_1, RFC_9110_10_1_4]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            // These were not HTTP messages. One jammed two field lines together
-            // with a blank line between them and no start-line; the other
-            // carried `#` comments, which no HTTP message has. `gendocs`
-            // published both.
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: gzip, chunked\n",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(response closes the connection instead of chunking)"),
-                snippet: "HTTP/1.1 200 OK\nTransfer-Encoding: gzip\nConnection: close\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(request applies gzip and never frames the result)"),
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: gzip\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(nothing may follow chunked)"),
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: chunked, gzip\n",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(chunking an already chunked message)"),
-                snippet: "POST /upload HTTP/1.1\nHost: example.com\nTransfer-Encoding: chunked, chunked\n",
-            },
-        ]
-    }
 }
 
 /// Registers this rule into the engine's auto-collected catalogue.
@@ -446,7 +448,7 @@ mod tests {
     /// separated by a blank one -- and nothing had ever tried to parse them.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = TransferEncodingChunkedFinal;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
         let reasons: [(&str, &str); 3] = [

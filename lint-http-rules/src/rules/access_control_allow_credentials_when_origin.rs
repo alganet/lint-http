@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AccessControlAllowCredentialsWhenOrigin;
 
@@ -29,11 +29,50 @@ const FETCH_4_10: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Fetch CORS check — `*` succeeds only for non-credentialed requests, so `*` paired with `Access-Control-Allow-Credentials: true` can never authorize a credentialed request (the two cited steps)",
 };
 
-impl Rule for AccessControlAllowCredentialsWhenOrigin {
+impl RuleMeta for AccessControlAllowCredentialsWhenOrigin {
     fn id(&self) -> &'static str {
         "access_control_allow_credentials_when_origin"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Access-Control Allow Credentials When Origin")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure that `Access-Control-Allow-Credentials` is **not** set to `true` when `Access-Control-Allow-Origin` is `*` (wildcard). Allowing credentials with a wildcard origin is insecure and disallowed by the CORS model."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            MDN_ACCESS_CONTROL_ALLOW_CREDENTIALS,
+            MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
+            FETCH_4_10,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com\nAccess-Control-Allow-Credentials: true",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(no credentials)"),
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(wildcard with credentials)"),
+                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *\nAccess-Control-Allow-Credentials: true",
+            },
+        ]
+    }
+}
+
+impl Rule for AccessControlAllowCredentialsWhenOrigin {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -109,43 +148,6 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Access-Control Allow Credentials When Origin")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure that `Access-Control-Allow-Credentials` is **not** set to `true` when `Access-Control-Allow-Origin` is `*` (wildcard). Allowing credentials with a wildcard origin is insecure and disallowed by the CORS model."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            MDN_ACCESS_CONTROL_ALLOW_CREDENTIALS,
-            MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
-            FETCH_4_10,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: https://example.com\nAccess-Control-Allow-Credentials: true",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(no credentials)"),
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(wildcard with credentials)"),
-                snippet: "HTTP/1.1 200 OK\nAccess-Control-Allow-Origin: *\nAccess-Control-Allow-Credentials: true",
-            },
-        ]
     }
 }
 

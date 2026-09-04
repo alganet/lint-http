@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ExtensionHeadersRegistered;
 
@@ -41,16 +41,9 @@ const IANA_HTTP_FIELD_NAME_REGISTRY: crate::rules::SpecRef = crate::rules::SpecR
     note: "The registry § 5.1 points at, for deciding what belongs in the array",
 };
 
-impl Rule for ExtensionHeadersRegistered {
+impl RuleMeta for ExtensionHeadersRegistered {
     fn id(&self) -> &'static str {
         "extension_headers_registered"
-    }
-
-    fn scope(&self) -> crate::rules::RuleScope {
-        // The sentence that asks for registration is about field names, and names no
-        // direction and no section, so every field the transaction carries is in scope.
-        // cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
-        crate::rules::RuleScope::Both
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -73,33 +66,6 @@ impl Rule for ExtensionHeadersRegistered {
             severity,
             state: Box::new(crate::helpers::rule_config::AllowedList { allowed }),
         })
-    }
-
-    fn findings(
-        &self,
-        tx: &crate::http_transaction::HttpTransaction,
-        _history: &crate::transaction_history::TransactionHistory,
-        ctx: &crate::rules::RuleContext<'_>,
-    ) -> Vec<Violation> {
-        // Single-finding body behind an Option: `?` ends it early, and the
-        // one finding (or none) becomes the vector.
-        let finding = || -> Option<Violation> {
-            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-
-            // All four, in wire order, from the shared walk. A trailer field name is
-            // a field name, so the allowlist reaches it on the same terms; a
-            // transaction the upstream never answered has no response half; and
-            // which sections exist at all is the framing's answer, not this rule's.
-            // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
-            for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-                if let Some(v) = check_section(section, headers, config, ctx.severity) {
-                    return Some(v);
-                }
-            }
-
-            None
-        };
-        Vec::from_iter(finding())
     }
 
     fn description(&self) -> &'static str {
@@ -144,6 +110,42 @@ impl Rule for ExtensionHeadersRegistered {
                 snippet: "Acme-Checksum: 9f2a",
             },
         ]
+    }
+}
+
+impl Rule for ExtensionHeadersRegistered {
+    fn scope(&self) -> crate::rules::RuleScope {
+        // The sentence that asks for registration is about field names, and names no
+        // direction and no section, so every field the transaction carries is in scope.
+        // cite(RFC 9110 § 5): "Fields are sent and received within the header and trailer sections of messages"
+        crate::rules::RuleScope::Both
+    }
+
+    fn findings(
+        &self,
+        tx: &crate::http_transaction::HttpTransaction,
+        _history: &crate::transaction_history::TransactionHistory,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Vec<Violation> {
+        // Single-finding body behind an Option: `?` ends it early, and the
+        // one finding (or none) becomes the vector.
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+
+            // All four, in wire order, from the shared walk. A trailer field name is
+            // a field name, so the allowlist reaches it on the same terms; a
+            // transaction the upstream never answered has no response half; and
+            // which sections exist at all is the framing's answer, not this rule's.
+            // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
+            for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
+                if let Some(v) = check_section(section, headers, config, ctx.severity) {
+                    return Some(v);
+                }
+            }
+
+            None
+        };
+        Vec::from_iter(finding())
     }
 }
 
@@ -556,7 +558,7 @@ mod tests {
     /// so a direct `check_transaction` still exercises the rule.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = ExtensionHeadersRegistered;
         let toml_src = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../config_example.toml"),

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct CrossOriginResourcePolicyValid;
 
@@ -23,11 +23,51 @@ const MDN_CROSS_ORIGIN_RESOURCE_POLICY: crate::rules::SpecRef = crate::rules::Sp
     note: "Cross-Origin-Resource-Policy",
 };
 
-impl Rule for CrossOriginResourcePolicyValid {
+impl RuleMeta for CrossOriginResourcePolicyValid {
     fn id(&self) -> &'static str {
         "cross_origin_resource_policy_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Cross-Origin Resource Policy Value")
+    }
+
+    fn description(&self) -> &'static str {
+        "This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The comparison is **case-sensitive**, as the Fetch Standard's ABNF requires: a user agent that does not recognize the value sets the policy to null and serves the resource as though the header were never sent, so a miscased `SAME-ORIGIN` is not a weaker protection but no protection at all. Surrounding whitespace is still tolerated. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only; the rule applies to server responses (RuleScope::Server)."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[FETCH_3_7, MDN_CROSS_ORIGIN_RESOURCE_POLICY]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-site",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(trailing whitespace tolerated)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-origin ",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(unsupported value)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: private",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("(comma-separated list)"),
+                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-origin, cross-origin",
+            },
+        ]
+    }
+}
+
+impl Rule for CrossOriginResourcePolicyValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -102,44 +142,6 @@ impl Rule for CrossOriginResourcePolicyValid {
             ))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Cross-Origin Resource Policy Value")
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule checks the `Cross-Origin-Resource-Policy` response header value and ensures it is one of the allowed tokens: **`same-site`**, **`same-origin`**, or **`cross-origin`**. The comparison is **case-sensitive**, as the Fetch Standard's ABNF requires: a user agent that does not recognize the value sets the policy to null and serves the resource as though the header were never sent, so a miscased `SAME-ORIGIN` is not a weaker protection but no protection at all. Surrounding whitespace is still tolerated. The header must be a single value and must not contain comma-separated lists or multiple header fields. This header is response-only; the rule applies to server responses (RuleScope::Server)."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_3_7, MDN_CROSS_ORIGIN_RESOURCE_POLICY]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-site",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(trailing whitespace tolerated)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-origin ",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(unsupported value)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: private",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("(comma-separated list)"),
-                snippet: "HTTP/1.1 200 OK\nCross-Origin-Resource-Policy: same-origin, cross-origin",
-            },
-        ]
     }
 }
 

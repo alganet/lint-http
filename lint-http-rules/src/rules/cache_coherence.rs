@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensure that responses for a given resource do not regress in their
 /// representation date.  This is a heuristic, not a direct spec check: RFC 9111
@@ -46,11 +46,52 @@ const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "304 Not Modified — conveys no representation, so it is skipped",
 };
 
-impl Rule for CacheCoherence {
+impl RuleMeta for CacheCoherence {
     fn id(&self) -> &'static str {
         "cache_coherence"
     }
 
+    fn description(&self) -> &'static str {
+        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously, we report a violation — the later response\nappears to be serving a stale representation.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  304 Not Modified\nresponses are skipped since they do not convey a new representation."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9111_4_2_4,
+            RFC_9110_8_8_2,
+            RFC_9110_6_6_1,
+            RFC_9110_15_4_5,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 07:28:00 GMT\n\n> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 08:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— using `Last-Modified`"),
+                snippet: "< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 09:00:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— out‑of‑order `Date`"),
+                snippet: "< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 07:28:00 GMT    # older than previous",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— `Last-Modified` decreases"),
+                snippet: "< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 07:00:00 GMT    # stale copy",
+            },
+        ]
+    }
+}
+
+impl Rule for CacheCoherence {
     fn scope(&self) -> crate::rules::RuleScope {
         // the rule only inspects server responses; request headers are used
         // to identify the resource but nothing else is required.
@@ -150,45 +191,6 @@ impl Rule for CacheCoherence {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Cache coherence ensures that once a newer representation of a resource is\navailable, earlier (stale) copies are not inadvertently served without\nrevalidation or invalidation.  Misconfigured caches or origin servers may\nreturn an older version of a document after a newer one has been observed.\n\nThis rule reconstructs a simple timeline for each resource observed by the\nclient.  Each response is assigned a timestamp derived from its\n`Last-Modified` header if present, otherwise from the `Date` header.  If a\nsubsequent response for the *same URI* carries a timestamp that is strictly\nolder than one seen previously, we report a violation — the later response\nappears to be serving a stale representation.\n\nOnly transactions whose response contains a parseable HTTP-date are\nexamined; missing or unparseable headers are ignored.  304 Not Modified\nresponses are skipped since they do not convey a new representation."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9111_4_2_4,
-            RFC_9110_8_8_2,
-            RFC_9110_6_6_1,
-            RFC_9110_15_4_5,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 07:28:00 GMT\n\n> GET /foo HTTP/1.1\n> Host: example.com\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 08:28:00 GMT",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— using `Last-Modified`"),
-                snippet: "< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 09:00:00 GMT",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— out‑of‑order `Date`"),
-                snippet: "< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Date: Wed, 21 Oct 2015 07:28:00 GMT    # older than previous",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— `Last-Modified` decreases"),
-                snippet: "< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 08:28:00 GMT\n\n< HTTP/1.1 200 OK\n< Last-Modified: Wed, 21 Oct 2015 07:00:00 GMT    # stale copy",
-            },
-        ]
     }
 }
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct Http3StatusCodeValid;
 
@@ -35,11 +35,57 @@ const RFC_9220: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Bootstrapping WebSockets with HTTP/3",
 };
 
-impl Rule for Http3StatusCodeValid {
+impl RuleMeta for Http3StatusCodeValid {
     fn id(&self) -> &'static str {
         "http3_status_code_valid"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("HTTP/3 Status Code Validity")
+    }
+
+    fn description(&self) -> &'static str {
+        "HTTP/3 does not support the `101 (Switching Protocols)` informational status code. The protocol upgrade mechanism used in HTTP/1.1 has no equivalent in HTTP/3; applications that require protocol switching should use extended CONNECT (RFC 9220) instead.\n\nThis rule applies when the request version is `HTTP/3`. The response is checked only when its own version is also `HTTP/3`; in a reverse-proxy setup the upstream response may arrive via HTTP/1.1, where `101` is legitimate.\n\n**One status code, and only what HTTP/3 says about it.** This rule also used to report a `Content-Length`, a message body, or a trailer section on a `1xx` response. Those rest on RFC 9110 §15.2 — *\"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers\"* — which is not a sentence about HTTP/3, so enforcing it here meant the same defect over HTTP/1.1 or HTTP/2 went unreported. `no_body_for_1xx_204_304` enforces it on every version, and for `204` and `304` as well as `1xx`."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9114_4_5, RFC_9114_4_1, RFC_9110_15_2, RFC_9220]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/3 100 Continue",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/3 103 Early Hints\nLink: </style.css>; rel=preload; as=style",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/3 200 OK\nContent-Type: text/html",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/3 101 Switching Protocols\nUpgrade: websocket",
+            },
+            // A `100 Continue` carrying a `Content-Length` used to be published
+            // here as NonCompliant. Relabelling it Compliant would have been worse
+            // than removing it: this rule does accept it now, and it is still a
+            // violation of § 8.6 that `no_body_for_1xx_204_304` reports --
+            // so the page would have shown an operator a defective message under a
+            // Compliant heading. The description names the rule that owns it.
+        ]
+    }
+}
+
+impl Rule for Http3StatusCodeValid {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -104,50 +150,6 @@ impl Rule for Http3StatusCodeValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("HTTP/3 Status Code Validity")
-    }
-
-    fn description(&self) -> &'static str {
-        "HTTP/3 does not support the `101 (Switching Protocols)` informational status code. The protocol upgrade mechanism used in HTTP/1.1 has no equivalent in HTTP/3; applications that require protocol switching should use extended CONNECT (RFC 9220) instead.\n\nThis rule applies when the request version is `HTTP/3`. The response is checked only when its own version is also `HTTP/3`; in a reverse-proxy setup the upstream response may arrive via HTTP/1.1, where `101` is legitimate.\n\n**One status code, and only what HTTP/3 says about it.** This rule also used to report a `Content-Length`, a message body, or a trailer section on a `1xx` response. Those rest on RFC 9110 §15.2 — *\"A 1xx response is terminated by the end of the header section; it cannot contain content or trailers\"* — which is not a sentence about HTTP/3, so enforcing it here meant the same defect over HTTP/1.1 or HTTP/2 went unreported. `no_body_for_1xx_204_304` enforces it on every version, and for `204` and `304` as well as `1xx`."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9114_4_5, RFC_9114_4_1, RFC_9110_15_2, RFC_9220]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/3 100 Continue",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/3 103 Early Hints\nLink: </style.css>; rel=preload; as=style",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/3 200 OK\nContent-Type: text/html",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/3 101 Switching Protocols\nUpgrade: websocket",
-            },
-            // A `100 Continue` carrying a `Content-Length` used to be published
-            // here as NonCompliant. Relabelling it Compliant would have been worse
-            // than removing it: this rule does accept it now, and it is still a
-            // violation of § 8.6 that `no_body_for_1xx_204_304` reports --
-            // so the page would have shown an operator a defective message under a
-            // Compliant heading. The description names the rule that owns it.
-        ]
     }
 }
 

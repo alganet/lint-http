@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct RangeAndContentRangeConsistent;
 
@@ -112,21 +112,9 @@ const RFC_9110_15_5_17: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`",
 };
 
-impl Rule for RangeAndContentRangeConsistent {
+impl RuleMeta for RangeAndContentRangeConsistent {
     fn id(&self) -> &'static str {
         "range_and_content_range_consistent"
-    }
-
-    /// Every finding here is about a response: the field this rule is named for
-    /// is meaningful in exactly two status codes, and a status code is something
-    /// only a response has. The request's `Range` is read as *context* for those
-    /// findings, never judged — its syntax belongs to
-    /// `range_header_syntax`. `Server` says that in the one place
-    /// the engine reads, and costs nothing: it only skips transactions with no
-    /// response, which the first line of the check already returned `None` for.
-    // cite(RFC 9110 § 14.4): "The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range."
-    fn scope(&self) -> crate::rules::RuleScope {
-        crate::rules::RuleScope::Server
     }
 
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
@@ -138,6 +126,69 @@ impl Rule for RangeAndContentRangeConsistent {
             severity: config.severity,
             state: Box::new(config),
         })
+    }
+
+    fn description(&self) -> &'static str {
+        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_9110_15_3_7,
+            RFC_9110_15_3_7_2,
+            RFC_9110_14_4,
+            RFC_9110_15_5_17,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nHTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nContent-Length: 500\nContent-Type: application/octet-stream\n\n...500 bytes...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nHTTP/1.1 206 Partial Content\nContent-Length: 500\n\n...500 bytes but missing Content-Range in headers...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 206 Partial Content\nContent-Range: bytes 0-1/10\n\n# 206 must not be sent if the request did not include a Range header",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("(multiple parts: each body part carries its own Content-Range)"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=500-999,7000-7999\n\nHTTP/1.1 206 Partial Content\nContent-Type: multipart/byteranges; boundary=THIS_STRING_SEPARATES\nContent-Length: 1741\n\n...the parts, each with its own Content-Range...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— a multipart 206 must not carry Content-Range in its header section"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=500-999,7000-7999\n\nHTTP/1.1 206 Partial Content\nContent-Type: multipart/byteranges; boundary=THIS_STRING_SEPARATES\nContent-Range: bytes 500-999/8000\n\n...the parts...",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— 416 uses the \"*/complete-length\" unsatisfied-range form"),
+                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=99999-\n\nHTTP/1.1 416 Range Not Satisfiable\nContent-Range: bytes 0-1/10\n\n# the form above describes an enclosed range, and a 416 encloses none",
+            },
+        ]
+    }
+}
+
+impl Rule for RangeAndContentRangeConsistent {
+    /// Every finding here is about a response: the field this rule is named for
+    /// is meaningful in exactly two status codes, and a status code is something
+    /// only a response has. The request's `Range` is read as *context* for those
+    /// findings, never judged — its syntax belongs to
+    /// `range_header_syntax`. `Server` says that in the one place
+    /// the engine reads, and costs nothing: it only skips transactions with no
+    /// response, which the first line of the check already returned `None` for.
+    // cite(RFC 9110 § 14.4): "The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range."
+    fn scope(&self) -> crate::rules::RuleScope {
+        crate::rules::RuleScope::Server
     }
 
     fn findings(
@@ -370,55 +421,6 @@ impl Rule for RangeAndContentRangeConsistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Validate the semantics and syntax of `Range` (request) and `Content-Range` (response) interactions.\n\n**A 206 carrying a single part** MUST include a `Content-Range` describing the enclosed range, and `Content-Length` (when present) must equal that range's length.\n\n**A 206 carrying multiple parts** is the opposite case, and RFC 9110 §15.3.7.2 is explicit about it: the parts each carry their own `Content-Range` and the header section MUST NOT carry one. A response whose `Content-Type` is `multipart/byteranges` is therefore checked for the *presence* of the field rather than its absence — and, since a client that asked for one range may not be able to read a multipart response, for having been sent to a request that asked for more than one. What is inside the parts is message content, which this rule does not read.\n\n**A 416** (Range Not Satisfiable) is the rejection of the ranges in the request's `Range` field. To a *byte*-range request it should carry `Content-Range: bytes */<complete-length>`; both sentences asking for that field say SHOULD and both say it of byte ranges only, so its absence is not reported for other units. A `Content-Range` the server did send is checked whatever the unit: a 416 encloses no part, so the satisfied form cannot be what it means.\n\nA 206 or a 416 whose request carried no `Range` at all contradicts the status code's own definition, and is reported whatever the response's `Content-Range` says.\n\nA 416 answering a *partial PUT* is the exception: such a request names its range in its own `Content-Range`, and RFC 9110 §14.5 leaves that exchange to private agreement between the parties, so there is no sentence here to measure it against.\n\n**Not this rule's findings:** a malformed `Content-Length` belongs to `content_length_valid`, which owns that field's syntax on both sides — this rule declines rather than reporting it a second time; a `Range` value that is not a `ranges-specifier` belongs to `range_header_syntax`, and leaves this rule knowing less rather than guessing."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_9110_15_3_7,
-            RFC_9110_15_3_7_2,
-            RFC_9110_14_4,
-            RFC_9110_15_5_17,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nHTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nContent-Length: 500\nContent-Type: application/octet-stream\n\n...500 bytes...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=0-499\n\nHTTP/1.1 206 Partial Content\nContent-Length: 500\n\n...500 bytes but missing Content-Range in headers...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\n\nHTTP/1.1 206 Partial Content\nContent-Range: bytes 0-1/10\n\n# 206 must not be sent if the request did not include a Range header",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("(multiple parts: each body part carries its own Content-Range)"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=500-999,7000-7999\n\nHTTP/1.1 206 Partial Content\nContent-Type: multipart/byteranges; boundary=THIS_STRING_SEPARATES\nContent-Length: 1741\n\n...the parts, each with its own Content-Range...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— a multipart 206 must not carry Content-Range in its header section"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=500-999,7000-7999\n\nHTTP/1.1 206 Partial Content\nContent-Type: multipart/byteranges; boundary=THIS_STRING_SEPARATES\nContent-Range: bytes 500-999/8000\n\n...the parts...",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— 416 uses the \"*/complete-length\" unsatisfied-range form"),
-                snippet: "GET /resource HTTP/1.1\nHost: example.com\nRange: bytes=99999-\n\nHTTP/1.1 416 Range Not Satisfiable\nContent-Range: bytes 0-1/10\n\n# the form above describes an enclosed range, and a 416 encloses none",
-            },
-        ]
     }
 }
 
@@ -735,9 +737,9 @@ mod tests {
             &owner,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[crate::rules::Rule::id(
-                &owner,
-            )]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                crate::rules::RuleMeta::id(&owner),
+            ]),
         );
         assert!(
             found.is_some(),
@@ -833,7 +835,7 @@ mod tests {
     /// to the docs unnoticed.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
         let rule = RangeAndContentRangeConsistent;
         let cfg = cfg_with_units(&["bytes"]);
 
@@ -870,7 +872,7 @@ mod tests {
     fn published_values_satisfy_the_rules_that_own_them() {
         use crate::rules::content_length_valid::ContentLengthValid;
         use crate::rules::multipart_boundary_syntax::MultipartBoundarySyntax;
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
 
         for ex in RangeAndContentRangeConsistent.examples() {
             if ex.compliance != Compliance::Compliant {

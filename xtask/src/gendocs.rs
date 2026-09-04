@@ -4,10 +4,10 @@
 
 //! Documentation generator: renders `docs/rules/<id>.md` and the
 //! `docs/rules.md` index from rule metadata
-//! ([`Rule::description`],
-//! [`specifications`](lint_http_rules::rules::Rule::specifications),
-//! [`examples`](lint_http_rules::rules::Rule::examples),
-//! [`title`](lint_http_rules::rules::Rule::title)) plus the per-rule
+//! ([`description`](lint_http_rules::rules::RuleMeta::description),
+//! [`specifications`](lint_http_rules::rules::RuleMeta::specifications),
+//! [`examples`](lint_http_rules::rules::RuleMeta::examples),
+//! [`title`](lint_http_rules::rules::RuleMeta::title)) plus the per-rule
 //! `[rules.<id>]` section pulled from `config_example.toml`.
 //!
 //! The render functions are pure and deterministic so the #11d CI gate
@@ -15,7 +15,7 @@
 //! checked-in docs.
 
 use lint_http_rules::rules::{
-    Compliance, Example, ProtocolRule, Rule, RuleScope, SpecRef, PROTOCOL_RULES, RULES,
+    all_rules, Compliance, Example, ProtocolRule, Rule, RuleScope, SpecRef, PROTOCOL_RULES, RULES,
 };
 use std::path::{Path, PathBuf};
 
@@ -238,18 +238,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
 
     let config_toml = std::fs::read_to_string(repo_root().join("config_example.toml"))?;
 
-    for rule in RULES.iter() {
-        let doc = render_doc(
-            rule.id(),
-            rule.title(),
-            rule.description(),
-            rule.specifications(),
-            rule.examples(),
-            config_block_for(rule.id(), &config_toml).as_deref(),
-        );
-        std::fs::write(rules_dir.join(format!("{}.md", rule.id())), doc)?;
-    }
-    for rule in PROTOCOL_RULES.iter() {
+    for rule in all_rules() {
         let doc = render_doc(
             rule.id(),
             rule.title(),
@@ -363,7 +352,7 @@ mod tests {
                 config_block_for(id, &config_toml).as_deref(),
             )
         };
-        for rule in RULES.iter() {
+        for rule in all_rules() {
             let doc = render(
                 rule.id(),
                 rule.title(),
@@ -379,20 +368,6 @@ mod tests {
             assert!(
                 doc.contains("## Description"),
                 "{} missing Description",
-                rule.id()
-            );
-        }
-        for rule in PROTOCOL_RULES.iter() {
-            let doc = render(
-                rule.id(),
-                rule.title(),
-                rule.description(),
-                rule.specifications(),
-                rule.examples(),
-            );
-            assert!(
-                doc.starts_with(SPDX_HEADER),
-                "{} missing SPDX header",
                 rule.id()
             );
         }
@@ -421,20 +396,13 @@ mod tests {
     fn render_index_mentions_every_rule() {
         let index = render_index(&RULES, &PROTOCOL_RULES);
         assert!(index.contains("# Lint Rules"));
-        for rule in RULES.iter() {
+        for rule in all_rules() {
             assert_eq!(
                 index
                     .matches(&format!("[{0}](rules/{0}.md)", rule.id()))
                     .count(),
                 1,
                 "index should link {} exactly once",
-                rule.id()
-            );
-        }
-        for rule in PROTOCOL_RULES.iter() {
-            assert!(
-                index.contains(&format!("[{0}](rules/{0}.md)", rule.id())),
-                "index missing protocol rule {}",
                 rule.id()
             );
         }
@@ -548,10 +516,7 @@ mod tests {
                 }
             }
         };
-        for rule in RULES.iter() {
-            check(rule.id(), rule.specifications());
-        }
-        for rule in PROTOCOL_RULES.iter() {
+        for rule in all_rules() {
             check(rule.id(), rule.specifications());
         }
     }
@@ -576,10 +541,7 @@ mod tests {
                 );
             }
         };
-        for rule in RULES.iter() {
-            check(rule.id(), rule.specifications());
-        }
-        for rule in PROTOCOL_RULES.iter() {
+        for rule in all_rules() {
             check(rule.id(), rule.specifications());
         }
     }
@@ -589,7 +551,7 @@ mod tests {
     /// generated artifact — editing a rule (or `config_example.toml`) without
     /// regenerating fails CI. Run `cargo xtask gendocs` to fix drift.
     ///
-    /// The gate is a loop over `RULES`, so an empty catalogue would satisfy it
+    /// The gate is a loop over the catalogue, so an empty one would satisfy it
     /// over nothing at all — and the catalogue reaches this crate across an rlib
     /// boundary, which is exactly where linkme can come up empty. The floor
     /// assertion is what keeps a link failure from reading as 194 files in
@@ -616,20 +578,7 @@ mod tests {
                 id
             );
         };
-        for rule in RULES.iter() {
-            check(
-                rule.id(),
-                render_doc(
-                    rule.id(),
-                    rule.title(),
-                    rule.description(),
-                    rule.specifications(),
-                    rule.examples(),
-                    config_block_for(rule.id(), &config_toml).as_deref(),
-                ),
-            );
-        }
-        for rule in PROTOCOL_RULES.iter() {
+        for rule in all_rules() {
             check(
                 rule.id(),
                 render_doc(

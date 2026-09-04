@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct ContentMd5VsDigestPreference;
 
@@ -29,11 +29,37 @@ const RFC_2616_14_15: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`Content-MD5`, where it was defined — and from where RFC 7231 removed it. This reference said RFC 7231 §3.3.2, a section that does not exist in RFC 7231",
 };
 
-impl Rule for ContentMd5VsDigestPreference {
+impl RuleMeta for ContentMd5VsDigestPreference {
     fn id(&self) -> &'static str {
         "content_md5_vs_digest_preference"
     }
 
+    fn description(&self) -> &'static str {
+        "This rule flags messages (requests or responses) that carry both `Content-Digest` (the RFC 9530 structured field) and the legacy `Content-MD5` header.\n\nCarrying both is a hazard in its own right: they are independent integrity values over the same content, computed by different algorithms, and no specification says which one a recipient validates — so a mismatch between them has no defined resolution.\n\n`Content-MD5` should simply be dropped. It is not merely discouraged but absent from HTTP: RFC 7231 removed it, for being inconsistently implemented with respect to partial responses. (RFC 9530, which defines `Content-Digest`, does not mention `Content-MD5` at all and so is not the document that retired it.)"
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9530_2, RFC_7231_APPENDIX_B, RFC_2616_14_15]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "Content-Digest: sha-256=:dGVzdA==:",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "Content-Digest: sha-256=:dGVzdA==:\nContent-MD5: dGVzdA==",
+            },
+        ]
+    }
+}
+
+impl Rule for ContentMd5VsDigestPreference {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Both
     }
@@ -93,30 +119,6 @@ impl Rule for ContentMd5VsDigestPreference {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "This rule flags messages (requests or responses) that carry both `Content-Digest` (the RFC 9530 structured field) and the legacy `Content-MD5` header.\n\nCarrying both is a hazard in its own right: they are independent integrity values over the same content, computed by different algorithms, and no specification says which one a recipient validates — so a mismatch between them has no defined resolution.\n\n`Content-MD5` should simply be dropped. It is not merely discouraged but absent from HTTP: RFC 7231 removed it, for being inconsistently implemented with respect to partial responses. (RFC 9530, which defines `Content-Digest`, does not mention `Content-MD5` at all and so is not the document that retired it.)"
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9530_2, RFC_7231_APPENDIX_B, RFC_2616_14_15]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "Content-Digest: sha-256=:dGVzdA==:",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "Content-Digest: sha-256=:dGVzdA==:\nContent-MD5: dGVzdA==",
-            },
-        ]
     }
 }
 

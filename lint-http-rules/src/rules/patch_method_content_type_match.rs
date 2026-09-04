@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Reports a `PATCH` whose `Content-Type` names a patch document format no
 /// response for this resource has advertised in `Accept-Patch`.
@@ -137,11 +137,50 @@ const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The `media-type` grammar: type and subtype are case-insensitive, and whether a parameter is significant depends on the media type's registration",
 };
 
-impl Rule for PatchMethodContentTypeMatch {
+impl RuleMeta for PatchMethodContentTypeMatch {
     fn id(&self) -> &'static str {
         "patch_method_content_type_match"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Client PATCH Content-Type Matches Accept-Patch")
+    }
+
+    fn description(&self) -> &'static str {
+        "Reports a `PATCH` request whose `Content-Type` names a patch document format that no `Accept-Patch` for this resource has mentioned.\n\n**Why the advertisement is the only evidence.** RFC 5789 defines no default patch document format, no registry of them and no naming convention, so nothing in a lone `PATCH` says whether its media type is one a server takes — `patch_partial_update` requires the field and does not judge its value for exactly that reason. RFC 9110 §12.3 names where the answer lives: `Accept-Patch` \"allows discovery of which content types are accepted in PATCH requests\", and preferences a server sends in a response are \"request content negotiation\" because they \"intend to influence selection of an appropriate content for subsequent requests to that resource\".\n\n**What makes an unlisted type a finding.** RFC 5789 places no requirement on the client: §3.1 says the presence of a format \"indicates that that specific format is allowed\", and §2.2 gives the server a `415 (Unsupported Media Type)` for one it does not support. The sentence that closes the list is RFC 9110 §12.4.3's — \"[i]f no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable\" — which reaches this field through §12.3. So the report is that the exchange contradicts itself: the client sent a format the server had already said it does not accept. It is not a disobeyed MUST or SHOULD, and there is none to disobey.\n\n**There is no wildcard.** `Accept-Patch` is `1#media-type`. The asterisk forms are `Accept`'s `media-range` (RFC 9110 §12.5.1), a different production in a different field, and §12.4.3 makes wildcards a feature a field has only \"where indicated\". A server writing `Accept-Patch: */*` or `application/*` has therefore advertised a media type spelled with an asterisk; the finding says so when it happens, rather than treating it as permission.\n\n**Which advertisement counts.** The most recent response *for this resource* that carried the field, whichever method drew it — §3.1 makes the field's presence \"in response to any method\" an indication about the resource, so an `OPTIONS` exchange several requests back still counts.\n\n**What is not judged here.** The advertisement's syntax: members that do not parse as a media type are skipped, and a field with no parseable member leaves the rule unable to answer, so it declines. `accept_patch_header_valid` is the rule that reports a malformed `Accept-Patch`, on a response to any method — including the `OPTIONS` response §3.1 asks for it in, which nothing validated until that rule was audited. On the request side, more than one `Content-Type` line makes the comparison meaningless, because recipients differ over which member wins (§8.3); a value that is not a media type, and an absent one, are `content_type_valid`'s and `patch_partial_update`'s findings. Parameters are not compared: whether one is significant depends on the media type's registration (§8.3.1), so `text/example` and `text/example;charset=utf-8` are treated as the same format."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[
+            RFC_5789_3_1,
+            RFC_5789_2_2,
+            RFC_9110_12_3,
+            RFC_9110_12_4_3,
+            RFC_9110_8_3,
+            RFC_9110_8_3_1,
+        ]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some(
+                    "advertised by the OPTIONS response, and a parameter does not make a different format",
+                ),
+                snippet: "OPTIONS /example/buddies.xml HTTP/1.1\nHost: www.example.com\n\nHTTP/1.1 200 OK\nAllow: GET, PUT, POST, OPTIONS, HEAD, DELETE, PATCH\nAccept-Patch: application/example, text/example\n\nPATCH /example/buddies.xml HTTP/1.1\nHost: www.example.com\nContent-Type: text/example;charset=utf-8\nContent-Length: 11\n\n[patch doc]",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("a format the advertisement never mentioned"),
+                snippet: "OPTIONS /example/buddies.xml HTTP/1.1\nHost: www.example.com\n\nHTTP/1.1 200 OK\nAccept-Patch: application/example, text/example\n\nPATCH /example/buddies.xml HTTP/1.1\nHost: www.example.com\nContent-Type: application/merge-patch+json\nContent-Length: 11\n\n[patch doc]",
+            },
+        ]
+    }
+}
+
+impl Rule for PatchMethodContentTypeMatch {
     /// The finding is about the request this transaction carries; the response
     /// it is measured against belongs to an *earlier* transaction. So the rule
     /// needs no response of its own, and `Client` keeps it running on a capture
@@ -257,43 +296,6 @@ impl Rule for PatchMethodContentTypeMatch {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Client PATCH Content-Type Matches Accept-Patch")
-    }
-
-    fn description(&self) -> &'static str {
-        "Reports a `PATCH` request whose `Content-Type` names a patch document format that no `Accept-Patch` for this resource has mentioned.\n\n**Why the advertisement is the only evidence.** RFC 5789 defines no default patch document format, no registry of them and no naming convention, so nothing in a lone `PATCH` says whether its media type is one a server takes — `patch_partial_update` requires the field and does not judge its value for exactly that reason. RFC 9110 §12.3 names where the answer lives: `Accept-Patch` \"allows discovery of which content types are accepted in PATCH requests\", and preferences a server sends in a response are \"request content negotiation\" because they \"intend to influence selection of an appropriate content for subsequent requests to that resource\".\n\n**What makes an unlisted type a finding.** RFC 5789 places no requirement on the client: §3.1 says the presence of a format \"indicates that that specific format is allowed\", and §2.2 gives the server a `415 (Unsupported Media Type)` for one it does not support. The sentence that closes the list is RFC 9110 §12.4.3's — \"[i]f no wildcard is present, values that are not explicitly mentioned in the field are considered unacceptable\" — which reaches this field through §12.3. So the report is that the exchange contradicts itself: the client sent a format the server had already said it does not accept. It is not a disobeyed MUST or SHOULD, and there is none to disobey.\n\n**There is no wildcard.** `Accept-Patch` is `1#media-type`. The asterisk forms are `Accept`'s `media-range` (RFC 9110 §12.5.1), a different production in a different field, and §12.4.3 makes wildcards a feature a field has only \"where indicated\". A server writing `Accept-Patch: */*` or `application/*` has therefore advertised a media type spelled with an asterisk; the finding says so when it happens, rather than treating it as permission.\n\n**Which advertisement counts.** The most recent response *for this resource* that carried the field, whichever method drew it — §3.1 makes the field's presence \"in response to any method\" an indication about the resource, so an `OPTIONS` exchange several requests back still counts.\n\n**What is not judged here.** The advertisement's syntax: members that do not parse as a media type are skipped, and a field with no parseable member leaves the rule unable to answer, so it declines. `accept_patch_header_valid` is the rule that reports a malformed `Accept-Patch`, on a response to any method — including the `OPTIONS` response §3.1 asks for it in, which nothing validated until that rule was audited. On the request side, more than one `Content-Type` line makes the comparison meaningless, because recipients differ over which member wins (§8.3); a value that is not a media type, and an absent one, are `content_type_valid`'s and `patch_partial_update`'s findings. Parameters are not compared: whether one is significant depends on the media type's registration (§8.3.1), so `text/example` and `text/example;charset=utf-8` are treated as the same format."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[
-            RFC_5789_3_1,
-            RFC_5789_2_2,
-            RFC_9110_12_3,
-            RFC_9110_12_4_3,
-            RFC_9110_8_3,
-            RFC_9110_8_3_1,
-        ]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some(
-                    "advertised by the OPTIONS response, and a parameter does not make a different format",
-                ),
-                snippet: "OPTIONS /example/buddies.xml HTTP/1.1\nHost: www.example.com\n\nHTTP/1.1 200 OK\nAllow: GET, PUT, POST, OPTIONS, HEAD, DELETE, PATCH\nAccept-Patch: application/example, text/example\n\nPATCH /example/buddies.xml HTTP/1.1\nHost: www.example.com\nContent-Type: text/example;charset=utf-8\nContent-Length: 11\n\n[patch doc]",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("a format the advertisement never mentioned"),
-                snippet: "OPTIONS /example/buddies.xml HTTP/1.1\nHost: www.example.com\n\nHTTP/1.1 200 OK\nAccept-Patch: application/example, text/example\n\nPATCH /example/buddies.xml HTTP/1.1\nHost: www.example.com\nContent-Type: application/merge-patch+json\nContent-Length: 11\n\n[patch doc]",
-            },
-        ]
     }
 }
 

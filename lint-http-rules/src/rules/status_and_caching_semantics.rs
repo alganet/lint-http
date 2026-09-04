@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Ensures responses that are not cacheable by default include explicit
 /// freshness information (e.g., `Cache-Control: max-age=...` / `s-maxage=...` or `Expires`).
@@ -26,11 +26,47 @@ const RFC_9110_15_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Overview of Status Codes (which status codes are defined as heuristically cacheable)",
 };
 
-impl Rule for StatusAndCachingSemantics {
+impl RuleMeta for StatusAndCachingSemantics {
     fn id(&self) -> &'static str {
         "status_and_caching_semantics"
     }
 
+    fn title(&self) -> Option<&'static str> {
+        Some("Server Status and Caching Semantics")
+    }
+
+    fn description(&self) -> &'static str {
+        "Responses with certain status codes are cacheable by default (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). For other status codes to be cacheable, servers MUST include explicit freshness information such as `Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header.\n\nThis rule warns when a response status that is not cacheable by default does not include explicit freshness information."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_3, RFC_9110_15_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet:
+                    "HTTP/1.1 302 Found\nCache-Control: max-age=60\nLocation: https://example.org/",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 503 Service Unavailable\nExpires: Wed, 21 Oct 2015 07:28:00 GMT",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: None,
+                snippet: "HTTP/1.1 302 Found\nLocation: https://example.org/",
+            },
+        ]
+    }
+}
+
+impl Rule for StatusAndCachingSemantics {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -93,40 +129,6 @@ impl Rule for StatusAndCachingSemantics {
                 )))
         };
         Vec::from_iter(finding())
-    }
-
-    fn title(&self) -> Option<&'static str> {
-        Some("Server Status and Caching Semantics")
-    }
-
-    fn description(&self) -> &'static str {
-        "Responses with certain status codes are cacheable by default (for example: `200`, `203`, `204`, `206`, `300`, `301`, `308`, `404`, `405`, `410`, `414`, `501`). For other status codes to be cacheable, servers MUST include explicit freshness information such as `Cache-Control: max-age=<seconds>` / `Cache-Control: s-maxage=<seconds>` or an `Expires` header.\n\nThis rule warns when a response status that is not cacheable by default does not include explicit freshness information."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_3, RFC_9110_15_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet:
-                    "HTTP/1.1 302 Found\nCache-Control: max-age=60\nLocation: https://example.org/",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 503 Service Unavailable\nExpires: Wed, 21 Oct 2015 07:28:00 GMT",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/1.1 302 Found\nLocation: https://example.org/",
-            },
-        ]
     }
 }
 

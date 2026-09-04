@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 /// Stateful check ensuring that caches (and caching clients) treat `Vary`
 /// dimensions as part of their cache key.
@@ -44,11 +44,47 @@ url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-4.1",
 note: "Calculating Cache Keys with the Vary Header Field (all Vary-nominated request fields must match for reuse)",
         };
 
-impl Rule for VaryHeaderCacheValid {
+impl RuleMeta for VaryHeaderCacheValid {
     fn id(&self) -> &'static str {
         "vary_header_cache_valid"
     }
 
+    fn description(&self) -> &'static str {
+        "Caches use the response's `Vary` header to decide which request header values must be incorporated into their cache key.  When a cached representation is reused (for example via conditional requests using `If-None-Match` or `If-Modified-Since`), the values of *all* headers listed in `Vary` **must** be identical to those that produced the stored response.  Otherwise the cache is effectively using an incomplete key and may send a stale or incorrect representation to the server or client.\n\nThis rule inspects conditional requests and attempts to pair them with the prior response whose validator is being reused.  If that earlier response included a `Vary` header, the rule compares the request header values from the two transactions.  Any difference is reported as a violation because it indicates the cache key omitted a required dimension.\n\nThe rule is intentionally forgiving:\n\n* It only applies when a previous validator matching the current conditional header can be located.\n* `Vary: *` is ignored, since it precludes reuse and offers no explicit fields to compare.\n* When no `Vary` header is present on the candidate response, no check is performed."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9111_4_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip\n>\n< HTTP/1.1 200 OK\n< Vary: Accept-Encoding\n< ETag: \"v1\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n> Accept-Encoding: gzip",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— Vary dimension changed on revalidation"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip\n>\n< HTTP/1.1 200 OK\n< Vary: Accept-Encoding\n< ETag: \"v1\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n> Accept-Encoding: deflate    # mismatch from original request",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— non-conditional request"),
+                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— non-conditional request"),
+                snippet: "< HTTP/1.1 200 OK\n< Vary: Accept-Encoding\n< ETag: \"v1\"",
+            },
+        ]
+    }
+}
+
+impl Rule for VaryHeaderCacheValid {
     fn scope(&self) -> crate::rules::RuleScope {
         // rule inspects both request and response history
         crate::rules::RuleScope::Both
@@ -217,40 +253,6 @@ impl Rule for VaryHeaderCacheValid {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Caches use the response's `Vary` header to decide which request header values must be incorporated into their cache key.  When a cached representation is reused (for example via conditional requests using `If-None-Match` or `If-Modified-Since`), the values of *all* headers listed in `Vary` **must** be identical to those that produced the stored response.  Otherwise the cache is effectively using an incomplete key and may send a stale or incorrect representation to the server or client.\n\nThis rule inspects conditional requests and attempts to pair them with the prior response whose validator is being reused.  If that earlier response included a `Vary` header, the rule compares the request header values from the two transactions.  Any difference is reported as a violation because it indicates the cache key omitted a required dimension.\n\nThe rule is intentionally forgiving:\n\n* It only applies when a previous validator matching the current conditional header can be located.\n* `Vary: *` is ignored, since it precludes reuse and offers no explicit fields to compare.\n* When no `Vary` header is present on the candidate response, no check is performed."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_4_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip\n>\n< HTTP/1.1 200 OK\n< Vary: Accept-Encoding\n< ETag: \"v1\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n> Accept-Encoding: gzip",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— Vary dimension changed on revalidation"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip\n>\n< HTTP/1.1 200 OK\n< Vary: Accept-Encoding\n< ETag: \"v1\"\n\n> GET /resource HTTP/1.1\n> Host: example.com\n> If-None-Match: \"v1\"\n> Accept-Encoding: deflate    # mismatch from original request",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— non-conditional request"),
-                snippet: "> GET /resource HTTP/1.1\n> Host: example.com\n> Accept-Encoding: gzip",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— non-conditional request"),
-                snippet: "< HTTP/1.1 200 OK\n< Vary: Accept-Encoding\n< ETag: \"v1\"",
-            },
-        ]
     }
 }
 

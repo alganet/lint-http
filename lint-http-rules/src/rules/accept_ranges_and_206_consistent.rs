@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
-use crate::rules::Rule;
+use crate::rules::{Rule, RuleMeta};
 
 pub struct AcceptRangesAnd206Consistent;
 
@@ -35,11 +35,57 @@ const RFC_9110_14_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Range units: `range-unit = token`, one construct shared by `Accept-Ranges`, `Range` and `Content-Range`, and case-insensitive — which is why both sides of the comparison are folded",
 };
 
-impl Rule for AcceptRangesAnd206Consistent {
+impl RuleMeta for AcceptRangesAnd206Consistent {
     fn id(&self) -> &'static str {
         "accept_ranges_and_206_consistent"
     }
 
+    fn description(&self) -> &'static str {
+        "Advice about one field, and one contradiction. `Accept-Ranges` tells a client which range units a resource supports, and a 206 (Partial Content) response is proof that it supports at least one — so what the two say together is worth reading, even though almost none of it is required.\n\n**No `Accept-Ranges` on a 206** is reported as advice rather than as a violation. RFC 9110 §14.3 says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\" and that the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\"; §14 makes range requests an OPTIONAL feature of HTTP altogether. A server that omits the field is conforming, and this rule used to describe it as a SHOULD that no sentence supports. §15.3.7 does list the header fields a 206 MUST carry — Date, Cache-Control, ETag, Expires, Content-Location and Vary — and `Accept-Ranges` is not one of them.\n\n**`Accept-Ranges: none` on a 206** is the contradiction. The permission to send `none` is granted to \"a server that does not support any kind of range request for the target resource\", and a 206 is that server successfully fulfilling one. The range unit `none` is reserved for saying that, so it is reported when it travels beside a real unit as well as when it stands alone.\n\n**A `Content-Range` unit the field does not advertise** sits on the same advisory footing as the first finding: a 206 is sent when the request's range unit is supported for the target resource (§14.2), so an advertisement that leaves that unit out is incomplete advice, not a violation.\n\n**The trailer section counts.** §14.3 permits `Accept-Ranges` in a trailer section — the rule reads both sections, so a response that advertises after its content is not reported for advertising nothing.\n\n**Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `range_and_content_range_consistent`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field."
+    }
+
+    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
+        &[RFC_9110_14_3, RFC_9110_15_3_7, RFC_9110_14_2, RFC_9110_14_1]
+    }
+
+    fn examples(&self) -> &'static [crate::rules::Example] {
+        use crate::rules::{Compliance, Example};
+        &[
+            Example {
+                compliance: Compliance::Compliant,
+                label: None,
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: bytes",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— unit names are case-insensitive"),
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: BYTES",
+            },
+            Example {
+                compliance: Compliance::Compliant,
+                label: Some("— one list split across two field lines"),
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: pages\nAccept-Ranges: bytes",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— `none` contradicts the 206 that fulfilled a range request"),
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: none",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— advice: no field to resume from"),
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234",
+            },
+            Example {
+                compliance: Compliance::NonCompliant,
+                label: Some("— advice: the unit served is not among those advertised"),
+                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: pages",
+            },
+        ]
+    }
+}
+
+impl Rule for AcceptRangesAnd206Consistent {
     fn scope(&self) -> crate::rules::RuleScope {
         crate::rules::RuleScope::Server
     }
@@ -135,50 +181,6 @@ impl Rule for AcceptRangesAnd206Consistent {
             None
         };
         Vec::from_iter(finding())
-    }
-
-    fn description(&self) -> &'static str {
-        "Advice about one field, and one contradiction. `Accept-Ranges` tells a client which range units a resource supports, and a 206 (Partial Content) response is proof that it supports at least one — so what the two say together is worth reading, even though almost none of it is required.\n\n**No `Accept-Ranges` on a 206** is reported as advice rather than as a violation. RFC 9110 §14.3 says a client \"MAY generate range requests regardless of having received an Accept-Ranges field\" and that the field \"only provides advice for the sake of improving performance and reducing unnecessary network transfers\"; §14 makes range requests an OPTIONAL feature of HTTP altogether. A server that omits the field is conforming, and this rule used to describe it as a SHOULD that no sentence supports. §15.3.7 does list the header fields a 206 MUST carry — Date, Cache-Control, ETag, Expires, Content-Location and Vary — and `Accept-Ranges` is not one of them.\n\n**`Accept-Ranges: none` on a 206** is the contradiction. The permission to send `none` is granted to \"a server that does not support any kind of range request for the target resource\", and a 206 is that server successfully fulfilling one. The range unit `none` is reserved for saying that, so it is reported when it travels beside a real unit as well as when it stands alone.\n\n**A `Content-Range` unit the field does not advertise** sits on the same advisory footing as the first finding: a 206 is sent when the request's range unit is supported for the target resource (§14.2), so an advertisement that leaves that unit out is incomplete advice, not a violation.\n\n**The trailer section counts.** §14.3 permits `Accept-Ranges` in a trailer section — the rule reads both sections, so a response that advertises after its content is not reported for advertising nothing.\n\n**Not this rule's findings.** Whether the value is a well-formed list of range units belongs to `accept_ranges_values_valid`; whether a 206 carries a `Content-Range` at all, and whether that value parses, belong to `range_and_content_range_consistent`. Where a field line cannot be read as range units — an octet outside US-ASCII, a character `token` excludes, a list with no elements — this rule declines rather than reporting the field a second time, and stays quiet about a unit it may not have seen. A value it cannot read is still counted as present: the message on the wire carries the field."
-    }
-
-    fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_14_3, RFC_9110_15_3_7, RFC_9110_14_2, RFC_9110_14_1]
-    }
-
-    fn examples(&self) -> &'static [crate::rules::Example] {
-        use crate::rules::{Compliance, Example};
-        &[
-            Example {
-                compliance: Compliance::Compliant,
-                label: None,
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: bytes",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— unit names are case-insensitive"),
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: BYTES",
-            },
-            Example {
-                compliance: Compliance::Compliant,
-                label: Some("— one list split across two field lines"),
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: pages\nAccept-Ranges: bytes",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— `none` contradicts the 206 that fulfilled a range request"),
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: none",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— advice: no field to resume from"),
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: Some("— advice: the unit served is not among those advertised"),
-                snippet: "HTTP/1.1 206 Partial Content\nContent-Range: bytes 0-499/1234\nAccept-Ranges: pages",
-            },
-        ]
     }
 }
 
@@ -399,7 +401,7 @@ mod tests {
     /// example here is a response whose two fields are read together.
     #[test]
     fn published_examples_are_judged_the_way_they_are_labelled() {
-        use crate::rules::{Compliance, Rule as _};
+        use crate::rules::{Compliance, RuleMeta as _};
 
         let mut saw_a_finding = false;
         for ex in AcceptRangesAnd206Consistent.examples() {
@@ -443,7 +445,7 @@ mod tests {
     /// goes past the code that owns its syntax.
     #[test]
     fn published_examples_hold_values_their_owners_accept() {
-        use crate::rules::Rule as _;
+        use crate::rules::RuleMeta as _;
 
         for ex in AcceptRangesAnd206Consistent.examples() {
             for line in ex.snippet.lines() {
