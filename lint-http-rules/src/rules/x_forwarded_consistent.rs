@@ -86,7 +86,7 @@ fn check_member(field: &str, kind: Members, member: &str) -> Option<String> {
         Members::Node => {
             crate::helpers::forwarded_node::validate_node(member, NodeForm::XForwarded)
                 .err()
-                .map(|e| format!("{} {}", field, e))
+                .map(|defect| format!("{} {}", field, defect.message()))
         }
 
         // The MUST has two halves and this is the first. A scheme is also

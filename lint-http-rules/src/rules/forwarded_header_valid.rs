@@ -45,7 +45,7 @@ fn field_line(bytes: &[u8]) -> String {
 fn validate_node(param: &str, value: &str) -> Option<String> {
     crate::helpers::forwarded_node::validate_node(value, NodeForm::Forwarded)
         .err()
-        .map(|e| format!("Forwarded '{}' {}", param, e))
+        .map(|defect| format!("Forwarded '{}' {}", param, defect.message()))
 }
 
 /// A `host=` value, after unescaping: the `Host` field's own ABNF.

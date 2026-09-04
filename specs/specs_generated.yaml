@@ -1120,13 +1120,13 @@ sources:
     snippet: IPv4address = dec-octet "." dec-octet "." dec-octet "." dec-octet
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 156
+      line: 247
   - label: dec-octet grammar
     section: § 3.2.2
     snippet: dec-octet   = DIGIT                 ; 0-9 / %x31-39 DIGIT         ; 10-99
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 157
+      line: 248
   - label: lint-http-rules/src/helpers/ipv6.rs
     section: § 3.2.2
     snippet: A host identified by an Internet Protocol literal address, version 6 [RFC3513] or later, is distinguished by enclosing the IP literal within square brackets ("[" and "]").
@@ -1647,7 +1647,7 @@ sources:
     snippet: ABNF strings are case insensitive and the character set for these strings is US-ASCII.
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 141
+      line: 232
     - file: lint-http-rules/src/helpers/uri.rs
       line: 35
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
@@ -3212,19 +3212,19 @@ sources:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 62
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 79
+      line: 171
   - label: node-port grammar
     section: § 6
     snippet: node-port     = port / obfport port          = 1*5DIGIT obfport       = "_" 1*(ALPHA / DIGIT / "." / "_" / "-")
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 189
+      line: 273
   - label: nodename grammar
     section: § 6
     snippet: nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 107
+      line: 199
   - label: obfnode grammar
     section: § 6
     snippet: obfnode = "_" 1*( ALPHA / DIGIT / "." / "_" / "-")
@@ -3236,19 +3236,19 @@ sources:
     snippet: Also, note that an IPv6 address is always enclosed in square brackets.
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 92
+      line: 184
   - label: lint-http-rules/src/helpers/forwarded_node.rs (3)
     section: § 6.1
     snippet: The "IPv6address" SHOULD comply with textual representation recommendations [RFC5952] (for example, lowercase, compression of zeros).
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 125
+      line: 217
   - label: lint-http-rules/src/helpers/forwarded_node.rs (4)
     section: § 6.2
     snippet: The "unknown" identifier is used when the identity of the preceding entity is not known, but the proxy server still wants to signal that a forwarding of the request was made.
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
-      line: 142
+      line: 233
   - label: lint-http-rules/src/helpers/forwarded_node.rs (5)
     section: § 6.3
     snippet: To distinguish the obfuscated identifier from other identifiers, it MUST have a leading underscore "_". Furthermore, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-".
