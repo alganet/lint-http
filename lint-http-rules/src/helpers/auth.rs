@@ -2,7 +2,43 @@
 //
 // SPDX-License-Identifier: ISC
 
+//! The authentication framework's four helpers, and the one thing they share.
+//!
+//! RFC 9110 § 11 defines `challenge` and `credentials` out of one vocabulary —
+//! an `auth-scheme`, then either a `token68` or a `#auth-param` list — and this
+//! module reads all four sides of it: a `WWW-Authenticate` challenge, an
+//! `Authorization` value, and the credentials of the two schemes whose own
+//! documents say what goes in the `token68` (RFC 7617's `Basic`, RFC 6750's
+//! `Bearer`).
+//!
+//! **Every function here answers with a named defect, and none returns a
+//! sentence.** [`ChallengeDefect`], [`AuthorizationDefect`],
+//! [`BasicCredentialsDefect`] and [`BearerTokenDefect`] each carry what their
+//! finding needs and own its wording; the callers compose only the subject.
+//! Two of them span the same octet complaint under different productions —
+//! `ChallengeDefect::SchemeCharacter` and
+//! `ChallengeDefect::ParameterNameCharacter` — which is the distinction the
+//! `String`s could not draw and the reason the conversion was worth doing.
+//!
+//! **Four unreachable branches came out of naming them, three of one shape.**
+//! `validate_challenge_syntax`, `validate_authorization_syntax` and the
+//! `Content-Range` parser in another module each trimmed a value, rejected it
+//! for emptiness, split at the first whitespace, and then checked whether the
+//! first part was empty — which by then it cannot be, because `str::trim`
+//! removes exactly the characters `char::is_whitespace` matches. Written once
+//! and copied twice. A `Result<_, String>` hides that: a dead `return Err` is a
+//! line, while a variant nothing constructs is a claim the module cannot back.
+//! The fourth was `Basic`'s "decoded credentials empty", which needed base64's
+//! arithmetic rather than a reading — zero octets come out of zero symbols.
+//!
+//! The two remaining `Result<_, String>`s here are deliberate.
+//! `split_and_group_challenges` and `parse_auth_params` have two distinct
+//! defects each, and `parse_nc_hex` has one; an enum with a single variant is a
+//! `bool` with ceremony, and the ranked conversion order stopped where the
+//! count did.
+
 use crate::helpers::list::split_commas_respecting_quotes;
+use base64::Engine;
 
 /// Split a WWW-Authenticate header value into "assembled" challenges.
 ///
@@ -324,8 +360,6 @@ impl AuthorizationDefect {
         }
     }
 }
-
-use base64::Engine;
 
 /// Whether an `Authorization` field value has a valid `auth-scheme` and
 /// non-empty credentials after it, answered as an [`AuthorizationDefect`].
