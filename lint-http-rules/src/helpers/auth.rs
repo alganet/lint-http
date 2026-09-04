@@ -285,16 +285,65 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
     Ok(())
 }
 
-/// Validate an `Authorization` header value for having both a valid auth-scheme and
-/// non-empty credentials (token68 or auth-param list). Unlike `WWW-Authenticate` challenges,
-/// the `Authorization` header MUST include credentials after the auth-scheme.
-/// Returns Ok(()) on success or Err(String) describing the problem.
+/// What an `Authorization` field value fails to be.
+///
+/// Four variants for one field read in two halves: the `auth-scheme`, and
+/// whatever follows it. [`MissingCredentials`](Self::MissingCredentials) is the
+/// one that is this helper's judgment rather than § 11.4's grammar — see
+/// [`validate_authorization_syntax`], which explains why a bare scheme is
+/// framework-valid and reported anyway.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthorizationDefect {
+    /// No field value.
+    Empty,
+    /// A non-`token` octet in the `auth-scheme`, carrying the character.
+    SchemeCharacter(char),
+    /// A scheme with nothing after it, or nothing but whitespace.
+    MissingCredentials,
+    /// A control octet in the credentials. This helper reads no further into
+    /// them than that — which scheme's grammar they have to satisfy is the
+    /// scheme's own helper's question.
+    CredentialsControlCharacter,
+}
+
+impl AuthorizationDefect {
+    /// The finding. Each names the field, because the two callers add the
+    /// transaction's context rather than the field's.
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => "Authorization header is empty".to_string(),
+            Self::SchemeCharacter(c) => {
+                format!("Invalid character '{}' in Authorization auth-scheme", c)
+            }
+            Self::MissingCredentials => {
+                "Authorization header missing credentials after auth-scheme".to_string()
+            }
+            Self::CredentialsControlCharacter => {
+                "Authorization credentials contain control characters".to_string()
+            }
+        }
+    }
+}
+
 use base64::Engine;
 
-pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
+/// Whether an `Authorization` field value has a valid `auth-scheme` and
+/// non-empty credentials after it, answered as an [`AuthorizationDefect`].
+///
+/// Unlike a `WWW-Authenticate` challenge, this requires the credentials — see
+/// the § 11.4 note in the body for why, which is that every concrete scheme
+/// this serves mandates them even though the framework grammar does not.
+///
+/// **The scheme cannot be missing here either.** Same argument as
+/// [`validate_challenge_syntax`]: the value is trimmed and checked for
+/// emptiness, so what precedes the first `char::is_whitespace` is non-empty and
+/// `str::trim` cannot empty it. That makes three helpers in this module that
+/// carried the same unreachable sentence, all three written the same way, and
+/// naming the failures is what surfaced all three.
+pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDefect> {
     let v = value.trim();
     if v.is_empty() {
-        return Err("Authorization header is empty".into());
+        return Err(AuthorizationDefect::Empty);
     }
 
     let mut parts = v.splitn(2, char::is_whitespace);
@@ -302,15 +351,9 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
         .next()
         .expect("splitn always yields at least one element")
         .trim();
-    if scheme.is_empty() {
-        return Err("Authorization header missing auth-scheme".into());
-    }
     // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
-        return Err(format!(
-            "Invalid character '{}' in Authorization auth-scheme",
-            invalid
-        ));
+        return Err(AuthorizationDefect::SchemeCharacter(invalid));
     }
 
     // §11.4's grammar makes the part after the scheme optional ([ 1*SP … ]), so a
@@ -324,15 +367,15 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), String> {
     if let Some(rest) = parts.next() {
         let rest = rest.trim();
         if rest.is_empty() {
-            return Err("Authorization header missing credentials after auth-scheme".into());
+            return Err(AuthorizationDefect::MissingCredentials);
         }
         // Basic checks: no control characters
         if rest.chars().any(|c| (c as u32) < 0x20 || c == '\x7f') {
-            return Err("Authorization credentials contain control characters".into());
+            return Err(AuthorizationDefect::CredentialsControlCharacter);
         }
         Ok(())
     } else {
-        Err("Authorization header missing credentials after auth-scheme".into())
+        Err(AuthorizationDefect::MissingCredentials)
     }
 }
 
@@ -614,20 +657,52 @@ mod tests {
         );
     }
 
+    /// Both spellings of the same thing: a scheme with no second half, and a
+    /// scheme whose second half is whitespace. The second reaches a different
+    /// line of the function and used to carry a separately written copy of the
+    /// same sentence.
     #[test]
     fn validate_authorization_missing_credentials() {
-        assert!(validate_authorization_syntax("Basic").is_err());
-        assert!(validate_authorization_syntax("Basic ").is_err());
+        assert_eq!(
+            validate_authorization_syntax("Basic"),
+            Err(AuthorizationDefect::MissingCredentials)
+        );
+        assert_eq!(
+            validate_authorization_syntax("Basic "),
+            Err(AuthorizationDefect::MissingCredentials)
+        );
     }
 
     #[test]
     fn validate_authorization_invalid_scheme_char() {
-        assert!(validate_authorization_syntax("B@sic xyz").is_err());
+        assert_eq!(
+            validate_authorization_syntax("B@sic xyz"),
+            Err(AuthorizationDefect::SchemeCharacter('@'))
+        );
     }
 
     #[test]
     fn validate_authorization_control_chars() {
-        assert!(validate_authorization_syntax("Bearer \u{0001}").is_err());
+        assert_eq!(
+            validate_authorization_syntax("Bearer \u{0001}"),
+            Err(AuthorizationDefect::CredentialsControlCharacter)
+        );
+    }
+
+    /// An empty field value is empty, and a field value that is only
+    /// whitespace is the same thing — § 5.5 does not count either as part of
+    /// the value. Neither is a missing `auth-scheme`, which is a defect this
+    /// function has no variant for because no input reaches it.
+    #[test]
+    fn validate_authorization_empty() {
+        assert_eq!(
+            validate_authorization_syntax(""),
+            Err(AuthorizationDefect::Empty)
+        );
+        assert_eq!(
+            validate_authorization_syntax("   "),
+            Err(AuthorizationDefect::Empty)
+        );
     }
 
     #[test]

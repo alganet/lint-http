@@ -1618,7 +1618,7 @@ sources:
     snippet: Implementations MUST reject the encoded data if it contains characters outside the base alphabet when interpreting base-encoded data, unless the specification referring to this document explicitly states otherwise.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 411
+      line: 454
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 210
   - label: lint-http-rules/src/helpers/websocket.rs
@@ -2922,7 +2922,7 @@ sources:
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 503
+      line: 546
 - label: RFC 6797
   url: https://www.rfc-editor.org/rfc/rfc6797.html
   fragments:
@@ -3641,7 +3641,7 @@ sources:
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 564
+      line: 607
 - label: RFC 7617
   url: https://www.rfc-editor.org/rfc/rfc7617.html
   fragments:
@@ -3656,19 +3656,19 @@ sources:
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 424
+      line: 467
   - label: basic-credentials base64
     section: § 2
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 408
+      line: 451
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 2
     snippet: constructs the user-pass by concatenating the user-id, a single colon (":") character, and the password
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 416
+      line: 459
 - label: RFC 7838
   url: https://www.rfc-editor.org/rfc/rfc7838.html
   fragments:
@@ -5091,13 +5091,13 @@ sources:
     snippet: New and existing authentication schemes are specified independently and ought to be registered
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 87
+      line: 86
   - label: auth_scheme_registered (2)
     section: § 16.4.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 88
+      line: 87
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -6329,9 +6329,9 @@ sources:
     snippet: It uses a case-insensitive token to identify the authentication scheme
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 308
+      line: 354
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 74
+      line: 73
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 48
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
@@ -6349,7 +6349,7 @@ sources:
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 323
+      line: 366
   - label: lint-http-rules/src/helpers/auth.rs (4)
     section: § 11.6.1
     snippet: 'WWW-Authenticate = #challenge'
