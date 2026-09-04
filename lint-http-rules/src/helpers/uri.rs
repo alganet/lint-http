@@ -4,15 +4,49 @@
 
 //! Small reusable helpers for URI-ish checks used by several rules.
 
+/// The two ways a `pct-encoded` triplet fails to be one.
+///
+/// The triplet is the whole production: a `%` obliges exactly two hex digits,
+/// which is why a short run at the end of the string and a run with a non-hex
+/// digit are two answers rather than one "malformed" verdict.
+// cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
+// cite(RFC 3986 § 2.1): "A percent-encoded octet is encoded as a character triplet, consisting of the percent character "%" followed by the two hexadecimal digits representing that octet's numeric value."
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PercentEncodingDefect<'a> {
+    /// Fewer than two characters after the `%`, because the value ended.
+    Incomplete,
+    /// Two characters that are not both `HEXDIG`, carrying the triplet as
+    /// written — which is up to three *characters* and not three bytes, since
+    /// what follows a `%` is exactly where a multi-byte character may begin.
+    NotHexDigits(&'a str),
+}
+
+impl PercentEncodingDefect<'_> {
+    /// The finding fragment.
+    pub fn message(self) -> String {
+        match self {
+            Self::Incomplete => {
+                "Percent-encoding incomplete: '%' must be followed by two hex digits".to_string()
+            }
+            Self::NotHexDigits(seq) => format!("Invalid percent-encoding '{}'", seq),
+        }
+    }
+}
+
 /// Check percent-encoding runs inside a string. Returns `Some(msg)` describing the
 /// first problem found, or `None` if all percent-encodings look well-formed.
 ///
-/// The triplet is the whole production: a '%' obliges exactly two hex digits,
-/// which is why a short run at the end of the string and a run with a non-hex
-/// digit are reported separately rather than as one "malformed" verdict.
-// cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
-// cite(RFC 3986 § 2.1): "A percent-encoded octet is encoded as a character triplet, consisting of the percent character "%" followed by the two hexadecimal digits representing that octet's numeric value."
+/// This is [`percent_encoding_defect`] rendered, and the twenty-odd callers that
+/// embed the sentence in one of their own keep asking it. A caller that needs
+/// the failure inside a finding of its own — [`validate_uri_host`] names the
+/// host the triplet was in — asks the typed one.
 pub fn check_percent_encoding(s: &str) -> Option<String> {
+    percent_encoding_defect(s).map(PercentEncodingDefect::message)
+}
+
+/// The first malformed `pct-encoded` triplet in `s`, as a
+/// [`PercentEncodingDefect`], or `None` when every `%` opens a well-formed one.
+pub fn percent_encoding_defect(s: &str) -> Option<PercentEncodingDefect<'_>> {
     let bytes = s.as_bytes();
     let len = bytes.len();
     let mut i = 0usize;
@@ -20,9 +54,7 @@ pub fn check_percent_encoding(s: &str) -> Option<String> {
     while i < len {
         if bytes[i] == b'%' {
             if i + 2 >= len {
-                return Some(
-                    "Percent-encoding incomplete: '%' must be followed by two hex digits".into(),
-                );
+                return Some(PercentEncodingDefect::Incomplete);
             }
             let hi = bytes[i + 1];
             let lo = bytes[i + 2];
@@ -41,8 +73,11 @@ pub fn check_percent_encoding(s: &str) -> Option<String> {
                 // or continuation bytes of a multi-byte character — slicing to
                 // `i + 3` would cut one in half and panic. `i` is always at a '%'
                 // and so always on a character boundary.
-                let seq: String = s[i..].chars().take(3).collect();
-                return Some(format!("Invalid percent-encoding '{}'", seq));
+                let end = s[i..]
+                    .char_indices()
+                    .nth(3)
+                    .map_or(len, |(offset, _)| i + offset);
+                return Some(PercentEncodingDefect::NotHexDigits(&s[i..end]));
             }
             i += 3;
         } else {
@@ -156,7 +191,7 @@ pub fn validate_scheme_if_present(s: &str) -> Option<String> {
     // cannot start a relative-path reference either.
     validate_scheme_name(scheme_prefix(s)?)
         .err()
-        .map(|e| format!("Invalid scheme in value: {}", e))
+        .map(|defect| format!("Invalid scheme in value: {}", defect.message()))
 }
 
 /// Split an authority into its `userinfo` subcomponent and the `host [ ":" port ]`
@@ -941,20 +976,63 @@ pub fn parse_query_string(s: &str) -> Vec<(String, String)> {
 /// *after* a letter, so `9x` and `+http` are not scheme names.
 // cite(RFC 3986 § 3.1): "scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )"
 // cite(RFC 3986 § 3.1): "Scheme names consist of a sequence of characters beginning with a letter and followed by any combination of letters, digits, plus ("+"), period ("."), or hyphen ("-")."
-pub fn validate_scheme_name(scheme: &str) -> Result<(), String> {
+pub fn validate_scheme_name(scheme: &str) -> Result<(), SchemeNameDefect<'_>> {
     let mut chars = scheme.chars();
     let Some(first) = chars.next() else {
-        return Err("scheme must not be empty".into());
+        return Err(SchemeNameDefect::Empty);
     };
     if !first.is_ascii_alphabetic() {
-        return Err(format!("scheme '{}' must begin with a letter", scheme));
+        return Err(SchemeNameDefect::DoesNotBeginWithLetter(scheme));
     }
     for c in chars {
         if !(c.is_ascii_alphanumeric() || c == '+' || c == '-' || c == '.') {
-            return Err(format!("invalid character '{}' in scheme '{}'", c, scheme));
+            return Err(SchemeNameDefect::BadCharacter {
+                character: c,
+                scheme,
+            });
         }
     }
     Ok(())
+}
+
+/// What a scheme name fails to be.
+///
+/// Three variants for the production's two halves, and the split between the
+/// last two is the one the production draws and a character-set loop does not:
+/// `+`, `-`, `.` and every DIGIT are admitted, but only *after* a letter. So
+/// `+http` is not a bad character in a scheme — it is a scheme that never
+/// started, and `DoesNotBeginWithLetter` is the answer for `9x` and `+http`
+/// alike.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemeNameDefect<'a> {
+    /// No scheme name at all. `ALPHA *( ... )` generates nothing empty.
+    Empty,
+    /// A first character that is not `ALPHA`, carrying the whole name — the
+    /// character alone would not show what it is a prefix of.
+    DoesNotBeginWithLetter(&'a str),
+    /// A character after the first that the production does not admit.
+    BadCharacter {
+        /// The character.
+        character: char,
+        /// The scheme it was found in.
+        scheme: &'a str,
+    },
+}
+
+impl SchemeNameDefect<'_> {
+    /// The finding fragment. Callers name the field the scheme came from and
+    /// put this after it.
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => "scheme must not be empty".to_string(),
+            Self::DoesNotBeginWithLetter(scheme) => {
+                format!("scheme '{}' must begin with a letter", scheme)
+            }
+            Self::BadCharacter { character, scheme } => {
+                format!("invalid character '{}' in scheme '{}'", character, scheme)
+            }
+        }
+    }
 }
 
 /// Validate a `uri-host`: an IP literal in brackets, or a registered name.
@@ -970,40 +1048,91 @@ pub fn validate_scheme_name(scheme: &str) -> Result<(), String> {
 /// this function composes them, it does not transcribe them.
 // cite(RFC 3986 § 3.2.2): "host        = IP-literal / IPv4address / reg-name"
 // cite(RFC 3986 § 3.2.2): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
-pub fn validate_uri_host(host: &str) -> Result<(), String> {
+pub fn validate_uri_host(host: &str) -> Result<(), UriHostDefect<'_>> {
     if let Some(rest) = host.strip_prefix('[') {
         // cite(RFC 3986 § 3.2.2): "IP-literal = "[" ( IPv6address / IPvFuture  ) "]""
         let Some(inner) = rest.strip_suffix(']') else {
-            return Err(format!("IP literal '{}' is missing its ']'", host));
+            return Err(UriHostDefect::UnclosedBracket(host));
         };
         if inner.parse::<std::net::Ipv6Addr>().is_ok() || is_ipvfuture(inner) {
             return Ok(());
         }
-        return Err(format!("'{}' is not an IPv6 address", inner));
+        return Err(UriHostDefect::NotAnIpLiteral(inner));
     }
 
     if host.contains([']', '[']) {
-        return Err(format!(
-            "'{}' holds a bracket, which appears in no host form but an IP literal",
-            host
-        ));
+        return Err(UriHostDefect::Bracket(host));
     }
 
     // The triplet is the whole of `pct-encoded`, and it is checked where every
     // other percent-encoding in this module is. Its two hex digits are DIGIT and
     // ALPHA, so the character walk below has nothing left to say about them.
-    if let Some(msg) = check_percent_encoding(host) {
-        return Err(msg);
+    if let Some(defect) = percent_encoding_defect(host) {
+        return Err(UriHostDefect::PercentEncoding(defect));
     }
     // The production read left to right: `unreserved`, the `%` that opens a
     // `pct-encoded`, `sub-delims`, and nothing else — no `:` and no `@`, which
     // is the whole of the difference between this alphabet and `pchar`'s.
     for c in host.chars() {
         if !(is_unreserved(c) || c == '%' || is_sub_delim(c)) {
-            return Err(format!("invalid character '{}' in host '{}'", c, host));
+            return Err(UriHostDefect::BadCharacter { character: c, host });
         }
     }
     Ok(())
+}
+
+/// What a `uri-host` fails to be.
+///
+/// The first three are all about brackets, which is the module doc's point made
+/// as a type: the brackets are what separate the three alternatives, so a
+/// bracket problem is the only kind of "wrong alternative" this production has.
+/// [`Bracket`](Self::Bracket) is the value that has one somewhere no host form
+/// puts one, which is different from an IP literal that opened correctly and
+/// then failed.
+///
+/// [`PercentEncoding`](Self::PercentEncoding) nests
+/// [`PercentEncodingDefect`] rather than flattening its two cases in, because a
+/// malformed triplet is the same defect wherever it is read and this is the
+/// module that says so.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UriHostDefect<'a> {
+    /// A `[`-led host with no closing `]`, carrying the whole host.
+    UnclosedBracket(&'a str),
+    /// Brackets around something that is neither an `IPv6address` nor an
+    /// `IPvFuture`, carrying what was inside them.
+    NotAnIpLiteral(&'a str),
+    /// A bracket somewhere other than around an IP literal. § 3.2.2 calls the
+    /// literal the only place in the URI syntax where one appears.
+    Bracket(&'a str),
+    /// A malformed `pct-encoded` triplet in what would otherwise be a
+    /// `reg-name`.
+    PercentEncoding(PercentEncodingDefect<'a>),
+    /// A character no `reg-name` admits: not `unreserved`, not the `%` that
+    /// opens a triplet, not `sub-delims`.
+    BadCharacter {
+        /// The character.
+        character: char,
+        /// The host it was found in.
+        host: &'a str,
+    },
+}
+
+impl UriHostDefect<'_> {
+    /// The finding fragment.
+    pub fn message(self) -> String {
+        match self {
+            Self::UnclosedBracket(host) => format!("IP literal '{}' is missing its ']'", host),
+            Self::NotAnIpLiteral(inner) => format!("'{}' is not an IPv6 address", inner),
+            Self::Bracket(host) => format!(
+                "'{}' holds a bracket, which appears in no host form but an IP literal",
+                host
+            ),
+            Self::PercentEncoding(defect) => defect.message(),
+            Self::BadCharacter { character, host } => {
+                format!("invalid character '{}' in host '{}'", character, host)
+            }
+        }
+    }
 }
 
 /// `IPvFuture = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )`
@@ -1116,7 +1245,7 @@ pub fn port_number(digits: &str) -> Option<u16> {
 pub fn validate_host_and_optional_port(value: &str) -> Result<(), String> {
     let (host, port) = split_host_and_port(value);
 
-    validate_uri_host(host)?;
+    validate_uri_host(host).map_err(UriHostDefect::message)?;
 
     if let Some(port) = port {
         if let Some(c) = port.chars().find(|c| !c.is_ascii_digit()) {
@@ -1391,6 +1520,32 @@ mod tests {
         assert!(m.contains("Invalid percent-encoding") && m.contains("%2G"));
     }
 
+    /// The typed answer and the rendered one, over the same values. The
+    /// triplet is carried as written, which is what lets a caller quote it
+    /// inside a sentence of its own rather than splice a whole message in.
+    #[test]
+    fn percent_encoding_defect_is_what_the_sentence_is_rendered_from() {
+        assert_eq!(percent_encoding_defect("/path%20ok"), None);
+        assert_eq!(
+            percent_encoding_defect("/incomplete%2"),
+            Some(PercentEncodingDefect::Incomplete)
+        );
+        assert_eq!(
+            percent_encoding_defect("/bad%2G"),
+            Some(PercentEncodingDefect::NotHexDigits("%2G"))
+        );
+        // Three *characters*, not three bytes: what follows a '%' is exactly
+        // where a multi-byte character may begin.
+        assert_eq!(
+            percent_encoding_defect("/p%\u{20AC}x"),
+            Some(PercentEncodingDefect::NotHexDigits("%\u{20AC}x"))
+        );
+        assert_eq!(
+            check_percent_encoding("/bad%2G"),
+            percent_encoding_defect("/bad%2G").map(PercentEncodingDefect::message)
+        );
+    }
+
     #[test]
     fn percent_followed_by_a_multibyte_character_does_not_panic() {
         // A '%' whose next bytes are the lead/continuation bytes of a multi-byte
@@ -1443,10 +1598,29 @@ mod tests {
         // pass here by accident rather than by the production.
         assert!(validate_uri_host("[v7.abc]").is_ok());
 
-        assert!(validate_uri_host("[foo]").is_err());
-        assert!(validate_uri_host("[]").is_err());
-        assert!(validate_uri_host("[::1").is_err());
-        assert!(validate_uri_host("[::1]extra").is_err());
+        // Four bracket defects that `is_err()` reported as one. The last is not
+        // an IP literal that went wrong — it never opened one, and the bracket
+        // it carries appears in no host form.
+        assert_eq!(
+            validate_uri_host("[foo]"),
+            Err(UriHostDefect::NotAnIpLiteral("foo"))
+        );
+        assert_eq!(
+            validate_uri_host("[]"),
+            Err(UriHostDefect::NotAnIpLiteral(""))
+        );
+        assert_eq!(
+            validate_uri_host("[::1"),
+            Err(UriHostDefect::UnclosedBracket("[::1"))
+        );
+        assert_eq!(
+            validate_uri_host("[::1]extra"),
+            Err(UriHostDefect::UnclosedBracket("[::1]extra"))
+        );
+        assert_eq!(
+            validate_uri_host("2001:db8::1]"),
+            Err(UriHostDefect::Bracket("2001:db8::1]"))
+        );
     }
 
     #[test]
@@ -1457,6 +1631,10 @@ mod tests {
         assert!(validate_scheme_if_present("https://ex").is_none());
     }
 
+    /// The production's two halves, and the split the variants make plain:
+    /// `+` and every DIGIT are admitted *after* a letter, so `+http` and `9foo`
+    /// are not bad characters in a scheme — they are schemes that never
+    /// started, and only `ht_tp` and `ht%tp` are the other thing.
     #[test]
     fn scheme_name_needs_a_leading_letter() {
         assert!(validate_scheme_name("http").is_ok());
@@ -1464,11 +1642,29 @@ mod tests {
         assert!(validate_scheme_name("a").is_ok());
         // Every one of these is a `token`, which is why a rule reaching for
         // `tchar` where the sentence says "URI scheme name" accepts them.
-        assert!(validate_scheme_name("9foo").is_err());
-        assert!(validate_scheme_name("+http").is_err());
-        assert!(validate_scheme_name("ht_tp").is_err());
-        assert!(validate_scheme_name("ht%tp").is_err());
-        assert!(validate_scheme_name("").is_err());
+        assert_eq!(
+            validate_scheme_name("9foo"),
+            Err(SchemeNameDefect::DoesNotBeginWithLetter("9foo"))
+        );
+        assert_eq!(
+            validate_scheme_name("+http"),
+            Err(SchemeNameDefect::DoesNotBeginWithLetter("+http"))
+        );
+        assert_eq!(
+            validate_scheme_name("ht_tp"),
+            Err(SchemeNameDefect::BadCharacter {
+                character: '_',
+                scheme: "ht_tp"
+            })
+        );
+        assert_eq!(
+            validate_scheme_name("ht%tp"),
+            Err(SchemeNameDefect::BadCharacter {
+                character: '%',
+                scheme: "ht%tp"
+            })
+        );
+        assert_eq!(validate_scheme_name(""), Err(SchemeNameDefect::Empty));
     }
 
     #[test]
@@ -1489,19 +1685,63 @@ mod tests {
         ] {
             assert!(validate_uri_host(host).is_ok(), "{host}");
         }
-        for host in [
-            "exa mple",
-            "user@host",
-            "a^b",
-            "a|b",
-            "a\"b",
-            "%4",
-            "%zz",
-            "[2001:db8::1",
-            "[not-an-address]",
-            "2001:db8::1]",
+        // The rejections, each as the thing it is: an alphabet defect, a
+        // malformed triplet, or one of the three bracket answers.
+        for (host, want) in [
+            (
+                "exa mple",
+                UriHostDefect::BadCharacter {
+                    character: ' ',
+                    host: "exa mple",
+                },
+            ),
+            (
+                "user@host",
+                UriHostDefect::BadCharacter {
+                    character: '@',
+                    host: "user@host",
+                },
+            ),
+            (
+                "a^b",
+                UriHostDefect::BadCharacter {
+                    character: '^',
+                    host: "a^b",
+                },
+            ),
+            (
+                "a|b",
+                UriHostDefect::BadCharacter {
+                    character: '|',
+                    host: "a|b",
+                },
+            ),
+            (
+                "a\"b",
+                UriHostDefect::BadCharacter {
+                    character: '"',
+                    host: "a\"b",
+                },
+            ),
+            (
+                "%4",
+                UriHostDefect::PercentEncoding(PercentEncodingDefect::Incomplete),
+            ),
+            (
+                "%zz",
+                UriHostDefect::PercentEncoding(PercentEncodingDefect::NotHexDigits("%zz")),
+            ),
+            (
+                "[2001:db8::1",
+                UriHostDefect::UnclosedBracket("[2001:db8::1"),
+            ),
+            (
+                "[not-an-address]",
+                UriHostDefect::NotAnIpLiteral("not-an-address"),
+            ),
+            ("2001:db8::1]", UriHostDefect::Bracket("2001:db8::1]")),
         ] {
-            assert!(validate_uri_host(host).is_err(), "{host}");
+            assert_eq!(validate_uri_host(host), Err(want), "{host}");
         }
     }
 

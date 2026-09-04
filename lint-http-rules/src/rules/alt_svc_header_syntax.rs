@@ -159,7 +159,8 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
             ));
     };
     if !host.is_empty() {
-        if let Err(e) = crate::helpers::uri::validate_uri_host(host) {
+        if let Err(defect) = crate::helpers::uri::validate_uri_host(host) {
+            let e = defect.message();
             return Some(format!(
                     "Alt-Svc alternative '{shown}' has an alt-authority whose host is not a `uri-host`: {e}"
                 ));
