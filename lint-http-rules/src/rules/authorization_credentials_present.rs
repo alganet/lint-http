@@ -56,11 +56,12 @@ impl Rule for AuthorizationCredentialsPresent {
                         // (the framework grammar permits a bare scheme); the helper owns that
                         // reasoning and the §11.4 structure cite.
                         // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
-                        if let Err(msg) = crate::helpers::auth::validate_authorization_syntax(s) {
+                        if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(s)
+                        {
                             return Some(self.cited(
                                 &RFC_9110_11_6_2,
                                 ctx.severity,
-                                format!("Invalid Authorization header: {}", msg),
+                                format!("Invalid Authorization header: {}", defect.message()),
                             ));
                         }
                     }

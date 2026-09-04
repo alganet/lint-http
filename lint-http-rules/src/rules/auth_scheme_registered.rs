@@ -64,94 +64,93 @@ impl Rule for AuthSchemeRegistered {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
-        let finding =
-            || -> Option<Violation> {
-                let config: &crate::helpers::rule_config::AllowedList = ctx.state();
-                // Helper to check a single scheme token against allowed list
-                let check_scheme =
-                    |hdr_name: &str, scheme: &str, allowed: &Vec<String>| -> Option<Violation> {
-                        // An auth-scheme is a token; the tchar set is helper-owned.
-                        // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                        if let Some(c) = crate::helpers::token::find_invalid_token_char(scheme) {
-                            return Some(AuthSchemeRegistered.violation(
-                                ctx.severity,
-                                format!("Invalid character '{}' in {} auth-scheme", c, hdr_name),
-                            ));
-                        }
-                        // The guidance the allowlist stands for: schemes ought to be registered.
-                        // The comparison is lowercase because the scheme token is case-insensitive
-                        // (§11.1). Note this is checked against an operator-configured `allowed`
-                        // list, not the live IANA registry — the allowlist is the operator's chosen
-                        // subset of acceptable (typically registered) schemes, and §16.4.1 is where
-                        // registered ones live.
-                        // cite(RFC 9110 § 11.1): "New and existing authentication schemes are specified independently and ought to be registered"
-                        // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
-                        if !allowed.contains(&scheme.to_ascii_lowercase()) {
-                            return Some(AuthSchemeRegistered.violation(
-                                ctx.severity,
-                                format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
-                            ));
-                        }
-                        None
+        let finding = || -> Option<Violation> {
+            let config: &crate::helpers::rule_config::AllowedList = ctx.state();
+            // Helper to check a single scheme token against allowed list
+            let check_scheme =
+                |hdr_name: &str, scheme: &str, allowed: &Vec<String>| -> Option<Violation> {
+                    // An auth-scheme is a token; the tchar set is helper-owned.
+                    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                    if let Some(c) = crate::helpers::token::find_invalid_token_char(scheme) {
+                        return Some(AuthSchemeRegistered.violation(
+                            ctx.severity,
+                            format!("Invalid character '{}' in {} auth-scheme", c, hdr_name),
+                        ));
+                    }
+                    // The guidance the allowlist stands for: schemes ought to be registered.
+                    // The comparison is lowercase because the scheme token is case-insensitive
+                    // (§11.1). Note this is checked against an operator-configured `allowed`
+                    // list, not the live IANA registry — the allowlist is the operator's chosen
+                    // subset of acceptable (typically registered) schemes, and §16.4.1 is where
+                    // registered ones live.
+                    // cite(RFC 9110 § 11.1): "New and existing authentication schemes are specified independently and ought to be registered"
+                    // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
+                    if !allowed.contains(&scheme.to_ascii_lowercase()) {
+                        return Some(AuthSchemeRegistered.violation(
+                            ctx.severity,
+                            format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
+                        ));
+                    }
+                    None
+                };
+
+            // Check WWW-Authenticate challenges in responses
+            if let Some(resp) = &tx.response {
+                for hv in resp.headers.get_all("www-authenticate").iter() {
+                    let Ok(s) = hv.to_str() else {
+                        return Some(self.violation(
+                            ctx.severity,
+                            "WWW-Authenticate header contains non-UTF8 value".into(),
+                        ));
                     };
 
-                // Check WWW-Authenticate challenges in responses
-                if let Some(resp) = &tx.response {
-                    for hv in resp.headers.get_all("www-authenticate").iter() {
-                        let Ok(s) = hv.to_str() else {
-                            return Some(self.violation(
-                                ctx.severity,
-                                "WWW-Authenticate header contains non-UTF8 value".into(),
-                            ));
-                        };
-
-                        // split into assembled challenges
-                        match crate::helpers::auth::split_and_group_challenges(s) {
-                            Ok(challenges) => {
-                                for challenge in challenges {
-                                    let scheme =
-                                        challenge.split(char::is_whitespace).next().unwrap().trim();
-                                    if let Some(v) =
-                                        check_scheme("WWW-Authenticate", scheme, &config.allowed)
-                                    {
-                                        return Some(v);
-                                    }
+                    // split into assembled challenges
+                    match crate::helpers::auth::split_and_group_challenges(s) {
+                        Ok(challenges) => {
+                            for challenge in challenges {
+                                let scheme =
+                                    challenge.split(char::is_whitespace).next().unwrap().trim();
+                                if let Some(v) =
+                                    check_scheme("WWW-Authenticate", scheme, &config.allowed)
+                                {
+                                    return Some(v);
                                 }
                             }
-                            Err(e) => {
-                                return Some(self.violation(
-                                    ctx.severity,
-                                    format!("Invalid WWW-Authenticate header: {}", e),
-                                ))
-                            }
+                        }
+                        Err(e) => {
+                            return Some(self.violation(
+                                ctx.severity,
+                                format!("Invalid WWW-Authenticate header: {}", e),
+                            ))
                         }
                     }
                 }
+            }
 
-                // Check Authorization header in requests
-                if let Some(hv) = tx.request.headers.get_all("authorization").iter().next() {
-                    let Ok(v) = hv.to_str() else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Authorization header contains non-UTF8 value".into(),
-                        ));
-                    };
-                    // validate basic syntax first
-                    if let Err(e) = crate::helpers::auth::validate_authorization_syntax(v) {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!("Invalid Authorization header: {}", e),
-                        ));
-                    }
-
-                    let scheme = v.split(char::is_whitespace).next().unwrap().trim();
-                    if let Some(vv) = check_scheme("Authorization", scheme, &config.allowed) {
-                        return Some(vv);
-                    }
+            // Check Authorization header in requests
+            if let Some(hv) = tx.request.headers.get_all("authorization").iter().next() {
+                let Ok(v) = hv.to_str() else {
+                    return Some(self.violation(
+                        ctx.severity,
+                        "Authorization header contains non-UTF8 value".into(),
+                    ));
+                };
+                // validate basic syntax first
+                if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(v) {
+                    return Some(self.violation(
+                        ctx.severity,
+                        format!("Invalid Authorization header: {}", defect.message()),
+                    ));
                 }
 
-                None
-            };
+                let scheme = v.split(char::is_whitespace).next().unwrap().trim();
+                if let Some(vv) = check_scheme("Authorization", scheme, &config.allowed) {
+                    return Some(vv);
+                }
+            }
+
+            None
+        };
         Vec::from_iter(finding())
     }
 
