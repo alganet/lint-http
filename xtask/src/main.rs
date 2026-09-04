@@ -5,7 +5,9 @@
 //! Repository maintenance tasks, kept out of the delivered `lint-http` binary.
 //!
 //! `gendocs` regenerates `docs/rules/<id>.md` and the `docs/rules.md` index from
-//! rule metadata. It is a repo tool and not a user tool: it reads
+//! rule metadata, and deletes the pages no rule claims any more (reported on
+//! stderr, since deleting quietly is how a file goes missing without a reader
+//! ever knowing). It is a repo tool and not a user tool: it reads
 //! `config_example.toml` and writes into the working tree, both resolved from
 //! the workspace root that this crate's manifest dir points at. An installed
 //! binary has no such tree, which is why this lives here and not in the CLI.
@@ -58,7 +60,9 @@ fn run(cli: Cli) -> anyhow::Result<()> {
     match cli.command {
         Command::Gendocs(args) => {
             let out = resolve_out(args.out);
-            gendocs::write_all(&out)?;
+            for path in gendocs::write_all(&out)? {
+                eprintln!("Removed {} — no rule claims it", path.display());
+            }
             eprintln!("Wrote rule docs to {}", out.display());
             Ok(())
         }
@@ -127,16 +131,22 @@ mod tests {
         assert_eq!(resolve_out(args.out), PathBuf::from("/tmp/docs-out"));
     }
 
+    /// The pruning itself is `gendocs`'s to test; what this covers is the CLI
+    /// end of it — that the deletion reaches the tree through `run`, and is said
+    /// out loud rather than done quietly behind the "Wrote rule docs" line.
     #[test]
-    fn run_gendocs_writes_the_index_and_a_rule_page() {
+    fn run_gendocs_writes_the_index_and_prunes_an_orphan() {
         let dir = std::env::temp_dir().join(format!("xtask_gendocs_{}", uuid::Uuid::new_v4()));
-        run(Cli::parse_from([
-            "xtask",
-            "gendocs",
-            "--out",
-            dir.to_str().expect("temp path is utf-8"),
-        ]))
-        .expect("gendocs should succeed");
+        let gendocs_here = || {
+            run(Cli::parse_from([
+                "xtask",
+                "gendocs",
+                "--out",
+                dir.to_str().expect("temp path is utf-8"),
+            ]))
+            .expect("gendocs should succeed");
+        };
+        gendocs_here();
 
         assert!(dir.join("rules.md").is_file());
         let first = RULES.first().expect("catalogue is non-empty");
@@ -144,6 +154,11 @@ mod tests {
             .join("rules")
             .join(format!("{}.md", first.id()))
             .is_file());
+
+        let orphan = dir.join("rules").join("rule_that_was_renamed.md");
+        std::fs::write(&orphan, "stale").expect("write orphan");
+        gendocs_here();
+        assert!(!orphan.exists(), "the orphan should be gone");
 
         std::fs::remove_dir_all(&dir).ok();
     }

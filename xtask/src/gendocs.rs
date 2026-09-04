@@ -17,6 +17,7 @@
 use lint_http_rules::rules::{
     all_rules, Compliance, Example, ProtocolRule, Rule, RuleScope, SpecRef, PROTOCOL_RULES, RULES,
 };
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// The workspace root, derived from this crate's manifest dir. `config_example.toml`
@@ -228,11 +229,45 @@ pub fn config_block_for(id: &str, config_toml: &str) -> Option<String> {
     Some(block.trim_end().to_string())
 }
 
+/// Pages under `rules_dir` that no rule in the catalogue claims, sorted so a
+/// failure message reads the same twice.
+///
+/// The drift gate iterates the catalogue, so it can only ever look at files that
+/// *should* exist: a page whose rule was renamed or deleted stays on disk and
+/// keeps passing, because nothing looks the other way. This is that other look —
+/// the directory listing minus the catalogue.
+///
+/// Only `.md` is considered. The generator writes nothing else, so anything else
+/// under `rules/` was put there by someone and is not this tool's to delete.
+pub fn orphan_docs(rules_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
+    let generated: HashSet<String> = all_rules().map(|r| format!("{}.md", r.id())).collect();
+    let mut orphans = Vec::new();
+    for entry in std::fs::read_dir(rules_dir)? {
+        let path = entry?.path();
+        let claimed = match path.file_name().and_then(std::ffi::OsStr::to_str) {
+            Some(name) => !name.ends_with(".md") || generated.contains(name),
+            // A name that is not UTF-8 cannot be a rule id, and the ids are what
+            // this tool wrote — leave it alone rather than guess.
+            None => true,
+        };
+        if !claimed {
+            orphans.push(path);
+        }
+    }
+    orphans.sort();
+    Ok(orphans)
+}
+
 /// Render every rule to disk under `out_dir`: `<out_dir>/rules/<id>.md` per
 /// rule plus `<out_dir>/rules.md`. Configuration sections are sourced from
 /// [`repo_root`]`/config_example.toml`, never from the working directory.
 /// Creates directories as needed.
-pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
+///
+/// Then deletes the orphans and returns what it deleted, so the tree is the
+/// catalogue rather than the catalogue plus whatever it used to be. Reporting is
+/// the caller's: a generator that prints is one that cannot be called twice in a
+/// test without noise.
+pub fn write_all(out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     let rules_dir = out_dir.join("rules");
     std::fs::create_dir_all(&rules_dir)?;
 
@@ -252,7 +287,12 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<()> {
 
     let index = render_index(&RULES, &PROTOCOL_RULES);
     std::fs::write(out_dir.join("rules.md"), index)?;
-    Ok(())
+
+    let orphans = orphan_docs(&rules_dir)?;
+    for path in &orphans {
+        std::fs::remove_file(path)?;
+    }
+    Ok(orphans)
 }
 
 #[cfg(test)]
@@ -411,7 +451,8 @@ mod tests {
     #[test]
     fn write_all_creates_files_in_temp_dir() {
         let dir = std::env::temp_dir().join(format!("gendocs_test_{}", uuid::Uuid::new_v4()));
-        write_all(&dir).expect("write_all should succeed");
+        let pruned = write_all(&dir).expect("write_all should succeed");
+        assert!(pruned.is_empty(), "a fresh directory has nothing to prune");
 
         assert!(dir.join("rules.md").is_file());
         let first = RULES.first().expect("catalogue is non-empty");
@@ -421,6 +462,54 @@ mod tests {
             .is_file());
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A second run deletes the page no rule claims, and only that page. The
+    /// `.txt` is the guard on the extension filter: pruning is scoped to what
+    /// this tool writes, so an unrelated file in the tree survives regeneration.
+    #[test]
+    fn write_all_prunes_pages_no_rule_claims() {
+        let dir = std::env::temp_dir().join(format!("gendocs_prune_{}", uuid::Uuid::new_v4()));
+        write_all(&dir).expect("write_all should succeed");
+
+        let rules_dir = dir.join("rules");
+        let orphan = rules_dir.join("rule_that_was_renamed.md");
+        let bystander = rules_dir.join("notes.txt");
+        std::fs::write(&orphan, "stale").expect("write orphan");
+        std::fs::write(&bystander, "mine").expect("write bystander");
+        assert_eq!(
+            orphan_docs(&rules_dir).expect("scan"),
+            vec![orphan.clone()],
+            "only the unclaimed .md is an orphan"
+        );
+
+        let pruned = write_all(&dir).expect("write_all should succeed");
+        assert_eq!(pruned, vec![orphan.clone()]);
+        assert!(!orphan.exists(), "the orphan should be gone");
+        assert!(bystander.is_file(), "a non-generated file should survive");
+
+        let first = RULES.first().expect("catalogue is non-empty");
+        assert!(rules_dir.join(format!("{}.md", first.id())).is_file());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The other half of `docs_match_generated`: that gate reads the catalogue
+    /// and looks for the file, so it cannot see a page whose rule no longer
+    /// exists. Retiring or renaming a rule leaves its page behind, and every
+    /// gate stays green while the docs describe a rule nobody can enable.
+    #[test]
+    fn docs_have_no_orphans() {
+        assert!(
+            !RULES.is_empty(),
+            "catalogue did not collect in the xtask link config — every page would read as an orphan",
+        );
+        let orphans = orphan_docs(&repo_root().join("docs/rules")).expect("read docs/rules");
+        assert!(
+            orphans.is_empty(),
+            "no rule claims these pages — run `cargo xtask gendocs`: {:?}",
+            orphans
+        );
     }
 
     /// Every `SpecRef` must name a document `specs/sources.yaml` knows, at the

@@ -25,7 +25,7 @@ We maintain high standards for code quality and testing.
 - **Tests**: All tests must pass (`cargo test`).
 - **Linting**: Use `cargo lint` (alias in `.cargo/config.toml`) — clippy warnings are treated as errors.
 - **Formatting**: Code must be formatted with `cargo fmt` (`rustfmt`).
-- **Headers & Docs**: New source, test, and documentation files must include the SPDX header; new rules must include a docs file in `docs/rules/` and an example entry in `config_example.toml`.
+- **Headers & Docs**: New source, test, and documentation files must include the SPDX header; new rules must carry their prose as metadata (regenerate with `cargo xtask gendocs`) and an example entry in `config_example.toml`. Nothing under `docs/rules/` is hand-written — the generator deletes any page no rule claims.
 - **Minimum Rust version**: `rust-version` in the workspace `Cargo.toml` — currently **1.94**, about three releases behind stable. It is a support window we choose, not the oldest toolchain that happens to compile. The `msrv` CI job builds on exactly that version; raising it is a deliberate edit to the manifest, not something a new API call does silently.
 - **Dependencies**: A manifest declares only what its code reads, and a crate used only from tests belongs in `[dev-dependencies]`. `cargo machete` gates this.
 

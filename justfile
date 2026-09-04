@@ -58,7 +58,8 @@ citations:
     "$apy" ratchet
 
 # Regenerate docs/rules/ and docs/rules.md from rule metadata — the fixer for the
-# `docs_match_generated` gate. Not part of `check`: it writes into the tree.
+# `docs_match_generated` and `docs_have_no_orphans` gates. Not part of `check`:
+# it writes into the tree, and deletes the pages no rule claims any more.
 gendocs:
     cargo xtask gendocs
 
