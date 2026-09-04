@@ -950,7 +950,9 @@ fn relation_type_defect(t: &str) -> Result<(), String> {
     // cite(RFC 3986 § 3.1): "scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )"
     let first_component = &t[..t.find(['/', '?', '#']).unwrap_or(t.len())];
     let scheme_defect = match first_component.find(':') {
-        Some(colon) => validate_scheme_name(&t[..colon]).err(),
+        Some(colon) => validate_scheme_name(&t[..colon])
+            .err()
+            .map(|defect| defect.message()),
         None => Some("it has no scheme".to_string()),
     };
 

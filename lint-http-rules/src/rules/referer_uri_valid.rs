@@ -284,11 +284,11 @@ impl Rule for RefererUriValid {
             // cite(RFC 3986 § 4.2): "A path segment that contains a colon character (e.g., "this:that") cannot be used as the first segment of a relative-path reference, as it would be mistaken for a scheme name."
             let scheme = scheme_prefix(value);
             if let Some(scheme) = scheme {
-                if let Err(msg) = validate_scheme_name(scheme) {
+                if let Err(defect) = validate_scheme_name(scheme) {
                     return violation(format!(
                         "Referer value '{}' derives from neither alternative of `Referer = absolute-URI / partial-URI`: {} — and a first path segment holding a colon is no `path-noscheme` either, so it is not a relative reference (RFC 3986 §4.2)",
                         shown_referer(value),
-                        msg
+                        defect.message()
                     ));
                 }
             }

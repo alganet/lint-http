@@ -69,7 +69,12 @@ fn validate_host(value: &str) -> Option<String> {
 fn validate_proto(value: &str) -> Option<String> {
     crate::helpers::uri::validate_scheme_name(value)
         .err()
-        .map(|e| format!("Forwarded 'proto' is not a URI scheme name: {}", e))
+        .map(|defect| {
+            format!(
+                "Forwarded 'proto' is not a URI scheme name: {}",
+                defect.message()
+            )
+        })
 }
 
 pub struct ForwardedHeaderValid;

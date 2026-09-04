@@ -99,7 +99,7 @@ fn check_member(field: &str, kind: Members, member: &str) -> Option<String> {
         // cite(RFC 7239 § 5.4): "Typical values are "http" or "https"."
         Members::Proto => crate::helpers::uri::validate_scheme_name(member)
             .err()
-            .map(|e| format!("{} is not a URI scheme name: {}", field, e)),
+            .map(|defect| format!("{} is not a URI scheme name: {}", field, defect.message())),
 
         // The `Host` ABNF, whole: a `uri-host` and an optional `port`, where the
         // port is `*DIGIT` and has neither a lower bound nor an upper one. The
