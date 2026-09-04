@@ -1054,3 +1054,31 @@ severity = "warn"
 [rules.websocket_frame_rsv_bits]
 enabled = true
 severity = "warn"
+
+[violations.cookie_path_control_character_forbidden]
+# Set-Cookie Path attribute holds a control character
+severity = "error"
+
+[violations.cookie_path_empty]
+# Set-Cookie Path attribute is empty
+severity = "warn"
+
+[violations.cookie_path_leading_slash_missing]
+# Set-Cookie Path attribute is not rooted at `/`
+severity = "warn"
+
+[violations.cookie_path_missing]
+# Set-Cookie Path attribute carries no value
+severity = "warn"
+
+[violations.cookie_path_non_ascii_character_forbidden]
+# Set-Cookie Path attribute holds a raw non-ASCII character
+severity = "warn"
+
+[violations.cookie_path_percent_encoding_malformed]
+# Set-Cookie Path attribute has a broken percent-encoding
+severity = "warn"
+
+[violations.cookie_path_whitespace_invalid]
+# Set-Cookie Path attribute holds unencoded whitespace
+severity = "info"

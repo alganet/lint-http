@@ -26,6 +26,8 @@ use crate::rules::SpecRef;
 use linkme::distributed_slice;
 use std::sync::LazyLock;
 
+pub mod cookie;
+
 /// One reportable defect.
 ///
 /// # These are `static`, never `const`
@@ -162,6 +164,81 @@ mod tests {
                 rule.id(),
             );
         }
+    }
+
+    /// Every defect a rule declares must be in the catalogue, and the only
+    /// thing that puts it there is its own `#[distributed_slice]` entry beside
+    /// it. A def with no entry still works on the finding path — the rule
+    /// declares it, the severity resolves, findings carry its id — and is
+    /// absent from everything that enumerates the catalogue instead: no
+    /// `[violations.<id>]` section to tune it with, no docs, no gate. Nothing
+    /// else notices, because every other check reads one side or the other.
+    ///
+    /// By identity, not by id: two defs with one id are what
+    /// `violation_ids_are_unique_and_disjoint_from_rule_ids` is for, and a
+    /// declared def whose *twin* is registered is exactly the confusion this
+    /// would otherwise pass.
+    #[test]
+    fn every_declared_violation_is_registered() {
+        for rule in crate::rules::all_rules() {
+            for def in rule.violations() {
+                assert!(
+                    VIOLATIONS.iter().any(|d| std::ptr::eq(*d, *def)),
+                    "{} declares {}, which no distributed_slice entry registers",
+                    rule.id(),
+                    def.id,
+                );
+            }
+        }
+    }
+
+    /// A def's `spec` is what its findings cite, and `specifications()` is
+    /// what the rule's doc page lists — so a def citing a document its rule
+    /// never names would put a reference in a report that the docs do not
+    /// explain. This is `cited`'s debug assertion, moved to a gate: the check
+    /// it made per finding site is answerable once, for the whole catalogue,
+    /// now that the reference lives on the def.
+    ///
+    /// `specifications()` stays deliberately wider than the cited set — it may
+    /// carry further-reading a defect does not enforce — so this is one-way.
+    #[test]
+    fn every_violation_spec_is_declared_by_its_rule() {
+        for rule in crate::rules::all_rules() {
+            for def in rule.violations() {
+                let Some(spec) = def.spec else { continue };
+                assert!(
+                    rule.specifications().contains(&spec),
+                    "{} reports {}, which cites {} {} — not in the rule's specifications()",
+                    rule.id(),
+                    def.id,
+                    spec.spec,
+                    spec.section.unwrap_or("(whole document)"),
+                );
+            }
+        }
+    }
+
+    /// An upward ratchet on the defs, not on the finding sites: the sentence a
+    /// defect enforces is now something the catalogue can hold, and the point
+    /// of the migration is that it does. `citation_coverage_does_not_regress`
+    /// counts sites and keeps the old shape honest until the last one
+    /// converts; this counts entries and keeps the new one honest from the
+    /// first.
+    ///
+    /// Not every defect can have one, which is why this is a floor and not an
+    /// equality. `cookie_path_whitespace_invalid` is the first proof: no
+    /// specification asks for it, this crate refuses the character anyway, and
+    /// carrying a citation there would be a guess dressed as a reference.
+    #[test]
+    fn every_violation_declares_a_spec() {
+        /// Raised by the commit that adds defs with specs; never lowered.
+        const FLOOR: usize = 6;
+        let cited = VIOLATIONS.iter().filter(|d| d.spec.is_some()).count();
+        assert!(
+            cited >= FLOOR,
+            "{cited} of {} defs cite a sentence, below the floor of {FLOOR}",
+            VIOLATIONS.len(),
+        );
     }
 
     /// The closed vocabulary a violation id ends in. Each word is defined in

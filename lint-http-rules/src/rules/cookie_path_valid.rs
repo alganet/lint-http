@@ -4,23 +4,44 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cookie::{
+    path_defect, COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN, COOKIE_PATH_EMPTY,
+    COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
+    COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN, COOKIE_PATH_PERCENT_ENCODING_MALFORMED,
+    COOKIE_PATH_WHITESPACE_INVALID, RFC_3986_2_1, RFC_6265_4_1_1, RFC_6265_5_2_4,
+};
+use crate::violations::ViolationDef;
 
 pub struct CookiePathValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_6265_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
+/// The defects this rule reports, in the order their severities resolve. A
+/// named `static` because the engine finds a def in here by address, and an
+/// array of references to statics is not const-promotable.
+///
+/// Their definitions — title, default severity, and the sentence each enforces
+/// — are in `violations::cookie`, which is also where the `Path` half of this
+/// rule's specification references now live: a defect belongs to the attribute
+/// it is about, not to whichever rule noticed it.
+static DECLARED: &[&ViolationDef] = &[
+    &COOKIE_PATH_MISSING,
+    &COOKIE_PATH_EMPTY,
+    &COOKIE_PATH_LEADING_SLASH_MISSING,
+    &COOKIE_PATH_PERCENT_ENCODING_MALFORMED,
+    &COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN,
+    &COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN,
+    &COOKIE_PATH_WHITESPACE_INVALID,
+];
+
+/// The specification references this rule declares that no defect of its own
+/// carries: the parsing algorithm the rule performs before any defect exists,
+/// and the rationale for refusing whitespace the grammar admits.
+/// `specifications()` below is these two plus the three the defects cite, so
+/// the docs name every document the rule answers to.
+const RFC_6265_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6265",
-    section: Some("4.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
-    note: "Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; `path-value` excludes control characters and `;`",
-};
-const RFC_6265_5_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6265",
-    section: Some("5.2.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4",
-    note: "Path attribute — the user agent replaces an empty or non-`/` Path with the default-path (why those forms are flagged)",
+    section: Some("5.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2",
+    note: "The Set-Cookie header parsing algorithm — where the `;` split, the WSP trim and the case-insensitive `Path` match come from",
 };
 const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -45,7 +66,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6265_4_1_1, RFC_6265_5_2_4, RFC_9110_5_6_3]
+        &[
+            RFC_3986_2_1,
+            RFC_6265_4_1_1,
+            RFC_6265_5_2,
+            RFC_6265_5_2_4,
+            RFC_9110_5_6_3,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -110,7 +141,12 @@ impl Rule for CookiePathValid {
                     ));
                 };
 
-                // Split into cookie-pair and attribute segments
+                // Split into cookie-pair and attribute segments. The `;` and
+                // the trim are § 5.2's own parsing algorithm, which is what
+                // this rule enforces of its own accord — the defects it
+                // reports are elsewhere, and so are their sentences.
+                //
+                // cite(RFC 6265 § 5.2): "Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character."
                 let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
                 if parts.is_empty() {
                     // No segments at all; nothing to validate here
@@ -125,22 +161,19 @@ impl Rule for CookiePathValid {
                     let key = av.next().unwrap().trim();
                     let val_opt = av.next().map(|v| v.trim());
 
+                    // cite(RFC 6265 § 5.2): "If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows."
                     if key.eq_ignore_ascii_case("path") {
-                        // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
                         let v = match val_opt {
                             Some(v) => v,
-                            None => {
-                                return Some(self.cited(
-                                    &RFC_6265_5_2_4,
-                                    ctx.severity,
-                                    "Set-Cookie attribute 'Path' requires a value".into(),
-                                ))
-                            }
+                            None => return Some(ctx.report(&COOKIE_PATH_MISSING)),
                         };
 
                         if let Err(defect) = crate::helpers::cookie::validate_cookie_path(v) {
-                            return Some(self.violation(
-                                ctx.severity,
+                            // The message stays here, where its argument is;
+                            // which defect it is comes from the helper's own
+                            // answer, named in `violations::cookie`.
+                            return Some(ctx.report_with(
+                                path_defect(&defect),
                                 format!(
                                     "Set-Cookie attribute 'Path' invalid: {}",
                                     defect.message()
@@ -219,6 +252,91 @@ mod tests {
     fn message_and_id() {
         let rule = CookiePathValid;
         assert_eq!(rule.id(), "cookie_path_valid");
+    }
+
+    /// One rule, one message shape, three different things said — which is
+    /// what the catalogue buys. A control character in a cookie path is an
+    /// error, a path the user agent will silently replace is a warning, and
+    /// the whitespace this crate refuses past the grammar is information.
+    /// None of the three was expressible while `severity` was the rule's.
+    #[test]
+    fn each_defect_reports_under_its_own_name_and_severity() {
+        for (path, violation, severity) in [
+            (
+                "/has space",
+                "cookie_path_whitespace_invalid",
+                crate::lint::Severity::Info,
+            ),
+            (
+                "login",
+                "cookie_path_leading_slash_missing",
+                crate::lint::Severity::Warn,
+            ),
+            // HTAB is a `CTL`, not this rule's stricter-than-grammar
+            // whitespace — the helper's variants say so and the two defects
+            // report at different levels because of it.
+            (
+                "/has\ttab",
+                "cookie_path_control_character_forbidden",
+                crate::lint::Severity::Error,
+            ),
+        ] {
+            let v = check_set_cookie(&format!("SID=1; Path={path}"))
+                .unwrap_or_else(|| panic!("{path} reports"));
+            assert_eq!(v.rule, "cookie_path_valid");
+            assert_eq!(v.violation, violation);
+            assert_eq!(v.severity, severity);
+        }
+    }
+
+    /// The defect an operator tunes is the defect, not the rule: raising the
+    /// whitespace profile to `error` leaves everything else this rule reports
+    /// where it was.
+    #[test]
+    fn tuning_one_defect_leaves_the_others() {
+        let rule = CookiePathValid;
+        let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        crate::test_helpers::override_violation_severity(
+            &mut cfg,
+            "cookie_path_whitespace_invalid",
+            "error",
+        );
+
+        let run = |value: &str| {
+            let tx = crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("set-cookie", value)],
+            );
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("reports")
+        };
+
+        assert_eq!(
+            run("SID=1; Path=/has space").severity,
+            crate::lint::Severity::Error,
+        );
+        assert_eq!(
+            run("SID=1; Path=login").severity,
+            crate::lint::Severity::Warn,
+        );
+    }
+
+    /// The three defects about a discarded value carry § 5.2.4, and the
+    /// citation reaches the finding from the def — the rule site attaches
+    /// none.
+    #[test]
+    fn a_discarded_path_cites_the_substitution() {
+        let cite = check_set_cookie("SID=1; Path=login")
+            .expect("reports")
+            .cite
+            .expect("cited from the def");
+        assert_eq!(cite.spec, "RFC 6265");
+        assert_eq!(cite.section.as_deref(), Some("5.2.4"));
     }
 
     #[test]
