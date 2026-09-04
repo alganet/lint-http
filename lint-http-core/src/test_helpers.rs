@@ -117,6 +117,23 @@ pub fn make_test_config_with_severity(rule_id: &str, severity: &str) -> crate::c
     cfg
 }
 
+/// Override one violation's severity, the way a `[violations.<id>]` table
+/// does. `severity` must be one of `"info"`, `"warn"`, `"error"` — an
+/// unreadable one is what a validation test writes, so this does not check it.
+pub fn override_violation_severity(
+    cfg: &mut crate::config::Config,
+    violation_id: &str,
+    severity: &str,
+) {
+    let mut table = toml::map::Map::new();
+    table.insert(
+        "severity".to_string(),
+        toml::Value::String(severity.to_string()),
+    );
+    cfg.violations
+        .insert(violation_id.to_string(), toml::Value::Table(table));
+}
+
 /// Create a minimal HTTP transaction for testing.
 /// Contains a GET request to `http://example/` with a standard test user agent.
 pub fn make_test_transaction() -> crate::http_transaction::HttpTransaction {

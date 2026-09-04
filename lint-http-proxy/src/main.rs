@@ -160,14 +160,6 @@ async fn run_app_with_limit(config_path: &str, accept_limit: Option<usize>) -> a
     crate::proxy::run_proxy_with_limit(addr, capture_writer, cfg, accept_limit).await
 }
 
-fn severity_label(severity: lint::Severity) -> &'static str {
-    match severity {
-        lint::Severity::Info => "info",
-        lint::Severity::Warn => "warn",
-        lint::Severity::Error => "error",
-    }
-}
-
 /// Write to stdout, treating a closed pipe as a clean exit. Rust ignores
 /// `SIGPIPE`, so writing to a reader that has gone away (e.g. `rules list | head`)
 /// surfaces as a `BrokenPipe` error that `print!`/`println!` turn into a panic;
@@ -460,13 +452,7 @@ fn render_lint_report(
                     }
                 }
                 for v in block.violations() {
-                    write!(
-                        out,
-                        "  {:<5} {}  {}",
-                        severity_label(v.severity),
-                        v.rule,
-                        v.message
-                    )?;
+                    write!(out, "  {:<5} {}  {}", v.severity.name(), v.rule, v.message)?;
                     // The specification text the finding enforces, when the
                     // rule attached one at the violation site.
                     if let Some(cite) = &v.cite {
@@ -1063,13 +1049,6 @@ severity = "warn"
         assert_eq!(parsed[0]["session_id"], session_id.to_string());
         assert_eq!(parsed[0]["close_code"], 1000);
         Ok(())
-    }
-
-    #[test]
-    fn severity_label_covers_all_levels() {
-        assert_eq!(severity_label(lint::Severity::Info), "info");
-        assert_eq!(severity_label(lint::Severity::Warn), "warn");
-        assert_eq!(severity_label(lint::Severity::Error), "error");
     }
 
     // Write a minimal config whose `listen` points at an already-bound port, so

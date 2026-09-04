@@ -277,12 +277,13 @@ do run it, as does CI.
 ### 6. Configurable Rules Guidelines
 
 - Do not use hardcoded defaults in rule implementations. If a rule requires configuration, it should require an explicit TOML table under `[rules.<rule_id>]` and parse its values in `prepare`.
+- **One exception, and only one: a violation's severity.** A `ViolationDef` carries a `default_severity`, and `[violations.<id>]` overrides it. A rule *option* is policy about the traffic and nobody but the operator can choose it; a severity is a preference, and a catalogue with one entry per defect cannot be made to run at all if every entry must be answered first. Nothing else on a def or a rule gets a default by this argument.
 - On missing or invalid configuration, `prepare` must return an `Err(...)` so engine construction fails fast, by rule name. Do not silently fall back to a default unless this behavior is explicitly documented and desired.
 - A required list of case-insensitive names (the `allowed`/`headers` shape) is parsed by `helpers::rule_config::parse_lowercased_list`; the citation licensing the case-fold stays in the rule's `prepare`, beside the call.
 - Tests should cover both `prepare` errors for invalid/missing config and the runtime behavior when valid configs are provided (including edge cases like negative numbers, invalid types, and boundary values). Dispatch a rule in tests through `test_helpers::run_rule` / `run_protocol_rule`, which prepare and then check the way the engine does.
 - Every registered rule must prepare successfully under `config_example.toml` — the `every_rule_prepares_under_the_example_config` test enforces it, so a new configurable rule needs its example section in the same commit.
 - That example section is `config_example()`, a required `RuleMeta` member returning everything under the `[rules.<id>]` header: the two keys, the rule's own options, and the comment explaining them. It is required for the same reason the options above have no defaults — an example nobody chose is still an example someone will copy.
-- `config_example.toml` is **generated** from those bodies. Do not edit it; edit the rule and run:
+- `config_example.toml` is **generated** from those bodies, plus one `[violations.<id>]` section per catalogue entry rendered from its `default_severity`. Do not edit it; edit the rule or the def and run:
 
 ```bash
 cargo xtask genconfig

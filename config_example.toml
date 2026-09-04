@@ -8,6 +8,11 @@
 # transport policy, which no rule knows about. Every `[rules.*]` section below
 # is rendered from that rule's `config_example()` metadata, so a change to a
 # rule's example belongs in `lint-http-rules/src/rules/<id>.rs`.
+#
+# The `[violations.*]` sections after them are the defects those rules report,
+# each shown at the default severity its catalogue entry carries. They are
+# overrides: deleting one changes nothing, editing one changes what that single
+# defect reports at.
 
 [general]
 listen = "127.0.0.1:3000"

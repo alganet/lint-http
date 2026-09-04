@@ -66,14 +66,16 @@ Two flags shape the report:
   the transaction got no response); WebSocket sessions
   (`"kind": "websocket_session"`) carry `session_id`, `transaction_id`,
   `close_code`. Both carry `violations`, each with `rule`, `severity`,
-  `message`.
+  `message`, and — when the rule named the defect it found — `violation`, the
+  catalogue id the `[violations]` config section tunes.
 - `--min-severity info|warn|error` (default `info`): drop findings below the
   given severity from the report *and* from the exit-code decision — with
   `--min-severity error`, warn-level findings no longer fail CI. Stateful rules
   still see every transaction; only the reporting is gated.
 
 The `--config` file is the same TOML used by `run`; `lint` reads only the
-`[rules]` toggles/severities and the `[general]` `ttl_seconds` / `max_history`
+`[rules]` toggles/severities, the `[violations]` overrides beside them, and the
+`[general]` `ttl_seconds` / `max_history`
 (used to size the replay's history window). The `listen`, `captures`, and
 `[tls]` fields are ignored by `lint`.
 
@@ -198,3 +200,41 @@ paths = ["/logout", "/signout", "/auth/logout", "/api/v1/logout"]
 ```
 
 See [Rules Documentation](rules.md) for details on each rule and their configuration options.
+
+### Violation Severity Overrides
+
+A rule is the unit of analysis; a *violation* is the unit of report — one named
+defect a rule may find. A rule that checks four things reports four violations,
+and the `[violations]` section is where each of them is tuned separately.
+
+Every violation carries a default severity in the catalogue, so this section is
+optional and mostly stays empty: write a table only to disagree with a default.
+
+The shape, with an illustrative id — the real ones are in `config_example.toml`:
+
+```toml
+# The rule runs at its own severity...
+[rules.strict_transport_security_valid]
+enabled = true
+severity = "warn"
+
+# ...but this one defect it reports is an error.
+[violations.strict_transport_security_max_age_absent]
+severity = "error"
+```
+
+`severity` is the only key, and it is required in any table that is written —
+a section that sets nothing is a section that does nothing, and both are
+rejected at startup. Every violation id and its default is listed in
+`config_example.toml`; a table naming an id that does not exist is rejected
+there too, the same way an unknown rule id is.
+
+There is deliberately **no** per-violation `enabled`. Most rules report their
+first finding and stop, so switching off one defect would also silence whatever
+the same branch would have said next — a config whose effect depends on the
+order of checks inside a rule body. To quiet a single defect, set it to
+`severity = "info"` and run the report with `--min-severity warn`.
+
+A finding that names a defect carries both names: `rule` and `violation`. Older
+captures, and findings from rules whose defects have not been named yet, carry
+`rule` alone.
