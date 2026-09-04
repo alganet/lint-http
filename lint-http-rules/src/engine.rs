@@ -23,18 +23,27 @@ use crate::rules::{ProtocolRule, Rule};
 /// and `resolved` is what the rule's own `prepare` made of its config.
 /// Dispatch borrows `resolved` into a [`crate::rules::RuleContext`] per
 /// transaction — no per-dispatch config reads.
+///
+/// `severities` is the same resolution for the defects the rule declares, one
+/// per [`crate::rules::RuleMeta::violations`] entry. It sits *beside*
+/// `resolved` rather than inside it because `prepare` is the rule's own hook
+/// and 17 rules implement it: reading the catalogue here is what keeps the
+/// trait, and those rules, out of it.
 struct PreparedRule {
     rule: &'static dyn Rule,
     query: Option<crate::queries::QueryType>,
     resolved: crate::rules::ResolvedRule,
+    severities: Vec<crate::lint::Severity>,
 }
 
 /// One enabled protocol rule with its configuration resolved by its own
-/// `prepare` at construction. Dispatch borrows `resolved` into a
+/// `prepare` at construction, and the severities of the defects it declares
+/// resolved beside it. Dispatch borrows both into a
 /// [`crate::rules::RuleContext`] per event — no per-event config reads.
 pub(crate) struct PreparedProtocolRule {
     pub(crate) rule: &'static dyn ProtocolRule,
     pub(crate) resolved: crate::rules::ResolvedRule,
+    pub(crate) severities: Vec<crate::lint::Severity>,
 }
 
 /// The enabled rule set for one [`Config`], precomputed once so per-transaction
@@ -79,6 +88,7 @@ impl PreparedEngine {
                         rule,
                         query: crate::rules::query_type_for(rule.id()),
                         resolved: rule.prepare(cfg)?,
+                        severities: crate::rules::severities_for(rule),
                     })
                 })
                 .collect::<anyhow::Result<_>>()
@@ -94,6 +104,7 @@ impl PreparedEngine {
                     Ok(PreparedProtocolRule {
                         rule,
                         resolved: rule.prepare(cfg)?,
+                        severities: crate::rules::severities_for(rule),
                     })
                 })
                 .collect::<anyhow::Result<_>>()?,
@@ -172,7 +183,8 @@ impl PreparedEngine {
                 None => &empty_history,
             };
 
-            let ctx = crate::rules::RuleContext::new(&prepared.resolved);
+            let ctx = crate::rules::RuleContext::new(&prepared.resolved)
+                .with_violations(rule, &prepared.severities);
             out.extend(rule.findings(tx, history, &ctx));
         }
 

@@ -36,7 +36,8 @@ impl PreparedEngine {
                 ProtocolEventHistory::new(entries)
             });
 
-            let ctx = crate::rules::RuleContext::new(&prepared.resolved);
+            let ctx = crate::rules::RuleContext::new(&prepared.resolved)
+                .with_violations(prepared.rule, &prepared.severities);
             out.extend(prepared.rule.findings(event, history, &ctx));
         }
 
