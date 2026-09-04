@@ -71,13 +71,105 @@ pub fn split_node(value: &str) -> (&str, Option<&str>) {
     }
 }
 
+/// What a node identifier fails to be.
+///
+/// Every message is the *predicate* of a finding — "is not an IPv4 address"
+/// rather than "invalid IPv4 address" — because both callers put a subject in
+/// front of it: `Forwarded 'for'`, or the legacy field's name. That shape is
+/// the module's convention and the reason it survives the conversion unchanged.
+///
+/// The variants sort into three groups the `String` could not mark. The first
+/// four are the `nodename` failing to be one of its four alternatives. The
+/// fifth is the value having no parse at all.
+/// [`TextualRepresentation`](Self::TextualRepresentation) is the odd one and is
+/// worth telling apart from every other variant: the address *is* an
+/// `IPv6address`, and what is wrong is only how it was spelled — a SHOULD from
+/// § 6.1, not a grammar failure. And [`NodePort`](Self::NodePort) is about the
+/// half of the production after the colon, which every alternative above shares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeDefect<'a> {
+    /// An IPv6 address written without its brackets, in the spelling that
+    /// requires them. Asked of the whole value before it is split, because
+    /// every colon in such an address looks like the one before a `node-port`.
+    UnbracketedIpv6(&'a str),
+    /// A `[`-led nodename with no closing `]`.
+    UnclosedBrackets(&'a str),
+    /// Brackets around something that is not an `IPv6address`, carrying what
+    /// was inside them.
+    NotIpv6(&'a str),
+    /// Digits and dots that are not an `IPv4address` — `010.1.2.3`, `1.2.3`,
+    /// `256.0.0.1`. Named apart from the catch-all because the value said what
+    /// it was trying to be.
+    NotIpv4(&'a str),
+    /// A nodename no alternative of the production generates. Carries the form,
+    /// because which IPv6 spelling the message offers depends on which field
+    /// was being read.
+    NotANode {
+        /// The nodename as written.
+        nodename: &'a str,
+        /// The field family it was read under.
+        form: NodeForm,
+    },
+    /// A well-formed `IPv6address` written against § 6.1's recommendation.
+    /// Carries the address as written and the parser's own rendering of it,
+    /// which is the recommended form — the two deviations § 6.1 names in
+    /// passing, case and uncompressed zeroes, are exactly the two that survive
+    /// the round trip.
+    TextualRepresentation {
+        /// The address as the sender wrote it.
+        written: &'a str,
+        /// The same address, in the recommended representation.
+        recommended: Ipv6Addr,
+    },
+    /// Something after the `:` that is neither `1*5DIGIT` nor an `obfport`.
+    NodePort(&'a str),
+}
+
+impl NodeDefect<'_> {
+    /// The finding's predicate, for a caller that has already written its
+    /// subject.
+    pub fn message(self) -> String {
+        match self {
+            Self::UnbracketedIpv6(value) => {
+                format!("holds an unbracketed IPv6 address: '{}'", value)
+            }
+            Self::UnclosedBrackets(nodename) => {
+                format!("is not a bracketed IPv6 address: '{}'", nodename)
+            }
+            Self::NotIpv6(inner) => format!("is not an IPv6 address: '{}'", inner),
+            Self::NotIpv4(nodename) => format!("is not an IPv4 address: '{}'", nodename),
+            Self::NotANode { nodename, form } => {
+                let ipv6 = match form {
+                    NodeForm::Forwarded => "a bracketed IPv6 address",
+                    NodeForm::XForwarded => "an IPv6 address",
+                };
+                format!(
+                    "is not a node identifier: '{}' is neither an IPv4 address, {}, `unknown`, nor an obfuscated identifier (which must begin with `_` and hold only letters, digits, `.`, `_` and `-`)",
+                    nodename, ipv6
+                )
+            }
+            Self::TextualRepresentation {
+                written,
+                recommended,
+            } => format!(
+                "writes the IPv6 address as '{}' where the recommended textual representation is '{}'",
+                written, recommended
+            ),
+            Self::NodePort(port) => format!(
+                "has '{}' where a node-port is expected: one to five digits, or an obfuscated port beginning with `_`",
+                port
+            ),
+        }
+    }
+}
+
 /// A node identifier: RFC 7239 §6's `node`.
 ///
-/// The error is the tail of a finding — what is wrong with the value, with no
+/// The defect is the tail of a finding — what is wrong with the value, with no
 /// field or parameter named — so each caller writes the subject its own message
 /// needs in front of it.
 // cite(RFC 7239 § 6, label: node grammar): "node     = nodename [ ":" node-port ]"
-pub fn validate_node(value: &str, form: NodeForm) -> Result<(), String> {
+pub fn validate_node(value: &str, form: NodeForm) -> Result<(), NodeDefect<'_>> {
     // Asked of the whole value, before it is split: an address written without
     // its brackets has colons in it, and every one of them looks like the
     // separator before a `node-port`. Reported here, the finding names what is
@@ -93,7 +185,7 @@ pub fn validate_node(value: &str, form: NodeForm) -> Result<(), String> {
     if value.parse::<Ipv6Addr>().is_ok() {
         return match form {
             NodeForm::XForwarded => Ok(()),
-            NodeForm::Forwarded => Err(format!("holds an unbracketed IPv6 address: '{}'", value)),
+            NodeForm::Forwarded => Err(NodeDefect::UnbracketedIpv6(value)),
         };
     }
 
@@ -107,10 +199,10 @@ pub fn validate_node(value: &str, form: NodeForm) -> Result<(), String> {
     // cite(RFC 7239 § 6, label: nodename grammar): "nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode"
     if let Some(rest) = nodename.strip_prefix('[') {
         let Some(inner) = rest.strip_suffix(']') else {
-            return Err(format!("is not a bracketed IPv6 address: '{}'", nodename));
+            return Err(NodeDefect::UnclosedBrackets(nodename));
         };
         let Ok(address) = inner.parse::<Ipv6Addr>() else {
-            return Err(format!("is not an IPv6 address: '{}'", inner));
+            return Err(NodeDefect::NotIpv6(inner));
         };
         // A SHOULD about how the address is written, not about which address it
         // is, so it is asked only once the octets are known to parse. The two
@@ -123,12 +215,11 @@ pub fn validate_node(value: &str, form: NodeForm) -> Result<(), String> {
         // says nothing that would carry a recommendation over to them.
         //
         // cite(RFC 7239 § 6.1): "The "IPv6address" SHOULD comply with textual representation recommendations [RFC5952] (for example, lowercase, compression of zeros)."
-        let recommended = address.to_string();
-        if form == NodeForm::Forwarded && inner != recommended {
-            return Err(format!(
-                "writes the IPv6 address as '{}' where the recommended textual representation is '{}'",
-                inner, recommended
-            ));
+        if form == NodeForm::Forwarded && inner != address.to_string() {
+            return Err(NodeDefect::TextualRepresentation {
+                written: inner,
+                recommended: address,
+            });
         }
         return validate_node_port(port);
     }
@@ -163,16 +254,9 @@ pub fn validate_node(value: &str, form: NodeForm) -> Result<(), String> {
     // value was closest to, because the everyday defect is an identifier that
     // was obfuscated without the underscore that says so.
     if nodename.chars().all(|c| c.is_ascii_digit() || c == '.') {
-        return Err(format!("is not an IPv4 address: '{}'", nodename));
+        return Err(NodeDefect::NotIpv4(nodename));
     }
-    let ipv6 = match form {
-        NodeForm::Forwarded => "a bracketed IPv6 address",
-        NodeForm::XForwarded => "an IPv6 address",
-    };
-    Err(format!(
-        "is not a node identifier: '{}' is neither an IPv4 address, {}, `unknown`, nor an obfuscated identifier (which must begin with `_` and hold only letters, digits, `.`, `_` and `-`)",
-        nodename, ipv6
-    ))
+    Err(NodeDefect::NotANode { nodename, form })
 }
 
 /// The optional `":" node-port` of a node identifier.
@@ -187,7 +271,7 @@ pub fn validate_node(value: &str, form: NodeForm) -> Result<(), String> {
 /// by how far they happen to differ.
 ///
 // cite(RFC 7239 § 6, label: node-port grammar): "node-port     = port / obfport port          = 1*5DIGIT obfport       = "_" 1*(ALPHA / DIGIT / "." / "_" / "-")"
-fn validate_node_port(port: Option<&str>) -> Result<(), String> {
+fn validate_node_port(port: Option<&str>) -> Result<(), NodeDefect<'_>> {
     let Some(port) = port else {
         return Ok(());
     };
@@ -197,10 +281,7 @@ fn validate_node_port(port: Option<&str>) -> Result<(), String> {
     if !port.is_empty() && port.len() <= 5 && port.chars().all(|c| c.is_ascii_digit()) {
         return Ok(());
     }
-    Err(format!(
-        "has '{}' where a node-port is expected: one to five digits, or an obfuscated port beginning with `_`",
-        port
-    ))
+    Err(NodeDefect::NodePort(port))
 }
 
 #[cfg(test)]
@@ -212,8 +293,8 @@ mod tests {
         // The one difference §7.4 names, in both directions.
         assert!(validate_node("2001:db8:cafe::17", NodeForm::XForwarded).is_ok());
         assert_eq!(
-            validate_node("2001:db8:cafe::17", NodeForm::Forwarded).unwrap_err(),
-            "holds an unbracketed IPv6 address: '2001:db8:cafe::17'"
+            validate_node("2001:db8:cafe::17", NodeForm::Forwarded),
+            Err(NodeDefect::UnbracketedIpv6("2001:db8:cafe::17"))
         );
 
         // Everything else is one production, so the two forms agree.
@@ -224,8 +305,17 @@ mod tests {
             assert!(validate_node("_gazonk", form).is_ok());
             assert!(validate_node("_gazonk:_hidden", form).is_ok());
             assert!(validate_node("[2001:db8::1]", form).is_ok());
-            assert!(validate_node("x-foo", form).is_err());
-            assert!(validate_node("192.0.2.43:999999", form).is_err());
+            assert_eq!(
+                validate_node("x-foo", form),
+                Err(NodeDefect::NotANode {
+                    nodename: "x-foo",
+                    form
+                })
+            );
+            assert_eq!(
+                validate_node("192.0.2.43:999999", form),
+                Err(NodeDefect::NodePort("999999"))
+            );
         }
     }
 
@@ -233,20 +323,54 @@ mod tests {
     fn the_textual_representation_should_is_asked_of_one_spelling() {
         // Both parse; only the `Forwarded` node is measured against §6.1.
         assert_eq!(
-            validate_node("[2001:DB8::1]", NodeForm::Forwarded).unwrap_err(),
-            "writes the IPv6 address as '2001:DB8::1' where the recommended textual representation is '2001:db8::1'"
+            validate_node("[2001:DB8::1]", NodeForm::Forwarded),
+            Err(NodeDefect::TextualRepresentation {
+                written: "2001:DB8::1",
+                recommended: "2001:db8::1".parse().unwrap(),
+            })
         );
         assert!(validate_node("[2001:DB8::1]", NodeForm::XForwarded).is_ok());
     }
 
+    /// One variant, two messages: the catch-all carries the form because the
+    /// IPv6 spelling it offers is the one the caller's field accepts.
     #[test]
     fn the_catch_all_names_the_ipv6_form_the_caller_accepts() {
         assert!(validate_node("x-foo", NodeForm::Forwarded)
             .unwrap_err()
+            .message()
             .contains("a bracketed IPv6 address"));
         assert!(validate_node("x-foo", NodeForm::XForwarded)
             .unwrap_err()
+            .message()
             .contains("neither an IPv4 address, an IPv6 address,"));
+    }
+
+    /// The four `nodename` alternatives failing separately, plus the two
+    /// defects that are not one of them. `[::1` and `[nope]` were the pair
+    /// `is_err()` could not tell apart from each other or from `x-foo`: the
+    /// first has no closing bracket, the second has brackets around something
+    /// that is not an address, and the third is not trying to be one.
+    #[test]
+    fn each_alternative_fails_as_itself() {
+        for form in [NodeForm::Forwarded, NodeForm::XForwarded] {
+            assert_eq!(
+                validate_node("[::1", form),
+                Err(NodeDefect::UnclosedBrackets("[::1"))
+            );
+            assert_eq!(
+                validate_node("[nope]", form),
+                Err(NodeDefect::NotIpv6("nope"))
+            );
+            assert_eq!(
+                validate_node("010.1.2.3", form),
+                Err(NodeDefect::NotIpv4("010.1.2.3"))
+            );
+            assert_eq!(
+                validate_node("192.0.2.43:_", form),
+                Err(NodeDefect::NodePort("_"))
+            );
+        }
     }
 
     #[test]
