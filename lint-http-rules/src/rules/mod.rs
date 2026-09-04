@@ -179,6 +179,7 @@ impl<'a> RuleContext<'a> {
     fn finding(&self, def: &'static ViolationDef, message: String) -> Violation {
         Violation {
             rule: self.rule_id.into(),
+            violation: def.id.into(),
             severity: self.severity_for(def),
             message,
             cite: def.spec.as_ref().map(SpecRef::citation),
@@ -213,17 +214,39 @@ impl<'a> RuleContext<'a> {
 /// [`RuleMeta::violations`] entry, in that order — the table
 /// [`RuleContext::with_violations`] hands to dispatch.
 ///
-/// Every entry is its def's `default_severity`, which is the whole of the
-/// resolution while nothing in a configuration names a violation. The defaults
-/// live in code, unlike a rule's *options*: an option is policy about the
-/// traffic and has to be chosen, a severity is a preference, and a catalogue
-/// of this many defects cannot be answered entry by entry before it can run at
-/// all.
-pub fn severities_for(rule: &dyn RuleMeta) -> Vec<crate::lint::Severity> {
+/// An entry is its def's `default_severity` unless `[violations.<id>]` says
+/// otherwise. The defaults live in code, unlike a rule's *options*: an option
+/// is policy about the traffic and has to be chosen, a severity is a
+/// preference, and a catalogue of this many defects cannot be answered entry by
+/// entry before it can run at all. So the override is the exception an operator
+/// writes, and the whole table resolves without one.
+pub fn severities_for(
+    rule: &dyn RuleMeta,
+    cfg: &crate::config::Config,
+) -> Vec<crate::lint::Severity> {
     rule.violations()
         .iter()
-        .map(|def| def.default_severity)
+        .map(|def| violation_severity(cfg, def))
         .collect()
+}
+
+/// The severity `def` reports at under `cfg` — its `[violations.<id>]`
+/// override, or the default on the def.
+///
+/// Infallible where [`get_rule_severity_required`] is not, and for a reason
+/// that only holds because of where it runs: [`validate_rules`] has already
+/// refused a malformed `[violations.*]` table by the time an engine prepares
+/// anything, so an unreadable value here is not a configuration this code can
+/// reach. Reading it as "no override" rather than as an error is also the
+/// safe half of being wrong — the defect is still reported, at the severity
+/// its author chose.
+fn violation_severity(cfg: &crate::config::Config, def: &ViolationDef) -> crate::lint::Severity {
+    cfg.get_violation_config(def.id)
+        .and_then(toml::Value::as_table)
+        .and_then(|table| table.get("severity"))
+        .and_then(toml::Value::as_str)
+        .and_then(crate::lint::Severity::from_name)
+        .unwrap_or(def.default_severity)
 }
 
 /// Scope of a rule: whether it applies to client-only traffic (requests),
@@ -407,6 +430,10 @@ pub trait RuleMeta: Send + Sync {
     fn violation(&self, severity: crate::lint::Severity, message: String) -> Violation {
         Violation {
             rule: self.id().into(),
+            // A finding built this way names no defect: the message was
+            // written here rather than looked up, so there is nothing to name
+            // it by. [`RuleContext::report`] fills this in.
+            violation: String::new(),
             severity,
             message,
             cite: None,
@@ -572,18 +599,23 @@ pub fn get_rule_severity_required(
             rule
         ));
     };
-    match s {
-        "info" => Ok(crate::lint::Severity::Info),
-        "warn" => Ok(crate::lint::Severity::Warn),
-        "error" => Ok(crate::lint::Severity::Error),
-        _ => Err(anyhow::anyhow!(
+    crate::lint::Severity::from_name(s).ok_or_else(|| {
+        anyhow::anyhow!(
             "Rule '{}' has invalid severity '{}'. Must be one of: info, warn, error",
             rule,
             s
-        )),
-    }
+        )
+    })
 }
 
+/// Check the whole lint configuration: the `[rules.*]` tables this is named
+/// for, and the `[violations.*]` overrides beside them.
+///
+/// One entry point rather than two, because a second function is a second
+/// thing every caller has to remember — the proxy, the offline `lint`
+/// subcommand and [`crate::engine::PreparedEngine::new`] each call this once
+/// and get everything. A caller that validated only half would start under a
+/// configuration naming a defect that does not exist.
 pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
     // Ensure every rule table specifies valid `enabled` and `severity` entries.
     for (rule_name, val) in &config.rules {
@@ -607,16 +639,14 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
 
             // Validate `severity` field - must be present and be a valid string
             match table.get("severity") {
-                Some(toml::Value::String(s)) => match s.as_str() {
-                    "info" | "warn" | "error" => {}
-                    _ => {
-                        return Err(anyhow::anyhow!(
-                                "Invalid severity '{}' for rule '{}': must be one of 'info', 'warn', 'error'",
-                                s,
-                                rule_name
-                            ));
-                    }
-                },
+                Some(toml::Value::String(s)) if crate::lint::Severity::from_name(s).is_some() => {}
+                Some(toml::Value::String(s)) => {
+                    return Err(anyhow::anyhow!(
+                        "Invalid severity '{}' for rule '{}': must be one of 'info', 'warn', 'error'",
+                        s,
+                        rule_name
+                    ));
+                }
                 Some(_) => {
                     return Err(anyhow::anyhow!(
                         "Invalid severity for rule '{}': must be a string 'info', 'warn', or 'error'",
@@ -656,13 +686,96 @@ pub fn validate_rules(config: &crate::config::Config) -> anyhow::Result<()> {
         }
     }
 
+    validate_violation_overrides(config)?;
+
     // Per-rule validation: every enabled rule parses its own config section so
     // a malformed section (including custom fields) fails fast at startup.
+    // Last, because it is the only part that runs rule code.
     for rule in all_rules() {
         if config.is_enabled(rule.id()) {
             rule.prepare(config).map_err(|e| {
                 anyhow::anyhow!("Invalid configuration for rule '{}': {}", rule.id(), e)
             })?;
+        }
+    }
+    Ok(())
+}
+
+/// Check every `[violations.<id>]` table: it sets a severity, it sets nothing
+/// else, and it names a defect in the catalogue.
+///
+/// Stricter than the rule tables in the one way that matters here. A rule's
+/// table is required and carries the rule's own options, so an unknown key is
+/// the rule's business and its `prepare` judges it; a violation's table is
+/// optional, exists only to disagree with a default, and has exactly one key.
+/// An unrecognised key in it is therefore always a mistake — and one mistake
+/// in particular, `enabled = false`, would otherwise look like it worked.
+fn validate_violation_overrides(config: &crate::config::Config) -> anyhow::Result<()> {
+    for (id, value) in &config.violations {
+        let Some(table) = value.as_table() else {
+            return Err(anyhow::anyhow!(
+                "Violation '{}' configuration must be a table",
+                id
+            ));
+        };
+        // First, because the key most likely to be here is one that will never
+        // be: `[violations.<id>] enabled = false`. Judged before the severity
+        // is missed, so that section hears why it cannot work rather than that
+        // it forgot a key it never meant to write.
+        for key in table.keys() {
+            if key != "severity" {
+                return Err(anyhow::anyhow!(
+                    "Unknown key '{}' for violation '{}': a violation table configures \
+                     'severity' only. A single defect cannot be switched off — most rules \
+                     report their first finding and stop, so silencing one would silence \
+                     whatever the same branch would have said next. Set severity = \"info\" \
+                     and report with --min-severity warn instead",
+                    key,
+                    id
+                ));
+            }
+        }
+        match table.get("severity") {
+            Some(toml::Value::String(s)) if crate::lint::Severity::from_name(s).is_some() => {}
+            Some(toml::Value::String(s)) => {
+                return Err(anyhow::anyhow!(
+                    "Invalid severity '{}' for violation '{}': must be one of 'info', 'warn', \
+                     'error'",
+                    s,
+                    id
+                ));
+            }
+            Some(_) => {
+                return Err(anyhow::anyhow!(
+                    "Invalid severity for violation '{}': must be a string 'info', 'warn', or \
+                     'error'",
+                    id
+                ));
+            }
+            // Required *within* a table that was written, though the table
+            // itself is optional: the only thing it can say is a severity, so
+            // one that says nothing is a section its author expected to do
+            // something.
+            None => {
+                return Err(anyhow::anyhow!(
+                    "Missing required 'severity' key for violation '{}'. A violation table \
+                     overrides the default severity on its catalogue entry, and has nothing \
+                     else to say",
+                    id
+                ));
+            }
+        }
+        // Last, so that a well-formed section naming nothing is the error an
+        // operator hears about a typo — and a malformed one is judged on its
+        // shape whichever name it carries. Same order the rule tables are
+        // checked in, for the same reason.
+        if !crate::violations::VIOLATIONS.iter().any(|def| def.id == id) {
+            return Err(anyhow::anyhow!(
+                "Configuration names a violation '{}' that does not exist. A violation is one \
+                 defect a rule reports, not the rule itself; every violation id is listed in \
+                 config_example.toml",
+                id
+            ));
         }
     }
     Ok(())
@@ -1307,6 +1420,65 @@ severity = "warn"
         assert!(validate_rules(&cfg).is_err());
     }
 
+    /// Every way a `[violations.<id>]` section can be wrong, in the order they
+    /// are judged: a table that is not one, a section that says nothing, a
+    /// severity that is not a string or not a name, and last a name the
+    /// catalogue does not have.
+    #[test]
+    fn validate_rules_rejects_a_malformed_violation_table() {
+        let section = |value: toml::Value| {
+            let mut cfg = crate::config::Config::default();
+            cfg.violations.insert("some_defect".to_string(), value);
+            validate_rules(&cfg)
+                .expect_err("a malformed violation table must fail validation")
+                .to_string()
+        };
+
+        let msg = section(toml::Value::String("error".into()));
+        assert!(msg.contains("must be a table"), "{msg}");
+
+        let mut table = toml::map::Map::new();
+        let msg = section(toml::Value::Table(table.clone()));
+        assert!(msg.contains("Missing required 'severity'"), "{msg}");
+
+        table.insert("severity".to_string(), toml::Value::Boolean(true));
+        let msg = section(toml::Value::Table(table.clone()));
+        assert!(msg.contains("must be a string"), "{msg}");
+
+        table.insert(
+            "severity".to_string(),
+            toml::Value::String("shouting".into()),
+        );
+        let msg = section(toml::Value::Table(table.clone()));
+        assert!(msg.contains("Invalid severity 'shouting'"), "{msg}");
+
+        table.insert("severity".to_string(), toml::Value::String("error".into()));
+        let msg = section(toml::Value::Table(table));
+        assert!(msg.contains("does not exist"), "{msg}");
+        assert!(msg.contains("some_defect"), "{msg}");
+    }
+
+    /// The unknown-key arm exists for one key in particular: a defect cannot be
+    /// switched off on its own, and `enabled = false` is what someone reaches
+    /// for first. Accepting and ignoring it would leave the defect reporting
+    /// under a configuration that says it does not.
+    ///
+    /// Written alone, which is how it would actually be written, so this also
+    /// pins the arm's position: judged before the missing severity, or the
+    /// section hears that it forgot a key it never meant to write.
+    #[test]
+    fn validate_rules_rejects_switching_one_violation_off() {
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(false));
+        let mut cfg = crate::config::Config::default();
+        cfg.violations
+            .insert("some_defect".to_string(), toml::Value::Table(table));
+        let err = validate_rules(&cfg).expect_err("a violation has no enabled flag");
+        let msg = err.to_string();
+        assert!(msg.contains("Unknown key 'enabled'"), "{msg}");
+        assert!(msg.contains("--min-severity"), "{msg}");
+    }
+
     #[test]
     fn validate_rules_ok_when_enabled_rule_has_valid_config() -> anyhow::Result<()> {
         let mut cfg = crate::config::Config::default();
@@ -1769,12 +1941,77 @@ severity = "warn"
     }
 
     /// The table is the defs' own defaults, in declaration order — the order
-    /// the index lookup depends on. Nothing overrides them: no configuration
-    /// names a violation yet.
+    /// the index lookup depends on. A configuration that names no violation
+    /// resolves the whole catalogue, which is what the defaults are for.
     #[test]
     fn severities_default_to_the_catalogue_in_declaration_order() {
         assert_eq!(
-            severities_for(&ReportingRule),
+            severities_for(&ReportingRule, &crate::config::Config::default()),
+            vec![crate::lint::Severity::Warn, crate::lint::Severity::Error],
+        );
+    }
+
+    /// One defect of a rule reconfigured, the other left alone — the split the
+    /// catalogue exists for. Under the rule-wide severity these two could only
+    /// ever have said the same thing.
+    #[test]
+    fn a_violation_table_overrides_that_defects_default_alone() {
+        let mut cfg = crate::config::Config::default();
+        crate::test_helpers::override_violation_severity(
+            &mut cfg,
+            "test_fixture_defect_fixed",
+            "info",
+        );
+        assert_eq!(
+            severities_for(&ReportingRule, &cfg),
+            vec![crate::lint::Severity::Info, crate::lint::Severity::Error],
+        );
+
+        let resolved = unit_resolved();
+        let severities = severities_for(&ReportingRule, &cfg);
+        let v = reporting_context(&resolved, &severities).report(&FIXED);
+        assert_eq!(v.severity, crate::lint::Severity::Info);
+        assert_eq!(
+            v.violation, "test_fixture_defect_fixed",
+            "a report names the defect it reports, and that is the name the table used",
+        );
+    }
+
+    /// A section naming a defect this rule does not declare changes nothing
+    /// about it. Resolution is per violation id, not per rule, so the two
+    /// rules that report one defect are configured together and a rule that
+    /// does not report it is untouched.
+    #[test]
+    fn a_section_for_a_defect_the_rule_never_declared_changes_nothing() {
+        let mut cfg = crate::config::Config::default();
+        crate::test_helpers::override_violation_severity(
+            &mut cfg,
+            "test_fixture_defect_foreign",
+            "info",
+        );
+        assert_eq!(
+            severities_for(&ReportingRule, &cfg),
+            vec![crate::lint::Severity::Warn, crate::lint::Severity::Error],
+        );
+    }
+
+    /// Validation refuses a malformed table before an engine exists, so the
+    /// resolver never sees one — and if it somehow did, the defect is still
+    /// reported at its author's level rather than dropped or guessed.
+    #[test]
+    fn an_unreadable_override_falls_back_to_the_defs_default() {
+        let mut cfg = crate::config::Config::default();
+        cfg.violations.insert(
+            "test_fixture_defect_fixed".to_string(),
+            toml::Value::Boolean(true),
+        );
+        crate::test_helpers::override_violation_severity(
+            &mut cfg,
+            "test_fixture_defect_parameterised",
+            "shouting",
+        );
+        assert_eq!(
+            severities_for(&ReportingRule, &cfg),
             vec![crate::lint::Severity::Warn, crate::lint::Severity::Error],
         );
     }

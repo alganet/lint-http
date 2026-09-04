@@ -44,7 +44,7 @@ pub fn run_rule_all(
     let Ok(resolved) = rule.prepare(cfg) else {
         return Vec::new();
     };
-    let severities = crate::rules::severities_for(rule);
+    let severities = crate::rules::severities_for(rule, cfg);
     let ctx = crate::rules::RuleContext::new(&resolved).with_violations(rule, &severities);
     rule.findings(tx, history, &ctx)
 }
@@ -63,7 +63,7 @@ pub fn run_protocol_rule(
     cfg: &crate::config::Config,
 ) -> Option<crate::lint::Violation> {
     let resolved = rule.prepare(cfg).ok()?;
-    let severities = crate::rules::severities_for(rule);
+    let severities = crate::rules::severities_for(rule, cfg);
     let ctx = crate::rules::RuleContext::new(&resolved).with_violations(rule, &severities);
     rule.findings(event, history, &ctx).into_iter().next()
 }

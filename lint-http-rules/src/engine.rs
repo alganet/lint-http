@@ -88,7 +88,7 @@ impl PreparedEngine {
                         rule,
                         query: crate::rules::query_type_for(rule.id()),
                         resolved: rule.prepare(cfg)?,
-                        severities: crate::rules::severities_for(rule),
+                        severities: crate::rules::severities_for(rule, cfg),
                     })
                 })
                 .collect::<anyhow::Result<_>>()
@@ -104,7 +104,7 @@ impl PreparedEngine {
                     Ok(PreparedProtocolRule {
                         rule,
                         resolved: rule.prepare(cfg)?,
-                        severities: crate::rules::severities_for(rule),
+                        severities: crate::rules::severities_for(rule, cfg),
                     })
                 })
                 .collect::<anyhow::Result<_>>()?,

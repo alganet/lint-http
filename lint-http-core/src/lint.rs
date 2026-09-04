@@ -51,6 +51,17 @@ impl std::fmt::Display for SpecCitation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Violation {
     pub rule: String,
+    /// The catalogue id of the defect this finding reports, when the rule named
+    /// one. That is the name `[violations.<id>]` tunes and the one an operator
+    /// grepping a capture for a single defect can use — a rule that says four
+    /// different things reports them under four of these and one `rule`.
+    ///
+    /// Empty when the finding was built the pre-catalogue way, where the rule
+    /// id is the only name a report has. Serde-defaulted both ways, exactly as
+    /// `cite` was: a capture written before the field existed reads back with
+    /// it empty, and a finding that names no defect serializes as it always has.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub violation: String,
     pub severity: Severity,
     pub message: String,
     /// The specification text this finding enforces, when the rule attached
@@ -69,6 +80,7 @@ impl Violation {
     pub fn new(rule: impl Into<String>, severity: Severity, message: impl Into<String>) -> Self {
         Self {
             rule: rule.into(),
+            violation: String::new(),
             severity,
             message: message.into(),
             cite: None,
@@ -86,20 +98,80 @@ pub enum Severity {
     Error,
 }
 
+impl Severity {
+    /// The name this level goes by outside the type: what a configuration
+    /// writes, what a generated configuration renders, and what a report
+    /// prints. One vocabulary, spelled once — the config reader, the config
+    /// generator and the text report each used to spell it out themselves,
+    /// which is three places for a fourth level to be forgotten.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Warn => "warn",
+            Self::Error => "error",
+        }
+    }
+
+    /// The level a configuration named, or `None` for a name that is not one
+    /// of the three. The exact inverse of [`name`](Severity::name), so what
+    /// the generator writes is always what the reader accepts. Callers phrase
+    /// their own error: what a bad name means differs between a rule's table
+    /// and a violation's.
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "info" => Some(Self::Info),
+            "warn" => Some(Self::Warn),
+            "error" => Some(Self::Error),
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// A capture line written before the `cite` field existed still parses,
-    /// and an un-cited finding still serializes byte-identically to what that
-    /// older line held — the capture format is unchanged until a rule
-    /// actually cites.
+    /// A capture line written before the `cite` and `violation` fields existed
+    /// still parses, and a finding carrying neither still serializes
+    /// byte-identically to what that older line held — the capture format is
+    /// unchanged until a rule actually cites or names a defect.
     #[test]
     fn legacy_capture_line_round_trips_without_cite() {
         let legacy = r#"{"rule":"host_header","severity":"warn","message":"m"}"#;
         let v: Violation = serde_json::from_str(legacy).expect("pre-cite line parses");
         assert!(v.cite.is_none());
+        assert!(v.violation.is_empty());
         assert_eq!(serde_json::to_string(&v).expect("serializes"), legacy);
+    }
+
+    /// A finding that names the defect it reports carries both names: the rule
+    /// that ran, and the entry an operator tunes.
+    #[test]
+    fn a_finding_naming_its_defect_round_trips_with_both_names() {
+        let v = Violation {
+            violation: "host_header_absent".to_string(),
+            ..Violation::new("host_header", Severity::Error, "m")
+        };
+        let json = serde_json::to_string(&v).expect("serializes");
+        assert_eq!(
+            json,
+            r#"{"rule":"host_header","violation":"host_header_absent","severity":"error","message":"m"}"#
+        );
+        let back: Violation = serde_json::from_str(&json).expect("parses");
+        assert_eq!(back.violation, v.violation);
+    }
+
+    /// The two halves of the severity vocabulary are inverses, which is what
+    /// lets the generated configuration be read back by the configuration
+    /// reader. A level whose name did not parse back would be a section the
+    /// generator writes and the loader rejects.
+    #[test]
+    fn every_severity_name_parses_back_to_its_level() {
+        for level in [Severity::Info, Severity::Warn, Severity::Error] {
+            assert_eq!(Severity::from_name(level.name()), Some(level));
+        }
+        assert_eq!(Severity::from_name("fatal"), None);
+        assert_eq!(Severity::from_name("Warn"), None);
     }
 
     #[test]

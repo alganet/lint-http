@@ -22,6 +22,7 @@
 //! (or `just genconfig`) to fix drift.
 
 use lint_http_rules::rules::all_rules;
+use lint_http_rules::violations::{ViolationDef, VIOLATIONS};
 use std::path::Path;
 
 /// Everything above the first `[rules.*]` section, verbatim.
@@ -47,6 +48,11 @@ const PREAMBLE: &str = r#"# SPDX-FileCopyrightText: 2025 Alexandre Gomes Gaigala
 # transport policy, which no rule knows about. Every `[rules.*]` section below
 # is rendered from that rule's `config_example()` metadata, so a change to a
 # rule's example belongs in `lint-http-rules/src/rules/<id>.rs`.
+#
+# The `[violations.*]` sections after them are the defects those rules report,
+# each shown at the default severity its catalogue entry carries. They are
+# overrides: deleting one changes nothing, editing one changes what that single
+# defect reports at.
 
 [general]
 listen = "127.0.0.1:3000"
@@ -136,12 +142,35 @@ suppress_headers = ["X-Sensitive-Header"]
 "#;
 // REUSE-IgnoreEnd
 
+/// One `[violations.<id>]` section: the def's own default severity, written
+/// out so the file an operator copies shows what every defect reports at and
+/// where to change it.
+///
+/// The value is what the catalogue already resolves to, which makes the whole
+/// table redundant by construction — and that is the point of shipping it.
+/// A severity default lives in code precisely because a catalogue this size
+/// cannot be hand-answered; the generated file is how it stays visible anyway.
+fn violation_section(def: &ViolationDef) -> String {
+    format!(
+        "[violations.{}]\n# {}\nseverity = \"{}\"\n",
+        def.id,
+        def.title,
+        def.default_severity.name(),
+    )
+}
+
 /// The whole file, as bytes on disk: the preamble, then one `[rules.<id>]`
 /// section per catalogue entry in [`all_rules`] order (transaction rules by id,
-/// then protocol rules by id), separated by a blank line.
+/// then protocol rules by id), then one `[violations.<id>]` section per defect
+/// in [`VIOLATIONS`] order, every section separated by a blank line.
 ///
-/// The header is rendered from `id()` rather than stored, so a section can
-/// never name a rule other than the one whose body it holds.
+/// The rule tables come first and the violation tables after, rather than each
+/// defect under the rule that reports it: a defect is not owned by one rule,
+/// and TOML would read a `[violations.x]` header between two `[rules.*]`
+/// headers as ending the rule table above it anyway.
+///
+/// Every header is rendered from an id rather than stored, so a section can
+/// never name something other than what its body configures.
 pub fn render() -> String {
     let mut out = String::from(PREAMBLE);
     for rule in all_rules() {
@@ -149,6 +178,10 @@ pub fn render() -> String {
         out.push_str(&format!("[rules.{}]\n", rule.id()));
         out.push_str(rule.config_example().trim_end_matches('\n'));
         out.push('\n');
+    }
+    for def in VIOLATIONS.iter() {
+        out.push('\n');
+        out.push_str(&violation_section(def));
     }
     out
 }
@@ -165,15 +198,55 @@ mod tests {
     use lint_http_rules::rules::{PROTOCOL_RULES, RULES};
 
     #[test]
-    fn render_starts_with_the_preamble_and_ends_with_the_last_rule() {
+    fn render_starts_with_the_preamble_and_carries_the_last_rule() {
         let out = render();
         assert!(out.starts_with("# SPDX-FileCopyrightText"));
         assert!(out.contains("\n[tls]\n"));
         let last = all_rules().last().expect("catalogue is non-empty");
         assert!(
-            out.ends_with(&format!("[rules.{}]\n{}", last.id(), last.config_example())),
-            "the file ends with the last rule's section and one newline"
+            out.contains(&format!("[rules.{}]\n{}", last.id(), last.config_example())),
+            "the last rule's section is rendered whole"
         );
+        assert!(out.ends_with('\n'), "the file ends with one newline");
+    }
+
+    /// What a `[violations.*]` section looks like, asserted against a def built
+    /// here rather than one out of the catalogue: this is the shape of the
+    /// section, and it should not change when the first real defect lands or
+    /// when the catalogue is reordered.
+    #[test]
+    fn a_violation_section_is_its_id_title_and_default_severity() {
+        let def = ViolationDef {
+            id: "example_field_empty",
+            title: "Example field is present but empty",
+            message: "Example field is present but empty",
+            default_severity: lint_http_rules::lint::Severity::Error,
+            spec: None,
+        };
+        assert_eq!(
+            violation_section(&def),
+            "[violations.example_field_empty]\n\
+             # Example field is present but empty\n\
+             severity = \"error\"\n",
+        );
+    }
+
+    /// Every defect is configurable by name, and named once. The catalogue is
+    /// empty until the first subject moves over, which makes this vacuous now
+    /// and load-bearing the moment it is not: a def that never reaches the file
+    /// is a severity nobody can find, let alone change.
+    #[test]
+    fn render_emits_one_section_per_violation() {
+        let out = render();
+        assert_eq!(out.matches("\n[violations.").count(), VIOLATIONS.len());
+        for def in VIOLATIONS.iter() {
+            assert_eq!(
+                out.matches(&format!("\n[violations.{}]\n", def.id)).count(),
+                1,
+                "{} should head exactly one section",
+                def.id
+            );
+        }
     }
 
     /// Every rule contributes exactly one section, headed by its own id. The
