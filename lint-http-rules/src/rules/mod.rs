@@ -1257,11 +1257,22 @@ severity = "warn"
     /// now one site over both names. Each still cites what it cited; the count
     /// of *sites* is not the count of sentences read, so when a duplicate
     /// disappears, lower the floor and say which one.
+    ///
+    /// **A site converting to the violation catalogue is the second reason,**
+    /// and from here the usual one. `ctx.report`/`report_with` take their
+    /// citation from the def, so a converted site is counted by neither half
+    /// of this test: the sentence did not stop being read, it stopped being
+    /// named here. `every_violation_declares_a_spec` is the ratchet that holds
+    /// it on the other side, and this one keeps the unconverted remainder
+    /// honest until the last site goes. `cookie_path_valid`'s `Path` reading
+    /// is the first, and took one cited site with it.
     #[test]
     fn citation_coverage_does_not_regress() {
-        /// Finding sites that name the specification sentence they enforce, out
-        /// of 578. The rest are the per-rule reading that has not happened yet.
-        const FLOOR: usize = 171;
+        /// Finding sites that name the specification sentence they enforce.
+        /// The rest are the per-rule reading that has not happened yet — the
+        /// denominator is computed below, because merges and conversions both
+        /// move it.
+        const FLOOR: usize = 170;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

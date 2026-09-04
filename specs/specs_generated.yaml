@@ -1197,6 +1197,8 @@ sources:
       line: 138
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 49
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 101
   - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 2.2
     snippet: A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component.
@@ -2088,12 +2090,28 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cookie_lifecycle.rs
       line: 63
+  - label: cookie_path_valid
+    section: § 5.2
+    snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_path_valid.rs
+      line: 149
+  - label: cookie_path_valid (2)
+    section: § 5.2
+    snippet: If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows.
+    cited_by:
+    - file: lint-http-rules/src/rules/cookie_path_valid.rs
+      line: 164
   - label: lint-http-rules/src/helpers/cookie.rs
     section: § 4.1.1
     snippet: 'Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:'
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 97
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 113
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 126
   - label: lint-http-rules/src/helpers/cookie.rs (2)
     section: § 4.1.1
     snippet: cookie-av         = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av
@@ -2154,8 +2172,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 346
-    - file: lint-http-rules/src/rules/cookie_path_valid.rs
-      line: 129
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 66
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 77
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 90
   - label: lint-http-rules/src/helpers/cookie.rs (9)
     section: § 5.3
     snippet: Set the cookie's host-only-flag to true.

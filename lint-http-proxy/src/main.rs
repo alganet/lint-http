@@ -452,7 +452,20 @@ fn render_lint_report(
                     }
                 }
                 for v in block.violations() {
-                    write!(out, "  {:<5} {}  {}", v.severity.name(), v.rule, v.message)?;
+                    // Both names, when the finding carries both: the rule is
+                    // what ran, the defect is what it found, and they are
+                    // tuned by two different sections of the configuration.
+                    // `rule/defect` rather than either alone — dropping the
+                    // rule would hide which analysis to switch off, and
+                    // dropping the defect would hide the name `[violations.*]`
+                    // takes. A finding from a rule that names no defect prints
+                    // exactly as it always has.
+                    let name = if v.violation.is_empty() {
+                        v.rule.clone()
+                    } else {
+                        format!("{}/{}", v.rule, v.violation)
+                    };
+                    write!(out, "  {:<5} {}  {}", v.severity.name(), name, v.message)?;
                     // The specification text the finding enforces, when the
                     // rule attached one at the violation site.
                     if let Some(cite) = &v.cite {
@@ -1013,6 +1026,40 @@ severity = "warn"
         );
         // The un-cited finding's line is unchanged — no empty bracket.
         assert!(!out.contains("[]"), "{out}");
+        Ok(())
+    }
+
+    /// A finding that names a defect prints both names; one that does not
+    /// prints the rule alone, with no stray separator. The JSON half needs no
+    /// decision of its own — `violation` is a field, and it is present or
+    /// skipped by the same rule.
+    #[test]
+    fn render_lint_report_text_names_the_defect_when_there_is_one() -> anyhow::Result<()> {
+        let mut v = sample_violation();
+        v.violation = "cache_control_missing".to_string();
+        let findings = vec![FindingsBlock::HttpTransaction(TransactionFindings {
+            method: "GET".to_string(),
+            uri: "http://example.test/".to_string(),
+            status: Some(200),
+            violations: vec![v, sample_violation()],
+        })];
+        let out = render_lint_report(&findings, 1, 0, OutputFormat::Text)?;
+        assert!(
+            out.contains("warn  cache_control_present/cache_control_missing  missing"),
+            "{out}"
+        );
+        assert!(
+            out.contains("warn  cache_control_present  missing"),
+            "{out}"
+        );
+
+        let json = render_lint_report(&findings, 1, 0, OutputFormat::Json)?;
+        let parsed: Vec<serde_json::Value> = serde_json::from_str(&json)?;
+        assert_eq!(
+            parsed[0]["violations"][0]["violation"],
+            "cache_control_missing"
+        );
+        assert!(parsed[0]["violations"][1]["violation"].is_null());
         Ok(())
     }
 
