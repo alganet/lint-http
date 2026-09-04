@@ -43,6 +43,13 @@ pub struct ViolationDef {
     /// it, the `Violation.violation` its findings will carry, and the section
     /// heading in the owning rule's generated doc page. Disjoint from the rule
     /// ids — see `violation_ids_are_unique_and_disjoint_from_rule_ids`.
+    ///
+    /// `<subject>[_<part>]_<defect>`, the defect drawn from the closed list
+    /// "Violation ids" in `docs/development.md` defines and
+    /// `every_violation_id_names_a_defect` checks. A rule id names a claim and
+    /// a violation id names the defect that breaks it, which is why the two
+    /// vocabularies cannot collide — and why the id names the defect rather
+    /// than the rule reporting it, since two rules may report one defect.
     pub id: &'static str,
     /// One line naming the defect, for the docs heading and `rules list`.
     pub title: &'static str,
@@ -153,6 +160,92 @@ mod tests {
                 !seen.contains(rule.id()),
                 "{} names both a rule and a violation",
                 rule.id(),
+            );
+        }
+    }
+
+    /// The closed vocabulary a violation id ends in. Each word is defined in
+    /// "Violation ids" in `docs/development.md`, beside the claim it breaks;
+    /// this array and that table are extended in one commit or not at all.
+    const DEFECT_ENDINGS: &[&str] = &[
+        "conflicting",
+        "duplicated",
+        "empty",
+        "forbidden",
+        "ignored",
+        "invalid",
+        "malformed",
+        "missing",
+        "obsolete",
+        "unregistered",
+    ];
+
+    /// Whether `id` is `<subject>[_<part>]_<defect>`: a defect from the list
+    /// above, with at least one character of subject in front of it.
+    fn names_a_defect(id: &str) -> bool {
+        DEFECT_ENDINGS.iter().any(|defect| {
+            id.strip_suffix(defect)
+                .is_some_and(|subject| subject.len() > 1 && subject.ends_with('_'))
+        })
+    }
+
+    /// Whether `id` can be spelled as the def's `static`, which is the id in
+    /// `SCREAMING_SNAKE_CASE` and therefore a Rust identifier.
+    fn is_snake_case(id: &str) -> bool {
+        id.starts_with(|c: char| c.is_ascii_lowercase())
+            && id
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+    }
+
+    /// A rule id names a claim about the traffic and a violation id names the
+    /// defect that breaks it, so an id ending in a claim — `..._valid`,
+    /// `..._present` — is a def that copied the id of the rule reporting it.
+    /// That is the mistake this catches, and it is worth catching mechanically
+    /// because it is invisible until an operator reads a report and cannot
+    /// tell which of the two catalogues a name came from.
+    ///
+    /// The closed list is also what makes
+    /// `violation_ids_are_unique_and_disjoint_from_rule_ids` hold by
+    /// construction: no rule id ends in any of these words.
+    #[test]
+    fn every_violation_id_names_a_defect() {
+        let stray: Vec<&str> = VIOLATIONS
+            .iter()
+            .map(|def| def.id)
+            .filter(|id| !names_a_defect(id) || !is_snake_case(id))
+            .collect();
+        assert!(stray.is_empty(), "not <subject>_<defect> ids: {stray:?}");
+    }
+
+    /// The shape check itself, against ids built here rather than against the
+    /// catalogue, so the convention is pinned whatever the catalogue holds.
+    #[test]
+    fn the_id_shape_takes_a_defect_and_refuses_a_claim() {
+        for id in [
+            "if_match_empty",
+            "if_match_member_malformed",
+            "www_authenticate_parameter_value_invalid",
+            "status_426_upgrade_missing",
+        ] {
+            assert!(names_a_defect(id) && is_snake_case(id), "{id} is the shape");
+        }
+        for id in [
+            // A rule id: the claim, not the defect.
+            "if_match_etag_syntax",
+            "content_type_valid",
+            // A defect with no subject in front of it.
+            "malformed",
+            "_malformed",
+            // A defect word that is not the ending.
+            "empty_member_reported",
+            // Spellings the def's `static` cannot take.
+            "IfMatchEmpty",
+            "2_members_conflicting",
+        ] {
+            assert!(
+                !(names_a_defect(id) && is_snake_case(id)),
+                "{id} is not the shape",
             );
         }
     }

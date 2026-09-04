@@ -53,6 +53,8 @@ Adding a new lint rule involves several steps.
 
 ### 1. Naming Convention
 
+#### Rule ids
+
 Rule ids are `snake_case` and carry no category prefix. The file stem, the id
 returned by `id()`, and the `PascalCase` struct name are the same name in three
 spellings — `cache_control_present.rs`, `"cache_control_present"`,
@@ -91,6 +93,60 @@ rather than leading with the number: `status_426_upgrade_valid`.
 Renaming an existing rule is a breaking change for every configuration naming
 it, and this catalogue does not alias: `validate_rules` fails at startup on an
 id it does not recognise, pointing the operator at `docs/rules.md`.
+
+#### Violation ids
+
+A rule id names a **claim** about the traffic; a violation id names the
+**defect** that breaks it, so the predicate vocabulary inverts. The shape is
+`<subject>[_<part>]_<defect>`, and it reads as a noun phrase closed by the
+adjective that condemns it: `if_match_member_malformed` is "the `If-Match`
+member is malformed".
+
+- The **subject** is the field or protocol element, spelled the way the rules
+  spell it — `if_match`, `content_type`, `www_authenticate`. It is never the id
+  of the rule that reports the defect. Two rules may report one defect and one
+  rule may absorb another, and neither event may rename what an operator has
+  already configured.
+- The **part** is optional, and narrows the subject to the piece of it that is
+  wrong: the noun the grammar uses — `member`, `parameter`, `directive`,
+  `scheme`, `name`, `value`. Leave it out when the whole field is the defect.
+- The **defect** is the last word, and comes from this closed list.
+
+| Meaning | Ending | Claim it breaks |
+| --- | --- | --- |
+| Does not match the field's ABNF grammar | `_malformed` | `_syntax` |
+| Grammatical, but unacceptable past the grammar | `_invalid` | `_valid` |
+| Absent from the IANA registry | `_unregistered` | `_registered` |
+| Not written at all where it is required | `_missing` | `_present` |
+| Two things that must agree do not | `_conflicting` | `_consistent` |
+| A directive was not honoured | `_ignored` | `_enforced` |
+| Written, and left with nothing in it | `_empty` | — |
+| Appears more times than the grammar allows | `_duplicated` | — |
+| Written where the specification prohibits it | `_forbidden` | — |
+| Retired by a later specification | `_obsolete` | — |
+
+`_missing` and `_empty` are not alternatives to pick between: `_missing` is a
+sender that never wrote the thing, `_empty` is a sender that wrote it and put
+nothing in it. Different senders, different fixes, different messages. Same
+relation as `_syntax` to `_valid` above.
+
+The list is closed on purpose, and it is what keeps the two catalogues from
+colliding — no rule id ends in a defect, so
+`violation_ids_are_unique_and_disjoint_from_rule_ids` holds by construction
+rather than by luck, and `every_violation_id_names_a_defect` checks the ending
+against the same words. Extending it is a reviewed act: the row here and the
+word in that test move in one commit.
+
+An id must be a valid Rust identifier, because the def is a `static` named by
+the id in `SCREAMING_SNAKE_CASE` — `IF_MATCH_MEMBER_MALFORMED` — the same
+one-name-several-spellings rule the rule files follow. The def lives in
+`src/violations/<subject>.rs`, grouped by subject the way `helpers/` is; a
+subject file holds every defect of the fields it covers, so the file stem is a
+grouping and not required to prefix the id.
+
+Renaming a violation breaks a configuration exactly as renaming a rule does,
+and for the same reason: `[violations.<id>]` is refused at startup when the id
+names nothing.
 
 ### 2. Implementation
 
