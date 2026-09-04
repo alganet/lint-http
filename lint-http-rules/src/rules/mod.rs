@@ -84,7 +84,7 @@ pub enum RuleScope {
 }
 
 /// Whether an [`Example`] illustrates traffic the rule accepts or rejects.
-/// Maps to the ✅ Good / ❌ Bad sections of `docs/rules/TEMPLATE.md`.
+/// Maps to the ✅ Good / ❌ Bad sections of the generated `docs/rules/<id>.md`.
 /// Serializes as `"compliant"` / `"non_compliant"` for
 /// `rules list --format json`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize)]
