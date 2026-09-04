@@ -29,6 +29,12 @@ pub fn run_rule(
 
 /// Prepare `rule` under `cfg`, then dispatch one transaction and return every
 /// finding. An unpreparable config yields the empty vector.
+///
+/// The context is built exactly as the engine builds one, catalogue included.
+/// A rule test dispatches through here rather than calling `findings` itself,
+/// so a rule reporting a declared defect resolves its severity the way it does
+/// in production — and none of the 1,473 call sites has to know the catalogue
+/// exists.
 pub fn run_rule_all(
     rule: &dyn crate::rules::Rule,
     tx: &crate::http_transaction::HttpTransaction,
@@ -38,7 +44,9 @@ pub fn run_rule_all(
     let Ok(resolved) = rule.prepare(cfg) else {
         return Vec::new();
     };
-    rule.findings(tx, history, &crate::rules::RuleContext::new(&resolved))
+    let severities = crate::rules::severities_for(rule);
+    let ctx = crate::rules::RuleContext::new(&resolved).with_violations(rule, &severities);
+    rule.findings(tx, history, &ctx)
 }
 
 /// Prepare `rule` under `cfg`, then dispatch one event through it — the way
@@ -55,7 +63,7 @@ pub fn run_protocol_rule(
     cfg: &crate::config::Config,
 ) -> Option<crate::lint::Violation> {
     let resolved = rule.prepare(cfg).ok()?;
-    rule.findings(event, history, &crate::rules::RuleContext::new(&resolved))
-        .into_iter()
-        .next()
+    let severities = crate::rules::severities_for(rule);
+    let ctx = crate::rules::RuleContext::new(&resolved).with_violations(rule, &severities);
+    rule.findings(event, history, &ctx).into_iter().next()
 }

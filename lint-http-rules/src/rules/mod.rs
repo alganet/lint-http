@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::queries::QueryType;
+use crate::violations::ViolationDef;
 use linkme::distributed_slice;
 use std::sync::LazyLock;
 
@@ -48,17 +49,69 @@ impl std::fmt::Debug for ResolvedRule {
 /// stack, no hashing, no TOML, no allocation. The severity is read directly;
 /// rule-specific state comes back out through [`RuleContext::state`], typed
 /// by the rule that put it in.
+///
+/// It is also where a finding is built from the catalogue. `severity` is one
+/// scalar for the whole rule, which is what makes a rule that says four
+/// different things say them all at the same level; the defects a rule
+/// declares each carry their own, and [`report`](RuleContext::report) reads
+/// the one for the defect being reported. The two coexist while the catalogue
+/// is written.
 pub struct RuleContext<'a> {
     pub severity: crate::lint::Severity,
     state: &'a (dyn std::any::Any + Send + Sync),
+    /// The reporting rule's id, for the `Violation.rule` a report carries.
+    /// Findings built through [`RuleMeta::violation`] read it off `self`
+    /// instead; a context has to be told, because `report` is a method on the
+    /// context and not on the rule.
+    rule_id: &'static str,
+    /// The defects this rule may report — [`RuleMeta::violations`], carried
+    /// here so a report can be resolved without dispatching back through the
+    /// rule.
+    declared: &'static [&'static ViolationDef],
+    /// The severity each entry of `declared` reports at, same order, same
+    /// length. Resolved once when the engine is built; see [`severities_for`].
+    severities: &'a [crate::lint::Severity],
 }
 
 impl<'a> RuleContext<'a> {
     /// Borrow a prepared rule's resolved configuration for one dispatch.
+    ///
+    /// The context this builds declares no defects, which is what an empty
+    /// `declared` list says: reporting one through it is a wiring error and
+    /// says so in debug. Every dispatch path names the rule and its catalogue
+    /// through [`with_violations`](RuleContext::with_violations); this is the
+    /// half that carries only what `prepare` resolved.
     pub fn new(resolved: &'a ResolvedRule) -> Self {
         Self {
             severity: resolved.severity,
             state: &*resolved.state,
+            rule_id: "",
+            declared: &[],
+            severities: &[],
+        }
+    }
+
+    /// Name the reporting rule and hand it the defects it declares, with the
+    /// severity each of them reports at: `severities[i]` configures
+    /// `declared[i]`, which is what lets [`report`](RuleContext::report)
+    /// resolve a severity by index instead of hashing an id on every finding.
+    ///
+    /// Separate from [`new`](RuleContext::new) because the two halves are
+    /// resolved by different things. A [`ResolvedRule`] is what the rule's own
+    /// `prepare` made of its `[rules.<id>]` section, and 17 rules build one
+    /// themselves; the severity table is read from the catalogue and the
+    /// configuration together, alongside that result rather than inside it, so
+    /// neither the trait nor those rules have to know it exists.
+    pub fn with_violations(
+        self,
+        rule: &dyn RuleMeta,
+        severities: &'a [crate::lint::Severity],
+    ) -> Self {
+        Self {
+            rule_id: rule.id(),
+            declared: rule.violations(),
+            severities,
+            ..self
         }
     }
 
@@ -72,6 +125,105 @@ impl<'a> RuleContext<'a> {
     pub fn state<T: 'static>(&self) -> &T {
         self.state.downcast_ref().expect("rule state wiring")
     }
+
+    /// Report one of this rule's declared defects, at the severity configured
+    /// for it.
+    ///
+    /// The def carries the wording and the sentence it enforces, so naming the
+    /// defect names both. That is the difference from [`RuleMeta::violation`]
+    /// and [`RuleMeta::cited`], where the message is written out at the site
+    /// and the citation is a second argument beside it: there, two sites
+    /// reporting the same defect agree only by having been written the same
+    /// way, and an operator has no name for what they share.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds: if `def` is not one of this rule's declared defects,
+    /// or if it holds no message of its own — a parameterised def is reported
+    /// through [`report_with`](RuleContext::report_with), and reporting it
+    /// here would emit an empty message. The suite runs debug, so any test
+    /// reaching the site catches both.
+    pub fn report(&self, def: &'static ViolationDef) -> Violation {
+        debug_assert!(
+            !def.message.is_empty(),
+            "{}: {} holds no message of its own; report_with formats one",
+            self.rule_id,
+            def.id,
+        );
+        self.finding(def, def.message.to_string())
+    }
+
+    /// Report one of this rule's declared defects with a message formatted
+    /// here — the shape for a defect whose wording names the value that caused
+    /// it. Such a def carries an empty `message`, because the format arguments
+    /// are at the site and the catalogue cannot hold them.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, on an undeclared def, or on one that holds its own
+    /// whole message: reporting that through here would let the site say
+    /// something the catalogue does not.
+    pub fn report_with(&self, def: &'static ViolationDef, message: String) -> Violation {
+        debug_assert!(
+            def.message.is_empty(),
+            "{}: {} holds its own message; report emits it",
+            self.rule_id,
+            def.id,
+        );
+        self.finding(def, message)
+    }
+
+    /// The common half: everything but the message comes from the def and the
+    /// context, so the two entry points differ only in where the message came
+    /// from.
+    fn finding(&self, def: &'static ViolationDef, message: String) -> Violation {
+        Violation {
+            rule: self.rule_id.into(),
+            severity: self.severity_for(def),
+            message,
+            cite: def.spec.as_ref().map(SpecRef::citation),
+        }
+    }
+
+    /// The severity `def` reports at, found by identity: the defs are
+    /// `static`, so the address is the name and nothing on the finding path
+    /// compares a string. A rule declares a handful, and this runs only when
+    /// there is something to report.
+    ///
+    /// An undeclared def is the same wiring error [`RuleMeta::cited`] refuses
+    /// an undeclared spec for, and is caught the same way. Falling back to the
+    /// def's own default in release keeps a release build reporting the defect
+    /// rather than dropping it — what cannot be honoured is the configuration
+    /// for something the rule never said it reports.
+    fn severity_for(&self, def: &'static ViolationDef) -> crate::lint::Severity {
+        let index = self.declared.iter().position(|d| std::ptr::eq(*d, def));
+        debug_assert!(
+            index.is_some(),
+            "{}: a finding may only report a violation the rule declares, and {} is not in its list",
+            self.rule_id,
+            def.id,
+        );
+        index
+            .and_then(|i| self.severities.get(i).copied())
+            .unwrap_or(def.default_severity)
+    }
+}
+
+/// The severity each of `rule`'s declared defects reports at: one entry per
+/// [`RuleMeta::violations`] entry, in that order — the table
+/// [`RuleContext::with_violations`] hands to dispatch.
+///
+/// Every entry is its def's `default_severity`, which is the whole of the
+/// resolution while nothing in a configuration names a violation. The defaults
+/// live in code, unlike a rule's *options*: an option is policy about the
+/// traffic and has to be chosen, a severity is a preference, and a catalogue
+/// of this many defects cannot be answered entry by entry before it can run at
+/// all.
+pub fn severities_for(rule: &dyn RuleMeta) -> Vec<crate::lint::Severity> {
+    rule.violations()
+        .iter()
+        .map(|def| def.default_severity)
+        .collect()
 }
 
 /// Scope of a rule: whether it applies to client-only traffic (requests),
@@ -282,6 +434,27 @@ pub trait RuleMeta: Send + Sync {
             cite: Some(spec.citation()),
             ..self.violation(severity, message)
         }
+    }
+
+    /// The defects this rule may report, and the only ones it may:
+    /// [`RuleContext::report`] resolves a def against this list by identity
+    /// and reads the severity at the same index, so a def missing here has no
+    /// configured severity and says so in debug.
+    ///
+    /// Hand-declared, and a named `static DECLARED` per rule rather than an
+    /// inline `&[…]` — an array of references to statics is not
+    /// const-promotable, so the inline form does not typecheck as `'static`.
+    /// The defs it names are themselves `static` for the identity lookup's
+    /// sake; see [`ViolationDef`].
+    ///
+    /// Empty by default, which is the true statement about a rule whose
+    /// defects have not been read out of its body yet: it declares none and
+    /// reports through [`violation`](RuleMeta::violation) and
+    /// [`cited`](RuleMeta::cited). The default is what lets the two ways of
+    /// reporting coexist for one rule at a time instead of all 193 at once,
+    /// and it goes away with the last of them.
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        &[]
     }
 
     /// Doc title override (the `# ` heading of the generated per-rule doc).
@@ -1454,6 +1627,188 @@ severity = "warn"
             note: "",
         };
         let _ = rule.cited(&foreign, crate::lint::Severity::Warn, "m".to_string());
+    }
+
+    /// A defect that always reads the same way, and cites the sentence it
+    /// enforces. `static`, like every def: the address is what
+    /// `RuleContext::report` resolves against.
+    static FIXED: ViolationDef = ViolationDef {
+        id: "test_fixture_defect_fixed",
+        title: "A defect with one wording",
+        message: "the fixture is malformed",
+        default_severity: crate::lint::Severity::Warn,
+        spec: Some(SpecRef {
+            spec: "RFC 0000",
+            section: Some("1"),
+            url: "https://example.com/",
+            note: "",
+        }),
+    };
+
+    /// A defect whose wording names what caused it, so the message is formatted
+    /// at the site and the def holds none.
+    static PARAMETERISED: ViolationDef = ViolationDef {
+        id: "test_fixture_defect_parameterised",
+        title: "A defect that names its value",
+        message: "",
+        default_severity: crate::lint::Severity::Error,
+        spec: None,
+    };
+
+    /// What a rule's `violations()` returns: a named `static`, because an
+    /// array of references to statics is not const-promotable and the inline
+    /// form would not typecheck as `'static`.
+    static DECLARED: &[&ViolationDef] = &[&FIXED, &PARAMETERISED];
+
+    /// A rule that declares the two above. Nothing in the catalogue declares
+    /// any defect yet, and these two are deliberately not registered: what is
+    /// under test is the reporting path, not the catalogue's contents.
+    struct ReportingRule;
+
+    impl RuleMeta for ReportingRule {
+        fn id(&self) -> &'static str {
+            "test_fixture_reporting_rule"
+        }
+
+        fn config_example(&self) -> &'static str {
+            "enabled = true\nseverity = \"warn\"\n"
+        }
+
+        fn violations(&self) -> &'static [&'static ViolationDef] {
+            DECLARED
+        }
+    }
+
+    /// Build the context a dispatch would hand `ReportingRule`, with the
+    /// severity table the caller wants to prove was consulted.
+    fn reporting_context<'a>(
+        resolved: &'a ResolvedRule,
+        severities: &'a [crate::lint::Severity],
+    ) -> RuleContext<'a> {
+        RuleContext::new(resolved).with_violations(&ReportingRule, severities)
+    }
+
+    fn unit_resolved() -> ResolvedRule {
+        ResolvedRule {
+            severity: crate::lint::Severity::Info,
+            state: Box::new(()),
+        }
+    }
+
+    /// A report takes its wording, its citation and its rule from the def and
+    /// the context — and its severity from the table, not from the def's
+    /// default and not from the rule-wide `ctx.severity`. Those three are
+    /// deliberately different values here, which is the whole point of the
+    /// split: one rule, one dispatch, two defects at two levels.
+    #[test]
+    fn report_builds_a_finding_from_the_declared_def() {
+        let resolved = unit_resolved();
+        let severities = [crate::lint::Severity::Error, crate::lint::Severity::Info];
+        let ctx = reporting_context(&resolved, &severities);
+
+        let v = ctx.report(&FIXED);
+        assert_eq!(v.rule, "test_fixture_reporting_rule");
+        assert_eq!(v.message, "the fixture is malformed");
+        assert_eq!(v.severity, crate::lint::Severity::Error);
+        let cite = v.cite.expect("the def's spec is carried onto the finding");
+        assert_eq!(cite.spec, "RFC 0000");
+        assert_eq!(cite.section.as_deref(), Some("1"));
+
+        let other = ctx.report_with(&PARAMETERISED, "the fixture said 42".to_string());
+        assert_eq!(other.message, "the fixture said 42");
+        assert_eq!(other.severity, crate::lint::Severity::Info);
+        assert!(other.cite.is_none(), "an unread sentence is carried absent");
+    }
+
+    /// The identity lookup, from the other side: a def the rule does not
+    /// declare has no configured severity, so reporting it is a wiring error
+    /// rather than a finding at a guessed level.
+    #[test]
+    #[should_panic(expected = "may only report a violation the rule declares")]
+    fn report_refuses_a_violation_the_rule_does_not_declare() {
+        static FOREIGN: ViolationDef = ViolationDef {
+            id: "test_fixture_defect_foreign",
+            title: "A defect belonging to some other rule",
+            message: "not this rule's to report",
+            default_severity: crate::lint::Severity::Warn,
+            spec: None,
+        };
+        let resolved = unit_resolved();
+        let severities = [crate::lint::Severity::Warn, crate::lint::Severity::Warn];
+        let _ = reporting_context(&resolved, &severities).report(&FOREIGN);
+    }
+
+    /// A context built without a catalogue declares nothing, which is what
+    /// makes the same wiring error out of reporting through one.
+    #[test]
+    #[should_panic(expected = "may only report a violation the rule declares")]
+    fn a_context_without_violations_declares_none() {
+        let resolved = unit_resolved();
+        let _ = RuleContext::new(&resolved).report(&FIXED);
+    }
+
+    /// Emitting a parameterised def through `report` would emit its empty
+    /// message — a finding that says nothing, at the right severity, which is
+    /// the failure most likely to survive a test that only counts findings.
+    #[test]
+    #[should_panic(expected = "holds no message of its own")]
+    fn report_refuses_a_def_whose_message_is_formatted_at_the_site() {
+        let resolved = unit_resolved();
+        let severities = [crate::lint::Severity::Warn, crate::lint::Severity::Warn];
+        let _ = reporting_context(&resolved, &severities).report(&PARAMETERISED);
+    }
+
+    /// And the inverse: a def that holds its whole message is not one a site
+    /// may reword, or the catalogue no longer says what the operator reads.
+    #[test]
+    #[should_panic(expected = "holds its own message")]
+    fn report_with_refuses_a_def_that_holds_its_own_message() {
+        let resolved = unit_resolved();
+        let severities = [crate::lint::Severity::Warn, crate::lint::Severity::Warn];
+        let _ = reporting_context(&resolved, &severities).report_with(&FIXED, "reworded".into());
+    }
+
+    /// The table is the defs' own defaults, in declaration order — the order
+    /// the index lookup depends on. Nothing overrides them: no configuration
+    /// names a violation yet.
+    #[test]
+    fn severities_default_to_the_catalogue_in_declaration_order() {
+        assert_eq!(
+            severities_for(&ReportingRule),
+            vec![crate::lint::Severity::Warn, crate::lint::Severity::Error],
+        );
+    }
+
+    /// A rule may not list the same defect twice. The lookup answers with the
+    /// *first* matching index, so a repeat would be a def whose configured
+    /// severity is unreachable — the entry is there, the operator's setting
+    /// for it is read, and the finding comes out at the other copy's level.
+    /// Nothing else would notice.
+    ///
+    /// Both halves are checked because they fail differently: two entries
+    /// pointing at one `static` is the copy-paste, and two defs sharing an id
+    /// is the rename that half-landed. The catalogue is empty, so this asserts
+    /// nothing yet and starts asserting the moment a rule declares anything.
+    #[test]
+    fn a_rule_declares_each_violation_once() {
+        for rule in all_rules() {
+            let declared = rule.violations();
+            let mut ids = std::collections::HashSet::new();
+            for (i, def) in declared.iter().enumerate() {
+                assert!(
+                    !declared[..i].iter().any(|d| std::ptr::eq(*d, *def)),
+                    "{} declares {} twice",
+                    rule.id(),
+                    def.id,
+                );
+                assert!(
+                    ids.insert(def.id),
+                    "{} declares two violations named {}",
+                    rule.id(),
+                    def.id,
+                );
+            }
+        }
     }
 
     #[test]
