@@ -28,6 +28,12 @@ impl RuleMeta for CachedValidatorsReused {
         "cached_validators_reused"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "This rule checks if the client correctly uses conditional headers (`If-None-Match` or `If-Modified-Since`) when re-requesting a resource it has previously fetched.\n\nIf a server provides validators (like `ETag` or `Last-Modified`) in a response, a well-behaved client should use them in subsequent requests for the same resource to allow the server to return a `304 Not Modified` response, saving bandwidth and processing time."
     }

@@ -28,6 +28,12 @@ impl RuleMeta for PriorityAndCacheabilityConsistent {
         "priority_and_cacheability_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Priority and Cacheability Consistency")
     }

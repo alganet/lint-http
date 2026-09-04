@@ -37,6 +37,12 @@ impl RuleMeta for CookieSameSiteEnforced {
         "cookie_same_site_enforced"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Stateful Cookie SameSite Enforcement")
     }

@@ -22,6 +22,12 @@ impl RuleMeta for LastModifiedRfc1123Syntax {
         "last_modified_rfc1123_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Last-Modified RFC 1123 Format")
     }

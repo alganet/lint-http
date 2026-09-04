@@ -73,6 +73,12 @@ impl RuleMeta for ExpectHeaderValid {
         "expect_header_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "error"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Client Expect Header Valid")
     }

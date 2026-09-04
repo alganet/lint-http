@@ -117,6 +117,21 @@ impl RuleMeta for RangeAndContentRangeConsistent {
         "range_and_content_range_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# Range units whose first-pos/last-pos may be read as octet offsets and checked
+# against Content-Length. Units are an extensible token set (RFC 9110 14.1); a
+# Content-Range naming a unit not listed here is still parsed and structurally
+# validated, but its length is not compared to Content-Length.
+# Only "bytes" is licensed by the specification: RFC 9110 14.1.2 defines its
+# positions as inclusive, zero-based octet offsets, which is what makes
+# last - first + 1 an octet count. Adding another unit here is you asserting
+# the same of it.
+units = ["bytes"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let config = parse_units_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config

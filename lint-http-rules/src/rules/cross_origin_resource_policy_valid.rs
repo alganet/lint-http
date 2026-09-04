@@ -28,6 +28,12 @@ impl RuleMeta for CrossOriginResourcePolicyValid {
         "cross_origin_resource_policy_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Cross-Origin Resource Policy Value")
     }

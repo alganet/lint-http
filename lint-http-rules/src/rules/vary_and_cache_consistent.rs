@@ -34,6 +34,12 @@ impl RuleMeta for VaryAndCacheConsistent {
         "vary_and_cache_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Vary and Cache Consistency")
     }

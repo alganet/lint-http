@@ -40,6 +40,13 @@ impl RuleMeta for CharsetRegistered {
         "charset_registered"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+allowed = ["utf-8", "iso-8859-1", "us-ascii"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         // Entries are folded once at prepare time rather than at every

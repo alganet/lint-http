@@ -236,6 +236,12 @@ impl RuleMeta for AcceptPatchHeaderValid {
         "accept_patch_header_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Accept-Patch Header")
     }

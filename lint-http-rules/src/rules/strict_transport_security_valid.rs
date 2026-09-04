@@ -46,6 +46,12 @@ impl RuleMeta for StrictTransportSecurityValid {
         "strict_transport_security_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "The `Strict-Transport-Security` response header signals HSTS policies. This rule ensures responses include the required `max-age` directive (a non-negative integer) and that optional directives `includeSubDomains` and `preload` are present without values. Unknown directives are accepted but any value must be a `token` or `quoted-string`. Non-UTF8 header values and syntactic violations are reported as rule violations."
     }

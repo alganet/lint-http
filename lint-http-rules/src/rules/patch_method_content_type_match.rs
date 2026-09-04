@@ -142,6 +142,12 @@ impl RuleMeta for PatchMethodContentTypeMatch {
         "patch_method_content_type_match"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Client PATCH Content-Type Matches Accept-Patch")
     }

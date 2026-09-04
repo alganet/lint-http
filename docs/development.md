@@ -25,7 +25,7 @@ We maintain high standards for code quality and testing.
 - **Tests**: All tests must pass (`cargo test`).
 - **Linting**: Use `cargo lint` (alias in `.cargo/config.toml`) — clippy warnings are treated as errors.
 - **Formatting**: Code must be formatted with `cargo fmt` (`rustfmt`).
-- **Headers & Docs**: New source, test, and documentation files must include the SPDX header; new rules must carry their prose as metadata (regenerate with `cargo xtask gendocs`) and an example entry in `config_example.toml`. Nothing under `docs/rules/` is hand-written — the generator deletes any page no rule claims.
+- **Headers & Docs**: New source, test, and documentation files must include the SPDX header; new rules must carry their prose as metadata (regenerate with `cargo xtask gendocs`) and their example configuration as `config_example()` (regenerate with `cargo xtask genconfig`). Neither `docs/rules/` nor `config_example.toml` is hand-written — and the docs generator deletes any page no rule claims.
 - **Minimum Rust version**: `rust-version` in the workspace `Cargo.toml` — currently **1.94**, about three releases behind stable. It is a support window we choose, not the oldest toolchain that happens to compile. The `msrv` CI job builds on exactly that version; raising it is a deliberate edit to the manifest, not something a new API call does silently.
 - **Dependencies**: A manifest declares only what its code reads, and a crate used only from tests belongs in `[dev-dependencies]`. `cargo machete` gates this.
 
@@ -281,3 +281,11 @@ do run it, as does CI.
 - A required list of case-insensitive names (the `allowed`/`headers` shape) is parsed by `helpers::rule_config::parse_lowercased_list`; the citation licensing the case-fold stays in the rule's `prepare`, beside the call.
 - Tests should cover both `prepare` errors for invalid/missing config and the runtime behavior when valid configs are provided (including edge cases like negative numbers, invalid types, and boundary values). Dispatch a rule in tests through `test_helpers::run_rule` / `run_protocol_rule`, which prepare and then check the way the engine does.
 - Every registered rule must prepare successfully under `config_example.toml` — the `every_rule_prepares_under_the_example_config` test enforces it, so a new configurable rule needs its example section in the same commit.
+- That example section is `config_example()`, a required `RuleMeta` member returning everything under the `[rules.<id>]` header: the two keys, the rule's own options, and the comment explaining them. It is required for the same reason the options above have no defaults — an example nobody chose is still an example someone will copy.
+- `config_example.toml` is **generated** from those bodies. Do not edit it; edit the rule and run:
+
+```bash
+cargo xtask genconfig
+```
+
+The `config_example_matches_generated` test diffs the checked-in file against a fresh render, the same way `docs_match_generated` does for the docs, and it lives in `xtask` for the same reason — a targeted `cargo test -p lint-http-rules` will not run it.

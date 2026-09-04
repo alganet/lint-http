@@ -73,6 +73,16 @@ impl RuleMeta for TransferCodingRegistered {
         "transfer_coding_registered"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# The registry also holds x-compress and x-gzip (both Deprecated) and identity
+# (withdrawn in an erratum to RFC 2616); they are left out so that using them is
+# reported. "trailers" is registered as reserved and is not a coding name.
+allowed = ["chunked", "compress", "gzip", "deflate"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         // Entries are folded once at prepare time so the comparison site can fold

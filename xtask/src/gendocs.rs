@@ -7,28 +7,26 @@
 //! ([`description`](lint_http_rules::rules::RuleMeta::description),
 //! [`specifications`](lint_http_rules::rules::RuleMeta::specifications),
 //! [`examples`](lint_http_rules::rules::RuleMeta::examples),
-//! [`title`](lint_http_rules::rules::RuleMeta::title)) plus the per-rule
-//! `[rules.<id>]` section pulled from `config_example.toml`.
+//! [`title`](lint_http_rules::rules::RuleMeta::title),
+//! [`config_example`](lint_http_rules::rules::RuleMeta::config_example)).
+//!
+//! The Configuration block used to be scraped back out of `config_example.toml`,
+//! which was the source of truth for it. That file is now generated from the
+//! same metadata (see [`crate::genconfig`]), so scraping it would put one
+//! generator downstream of another's output — a rule's example would reach its
+//! doc page only after `genconfig` had run, and two passes would be needed to
+//! land one edit. Both generators read the rule.
 //!
 //! The render functions are pure and deterministic so the #11d CI gate
 //! (`docs_match_generated` test) can diff regenerated output against the
 //! checked-in docs.
 
 use lint_http_rules::rules::{
-    all_rules, Compliance, Example, ProtocolRule, Rule, RuleScope, SpecRef, PROTOCOL_RULES, RULES,
+    all_rules, Compliance, Example, ProtocolRule, Rule, RuleMeta, RuleScope, SpecRef,
+    PROTOCOL_RULES, RULES,
 };
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-
-/// The workspace root, derived from this crate's manifest dir. `config_example.toml`
-/// and the `docs/` tree live there, so reads are anchored here rather than to the
-/// process CWD (which varies between `cargo run` at the root and `cargo test -p`).
-pub fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .expect("crate manifest dir has a parent (the workspace root)")
-        .to_path_buf()
-}
 
 /// Fixed license header prepended to every generated markdown file. Held
 /// constant (rather than stamped with the current date) so regenerated output
@@ -207,26 +205,12 @@ fn index_entry(id: &str, description: &str) -> String {
     format!("- [{0}](rules/{0}.md) — {1}\n", id, summary)
 }
 
-/// Extract the `[rules.<id>]` TOML block from `config_example.toml` contents:
-/// the section header line and every following line up to (excluding) the next
-/// `[` section header or end of file, with trailing blank lines trimmed.
-/// Returns `None` if the section is absent. `config_example.toml` is the single
-/// source of truth for the generated `## Configuration` section, so a rule's
-/// configurable keys are documented in exactly one place.
-pub fn config_block_for(id: &str, config_toml: &str) -> Option<String> {
-    let header = format!("[rules.{}]", id);
-    let mut lines = config_toml.lines();
-    lines.by_ref().find(|line| line.trim() == header)?;
-
-    let mut block = header;
-    for line in lines {
-        if line.trim_start().starts_with('[') {
-            break;
-        }
-        block.push('\n');
-        block.push_str(line);
-    }
-    Some(block.trim_end().to_string())
+/// One rule's `[rules.<id>]` section: the header rendered from its id, then the
+/// body it declares. The same two pieces `genconfig` joins, so the block in a
+/// rule's doc page and the block in `config_example.toml` are the same text by
+/// construction rather than by a gate comparing them.
+pub fn config_section(rule: &dyn RuleMeta) -> String {
+    format!("[rules.{}]\n{}", rule.id(), rule.config_example())
 }
 
 /// Pages under `rules_dir` that no rule in the catalogue claims, sorted so a
@@ -259,9 +243,7 @@ pub fn orphan_docs(rules_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
 }
 
 /// Render every rule to disk under `out_dir`: `<out_dir>/rules/<id>.md` per
-/// rule plus `<out_dir>/rules.md`. Configuration sections are sourced from
-/// [`repo_root`]`/config_example.toml`, never from the working directory.
-/// Creates directories as needed.
+/// rule plus `<out_dir>/rules.md`. Creates directories as needed.
 ///
 /// Then deletes the orphans and returns what it deleted, so the tree is the
 /// catalogue rather than the catalogue plus whatever it used to be. Reporting is
@@ -271,8 +253,6 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
     let rules_dir = out_dir.join("rules");
     std::fs::create_dir_all(&rules_dir)?;
 
-    let config_toml = std::fs::read_to_string(repo_root().join("config_example.toml"))?;
-
     for rule in all_rules() {
         let doc = render_doc(
             rule.id(),
@@ -280,7 +260,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
             rule.description(),
             rule.specifications(),
             rule.examples(),
-            config_block_for(rule.id(), &config_toml).as_deref(),
+            Some(&config_section(rule)),
         );
         std::fs::write(rules_dir.join(format!("{}.md", rule.id())), doc)?;
     }
@@ -298,6 +278,7 @@ pub fn write_all(out_dir: &Path) -> anyhow::Result<Vec<PathBuf>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repo_root;
     use lint_http_rules::rules::REGISTERED_RULES;
 
     #[test]
@@ -380,25 +361,14 @@ mod tests {
     #[test]
     fn render_doc_for_whole_catalogue_is_nonempty_and_well_formed() {
         // Render every rule in-memory; must not touch the real docs/ tree.
-        let config_toml = std::fs::read_to_string(repo_root().join("config_example.toml"))
-            .expect("config_example.toml");
-        let render = |id: &str, title, desc, refs: &[SpecRef], ex: &[Example]| {
-            render_doc(
-                id,
-                title,
-                desc,
-                refs,
-                ex,
-                config_block_for(id, &config_toml).as_deref(),
-            )
-        };
         for rule in all_rules() {
-            let doc = render(
+            let doc = render_doc(
                 rule.id(),
                 rule.title(),
                 rule.description(),
                 rule.specifications(),
                 rule.examples(),
+                Some(&config_section(rule)),
             );
             assert!(
                 doc.starts_with(SPDX_HEADER),
@@ -410,22 +380,25 @@ mod tests {
                 "{} missing Description",
                 rule.id()
             );
+            assert!(
+                doc.contains(&format!("```toml\n[rules.{}]\n", rule.id())),
+                "{} missing its Configuration block",
+                rule.id()
+            );
         }
     }
 
+    /// The header is the rule's id and the body is the rule's own, so a page
+    /// cannot document a section that configures some other rule.
     #[test]
-    fn config_block_for_extracts_section_and_stops_at_next() {
-        let toml = "[rules.a]\nenabled = true\nseverity = \"warn\"\nallowed = [\"x\"]\n\n\
-                    [rules.b]\nenabled = false\n";
-        assert_eq!(
-            config_block_for("a", toml).as_deref(),
-            Some("[rules.a]\nenabled = true\nseverity = \"warn\"\nallowed = [\"x\"]")
-        );
-        assert_eq!(
-            config_block_for("b", toml).as_deref(),
-            Some("[rules.b]\nenabled = false")
-        );
-        assert_eq!(config_block_for("missing", toml), None);
+    fn config_section_heads_the_rules_own_body() {
+        let rule = all_rules()
+            .find(|r| r.id() == "keep_alive_header_valid")
+            .expect("keep_alive_header_valid registered");
+        let section = config_section(rule);
+        assert!(section.starts_with("[rules.keep_alive_header_valid]\n"));
+        assert!(section.ends_with(rule.config_example()));
+        assert!(section.contains("max_timeout_seconds"));
     }
 
     /// Also the guard on `TX_SECTION_ORDER`: sections are selected by scope, so a
@@ -655,8 +628,6 @@ mod tests {
         );
 
         let root = repo_root();
-        let config_toml =
-            std::fs::read_to_string(root.join("config_example.toml")).expect("config_example.toml");
         let check = |id: &str, expected: String| {
             let path = root.join(format!("docs/rules/{}.md", id));
             let on_disk = std::fs::read_to_string(&path)
@@ -676,7 +647,7 @@ mod tests {
                     rule.description(),
                     rule.specifications(),
                     rule.examples(),
-                    config_block_for(rule.id(), &config_toml).as_deref(),
+                    Some(&config_section(rule)),
                 ),
             );
         }

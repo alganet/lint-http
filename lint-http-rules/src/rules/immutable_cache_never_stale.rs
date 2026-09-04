@@ -50,6 +50,12 @@ impl RuleMeta for ImmutableCacheNeverStale {
         "immutable_cache_never_stale"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Stateful immutable cache never stale")
     }

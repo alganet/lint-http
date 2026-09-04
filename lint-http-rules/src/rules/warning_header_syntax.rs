@@ -95,6 +95,12 @@ impl RuleMeta for WarningHeaderSyntax {
         "warning_header_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Parses the `Warning` field of a request and of a response — every field line of one \
          section joined into the single list they are — against the grammar that defines it: \

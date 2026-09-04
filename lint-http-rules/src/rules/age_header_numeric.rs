@@ -22,6 +22,12 @@ impl RuleMeta for AgeHeaderNumeric {
         "age_header_numeric"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Age Header Numeric")
     }

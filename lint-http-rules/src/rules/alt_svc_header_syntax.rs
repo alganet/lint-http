@@ -423,6 +423,12 @@ impl RuleMeta for AltSvcHeaderSyntax {
         "alt_svc_header_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Alt-Svc Header Syntax")
     }

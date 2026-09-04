@@ -58,6 +58,12 @@ impl RuleMeta for RequestUriPercentEncodingValid {
         "request_uri_percent_encoding_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "error"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Client Request URI Percent Encoding Valid")
     }

@@ -70,6 +70,12 @@ impl RuleMeta for HostHeader {
         "host_header"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "This rule reads the request's `Host` header field: whether it is there, whether it is there once, and whether its value is what `Host = uri-host [ \":\" port ]` generates.\n\n- A request that carries no `Host` field is reported **unless it is an HTTP/2 or HTTP/3 request that sent an `:authority` pseudo-header** — RFC 9110 §7.2's MUST is written with that exception, and RFC 9112 §3.2's is written for HTTP/1.1 messages. An HTTP/1.1 request in absolute-form is not exempt: RFC 9112 §3.2.2 requires the field there too.\n- `Host` is not a list field, so two field lines of it are not one value; RFC 9110 §5.3 forbids a sender from generating them and RFC 9112 §3.2 has the recipient answer 400.\n- The value must be a `uri-host` (RFC 3986 §3.2.2) and, if a port follows the colon, a port. An IPv6 address must be inside square brackets — that is the only thing distinguishing an IP literal from a registered name.\n- A userinfo subcomponent and its `@` are reported: RFC 9112 §3.2 requires the field value to be the authority component *excluding* them.\n\nThree things this rule deliberately does **not** report:\n\n- **An empty field value.** `reg-name` is `*( unreserved / pct-encoded / sub-delims )`, so a host of no characters is one, and RFC 9112 §3.2 *requires* an empty `Host` when the target URI's authority component is missing or undefined. A server facing one reconstructs an empty authority and may reject the request (RFC 9112 §3.3), but nothing makes the client's field a syntax error.\n- **A port outside the TCP range.** The production is `port = *DIGIT` (RFC 3986 §3.2.3) — no lower bound, no upper bound, and zero digits is a port, which is why `Host: example.com:0`, `Host: example.com:99999` and `Host: example.com:` are not findings here. `Host: example.com:abc` is, because it is not `*DIGIT`.\n- **Where the field sits in the header section.** RFC 9110 §7.2 says a user agent that sends `Host` SHOULD send it as the first field, and RFC 9110 §5.3 calls it good practice; the captured transaction holds its fields in a map whose iteration order is not the order they arrived in, so no check here can decide it."
     }

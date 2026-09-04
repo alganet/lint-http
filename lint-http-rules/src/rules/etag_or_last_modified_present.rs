@@ -28,6 +28,12 @@ impl RuleMeta for EtagOrLastModifiedPresent {
         "etag_or_last_modified_present"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "info"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server ETag or Last-Modified Present")
     }

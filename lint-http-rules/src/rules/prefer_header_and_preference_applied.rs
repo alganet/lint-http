@@ -145,6 +145,12 @@ impl RuleMeta for PreferHeaderAndPreferenceApplied {
         "prefer_header_and_preference_applied"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Prefer, Preference-Applied and the Vary a cache needs")
     }

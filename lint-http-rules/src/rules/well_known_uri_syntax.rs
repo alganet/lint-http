@@ -151,6 +151,12 @@ impl RuleMeta for WellKnownUriSyntax {
         "well_known_uri_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Well-Known URI Format")
     }

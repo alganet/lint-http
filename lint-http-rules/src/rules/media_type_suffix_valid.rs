@@ -40,6 +40,20 @@ impl RuleMeta for MediaTypeSuffixValid {
         "media_type_suffix_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# Six names from IANA's Structured Syntax Suffix registry. The list used to
+# hold "exi" as a seventh -- a name that registry has never held: "exi" is a
+# registered HTTP *content coding* (W3C EXI), and it had been copied here from
+# the neighbouring registry, silencing exactly the finding this rule exists to
+# make for "+exi". As with every allowed list, the registry is not consulted
+# at lint time; this array stands in for it, so its contents have to be read
+# against the registry they name.
+allowed = ["json", "xml", "ber", "der", "fastinfoset", "wbxml"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         // Entries are folded once at prepare time rather than at every comparison;

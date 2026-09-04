@@ -24,6 +24,12 @@ impl RuleMeta for IfUnmodifiedSinceDateSyntax {
         "if_unmodified_since_date_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message If-Unmodified-Since Date Format")
     }

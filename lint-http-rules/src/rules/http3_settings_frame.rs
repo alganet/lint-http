@@ -60,6 +60,12 @@ impl RuleMeta for Http3SettingsFrame {
         "http3_settings_frame"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("HTTP/3 SETTINGS Frame")
     }

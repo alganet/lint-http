@@ -46,6 +46,12 @@ impl RuleMeta for HeaderFieldNamesTokenValid {
         "header_field_names_token_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "This rule validates that **field names** conform to the `token` grammar. Field names containing control characters, spaces, or other separator characters are invalid and can indicate protocol violations or injection attempts.\n\nThe rule flags field names that contain characters outside the allowed `tchar` set (letters, digits, and the following characters: ``! # $ % & ' * + - . ^ _ ` | ~``). One grammar governs every field section, so the request and response header sections are checked and so are their trailer sections when the message framing carried one.\n\nAn HTTP/1.1 field name that is not a `token` is rejected by the message parser before the linter sees it, so this check has teeth on HTTP/2 and HTTP/3: their field-name encodings can convey a `\"`, which the `token` grammar does not allow, and RFC 9113 §8.2.1 asks a recipient to validate the name against RFC 9110 §5.1 and treat a message carrying a prohibited character as malformed."
     }

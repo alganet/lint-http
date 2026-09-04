@@ -85,6 +85,12 @@ impl RuleMeta for RangeRequestAndCaching {
         "range_request_and_caching"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "A client that has been given a 206 (Partial Content) response holds a fragment of a representation, and the fragments can only be combined if they share the same strong validator.  When the stored response provided an entity tag, a cache validating it has to send that tag back — RFC 9111 §4.3.1 makes it a MUST, and names three fields that satisfy it: `If-Match`, `If-None-Match` or `If-Range`.\n\nThis rule tracks earlier transactions for the same client and resource.  After a 206, it reports a later `Range` request that carries none of those three fields, an `If-Range` holding a tag other than the one most recently provided for the resource, and an `If-Range` holding a date when an entity tag was provided (RFC 9110 §13.1.5 forbids the date in that case).  The validator compared against is the one from the most recent response carrying any, since a later 200 or 304 replaces what the client stores.\n\nWhere the stored response carried only a `Last-Modified` date the rule is silent: §4.3.1 asks for that date with a SHOULD that excludes subrange requests and a MAY that covers them, and neither makes its absence a defect.  Weak entity tags are skipped, because `If-Range` may not carry one and ranges sharing only a weak validator cannot be combined at all.\n\n**What it assumes.** §4.3.1 is addressed to caches, and no field on the wire says whether a client is one.  A user agent that fetches consecutive ranges and stores nothing — a media player, a download manager streaming to disk — is under no obligation to send any of these fields, and this rule will report it. Two negotiated variants of one resource share a history here as well, since the query is keyed on the URI and not on the cache key §4.3.1 narrows to.  Turn the rule off for traffic that is not caching."
     }

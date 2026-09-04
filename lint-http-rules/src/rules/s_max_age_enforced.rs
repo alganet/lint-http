@@ -39,6 +39,12 @@ impl RuleMeta for SMaxAgeEnforced {
         "s_max_age_enforced"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Stateful s-maxage Enforcement")
     }

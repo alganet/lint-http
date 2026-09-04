@@ -22,6 +22,12 @@ impl RuleMeta for CacheControlAndPragmaConsistent {
         "cache_control_and_pragma_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Flags contradictions between `Pragma` and `Cache-Control` in requests (for example, `Pragma: no-cache` together with `Cache-Control: only-if-cached`), and warns when `Pragma` appears in responses since its meaning there is unspecified. This helps avoid ambiguous or conflicting cache directives that can lead to cache-serving mistakes."
     }

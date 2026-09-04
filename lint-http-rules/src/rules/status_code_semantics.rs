@@ -86,6 +86,12 @@ impl RuleMeta for StatusCodeSemantics {
         "status_code_semantics"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Challenges the 401 and the 407 are defined by")
     }

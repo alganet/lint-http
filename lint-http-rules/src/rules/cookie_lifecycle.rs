@@ -153,6 +153,12 @@ impl RuleMeta for CookieLifecycle {
         "cookie_lifecycle"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Cookies sent by servers via the `Set-Cookie` header establish state that a client is expected to retain and present on subsequent requests. This rule reconstructs a simplistic cookie store for a given origin and verifies that outgoing requests are consistent with that store.  It flags three broad classes of client misbehaviour:\n\n* Sending cookies after they have clearly expired or been removed.\n* Continuing to send an old value after a newer cookie with the same name/domain/path has been observed.\n* Transmitting a cookie marked `Secure` over an insecure (HTTP) transport.  The rule only flags this if the actual name/value pair sent corresponds to a known secure cookie, which avoids false positives when a non‑secure cookie with the same name is used.\n\nThe check relies solely on the captured traffic for a given client+origin; if a cookie appears in a request but the linter has never seen it set in the past, the rule assumes it pre‑dates the capture and does not complain."
     }

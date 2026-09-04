@@ -28,6 +28,12 @@ impl RuleMeta for ContentLengthValid {
         "content_length_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Content-Length")
     }

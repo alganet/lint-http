@@ -71,6 +71,12 @@ impl RuleMeta for ViaHeaderSyntax {
         "via_header_syntax"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Parses the `Via` field of a request and of a response — every field line of one section \
          joined into the single list they are — against RFC 9110 §7.6.3's grammar: \

@@ -28,6 +28,12 @@ impl RuleMeta for ContentEncodingAndTypeConsistent {
         "content_encoding_and_type_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.\n\nResponses that carry no content (1xx, 204, 304) are flagged for sending `Content-Encoding` at all. For 304 this follows RFC 9110 §15.4.5, which tells a sender not to include representation metadata beyond a listed set; for 1xx and 204 it is this rule's inference that a coding describing absent content is a misconfiguration.\n\nRepeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.\n\n**Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only."
     }

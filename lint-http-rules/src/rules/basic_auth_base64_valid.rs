@@ -28,6 +28,12 @@ impl RuleMeta for BasicAuthBase64Valid {
         "basic_auth_base64_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Validate that `Authorization: Basic ...` credentials are syntactically valid Base64-encoded `user-id:password` octet sequences as defined by RFC 7617. The rule ensures the credentials decode successfully, include the required `:` separator, and that neither the user-id nor the password contains control characters."
     }

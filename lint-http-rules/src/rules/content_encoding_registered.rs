@@ -40,6 +40,13 @@ impl RuleMeta for ContentEncodingRegistered {
         "content_encoding_registered"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip", "identity", "pack200-gzip", "x-compress", "x-gzip", "zstd"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         let allowed = crate::helpers::rule_config::parse_lowercased_list(

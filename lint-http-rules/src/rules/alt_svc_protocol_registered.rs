@@ -249,6 +249,30 @@ impl RuleMeta for AltSvcProtocolRegistered {
         "alt_svc_protocol_registered"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# ALPN protocol names — the octets IANA registers in the "TLS Application-Layer
+# Protocol Negotiation (ALPN) Protocol IDs" registry — and not the escaped
+# `protocol-id`s they are written as. `http/1.1` is listed here as itself and
+# appears on the wire as `http%2F1.1`, because `/` is in no `token`. The
+# comparison is byte-exact: an ALPN protocol name is identified by its precise
+# octets, so `H2` is not `h2`.
+#
+# The registry is Expert Review and gains entries between releases, so this is
+# the narrower and more useful list: the alternatives this deployment actually
+# serves. Everything else is reported, registered or not.
+#
+# `h3-29` is listed because the draft-29 identifier is still advertised
+# alongside `h3` by large operators, and this rule is not the one that has an
+# opinion about that: naming a draft identifier where the final one exists
+# belongs to `alt_svc_h3_advertisement_valid`, which reports it with the
+# advice to use `h3`. Leaving `h3-29` out here made both rules report the same
+# token on the same response, saying two different things about it.
+allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let config = parse_allowed_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config

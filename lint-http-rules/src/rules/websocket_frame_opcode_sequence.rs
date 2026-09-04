@@ -366,6 +366,12 @@ impl RuleMeta for WebsocketFrameOpcodeSequence {
         "websocket_frame_opcode_sequence"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("WebSocket Frame Opcode Sequence")
     }

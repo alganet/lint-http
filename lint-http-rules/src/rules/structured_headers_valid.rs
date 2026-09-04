@@ -115,6 +115,18 @@ impl RuleMeta for StructuredHeadersValid {
         "structured_headers_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# Fields the HTTP Field Name Registry gives a Structured Type and that no other
+# rule here owns. This rule cannot know which type a field was defined as, so it
+# accepts a value that parses as any of the three; where a field has its own
+# rule -- Priority, Permissions-Policy -- that rule knows the type and reports
+# more precisely, and listing it here only doubles the finding.
+headers = ["Accept-CH", "Cache-Status", "CDN-Cache-Control", "Proxy-Status"]
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let severity = crate::rules::get_rule_severity_required(cfg, self.id())?;
         let headers = crate::helpers::rule_config::parse_lowercased_list(

@@ -169,6 +169,16 @@ impl RuleMeta for KeepAliveHeaderValid {
         "keep_alive_header_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+# No document states a maximum for the `timeout` parameter, so this bound is
+# this deployment's policy rather than a requirement. It is required and has no
+# default for that reason; a value the rule cannot read stops the whole rule.
+max_timeout_seconds = 3600
+"#
+    }
+
     fn prepare(&self, cfg: &crate::config::Config) -> anyhow::Result<crate::rules::ResolvedRule> {
         let config = parse_keep_alive_config(cfg, self.id())?;
         // The two standard keys, **after** this rule's own options, so a config

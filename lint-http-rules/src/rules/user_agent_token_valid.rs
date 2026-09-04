@@ -28,6 +28,12 @@ impl RuleMeta for UserAgentTokenValid {
         "user_agent_token_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Validate a `User-Agent` request header against `User-Agent = product *( RWS ( product / comment ) )`. Each product is a `token` with an optional `/`-separated version token; parenthesized comments may nest and may hold a `quoted-pair`, but a comment can only follow a product, so a value that opens with one — or holds nothing else — does not match the grammar. Required whitespace between elements is enforced, and `obs-text` is accepted inside a comment, where `ctext` allows it, and nowhere else. What §10.1.5 asks beyond the grammar — that a product identifier carry no advertising or other nonessential information, and no needlessly fine-grained detail — is a question about intent that the octets cannot answer, and is not checked."
     }

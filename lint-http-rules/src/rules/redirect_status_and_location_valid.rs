@@ -87,6 +87,12 @@ impl RuleMeta for RedirectStatusAndLocationValid {
         "redirect_status_and_location_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("A Location that refers to nothing")
     }

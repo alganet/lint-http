@@ -34,6 +34,12 @@ impl RuleMeta for RequestBodyLengthAccuracy {
         "request_body_length_accuracy"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "error"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Checks that a request's `Content-Length` matches the number of body octets actually observed. RFC 9112 §6.2 makes that number the framing — \"the Content-Length field value provides the framing information necessary for determining where the data (and message) ends\" — and §6.3 says a recipient that does not receive that many octets \"MUST consider the message to be incomplete and close the connection\". A mismatch is that message.\n\n**Only when there is no `Transfer-Encoding`.** §6.3 licenses the comparison in exactly those terms: \"If a valid Content-Length header field is present *without Transfer-Encoding*, its decimal value defines the expected message body length in octets.\" When both fields are present the Transfer-Encoding overrides, and the declared length is a number the specification says to disregard — so this rule stays silent. Sending both is its own MUST NOT (§6.2) and `content_length_vs_transfer_encoding` reports it.\n\n**Syntax belongs to another rule.** A `Content-Length` that is not a valid `1*DIGIT` — or whose field lines disagree, or which no integer can represent — leaves no number to compare, so this rule declines and `content_length_valid` reports it. That rule is also where §6.3's comma-list allowance lives: `Content-Length: 3, 3` is one value of three, not a malformed field.\n\n**What the comparison is against.** The recorded length counts the octets that streamed through with the transfer coding resolved and any `Content-Encoding` left encoded — which is what `Content-Length` counts too, so the two are directly comparable. Where no body was captured, nothing is claimed."
     }

@@ -41,6 +41,12 @@ impl RuleMeta for SunsetAndDeprecationConsistent {
         "sunset_and_deprecation_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Sunset and Deprecation Consistency")
     }

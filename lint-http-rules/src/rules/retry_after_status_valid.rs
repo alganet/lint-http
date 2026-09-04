@@ -74,6 +74,12 @@ impl RuleMeta for RetryAfterStatusValid {
         "retry_after_status_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Retry-After Status Validity")
     }

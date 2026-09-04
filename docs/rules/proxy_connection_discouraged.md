@@ -35,9 +35,9 @@ Scope: this rule reads a request's header section. Where the field appears on se
 enabled = true
 severity = "info"
 # RFC 9112 Appendix C.2.2 carries no BCP 14 keyword at all, so the finding is
-# advice and the severity says so. The comment sits *below* the severity line
-# because `config_block_for` reads from a rule's header to the next `[`: a
-# comment written above a header is documented against the rule before it.
+# advice and the severity says so. The comment sits *below* the line it
+# explains: the generated file runs these sections together, and a comment
+# above a key reads as introducing everything under it.
 ```
 
 ## Examples

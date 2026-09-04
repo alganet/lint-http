@@ -28,6 +28,12 @@ impl RuleMeta for OriginIsolatedHeaderValid {
         "origin_isolated_header_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Checks the `Origin-Agent-Cluster` response header and ensures it uses the structured-header boolean value `?1` to request an origin-keyed agent cluster. The header must be a single value and must not contain comma-separated lists or multiple header fields. `?1` requests that documents from the origin be placed in an origin-keyed agent cluster; the specification ignores any other value, but this rule reports it because a non-`?1` value is almost always a server misconfiguration.\n\n(The `Origin-Isolation` name used by the original proposal never shipped; the header that browsers actually honour is `Origin-Agent-Cluster`.)"
     }

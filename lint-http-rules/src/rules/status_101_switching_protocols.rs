@@ -53,6 +53,12 @@ impl RuleMeta for Status101SwitchingProtocols {
         "status_101_switching_protocols"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Validates that `101 Switching Protocols` responses follow correct HTTP upgrade semantics. The rule checks:\n\n- The client must have requested the upgrade via the `Upgrade` header; unsolicited 101 responses are a protocol violation.\n- The protocol chosen in the response `Upgrade` header must match one offered by the client.\n- 101 must not be sent for HTTP/1.0 requests (Upgrade is an HTTP/1.1+ mechanism), or over HTTP/2 or HTTP/3 where the Upgrade mechanism is not supported.\n- After a successful 101 exchange, no further HTTP messages should appear on the same connection — the connection has been handed off to the upgraded protocol."
     }

@@ -76,6 +76,12 @@ impl RuleMeta for ContentLocationAndUriConsistent {
         "content_location_and_uri_consistent"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "info"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Validate `Content-Location` header values. The value must derive from `Content-Location = absolute-URI / partial-URI`: written only with characters a URI is composed from (RFC 3986 §2, which excludes whitespace and the nine visible characters that are not URI characters either — less-than, greater-than, double quote, the two braces, pipe, backslash, caret and backtick — along with every octet at or above %x80), sound percent-encoding and a valid scheme where one is present, and — since neither alternative of the grammar is a comma-separated list — a message carries at most one `Content-Location` field line (RFC 9110 §5.3).\n\n**The value is not a `URI-reference`, and the fragment is the whole difference.** `URI` and `relative-ref` each end in an optional `[ \"#\" fragment ]` group; `absolute-URI` and `partial-URI` are those two rules with the group dropped, which RFC 9110 §4.1 states in as many words. So `Content-Location: /foo#frag` derives from no reading of the grammar and is reported. Unlike `Referer` — the other field carrying this production — no MUST NOT names the component here: the finding rests on the grammar and §2.2's sender requirement alone, and the message cites those. A percent-encoded `%23` is data, not a fragment.\n\nFor 2xx responses the rule additionally compares the value against the request target, resolving a `partial-URI` against it first as RFC 9110 §8.7 requires (\"after conversion to absolute form\"), so a relative reference that names the target resource is not reported.\n\n**A difference is not a protocol error.** RFC 9110 §8.7 attaches no requirement to a differing `Content-Location`: it means \"the origin server claims that the URI is an identifier for a different resource\", which is exactly what a negotiated variant, a 201 pointing at the created resource, or a POST report is supposed to say. The rule reports the difference as an advisory — `config_example.toml` ships it at `info` — because the claim \"can only be trusted if both identifiers share the same resource owner, which cannot be programmatically determined via HTTP\", so it is worth a human glance and nothing stronger. Raise the severity only if your deployment intends `Content-Location` to always echo the target."
     }

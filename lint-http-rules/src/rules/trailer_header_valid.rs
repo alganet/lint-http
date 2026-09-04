@@ -177,6 +177,12 @@ impl RuleMeta for TrailerHeaderValid {
         "trailer_header_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Validates the `Trailer` header field's own value — the list of field names a sender says it anticipates sending as trailer fields.\n\nThe field is `Trailer = [ field-name *( OWS \",\" OWS field-name ) ]` (RFC 9110 §A). Every member must therefore be a `token`, and no member may be empty: `Trailer: ETag,,Expires` is a list a sender MUST NOT generate (RFC 9110 §5.6.1.1). An **empty value** is a different thing and is not reported — the production's outer brackets make a list of no field names a list, so `Trailer:` says only that nothing is announced. Where the field appears on several lines, the lines are one list (RFC 9110 §5.2), so an empty member written at a line boundary is an empty member.\n\nA member is reported when it names a field that cannot reach a recipient's trailer section:\n\n- **Nominated by this message's own `Connection`.** An intermediary MUST remove any header *or trailer* field named as a connection-option before forwarding (RFC 9110 §7.6.1), so the announced trailer cannot arrive. The `Connection` consulted is the one in the same field section as the `Trailer`; a request's connection options say nothing about a response's trailers.\n- **Connection-specific whatever the message says** — `Connection`, `Keep-Alive`, `Proxy-Connection`, `TE`, `Transfer-Encoding`, `Upgrade`, `Proxy-Authenticate`, `Proxy-Authorization`, and each for a different sentence. RFC 9110 §7.6.1 lists five of them (`Proxy-Connection`, `Keep-Alive`, `TE`, `Transfer-Encoding`, `Upgrade`) as fields an intermediary SHOULD remove whether or not a connection-option names them; `Connection` itself is removed by that section's MUST, once the intermediary has acted on it; and `Proxy-Authenticate` and `Proxy-Authorization` apply only to the next hop by their own definitions (§11.7.1, §11.7.2).\n- **`Trailer` itself**, which announces a section the recipient has already finished reading.\n\nThe broader question — whether a *nameable* field such as `ETag` or `Expires` may be sent in trailers at all (RFC 9110 §6.5.1 permits a trailer field only where the field's own definition does) — is asked of the fields that actually arrive, by `trailer_fields_valid`. This rule reads only the declaration."
     }

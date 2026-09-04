@@ -39,6 +39,12 @@ impl RuleMeta for Http3MaxPushId {
         "http3_max_push_id"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("HTTP/3 MAX_PUSH_ID Monotonicity")
     }

@@ -97,6 +97,12 @@ impl RuleMeta for Status3xxVsRequestMethod {
         "status_3xx_vs_request_method"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("The two redirects that let the user agent pick the method")
     }

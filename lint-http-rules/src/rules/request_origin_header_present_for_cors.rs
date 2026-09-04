@@ -35,6 +35,12 @@ impl RuleMeta for RequestOriginHeaderPresentForCors {
         "request_origin_header_present_for_cors"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Origin Header Presence for CORS Preflight and Cross-Origin Absolute-form Requests")
     }

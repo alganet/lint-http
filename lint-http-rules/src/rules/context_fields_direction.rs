@@ -91,6 +91,15 @@ impl RuleMeta for ContextFieldsDirection {
         "context_fields_direction"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"# RFC 9110 §10 attaches no BCP 14 keyword to a context field arriving in the
+# direction it is not defined for; the finding is that the field states
+# nothing where it was sent, so it ships as advice.
+enabled = true
+severity = "info"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Reports a message context field arriving in the direction it is not defined for: one of \
          RFC 9110 §10.1's five request context fields (`Expect`, `From`, `Referer`, `TE`, \

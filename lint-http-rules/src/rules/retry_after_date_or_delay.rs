@@ -22,6 +22,12 @@ impl RuleMeta for RetryAfterDateOrDelay {
         "retry_after_date_or_delay"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Message Retry-After Date or Delay")
     }

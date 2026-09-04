@@ -34,6 +34,12 @@ impl RuleMeta for AuthorizationCredentialsPresent {
         "authorization_credentials_present"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "The `Authorization` request header field MUST include an authentication scheme followed by credentials. This rule flags requests where the header is empty, contains an invalid auth-scheme token, or is missing credentials after the scheme. Ensuring credentials are present helps detect malformed or truncated authorization attempts."
     }

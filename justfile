@@ -63,6 +63,12 @@ citations:
 gendocs:
     cargo xtask gendocs
 
+# Regenerate config_example.toml from rule metadata — the fixer for the
+# `config_example_matches_generated` gate. Not part of `check` for the same
+# reason as `gendocs`: it writes into the tree.
+genconfig:
+    cargo xtask genconfig
+
 # Third-party licensing + advisories (needs `reuse` and `cargo-deny` installed).
 supply-chain:
     reuse lint

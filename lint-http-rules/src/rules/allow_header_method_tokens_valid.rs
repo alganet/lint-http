@@ -196,6 +196,12 @@ impl RuleMeta for AllowHeaderMethodTokensValid {
         "allow_header_method_tokens_valid"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "error"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Allow Header Method Tokens")
     }

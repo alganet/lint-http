@@ -41,6 +41,12 @@ impl RuleMeta for CachingDirectiveInteraction {
         "caching_directive_interaction"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Detect contradictions in `Cache-Control` directives that affect caching semantics: `public` and `private` together (contradictory visibility), `no-store` with `public`/`private`, differing repeated `max-age`/`s-maxage` values, and empty list elements. `no-cache` together with `max-age=0` is a legal combination and is not flagged."
     }

@@ -34,6 +34,12 @@ impl RuleMeta for AcceptEncodingPresent {
         "accept_encoding_present"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "info"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Client Accept-Encoding Present")
     }

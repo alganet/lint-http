@@ -24,6 +24,12 @@ impl RuleMeta for AuthenticationFailureLoop {
         "authentication_failure_loop"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Detects repeated `401 Unauthorized` challenges for the same protection space (origin), which strongly indicates an authentication failure loop. When a client continuously retries authentication and repeatedly fails with a 401 across the same origin, it could imply a broken client, misconfigured credentials, or a flawed authentication handshake.\n\nThis rule tracks the transaction history by origin and flags if a client receives 4 or more consecutive `401 Unauthorized` challenges without a successful (or other non-401) response in between."
     }

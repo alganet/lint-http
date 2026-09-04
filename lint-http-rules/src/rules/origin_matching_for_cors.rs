@@ -34,6 +34,12 @@ impl RuleMeta for OriginMatchingForCors {
         "origin_matching_for_cors"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Origin Matching for CORS Responses")
     }

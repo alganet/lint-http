@@ -40,6 +40,12 @@ impl RuleMeta for PostCreatesResource {
         "post_creates_resource"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("A 201 that does not say what it created")
     }

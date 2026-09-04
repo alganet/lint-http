@@ -28,6 +28,12 @@ impl RuleMeta for CacheControlPresent {
         "cache_control_present"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn title(&self) -> Option<&'static str> {
         Some("Server Cache-Control Present")
     }

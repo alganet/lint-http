@@ -57,6 +57,12 @@ impl RuleMeta for CacheValidationChain {
         "cache_validation_chain"
     }
 
+    fn config_example(&self) -> &'static str {
+        r#"enabled = true
+severity = "warn"
+"#
+    }
+
     fn description(&self) -> &'static str {
         "Caches must validate stored responses using up-to-date validators.  When a server supplies an `ETag` or `Last-Modified` header, a well-behaved cache will include that validator in subsequent conditional requests (`If-None-Match` or `If-Modified-Since`).  The value in those request headers should match the most recently observed validator for the resource; if it does not, revalidation may fail and clients can receive stale or unexpected content.\n\nThis rule applies weak comparison semantics for entity-tags, meaning a weak ETag (`W/\"tag\"`) is considered equivalent to its strong counterpart when the opaque tag matches.\n\nThis rule examines the recorded history for the same client+resource and recomputes the current validator, taking into account updates that may arrive in `304 Not Modified` responses.  If the current request contains a conditional header whose value does not match the known validator, a violation is raised.  The rule ignores requests that are not conditional and situations where no validator was ever seen."
     }
