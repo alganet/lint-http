@@ -22,8 +22,7 @@
 use crate::helpers::cookie::CookiePathDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
-use crate::violations::{ViolationDef, REGISTERED_VIOLATIONS};
-use linkme::distributed_slice;
+use crate::violations::{defects, ViolationDef};
 
 /// The `Set-Cookie` grammar, which is what the character defects below are
 /// answered by. Declared here rather than in the rule file because the
@@ -56,94 +55,96 @@ pub const RFC_3986_2_1: SpecRef = SpecRef {
     note: "Percent-Encoding — `pct-encoded = \"%\" HEXDIG HEXDIG`, the two digits a `%` in a cookie path still owes",
 };
 
-/// `Path` written as a bare attribute, with no `=` and nothing after it.
-///
-/// Separate from [`COOKIE_PATH_EMPTY`] because the senders differ: this one
-/// never wrote a value, that one wrote an empty one. The user agent treats
-/// them alike — both take the default-path — but the operator's fix does not,
-/// and neither does the message.
-///
-// cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
-pub static COOKIE_PATH_MISSING: ViolationDef = ViolationDef {
-    id: "cookie_path_missing",
-    title: "Set-Cookie Path attribute carries no value",
-    message: "Set-Cookie attribute 'Path' requires a value",
-    default_severity: Severity::Warn,
-    spec: Some(RFC_6265_5_2_4),
-};
+defects! {
+    /// `Path` written as a bare attribute, with no `=` and nothing after it.
+    ///
+    /// Separate from [`COOKIE_PATH_EMPTY`] because the senders differ: this one
+    /// never wrote a value, that one wrote an empty one. The user agent treats
+    /// them alike — both take the default-path — but the operator's fix does not,
+    /// and neither does the message.
+    ///
+    // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
+    COOKIE_PATH_MISSING = {
+        id: "cookie_path_missing",
+        title: "Set-Cookie Path attribute carries no value",
+        message: "Set-Cookie attribute 'Path' requires a value",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_5_2_4),
+    }
 
-/// `Path=` with nothing after the `=`.
-///
-// cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
-pub static COOKIE_PATH_EMPTY: ViolationDef = ViolationDef {
-    id: "cookie_path_empty",
-    title: "Set-Cookie Path attribute is empty",
-    message: "",
-    default_severity: Severity::Warn,
-    spec: Some(RFC_6265_5_2_4),
-};
+    /// `Path=` with nothing after the `=`.
+    ///
+    // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
+    COOKIE_PATH_EMPTY = {
+        id: "cookie_path_empty",
+        title: "Set-Cookie Path attribute is empty",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_5_2_4),
+    }
 
-/// A `Path` that does not start with `/`, which the user agent discards in
-/// favour of the default-path — so the scope the server asked for is not the
-/// scope the cookie gets.
-///
-// cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
-pub static COOKIE_PATH_LEADING_SLASH_MISSING: ViolationDef = ViolationDef {
-    id: "cookie_path_leading_slash_missing",
-    title: "Set-Cookie Path attribute is not rooted at `/`",
-    message: "",
-    default_severity: Severity::Warn,
-    spec: Some(RFC_6265_5_2_4),
-};
+    /// A `Path` that does not start with `/`, which the user agent discards in
+    /// favour of the default-path — so the scope the server asked for is not the
+    /// scope the cookie gets.
+    ///
+    // cite(RFC 6265 § 5.2.4): "If the attribute-value is empty or if the first character of the attribute-value is not %x2F ("/"):"
+    COOKIE_PATH_LEADING_SLASH_MISSING = {
+        id: "cookie_path_leading_slash_missing",
+        title: "Set-Cookie Path attribute is not rooted at `/`",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_5_2_4),
+    }
 
-/// A `%` in the path that no two hex digits follow.
-///
-// cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
-pub static COOKIE_PATH_PERCENT_ENCODING_MALFORMED: ViolationDef = ViolationDef {
-    id: "cookie_path_percent_encoding_malformed",
-    title: "Set-Cookie Path attribute has a broken percent-encoding",
-    message: "",
-    default_severity: Severity::Warn,
-    spec: Some(RFC_3986_2_1),
-};
+    /// A `%` in the path that no two hex digits follow.
+    ///
+    // cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
+    COOKIE_PATH_PERCENT_ENCODING_MALFORMED = {
+        id: "cookie_path_percent_encoding_malformed",
+        title: "Set-Cookie Path attribute has a broken percent-encoding",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_3986_2_1),
+    }
 
-/// A byte at or above %x80. `path-value` is built on `CHAR` = %x01-7F, so
-/// non-ASCII derives from nothing in the grammar and has to be percent-encoded.
-///
-// cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
-pub static COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN: ViolationDef = ViolationDef {
-    id: "cookie_path_non_ascii_character_forbidden",
-    title: "Set-Cookie Path attribute holds a raw non-ASCII character",
-    message: "",
-    default_severity: Severity::Warn,
-    spec: Some(RFC_6265_4_1_1),
-};
+    /// A byte at or above %x80. `path-value` is built on `CHAR` = %x01-7F, so
+    /// non-ASCII derives from nothing in the grammar and has to be percent-encoded.
+    ///
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
+    COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN = {
+        id: "cookie_path_non_ascii_character_forbidden",
+        title: "Set-Cookie Path attribute holds a raw non-ASCII character",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_4_1_1),
+    }
 
-/// A `CTL`, which `path-value` excludes by name. The most serious of the seven
-/// by default: the class it belongs to is the one a header value is split
-/// with, and nothing legitimate puts one in a path.
-///
-// cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
-pub static COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN: ViolationDef = ViolationDef {
-    id: "cookie_path_control_character_forbidden",
-    title: "Set-Cookie Path attribute holds a control character",
-    message: "",
-    default_severity: Severity::Error,
-    spec: Some(RFC_6265_4_1_1),
-};
+    /// A `CTL`, which `path-value` excludes by name. The most serious of the seven
+    /// by default: the class it belongs to is the one a header value is split
+    /// with, and nothing legitimate puts one in a path.
+    ///
+    // cite(RFC 6265 § 4.1.1): "Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:"
+    COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN = {
+        id: "cookie_path_control_character_forbidden",
+        title: "Set-Cookie Path attribute holds a control character",
+        message: "",
+        default_severity: Severity::Error,
+        spec: Some(RFC_6265_4_1_1),
+    }
 
-/// A space, which `CHAR` admits and this crate refuses anyway — the one defect
-/// here that no sentence requires, which is why it carries no `spec` and
-/// defaults to `info`. An operator who wants the grammar and nothing else
-/// leaves it there and never sees it; one who wants unambiguous cookie scopes
-/// raises it. Neither was expressible while a rule had one severity.
-pub static COOKIE_PATH_WHITESPACE_INVALID: ViolationDef = ViolationDef {
-    id: "cookie_path_whitespace_invalid",
-    title: "Set-Cookie Path attribute holds unencoded whitespace",
-    message: "",
-    default_severity: Severity::Info,
-    spec: None,
-};
+    /// A space, which `CHAR` admits and this crate refuses anyway — the one defect
+    /// here that no sentence requires, which is why it carries no `spec` and
+    /// defaults to `info`. An operator who wants the grammar and nothing else
+    /// leaves it there and never sees it; one who wants unambiguous cookie scopes
+    /// raises it. Neither was expressible while a rule had one severity.
+    COOKIE_PATH_WHITESPACE_INVALID = {
+        id: "cookie_path_whitespace_invalid",
+        title: "Set-Cookie Path attribute holds unencoded whitespace",
+        message: "",
+        default_severity: Severity::Info,
+        spec: None,
+    }
+}
 
 /// The defect a parsed [`CookiePathDefect`] reports as.
 ///
@@ -162,27 +163,6 @@ pub fn path_defect(defect: &CookiePathDefect<'_>) -> &'static ViolationDef {
         CookiePathDefect::Whitespace(_) => &COOKIE_PATH_WHITESPACE_INVALID,
     }
 }
-
-/// Registers this subject's defects into the catalogue. One entry per def,
-/// each a `static` reference the linker collects — the same shape a rule file
-/// ends with.
-#[distributed_slice(REGISTERED_VIOLATIONS)]
-static R_COOKIE_PATH_MISSING: &ViolationDef = &COOKIE_PATH_MISSING;
-#[distributed_slice(REGISTERED_VIOLATIONS)]
-static R_COOKIE_PATH_EMPTY: &ViolationDef = &COOKIE_PATH_EMPTY;
-#[distributed_slice(REGISTERED_VIOLATIONS)]
-static R_COOKIE_PATH_LEADING_SLASH_MISSING: &ViolationDef = &COOKIE_PATH_LEADING_SLASH_MISSING;
-#[distributed_slice(REGISTERED_VIOLATIONS)]
-static R_COOKIE_PATH_PERCENT_ENCODING_MALFORMED: &ViolationDef =
-    &COOKIE_PATH_PERCENT_ENCODING_MALFORMED;
-#[distributed_slice(REGISTERED_VIOLATIONS)]
-static R_COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN: &ViolationDef =
-    &COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN;
-#[distributed_slice(REGISTERED_VIOLATIONS)]
-static R_COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN: &ViolationDef =
-    &COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN;
-#[distributed_slice(REGISTERED_VIOLATIONS)]
-static R_COOKIE_PATH_WHITESPACE_INVALID: &ViolationDef = &COOKIE_PATH_WHITESPACE_INVALID;
 
 #[cfg(test)]
 mod tests {
