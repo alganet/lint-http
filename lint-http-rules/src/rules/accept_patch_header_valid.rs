@@ -8,6 +8,18 @@ use crate::helpers::media_type::{media_type_parts_defect, parse_media_type};
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::parameter::{
+    PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
+};
+use crate::violations::quoted_string::{
+    QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
+    QUOTED_STRING_QUOTED_PAIR_MALFORMED, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    media_type_defect, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 /// The `Accept-Patch` response header field: its grammar wherever it appears,
 /// and the two responses RFC 5789 asks for it in.
@@ -23,6 +35,34 @@ use crate::rules::{Rule, RuleMeta};
 /// Content` with `Content-Location` and `ETag` and no `Accept-Patch` — was
 /// therefore a finding, and a `#[test]` below runs it.
 pub struct AcceptPatchHeaderValid;
+
+/// What this rule reports about the parts of a member, and not one of them is
+/// this field's. `Accept-Patch = 1#media-type`, so every member is measured by
+/// the same reading `Content-Type` is measured by, and the nine defects below
+/// are the same nine that rule declares — a `token` for each half of the media
+/// type and for each parameter name, `( token / quoted-string )` for each
+/// parameter value, and the `=` a parameter is joined by.
+///
+/// That the two lists are identical is the point rather than a coincidence:
+/// one field states a representation's media type and the other advertises the
+/// formats a resource accepts, and a `charset` parameter with nothing after its
+/// `=` is one defect with one name whichever of them wrote it.
+///
+/// The list's own findings stay on the older API: an empty element, a `1#`
+/// naming no format, a member with no `/` in it, and the two SHOULDs about
+/// where the field belongs. Those are the list construct's and RFC 5789's,
+/// which are subjects nothing has written yet.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_EMPTY,
+    &PARAMETER_EQUALS_MISSING,
+    &PARAMETER_VALUE_EMPTY,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 impl AcceptPatchHeaderValid {
     /// The field's own value, measured against `1#media-type`.
@@ -48,8 +88,13 @@ impl AcceptPatchHeaderValid {
     ///
     /// cite(RFC 5789 § 3.1, label: Accept-Patch grammar): "Accept-Patch = "Accept-Patch" ":" 1#media-type"
     /// cite(RFC 5789 § 3.1): "The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7."
-    fn check_value(&self, value: &str, severity: crate::lint::Severity) -> Option<Violation> {
-        let violation = |message: String| Some(self.violation(severity, message));
+    fn check_value(&self, value: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+        // The two APIs coexist inside this one reading: a member's *parts*
+        // report declared defects and resolve their own severity, while the
+        // list's own findings — an empty element, a `1#` naming nothing, a
+        // member with no `/` — still emit at the rule's. The closure keeps the
+        // unconverted branches byte-identical.
+        let violation = |message: String| Some(self.violation(ctx.severity, message));
 
         let mut saw_an_empty_element = false;
         let mut members_present = 0usize;
@@ -116,11 +161,14 @@ impl AcceptPatchHeaderValid {
             // octets, while the helper is also called on a `Content-Type` that
             // was not, so `describe_octet` would be claiming more than the helper
             // knows.
-            if let Some(reason) = media_type_parts_defect(&parsed) {
-                return violation(format!(
-                    "Accept-Patch member '{}' derives from no media-type: {}",
-                    shown_in_finding(member),
-                    reason
+            if let Some(defect) = media_type_parts_defect(&parsed) {
+                return Some(ctx.report_with(
+                    media_type_defect(defect),
+                    format!(
+                        "Accept-Patch member '{}' derives from no media-type: {}",
+                        shown_in_finding(member),
+                        defect.message()
+                    ),
                 ));
             }
 
@@ -256,10 +304,17 @@ severity = "warn"
             RFC_5789_3,
             RFC_5789_2_2,
             RFC_9110_8_3_1,
+            RFC_9110_5_6_6,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
             RFC_9110_5_6_1_2,
             RFC_9110_9_1,
             RFC_9110_10_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -347,7 +402,7 @@ impl Rule for AcceptPatchHeaderValid {
             //
             // cite(RFC 5789 § 3.1): "The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI."
             if let Some(value) = combined_field_value_as_written(&resp.headers, "accept-patch") {
-                return self.check_value(&value, ctx.severity);
+                return self.check_value(&value, ctx);
             }
 
             // Compared exactly, both of them: a request whose method is `patch` or
@@ -489,6 +544,43 @@ mod tests {
 
     fn accept_patch(value: &str) -> Option<Violation> {
         check("PATCH", 200, &[("accept-patch", value.as_bytes())])
+    }
+
+    /// The parts of a media type answer with one id whichever field carried
+    /// it, which is the whole reason the reading is shared: the same value
+    /// judged as a `Content-Type` and as an `Accept-Patch` member yields the
+    /// same defect, at the same level, out of two rules that word their
+    /// findings differently.
+    ///
+    /// Five rows, one per production a member is written out of — the subtype's
+    /// `token`, a parameter name that is empty, a parameter with no `=`, a
+    /// value with nothing after it, and a `quoted-string` missing a delimiter.
+    #[rstest]
+    #[case("text/pl@in", "token_character_forbidden")]
+    #[case("text/plain;=value", "token_empty")]
+    #[case("text/plain; badparam", "parameter_equals_missing")]
+    #[case("text/plain; charset=", "parameter_value_empty")]
+    #[case("text/plain; charset=\"unclosed", "quoted_string_delimiter_missing")]
+    fn a_media_types_defect_has_one_id_in_both_fields(#[case] value: &str, #[case] id: &str) {
+        let member = accept_patch(value).expect("a finding about the member");
+        assert_eq!(member.violation, id, "Accept-Patch: {value}");
+
+        let mut tx = make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", value)]);
+        let field = crate::test_helpers::run_rule(
+            &crate::rules::content_type_valid::ContentTypeValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_valid"]),
+        )
+        .expect("a finding about the field");
+        assert_eq!(field.violation, id, "Content-Type: {value}");
+        assert_eq!(field.severity, member.severity);
+        assert_ne!(
+            field.message, member.message,
+            "each rule names its own field"
+        );
     }
 
     /// The value is `1#media-type`, and these members are media types.

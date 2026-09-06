@@ -1367,6 +1367,14 @@ severity = "warn"
 # Node identifier holds something that is not a node-port
 severity = "warn"
 
+[violations.parameter_equals_missing]
+# Parameter is written without its '='
+severity = "warn"
+
+[violations.parameter_value_empty]
+# Parameter is written with no value after its '='
+severity = "warn"
+
 [violations.percent_encoding_digits_missing]
 # Percent-encoding stops before its two hexadecimal digits
 severity = "warn"

@@ -93,17 +93,136 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
     })
 }
 
+/// Why a `media-type`'s parts do not derive from the production, as data.
+///
+/// Every variant names a part and carries what was found there, and none of
+/// them names a field: the same defect is read out of a `Content-Type` and out
+/// of a member of `Accept-Patch`'s `1#media-type`, and each caller says which.
+/// The wording is [`message`](MediaTypeDefect::message)'s, kept beside the
+/// variants because the values it interpolates — a parameter's name, its value
+/// as written — are the walk's and reach no caller otherwise.
+///
+/// **Nothing here belongs to `media-type`.** A type and a subtype are `token`s,
+/// a parameter name is a `token`, a parameter value is `( token /
+/// quoted-string )`, and the delimiter between the two halves is § 5.6.6's.
+/// So every variant below is one of three other productions' defects noticed
+/// while reading this one, which is what
+/// [`media_type_defect`](crate::violations::token::media_type_defect) says in
+/// the catalogue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaTypeDefect<'a> {
+    /// A non-`token` octet in the `type`, carrying the character.
+    TypeCharacter(char),
+    /// A non-`token` octet in the `subtype`, carrying the character.
+    SubtypeCharacter(char),
+    /// A segment among the parameters with no `=` in it, carrying the segment
+    /// as written. The delimiter is not optional, so this is not a valueless
+    /// flag — it derives from `parameter` not at all.
+    ParameterMissingEquals(&'a str),
+    /// A parameter whose name half is empty: `;=value`, which has a value and
+    /// nothing it belongs to. `token = 1*tchar` has a one-character floor, and
+    /// a scan for an invalid character cannot see this — the empty string holds
+    /// none.
+    ParameterNameEmpty,
+    /// A non-`token` octet in a `parameter-name`, carrying the character and
+    /// the name it was found in.
+    ParameterNameCharacter {
+        /// The `parameter-name` as written.
+        name: &'a str,
+        /// The octet no `tchar` admits.
+        character: char,
+    },
+    /// A `parameter-value` deriving from neither alternative, carrying the
+    /// parameter's name, the value as written and the alternation's own defect.
+    ///
+    /// Nested rather than rendered, the shape every typed defect in this tree
+    /// takes over another's: `( token / quoted-string )` is the same production
+    /// wherever it is read, and a media type's parameter adds nothing to it.
+    ParameterValue {
+        /// The `parameter-name` whose value failed.
+        name: &'a str,
+        /// The value as written, DQUOTEs included.
+        value: &'a str,
+        /// What it failed to be.
+        defect: WordDefect,
+    },
+}
+
+impl MediaTypeDefect<'_> {
+    /// The finding, phrased as a clause a caller prints after naming its own
+    /// field — which is what lets the two rules measuring a `media-type` share
+    /// one transcription of § 8.3.1 and § 5.6.6 while each says where the
+    /// defect was found.
+    ///
+    /// **Every value interpolated here is escaped for display**, and it has to
+    /// be: the octets a `tchar` test rejects include the ones that print as
+    /// nothing, so a raw HTAB or CR reaching a finding breaks the line it is
+    /// printed on rather than appearing in it. `escape_debug` is not the
+    /// `obs-text` answer — a printable code point survives it, so %xC9 still
+    /// shows as `É` — and naming an octet is
+    /// [`describe_octet`](crate::helpers::shown::describe_octet)'s job; the
+    /// `#token` walks in this tree that do name it are measuring a value whose
+    /// every octet is one `char`, which a `media-type` reaching this function
+    /// is not guaranteed to be.
+    pub fn message(self) -> String {
+        match self {
+            Self::TypeCharacter(c) => format!("invalid character '{}' in type", c.escape_debug()),
+            Self::SubtypeCharacter(c) => {
+                format!("invalid character '{}' in subtype", c.escape_debug())
+            }
+            Self::ParameterMissingEquals(segment) => {
+                format!("parameter '{}' missing '='", segment.escape_debug())
+            }
+            Self::ParameterNameEmpty => "empty parameter name".to_string(),
+            Self::ParameterNameCharacter { name, character } => format!(
+                "invalid character '{}' in parameter name '{}'",
+                character.escape_debug(),
+                name.escape_debug()
+            ),
+            // `parameters` yields the value as written and does not judge it, so
+            // an empty one arrives here. It derives from neither alternative.
+            Self::ParameterValue {
+                name,
+                defect: WordDefect::Empty,
+                ..
+            } => format!(
+                "parameter '{}' has an empty value, and a parameter-value is a token or a quoted-string",
+                name.escape_debug()
+            ),
+            Self::ParameterValue {
+                value,
+                defect: WordDefect::NotToken(c),
+                ..
+            } => format!(
+                "invalid character '{}' in parameter value '{}'",
+                c.escape_debug(),
+                value.escape_debug()
+            ),
+            // The reason quotes the value it was handed, so the escape goes
+            // around the whole clause rather than around the name alone -- a
+            // control octet inside the quoted-string is exactly what that reason
+            // is about, and it arrived raw.
+            Self::ParameterValue {
+                name,
+                value,
+                defect: WordDefect::NotQuotedString(defect),
+            } => format!(
+                "parameter '{}' has invalid quoted-string: {}",
+                name.escape_debug(),
+                defect.message(value).escape_debug()
+            ),
+        }
+    }
+}
+
 /// The half of `media-type` that `parse_media_type` above deliberately leaves:
 /// having separated the parts, what each of them must *be*.
 ///
-/// `None` where the parts derive from the production; otherwise the reason they
-/// do not, phrased as a clause a caller prints after naming its own field. That
-/// shape is what lets the two rules measuring a `media-type` — one reading
-/// `Content-Type`, one reading each member of `Accept-Patch`'s `1#media-type` —
-/// share one transcription of § 8.3.1 and § 5.6.6 while each says which field
-/// the defect was found in. Written when the second caller arrived; before that
-/// these four checks lived inside the first rule, where a second copy was the
-/// only way to ask the same question of another field.
+/// `None` where the parts derive from the production; otherwise the
+/// [`MediaTypeDefect`] naming which part failed and how. Written when the
+/// second caller arrived; before that these four checks lived inside the first
+/// rule, where a second copy was the only way to ask the same question of
+/// another field.
 ///
 /// **The asterisk is not judged here.** `*` is a `tchar`, so `*/plain` and
 /// `*/*` both derive from `media-type`; what an asterisk *means* is each
@@ -111,15 +230,6 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
 /// type, while `Accept-Patch` is a list of them with no `media-range` anywhere
 /// in its grammar — and the two rules answer it separately, at different
 /// strengths, from different sentences.
-///
-/// **Every value this interpolates is escaped for display**, and it has to be:
-/// the octets a `tchar` test rejects include the ones that print as nothing, so
-/// a raw HTAB or CR reaching a finding breaks the line it is printed on rather
-/// than appearing in it. `escape_debug` is not the `obs-text` answer — a
-/// printable code point survives it, so %xC9 still shows as `É` — and naming an
-/// octet is [`describe_octet`](crate::helpers::shown::describe_octet)'s job; the `#token` walks in this tree that do
-/// name it are measuring a value whose every octet is one `char`, which a
-/// `media-type` reaching this function is not guaranteed to be.
 ///
 /// **One inherited leniency, and it is now a decision rather than an accident.**
 /// `parameter` is `parameter-name "=" parameter-value` with no `OWS` anywhere in
@@ -134,19 +244,16 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
 ///
 /// cite(RFC 9110 § 8.3.1): "type       = token subtype    = token"
 /// cite(RFC 9110 § 8.3.1): "The type and subtype tokens are case-insensitive."
-pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
+pub fn media_type_parts_defect<'a>(parsed: &ParsedMediaType<'a>) -> Option<MediaTypeDefect<'a>> {
     // Case is not checked because there is nothing to check: both halves are
     // case-insensitive, so no spelling of them is wrong.
     if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.type_) {
-        return Some(format!("invalid character '{}' in type", c.escape_debug()));
+        return Some(MediaTypeDefect::TypeCharacter(c));
     }
 
     // Same production, other half; the quote above covers both lines of it.
     if let Some(c) = crate::helpers::token::find_invalid_token_char(parsed.subtype) {
-        return Some(format!(
-            "invalid character '{}' in subtype",
-            c.escape_debug()
-        ));
+        return Some(MediaTypeDefect::SubtypeCharacter(c));
     }
 
     // A media type with no parameters is a media type: the term is `parameters`,
@@ -170,10 +277,7 @@ pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
             // The "=" is not optional inside `parameter`, so a bare token among
             // the parameters is not a valueless flag.
             Err(ParameterDefect::NoEquals(segment)) => {
-                return Some(format!(
-                    "parameter '{}' missing '='",
-                    segment.escape_debug()
-                ))
+                return Some(MediaTypeDefect::ParameterMissingEquals(segment))
             }
         };
 
@@ -186,15 +290,14 @@ pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
         let _ = parameter.whitespace_beside_equals;
 
         if parameter.name.is_empty() {
-            return Some("empty parameter name".to_string());
+            return Some(MediaTypeDefect::ParameterNameEmpty);
         }
         // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
         if let Some(c) = crate::helpers::token::find_invalid_token_char(parameter.name) {
-            return Some(format!(
-                "invalid character '{}' in parameter name '{}'",
-                c.escape_debug(),
-                parameter.name.escape_debug()
-            ));
+            return Some(MediaTypeDefect::ParameterNameCharacter {
+                name: parameter.name,
+                character: c,
+            });
         }
 
         // `parameter-value = ( token / quoted-string )`, read by the function
@@ -203,34 +306,12 @@ pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
         // count in this campaign has had: the list was of *rules*, and this is a
         // helper.
         // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-        match token_or_quoted_string(parameter.value) {
-            Ok(_) => {}
-            // `parameters` yields the value as written and does not judge it, so
-            // an empty one arrives here. It derives from neither alternative.
-            Err(WordDefect::Empty) => {
-                return Some(format!(
-                    "parameter '{}' has an empty value, and a parameter-value is a token or a quoted-string",
-                    parameter.name.escape_debug()
-                ))
-            }
-            Err(WordDefect::NotToken(c)) => {
-                return Some(format!(
-                    "invalid character '{}' in parameter value '{}'",
-                    c.escape_debug(),
-                    parameter.value.escape_debug()
-                ))
-            }
-            // The reason quotes the value it was handed, so the escape goes
-            // around the whole clause rather than around the name alone -- a
-            // control octet inside the quoted-string is exactly what that reason
-            // is about, and it arrived raw.
-            Err(WordDefect::NotQuotedString(defect)) => {
-                return Some(format!(
-                    "parameter '{}' has invalid quoted-string: {}",
-                    parameter.name.escape_debug(),
-                    defect.message(parameter.value).escape_debug()
-                ))
-            }
+        if let Err(defect) = token_or_quoted_string(parameter.value) {
+            return Some(MediaTypeDefect::ParameterValue {
+                name: parameter.name,
+                value: parameter.value,
+                defect,
+            });
         }
     }
 

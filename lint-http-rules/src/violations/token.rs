@@ -24,9 +24,11 @@
 //! `token68` admits `/` and `=` and no `!#$%&'*^\`|~` — and a value that is one
 //! is not measured against the other anywhere in this crate.
 
+use crate::helpers::media_type::MediaTypeDefect;
 use crate::helpers::word::WordDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::parameter::{PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY};
 use crate::violations::quoted_string::quoted_string_defect;
 use crate::violations::{defects, ViolationDef};
 
@@ -133,6 +135,41 @@ pub fn word_defect(defect: WordDefect) -> Option<&'static ViolationDef> {
     }
 }
 
+/// The defect a [`MediaTypeDefect`] reports as.
+///
+/// `media-type` owns none of these. A type and a subtype are `token`s, a
+/// parameter name is a `token`, a parameter value is `( token / quoted-string
+/// )`, and the `=` between a parameter's halves is § 5.6.6's — so a rule
+/// reading a media type reports the same ids as a rule reading any other field
+/// written out of the same three productions, which is the whole of why the
+/// reader was typed.
+///
+/// It lives here, beside the subject of the first thing the reader measures,
+/// for the reason `read_member`'s mapping lives beside the list's: a mapping fn
+/// whose every answer belongs to another subject has no file of its own, and a
+/// `violations/media_type.rs` holding nothing but this function would carry no
+/// `// cite` for the citation ratchet to find. The next reader will look for a
+/// file named after the helper, which is why this paragraph is here.
+///
+/// The empty parameter value is the one answer that is neither production's.
+/// [`word_defect`] returns `None` there, because what a *field* does about a
+/// value that is empty is the field's own verdict — and for a `parameter` the
+/// fields agreed before this catalogue existed, which is what
+/// [`PARAMETER_VALUE_EMPTY`] records.
+pub fn media_type_defect(defect: MediaTypeDefect<'_>) -> &'static ViolationDef {
+    match defect {
+        MediaTypeDefect::TypeCharacter(c) | MediaTypeDefect::SubtypeCharacter(c) => {
+            token_character(c)
+        }
+        MediaTypeDefect::ParameterMissingEquals(_) => &PARAMETER_EQUALS_MISSING,
+        MediaTypeDefect::ParameterNameEmpty => &TOKEN_EMPTY,
+        MediaTypeDefect::ParameterNameCharacter { character, .. } => token_character(character),
+        MediaTypeDefect::ParameterValue { defect, .. } => {
+            word_defect(defect).unwrap_or(&PARAMETER_VALUE_EMPTY)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,6 +213,53 @@ mod tests {
             word_defect(WordDefect::NotQuotedString(QuotedStringDefect::NotQuoted)).map(|d| d.id),
             Some("quoted_string_delimiter_missing"),
         );
+    }
+
+    /// A media type's parts answer with three subjects' ids and none of its
+    /// own, which is the claim the typed reader was written to make. The rows
+    /// are the whole of `media_type_parts_defect`'s fan-out.
+    #[test]
+    fn a_media_types_parts_report_the_productions_they_are_written_in() {
+        use crate::helpers::quoted_string::QuotedStringDefect;
+
+        let value = |defect| MediaTypeDefect::ParameterValue {
+            name: "charset",
+            value: "",
+            defect,
+        };
+        for (defect, id) in [
+            (
+                MediaTypeDefect::TypeCharacter('@'),
+                "token_character_forbidden",
+            ),
+            (
+                MediaTypeDefect::SubtypeCharacter(' '),
+                "token_whitespace_or_control_forbidden",
+            ),
+            (
+                MediaTypeDefect::ParameterMissingEquals("badparam"),
+                "parameter_equals_missing",
+            ),
+            (MediaTypeDefect::ParameterNameEmpty, "token_empty"),
+            (
+                MediaTypeDefect::ParameterNameCharacter {
+                    name: "ba@d",
+                    character: '@',
+                },
+                "token_character_forbidden",
+            ),
+            (value(WordDefect::Empty), "parameter_value_empty"),
+            (
+                value(WordDefect::NotToken(' ')),
+                "token_whitespace_or_control_forbidden",
+            ),
+            (
+                value(WordDefect::NotQuotedString(QuotedStringDefect::NotQuoted)),
+                "quoted_string_delimiter_missing",
+            ),
+        ] {
+            assert_eq!(media_type_defect(defect).id, id, "{defect:?}");
+        }
     }
 
     /// The pair defaults a level apart, which is the convention
