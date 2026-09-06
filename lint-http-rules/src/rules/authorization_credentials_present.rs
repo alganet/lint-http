@@ -4,18 +4,36 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
+use crate::violations::credentials::{
+    credentials_defect, CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN, CREDENTIALS_EMPTY,
+    CREDENTIALS_MISSING, RFC_9110_11_4, RFC_9110_11_6_2,
+};
+use crate::violations::ViolationDef;
 
 pub struct AuthorizationCredentialsPresent;
+
+/// The defects this rule reports. Three belong to `credentials = auth-scheme
+/// [ 1*SP ( token68 / #auth-param ) ]`, which `Proxy-Authorization` carries
+/// too; the fourth is the scheme's, shared with the response side of the
+/// framework — `www_authenticate_challenge_syntax` reports the same id about a
+/// server's `WWW-Authenticate`, because `auth-scheme = token` is written once
+/// and used from both directions.
+///
+/// The non-UTF-8 finding below is not here on purpose: the verdict it reports
+/// names an encoding where the defect is an octet the field's grammar does not
+/// admit, and the conversion it needs is an octet-wise reader rather than a
+/// name for the claim as it stands.
+static DECLARED: &[&ViolationDef] = &[
+    &CREDENTIALS_EMPTY,
+    &CREDENTIALS_MISSING,
+    &CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN,
+    &AUTH_SCHEME_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_11_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2",
-    note: "Authorization",
-};
 const RFC_7617: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7617",
     section: None,
@@ -45,7 +63,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_11_6_2, RFC_7617, RFC_6750]
+        &[
+            RFC_9110_11_6_2,
+            RFC_9110_11_4,
+            RFC_9110_11_2,
+            RFC_7617,
+            RFC_6750,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -100,9 +128,8 @@ impl Rule for AuthorizationCredentialsPresent {
                         // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
                         if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(s)
                         {
-                            return Some(self.cited(
-                                &RFC_9110_11_6_2,
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                credentials_defect(defect),
                                 format!("Invalid Authorization header: {}", defect.message()),
                             ));
                         }
@@ -168,6 +195,60 @@ mod tests {
             assert!(v.is_none());
         }
         Ok(())
+    }
+
+    /// Four names where the rule had one, and the last row is the point of the
+    /// shared subject: a scheme with a character no `token` admits reports
+    /// under the same id whether a user agent wrote it into `Authorization` or
+    /// a server wrote it into `WWW-Authenticate`. The control octet defaults a
+    /// level above the rest, because neither alternative of the production
+    /// admits one and nobody types it.
+    #[rstest]
+    #[case("", "credentials_empty", crate::lint::Severity::Warn)]
+    #[case("Basic", "credentials_missing", crate::lint::Severity::Warn)]
+    #[case("Basic ", "credentials_missing", crate::lint::Severity::Warn)]
+    #[case(
+        "B@sic xyz",
+        "auth_scheme_character_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    fn each_finding_names_the_defect_and_carries_its_severity(
+        #[case] header: &str,
+        #[case] violation: &str,
+        #[case] severity: crate::lint::Severity,
+    ) -> anyhow::Result<()> {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            hyper::header::HeaderValue::from_str(header)?,
+        );
+        let v = crate::test_helpers::run_rule(
+            &AuthorizationCredentialsPresent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "authorization_credentials_present",
+            ]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {header:?}"));
+        assert_eq!(v.violation, violation, "{}", v.message);
+        assert_eq!(v.severity, severity, "{}", v.message);
+        Ok(())
+    }
+
+    /// A control octet cannot reach the rule through a `HeaderValue`, which
+    /// refuses to hold one — so the defect is declared, reported by the helper,
+    /// and asserted where it is constructible.
+    #[test]
+    fn a_control_octet_in_the_credentials_is_the_helpers_to_find() {
+        assert!(hyper::header::HeaderValue::from_bytes(b"Basic ab\x01c").is_err());
+        assert_eq!(
+            crate::violations::credentials::credentials_defect(
+                crate::helpers::auth::AuthorizationDefect::CredentialsControlCharacter
+            )
+            .id,
+            "credentials_control_character_forbidden",
+        );
     }
 
     #[test]

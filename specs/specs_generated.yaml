@@ -5255,7 +5255,9 @@ sources:
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
     cited_by:
     - file: lint-http-rules/src/rules/authorization_credentials_present.rs
-      line: 100
+      line: 128
+    - file: lint-http-rules/src/violations/credentials.rs
+      line: 67
   - label: cache_coherence
     section: § 15.4.5
     snippet: there is no need for the server to transfer a representation of the target resource because the request indicates that the client, which made the request conditional, already has a valid representation
@@ -5303,19 +5305,19 @@ sources:
     snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 155
+      line: 139
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 168
+      line: 152
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 182
+      line: 166
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 196
+      line: 180
   - label: challenge (2)
     section: § 11.2
     snippet: token68        = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
     cited_by:
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 117
+      line: 101
   - label: charset_present
     section: § 8.3.2
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
@@ -6476,8 +6478,8 @@ sources:
       line: 90
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
       line: 95
-    - file: lint-http-rules/src/violations/challenge.rs
-      line: 102
+    - file: lint-http-rules/src/violations/auth_scheme.rs
+      line: 42
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
@@ -6485,17 +6487,21 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 248
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 62
+      line: 59
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 89
+      line: 86
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 143
+      line: 127
   - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.4
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 423
+    - file: lint-http-rules/src/violations/credentials.rs
+      line: 52
+    - file: lint-http-rules/src/violations/credentials.rs
+      line: 82
   - label: lint-http-rules/src/helpers/auth.rs (4)
     section: § 11.6.1
     snippet: 'WWW-Authenticate = #challenge'
@@ -6503,7 +6509,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 103
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 76
+      line: 73
   - label: 1#element expansion
     section: § 5.6.1.1
     snippet: 1#element => element *( OWS "," OWS element )
@@ -8761,7 +8767,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 175
     - file: lint-http-rules/src/rules/www_authenticate_challenge_syntax.rs
-      line: 132
+      line: 134
   - label: status_code_semantics (5)
     section: § 11.7.1
     snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
