@@ -608,9 +608,12 @@ fn validate_param_value(value: &str) -> Result<(), String> {
         // would have named are `obs-text`, and those are `qdtext` -- so one
         // reaches a finding here only inside a quoted-string that is already
         // malformed. Rendering them is the helper's to fix, at its callers.
-        Err(WordDefect::NotQuotedString(e)) => Err(format!(
-            "has a value that is not a well-formed quoted-string: {e}"
-        )),
+        Err(WordDefect::NotQuotedString(defect)) => {
+            let defect = defect.message(value);
+            Err(format!(
+                "has a value that is not a well-formed quoted-string: {defect}"
+            ))
+        }
     }
 }
 

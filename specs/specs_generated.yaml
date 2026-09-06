@@ -659,19 +659,19 @@ sources:
     snippet: If dur is an error, return 0; Otherwise return dur.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 638
+      line: 639
   - label: server_timing_header_syntax (10)
     section: § 3.2
     snippet: Let dur be the result of parsing this’s params["dur"] using the rules for parsing floating-point number values.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 637
+      line: 638
   - label: server_timing_header_syntax (11)
     section: § 3.3
     snippet: The description getter steps are to return this’s params["desc"] if it exists, otherwise the empty string.
     cited_by:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
-      line: 621
+      line: 622
 - label: Permissions Policy
   url: https://w3c.github.io/webappsec-permissions-policy/
   type: text/html
@@ -762,7 +762,7 @@ sources:
     snippet: The value of the "timeout" parameter is a single integer in seconds.
     cited_by:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 623
+      line: 626
 - label: MDN Content-Type
   url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Type
   fragments:
@@ -3845,7 +3845,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 179
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 475
+      line: 476
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 328
   - label: alt_svc_h3_advertisement_valid (2)
@@ -3873,7 +3873,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 21
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 325
+      line: 326
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 368
   - label: alt_svc_h3_advertisement_valid (5)
@@ -3897,7 +3897,7 @@ sources:
     snippet: This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 559
+      line: 560
   - label: alt_svc_header_syntax (2)
     section: § 2
     snippet: Note that for the purpose of this specification, an ALPN protocol name implicitly includes TLS in the suite of protocols it identifies, unless specified otherwise in its definition.
@@ -3909,13 +3909,13 @@ sources:
     snippet: A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services).
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 544
+      line: 545
   - label: alt_svc_header_syntax (4)
     section: § 3
     snippet: Alt-Svc MAY occur in any HTTP response message, regardless of the status code.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 492
+      line: 493
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 349
   - label: alt_svc_header_syntax (5)
@@ -3995,7 +3995,7 @@ sources:
     snippet: alternative   = protocol-id "=" alt-authority
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 318
+      line: 319
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 400
   - label: alt_svc_header_syntax (17)
@@ -4003,7 +4003,7 @@ sources:
     snippet: protocol-id   = token ; percent-encoded ALPN protocol name
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 319
+      line: 320
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 135
   - label: alt_svc_header_syntax (18)
@@ -4011,19 +4011,19 @@ sources:
     snippet: Alternative services that are intended to be longer lived (such as those that are not specific to the client access network) can carry the "persist" parameter with a value "1" as a hint that the service is potentially useful beyond a network configuration change.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 289
+      line: 290
   - label: alt_svc_header_syntax (19)
     section: § 3.1
     snippet: Clients MUST ignore "persist" parameters with values other than "1".
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 291
+      line: 292
   - label: alt_svc_header_syntax (20)
     section: § 3.1
     snippet: This specification only defines a single value for "persist".
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 290
+      line: 291
   - label: alt_svc_header_syntax (21)
     section: § 8
     snippet: An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1).
@@ -5235,7 +5235,7 @@ sources:
     snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 476
+      line: 477
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 329
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -6615,7 +6615,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 85
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 560
+      line: 561
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 105
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -7083,7 +7083,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 145
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 534
+      line: 535
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 515
   - label: lint-http-rules/src/helpers/list.rs (2)
@@ -7103,7 +7103,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 121
     - file: lint-http-rules/src/helpers/word.rs
-      line: 80
+      line: 88
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 75
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -7111,7 +7111,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 48
     - file: lint-http-rules/src/violations/token.rs
-      line: 66
+      line: 68
   - label: lint-http-rules/src/helpers/list.rs (4)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -7143,7 +7143,7 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 190
     - file: lint-http-rules/src/helpers/word.rs
-      line: 82
+      line: 90
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 117
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -7421,9 +7421,9 @@ sources:
     - file: lint-http-rules/src/helpers/token.rs
       line: 7
     - file: lint-http-rules/src/helpers/word.rs
-      line: 81
+      line: 89
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 320
+      line: 321
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 407
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
@@ -7439,7 +7439,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 227
     - file: lint-http-rules/src/violations/token.rs
-      line: 52
+      line: 54
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
@@ -7527,7 +7527,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 180
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 509
+      line: 510
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 359
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -7537,7 +7537,7 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.
     cited_by:
     - file: lint-http-rules/src/helpers/word.rs
-      line: 141
+      line: 149
   - label: location_header_uri_valid
     section: § 10.2.2
     snippet: A Location field value cannot allow a list of members because the comma list separator is a valid data character within a URI-reference.
@@ -9404,7 +9404,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 303
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
-      line: 624
+      line: 627
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 51
   - label: lint-http-rules/src/helpers/cache_control.rs

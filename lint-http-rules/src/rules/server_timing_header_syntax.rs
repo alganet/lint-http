@@ -585,9 +585,10 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
                 describe_char(c)
             ))
         }
-        Err(WordDefect::NotQuotedString(e)) => {
+        Err(WordDefect::NotQuotedString(defect)) => {
+            let defect = defect.message(value);
             return Some(format!(
-                "Server-Timing parameter '{}' has a malformed quoted-string value: {e}",
+                "Server-Timing parameter '{}' has a malformed quoted-string value: {defect}",
                 shown_in_finding(name)
             ))
         }

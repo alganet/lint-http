@@ -140,9 +140,10 @@ fn member_defect(member: &str) -> Option<String> {
         // behavior change. (`foo=""` is genuinely valid: quoted-string permits
         // empty content.)
         Err(crate::helpers::word::WordDefect::Empty) => None,
-        Err(crate::helpers::word::WordDefect::NotQuotedString(e)) => {
-            Some(format!("Invalid quoted-string in directive value: {}", e))
-        }
+        Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => Some(format!(
+            "Invalid quoted-string in directive value: {}",
+            defect.message(argument)
+        )),
         Err(crate::helpers::word::WordDefect::NotToken(c)) => Some(format!(
             "Directive value contains invalid character: '{}'",
             c

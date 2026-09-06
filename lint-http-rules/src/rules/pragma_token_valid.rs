@@ -183,8 +183,11 @@ fn check_pragma_value(s: &str) -> Option<String> {
                 // arm rather than as a pre-check, because it is a verdict this
                 // rule reaches and not a step of reading the value.
                 Err(crate::helpers::word::WordDefect::Empty) => continue,
-                Err(crate::helpers::word::WordDefect::NotQuotedString(e)) => {
-                    return Some(format!("Invalid quoted-string in directive value: {}", e));
+                Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => {
+                    return Some(format!(
+                        "Invalid quoted-string in directive value: {}",
+                        defect.message(vpart)
+                    ));
                 }
                 Err(crate::helpers::word::WordDefect::NotToken(c)) => {
                     return Some(format!(

@@ -274,9 +274,10 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<String> {
                     describe_char(c)
                 ))
         }
-        Err(WordDefect::NotQuotedString(e)) => {
+        Err(WordDefect::NotQuotedString(defect)) => {
+            let defect = defect.message(value);
             return Some(format!(
-                    "Alt-Svc parameter '{}' in '{shown}' has a value that is not a well-formed `quoted-string`: {e}",
+                    "Alt-Svc parameter '{}' in '{shown}' has a value that is not a well-formed `quoted-string`: {defect}",
                     shown_in_finding(name)
                 ))
         }
