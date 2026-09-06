@@ -1055,6 +1055,50 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[violations.challenge_empty]
+# Authentication challenge is empty
+severity = "warn"
+
+[violations.challenge_member_empty]
+# Authentication challenge list has an empty member
+severity = "warn"
+
+[violations.challenge_parameter_empty]
+# Authentication challenge has an empty parameter
+severity = "warn"
+
+[violations.challenge_parameter_name_character_forbidden]
+# Authentication parameter name holds a character outside token
+severity = "warn"
+
+[violations.challenge_parameter_name_empty]
+# Authentication parameter has an empty name
+severity = "warn"
+
+[violations.challenge_parameter_value_character_forbidden]
+# Authentication parameter value holds a character outside token
+severity = "warn"
+
+[violations.challenge_parameter_value_missing]
+# Authentication parameter has no value
+severity = "warn"
+
+[violations.challenge_scheme_character_forbidden]
+# Authentication scheme holds a character outside token
+severity = "warn"
+
+[violations.challenge_scheme_missing]
+# Authentication parameter arrives before any scheme
+severity = "warn"
+
+[violations.challenge_token68_character_forbidden]
+# Authentication token68 holds a control character
+severity = "error"
+
+[violations.challenge_token68_invalid]
+# Authentication token68 is indistinguishable from a parameter
+severity = "info"
+
 [violations.cookie_domain_empty]
 # Set-Cookie Domain attribute is empty
 severity = "warn"
@@ -1229,4 +1273,20 @@ severity = "warn"
 
 [violations.percent_encoding_malformed]
 # Percent-encoding is not two hexadecimal digits
+severity = "warn"
+
+[violations.quoted_string_control_character_forbidden]
+# Quoted-string holds a control character
+severity = "error"
+
+[violations.quoted_string_delimiter_missing]
+# Quoted-string is missing one of its DQUOTEs
+severity = "warn"
+
+[violations.quoted_string_quote_escape_missing]
+# Quoted-string holds an unescaped DQUOTE
+severity = "warn"
+
+[violations.quoted_string_quoted_pair_malformed]
+# Quoted-string holds an escape that is not a quoted-pair
 severity = "warn"

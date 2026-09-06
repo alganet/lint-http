@@ -13,6 +13,8 @@ Validate authentication schemes used in `WWW-Authenticate` and `Authorization` h
 ## Specifications
 
 - [RFC 9110 §11.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.1): Authentication Scheme — `auth-scheme = token`, and where new schemes are registered
+- [RFC 9110 §11.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.3): Challenge and Response — `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]`
+- [RFC 9110 §11.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1): `WWW-Authenticate = #challenge` — the list whose members are grouped into challenges before any of them is read
 - [RFC 9110 §16.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.4.1): Authentication Scheme Registry
 - [IANA HTTP Authentication Schemes](https://www.iana.org/assignments/http-authschemes/http-authschemes.xhtml): IANA HTTP Authentication Scheme Registry
 
