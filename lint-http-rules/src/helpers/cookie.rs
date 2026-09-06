@@ -26,9 +26,11 @@ pub enum CookiePathDefect<'a> {
     /// server sent and the trim is this function's own tolerance.
     NotAbsolute(&'a str),
     /// A `%` that no two hex digits follow. Delegated to
-    /// [`crate::helpers::uri::check_percent_encoding`], which owns the
-    /// production and phrases this one.
-    PercentEncoding(String),
+    /// [`crate::helpers::uri::percent_encoding_defect`], which owns the
+    /// production and phrases this one — and is carried typed rather than
+    /// rendered, so a caller can report *which* of the two it was under the
+    /// name the whole tree uses for it.
+    PercentEncoding(crate::helpers::uri::PercentEncodingDefect<'a>),
     /// A byte at or above %x80. `path-value` is built on `CHAR` = %x01-7F, so
     /// non-ASCII derives from nothing and has to be percent-encoded.
     NonAscii(usize),
@@ -49,7 +51,7 @@ impl CookiePathDefect<'_> {
             Self::NotAbsolute(written) => {
                 format!("Path should start with '/': '{written}'")
             }
-            Self::PercentEncoding(msg) => msg.clone(),
+            Self::PercentEncoding(defect) => defect.message(),
             Self::NonAscii(at) => format!("Path contains non-ASCII character at byte {at}"),
             Self::ControlCharacter(at) => format!("Path contains control character at byte {at}"),
             Self::Whitespace(at) => format!("Path contains whitespace character at byte {at}"),
@@ -85,8 +87,8 @@ pub fn validate_cookie_path(s: &str) -> Result<(), CookiePathDefect<'_>> {
     }
 
     // Validate percent-encodings using shared helper to avoid duplicate logic
-    if let Some(msg) = crate::helpers::uri::check_percent_encoding(v) {
-        return Err(CookiePathDefect::PercentEncoding(msg));
+    if let Some(defect) = crate::helpers::uri::percent_encoding_defect(v) {
+        return Err(CookiePathDefect::PercentEncoding(defect));
     }
 
     // The loop holds the server to §4.1.1's `path-value = <any CHAR except CTLs

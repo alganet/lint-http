@@ -7,8 +7,11 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::{
     path_defect, COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN, COOKIE_PATH_EMPTY,
     COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
-    COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN, COOKIE_PATH_PERCENT_ENCODING_MALFORMED,
-    COOKIE_PATH_WHITESPACE_INVALID, RFC_3986_2_1, RFC_6265_4_1_1, RFC_6265_5_2_4,
+    COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN, COOKIE_PATH_WHITESPACE_INVALID, RFC_6265_4_1_1,
+    RFC_6265_5_2_4,
+};
+use crate::violations::uri::{
+    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
 };
 use crate::violations::ViolationDef;
 
@@ -19,14 +22,16 @@ pub struct CookiePathValid;
 /// array of references to statics is not const-promotable.
 ///
 /// Their definitions — title, default severity, and the sentence each enforces
-/// — are in `violations::cookie`, which is also where the `Path` half of this
-/// rule's specification references now live: a defect belongs to the attribute
-/// it is about, not to whichever rule noticed it.
+/// — are in `violations::cookie`, except the two percent-encoding entries,
+/// which are `violations::uri`'s: a `%` owes two hex digits wherever it is
+/// written, so that defect is not the cookie's to name. A defect belongs to
+/// the thing it is about, not to whichever rule noticed it.
 static DECLARED: &[&ViolationDef] = &[
     &COOKIE_PATH_MISSING,
     &COOKIE_PATH_EMPTY,
     &COOKIE_PATH_LEADING_SLASH_MISSING,
-    &COOKIE_PATH_PERCENT_ENCODING_MALFORMED,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
     &COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN,
     &COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN,
     &COOKIE_PATH_WHITESPACE_INVALID,

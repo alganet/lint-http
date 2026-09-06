@@ -1095,10 +1095,6 @@ severity = "warn"
 # Set-Cookie Path attribute holds a raw non-ASCII character
 severity = "warn"
 
-[violations.cookie_path_percent_encoding_malformed]
-# Set-Cookie Path attribute has a broken percent-encoding
-severity = "warn"
-
 [violations.cookie_path_whitespace_invalid]
 # Set-Cookie Path attribute holds unencoded whitespace
 severity = "info"
@@ -1154,3 +1150,11 @@ severity = "warn"
 [violations.language_tag_whitespace_or_control_forbidden]
 # Language tag holds whitespace or a control character
 severity = "error"
+
+[violations.percent_encoding_digits_missing]
+# Percent-encoding stops before its two hexadecimal digits
+severity = "warn"
+
+[violations.percent_encoding_malformed]
+# Percent-encoding is not two hexadecimal digits
+severity = "warn"
