@@ -59,8 +59,8 @@ defects! {
     /// appear in any of them.
     ///
     // cite(RFC 1035 § 2.3.1): "They must start with a letter, end with a letter or digit, and have as interior characters only letters, digits, and hyphen."
-    DOMAIN_NAME_CHARACTER_FORBIDDEN = {
-        id: "domain_name_character_forbidden",
+    DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN = {
+        id: "domain_name_whitespace_or_control_forbidden",
         title: "Domain name holds whitespace or a control character",
         message: "",
         default_severity: Severity::Warn,

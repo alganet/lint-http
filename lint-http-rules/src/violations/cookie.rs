@@ -253,7 +253,7 @@ pub fn domain_defect(defect: CookieDomainDefect) -> &'static ViolationDef {
             &COOKIE_DOMAIN_EMPTY
         }
         CookieDomainDefect::WhitespaceOrControl => {
-            &crate::violations::domain::DOMAIN_NAME_CHARACTER_FORBIDDEN
+            &crate::violations::domain::DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN
         }
         CookieDomainDefect::Ipv6Literal => &COOKIE_DOMAIN_IPV6_LITERAL_FORBIDDEN,
         CookieDomainDefect::Ipv4Address => &COOKIE_DOMAIN_IPV4_ADDRESS_FORBIDDEN,
@@ -298,7 +298,7 @@ mod tests {
             ),
             (
                 CookieDomainDefect::WhitespaceOrControl,
-                "domain_name_character_forbidden",
+                "domain_name_whitespace_or_control_forbidden",
             ),
             (
                 CookieDomainDefect::Ipv6Literal,

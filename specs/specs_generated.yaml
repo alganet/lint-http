@@ -3038,7 +3038,7 @@ sources:
     snippet: credentials = "Bearer" 1*SP b64token
     cited_by:
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
-      line: 97
+      line: 117
   - label: bearer b64token grammar
     section: § 2.1
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
@@ -5311,19 +5311,13 @@ sources:
     snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/violations/challenge.rs
+      line: 126
+    - file: lint-http-rules/src/violations/challenge.rs
       line: 139
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 152
+      line: 153
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 166
-    - file: lint-http-rules/src/violations/challenge.rs
-      line: 180
-  - label: challenge (2)
-    section: § 11.2
-    snippet: token68        = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
-    cited_by:
-    - file: lint-http-rules/src/violations/challenge.rs
-      line: 101
+      line: 167
   - label: charset_present
     section: § 8.3.2
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
@@ -6481,7 +6475,7 @@ sources:
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 104
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
-      line: 90
+      line: 110
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
       line: 95
     - file: lint-http-rules/src/violations/auth_scheme.rs
@@ -6493,11 +6487,11 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 248
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 59
+      line: 61
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 86
+      line: 88
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 127
+      line: 114
   - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.4
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
@@ -6515,7 +6509,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 103
     - file: lint-http-rules/src/violations/challenge.rs
-      line: 73
+      line: 75
   - label: 1#element expansion
     section: § 5.6.1.1
     snippet: 1#element => element *( OWS "," OWS element )
@@ -8898,6 +8892,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
       line: 169
+  - label: token68
+    section: § 11.2
+    snippet: token68        = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
+    cited_by:
+    - file: lint-http-rules/src/violations/token68.rs
+      line: 45
+    - file: lint-http-rules/src/violations/token68.rs
+      line: 58
+    - file: lint-http-rules/src/violations/token68.rs
+      line: 71
+    - file: lint-http-rules/src/violations/token68.rs
+      line: 85
   - label: trace_method_echo
     section: § 11.6.2
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested.

@@ -10,10 +10,11 @@
 //! is the same production under a different name, and a rule for it declares
 //! these same ten rather than ten of its own.
 //!
-//! The scheme at the front of a challenge is *not* here. `auth-scheme = token`
-//! is § 11.2's, shared with § 11.4's `credentials`, and its defect lives in
-//! [`crate::violations::auth_scheme`] where an `Authorization` value reports
-//! the same one.
+//! The scheme at the front of a challenge is *not* here, and neither is the
+//! `token68` after it. `auth-scheme = token` and `token68` are both § 11.2's,
+//! shared with § 11.4's `credentials`, so they live in
+//! [`crate::violations::auth_scheme`] and [`crate::violations::token68`] where
+//! an `Authorization` value reports the same ones.
 //!
 //! **The wording is still the field's, and that is the part left to move.**
 //! The messages come from [`crate::helpers::auth::ChallengeDefect`], which was
@@ -33,6 +34,7 @@ use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::quoted_string::quoted_string_defect;
+use crate::violations::token68::TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN;
 use crate::violations::{defects, ViolationDef};
 
 /// The challenge itself: a scheme, and then one of two alternatives.
@@ -90,21 +92,6 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: Some(RFC_9110_11_3),
-    }
-
-    /// A control octet where a `token68` was read. `error` by default, the same
-    /// instinct every other subject's invisible defect earns: the alphabet is
-    /// letters, digits, six punctuation marks and the padding, so a control
-    /// octet in one is something that happened to the value rather than
-    /// something a sender chose.
-    ///
-    // cite(RFC 9110 § 11.2): "token68        = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"=""
-    CHALLENGE_TOKEN68_CHARACTER_FORBIDDEN = {
-        id: "challenge_token68_character_forbidden",
-        title: "Authentication token68 holds a control character",
-        message: "",
-        default_severity: Severity::Error,
-        spec: Some(RFC_9110_11_2),
     }
 
     /// A single bare word after the scheme: `token68` by the grammar, and an
@@ -199,7 +186,7 @@ pub fn challenge_defect(defect: ChallengeDefect<'_>) -> &'static ViolationDef {
         ChallengeDefect::EmptyMember => &CHALLENGE_MEMBER_EMPTY,
         ChallengeDefect::SchemeMissing => &CHALLENGE_SCHEME_MISSING,
         ChallengeDefect::SchemeCharacter(_) => &AUTH_SCHEME_CHARACTER_FORBIDDEN,
-        ChallengeDefect::Token68ControlCharacter => &CHALLENGE_TOKEN68_CHARACTER_FORBIDDEN,
+        ChallengeDefect::Token68ControlCharacter => &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
         ChallengeDefect::SuspiciousSingleToken(_) => &CHALLENGE_TOKEN68_INVALID,
         ChallengeDefect::EmptyParameter => &CHALLENGE_PARAMETER_EMPTY,
         ChallengeDefect::EmptyParameterName => &CHALLENGE_PARAMETER_NAME_EMPTY,
@@ -233,7 +220,7 @@ mod tests {
             ),
             (
                 ChallengeDefect::Token68ControlCharacter,
-                "challenge_token68_character_forbidden",
+                "token68_whitespace_or_control_forbidden",
             ),
             (
                 ChallengeDefect::SuspiciousSingleToken("realm"),
@@ -269,16 +256,13 @@ mod tests {
         }
     }
 
-    /// The heuristic is the one entry with no sentence behind it, and the
-    /// severities are not one value repeated — which is what a rule reporting
-    /// all of these could only ever have been.
+    /// The heuristic is the one entry with no sentence behind it, and it sits
+    /// below every grammar verdict this rule can reach — which is what a rule
+    /// reporting all of them at one severity could never have said.
     #[test]
     fn the_heuristic_is_the_one_without_a_spec() {
         assert!(CHALLENGE_TOKEN68_INVALID.spec.is_none());
         assert_eq!(CHALLENGE_TOKEN68_INVALID.default_severity, Severity::Info);
-        assert_eq!(
-            CHALLENGE_TOKEN68_CHARACTER_FORBIDDEN.default_severity,
-            Severity::Error
-        );
+        assert_eq!(CHALLENGE_EMPTY.default_severity, Severity::Warn);
     }
 }
