@@ -1055,6 +1055,26 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[violations.cookie_domain_empty]
+# Set-Cookie Domain attribute is empty
+severity = "warn"
+
+[violations.cookie_domain_ipv4_address_forbidden]
+# Set-Cookie Domain attribute is an IPv4 address
+severity = "warn"
+
+[violations.cookie_domain_ipv6_literal_forbidden]
+# Set-Cookie Domain attribute is an IPv6 literal
+severity = "warn"
+
+[violations.cookie_domain_leading_dot_obsolete]
+# Set-Cookie Domain attribute keeps the obsolete leading dot
+severity = "info"
+
+[violations.cookie_domain_missing]
+# Set-Cookie Domain attribute carries no value
+severity = "warn"
+
 [violations.cookie_path_control_character_forbidden]
 # Set-Cookie Path attribute holds a control character
 severity = "error"
@@ -1082,3 +1102,27 @@ severity = "warn"
 [violations.cookie_path_whitespace_invalid]
 # Set-Cookie Path attribute holds unencoded whitespace
 severity = "info"
+
+[violations.domain_label_character_forbidden]
+# Domain label holds a character outside letters, digits and hyphen
+severity = "warn"
+
+[violations.domain_label_edge_hyphen_forbidden]
+# Domain label starts or ends with a hyphen
+severity = "warn"
+
+[violations.domain_label_empty]
+# Domain name has an empty label
+severity = "warn"
+
+[violations.domain_label_length_invalid]
+# Domain label is longer than 63 characters
+severity = "warn"
+
+[violations.domain_name_character_forbidden]
+# Domain name holds whitespace or a control character
+severity = "warn"
+
+[violations.domain_name_length_invalid]
+# Domain name is longer than 255 octets
+severity = "warn"

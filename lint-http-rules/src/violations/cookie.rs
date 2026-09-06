@@ -2,14 +2,18 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! Cookie defects — today, the seven ways a `Set-Cookie` `Path` attribute is
-//! wrong.
+//! Cookie defects — the ways a `Set-Cookie` attribute is wrong, `Path` and
+//! `Domain` so far.
 //!
 //! The subject is the attribute, not the rule that reads it: `cookie_path_*`
 //! names what a server wrote, so a second rule that parses `Set-Cookie` reports
-//! the same defect under the same name and an operator tunes it once.
+//! the same defect under the same name and an operator tunes it once. What is
+//! *not* here is the domain syntax underneath `Domain`: a name is a name in
+//! every field that carries one, and those defects live in
+//! [`crate::violations::domain`] where a rule reading a `From` mailbox can
+//! report the same ones.
 //!
-//! Three of these are not syntax errors at all. RFC 6265 § 5.2.4 has the user
+//! Three of the `Path` defects are not syntax errors at all. RFC 6265 § 5.2.4 has the user
 //! agent replace an empty or unrooted `Path` with the default-path, so the
 //! cookie still works and the server has merely written something that does
 //! nothing; the remaining four are the § 4.1.1 grammar and the percent-encoding
@@ -20,8 +24,10 @@
 //! could only ever have said one thing about all seven.
 
 use crate::helpers::cookie::CookiePathDefect;
+use crate::helpers::domain::CookieDomainDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::domain::preferred_name_defect;
 use crate::violations::{defects, ViolationDef};
 
 /// The `Set-Cookie` grammar, which is what the character defects below are
@@ -53,6 +59,25 @@ pub const RFC_3986_2_1: SpecRef = SpecRef {
     section: Some("2.1"),
     url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
     note: "Percent-Encoding — `pct-encoded = \"%\" HEXDIG HEXDIG`, the two digits a `%` in a cookie path still owes",
+};
+
+/// What a user agent does with a `Domain` it is given: an empty value leaves
+/// the behaviour undefined, and a leading dot is dropped before anything else
+/// happens to it.
+pub const RFC_6265_5_2_3: SpecRef = SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.2.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3",
+    note: "`Domain` attribute processing — an empty value is undefined (the user agent ignores it) and a leading dot is stripped; the value's *format* is § 4.1.1 and RFC 1035",
+};
+
+/// Domain matching, which is where an IP address stops being a cookie domain:
+/// the algorithm only reaches its host-name arm for a string that is not one.
+pub const RFC_6265_5_1_3: SpecRef = SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.1.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.1.3",
+    note: "Domain matching — a cookie-domain that is not a host name matches only the identical string, so an IP address scopes the cookie to nothing it can be sent for",
 };
 
 defects! {
@@ -144,6 +169,76 @@ defects! {
         default_severity: Severity::Info,
         spec: None,
     }
+
+    /// `Domain` written with no value, or with one that is empty before
+    /// anything reads it. The user agent is left with nothing to scope the
+    /// cookie by, and the specification does not say what it should do.
+    ///
+    // cite(RFC 6265 § 5.2.3): "If the attribute-value is empty, the behavior is undefined."
+    COOKIE_DOMAIN_MISSING = {
+        id: "cookie_domain_missing",
+        title: "Set-Cookie Domain attribute carries no value",
+        message: "Set-Cookie attribute 'Domain' requires a value",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_5_2_3),
+    }
+
+    /// A `Domain` that is empty once the tolerated leading dot comes off —
+    /// `Domain=.` and nothing more. Reached through the domain reader rather
+    /// than at the attribute, which is why it is not
+    /// [`COOKIE_DOMAIN_MISSING`]: the server wrote something, and it came to
+    /// nothing.
+    ///
+    // cite(RFC 6265 § 5.2.3): "Let cookie-domain be the attribute-value without the leading %x2E (".") character."
+    COOKIE_DOMAIN_EMPTY = {
+        id: "cookie_domain_empty",
+        title: "Set-Cookie Domain attribute is empty",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_5_2_3),
+    }
+
+    /// A leading `.`, which is not a syntax error: the user agent strips it,
+    /// so `.example.com` and `example.com` are the same cookie-domain. That is
+    /// exactly why it is reported — RFC 2965 gave the dot a meaning and RFC
+    /// 6265 does not, so it is a form that survives without saying anything.
+    /// `info` by default, because nothing about the cookie is wrong.
+    ///
+    // cite(RFC 6265 § 5.2.3): "Let cookie-domain be the attribute-value without the leading %x2E (".") character."
+    COOKIE_DOMAIN_LEADING_DOT_OBSOLETE = {
+        id: "cookie_domain_leading_dot_obsolete",
+        title: "Set-Cookie Domain attribute keeps the obsolete leading dot",
+        message: "Set-Cookie 'Domain' attribute uses a leading '.' which is deprecated; prefer the registry form without leading dot",
+        default_severity: Severity::Info,
+        spec: Some(RFC_6265_5_2_3),
+    }
+
+    /// A dotted-quad where a host name goes. The cookie is not thereby
+    /// dangerous, it is inert: domain matching reaches its host-name arm only
+    /// for a string that is not an address, so nothing but an identical
+    /// request host can ever be sent it.
+    ///
+    // cite(RFC 6265 § 5.1.3): "The string is a host name (i.e., not an IP address)."
+    COOKIE_DOMAIN_IPV4_ADDRESS_FORBIDDEN = {
+        id: "cookie_domain_ipv4_address_forbidden",
+        title: "Set-Cookie Domain attribute is an IPv4 address",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_5_1_3),
+    }
+
+    /// A bracketed IPv6 literal, for the same reason as the IPv4 form — kept
+    /// apart from it because the two are written differently and an operator
+    /// looking at a report is looking for one of them.
+    ///
+    // cite(RFC 6265 § 5.1.3): "The string is a host name (i.e., not an IP address)."
+    COOKIE_DOMAIN_IPV6_LITERAL_FORBIDDEN = {
+        id: "cookie_domain_ipv6_literal_forbidden",
+        title: "Set-Cookie Domain attribute is an IPv6 literal",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_5_1_3),
+    }
 }
 
 /// The defect a parsed [`CookiePathDefect`] reports as.
@@ -161,6 +256,28 @@ pub fn path_defect(defect: &CookiePathDefect<'_>) -> &'static ViolationDef {
         CookiePathDefect::NonAscii(_) => &COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN,
         CookiePathDefect::ControlCharacter(_) => &COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN,
         CookiePathDefect::Whitespace(_) => &COOKIE_PATH_WHITESPACE_INVALID,
+    }
+}
+
+/// The defect a parsed [`CookieDomainDefect`] reports as.
+///
+/// Both empty forms answer with [`COOKIE_DOMAIN_EMPTY`]: the reader trims
+/// before it strips the dot, so `Domain=` and `Domain=.` arrive here as two
+/// variants of one thing an operator fixes one way. The last arm hands the
+/// question to [`crate::violations::domain`], which is the point of that
+/// module — the name syntax under a `Domain` is the same syntax as under any
+/// other field, and reports under the same names.
+pub fn domain_defect(defect: CookieDomainDefect) -> &'static ViolationDef {
+    match defect {
+        CookieDomainDefect::Empty | CookieDomainDefect::EmptyAfterLeadingDot => {
+            &COOKIE_DOMAIN_EMPTY
+        }
+        CookieDomainDefect::WhitespaceOrControl => {
+            &crate::violations::domain::DOMAIN_NAME_CHARACTER_FORBIDDEN
+        }
+        CookieDomainDefect::Ipv6Literal => &COOKIE_DOMAIN_IPV6_LITERAL_FORBIDDEN,
+        CookieDomainDefect::Ipv4Address => &COOKIE_DOMAIN_IPV4_ADDRESS_FORBIDDEN,
+        CookieDomainDefect::PreferredName(defect) => preferred_name_defect(defect),
     }
 }
 
@@ -185,6 +302,39 @@ mod tests {
         ids.sort_unstable();
         ids.dedup();
         assert_eq!(ids.len(), defects.len(), "two variants share one def");
+    }
+
+    /// The `Domain` mapping, spelled out — including the one place two
+    /// variants answer with one def, which is a decision and not an oversight.
+    #[test]
+    fn each_domain_defect_maps_to_its_own_id() {
+        for (defect, id) in [
+            (CookieDomainDefect::Empty, "cookie_domain_empty"),
+            (
+                CookieDomainDefect::EmptyAfterLeadingDot,
+                "cookie_domain_empty",
+            ),
+            (
+                CookieDomainDefect::WhitespaceOrControl,
+                "domain_name_character_forbidden",
+            ),
+            (
+                CookieDomainDefect::Ipv6Literal,
+                "cookie_domain_ipv6_literal_forbidden",
+            ),
+            (
+                CookieDomainDefect::Ipv4Address,
+                "cookie_domain_ipv4_address_forbidden",
+            ),
+            (
+                CookieDomainDefect::PreferredName(
+                    crate::helpers::domain::PreferredNameDefect::EmptyLabel,
+                ),
+                "domain_label_empty",
+            ),
+        ] {
+            assert_eq!(domain_defect(defect).id, id);
+        }
     }
 
     /// The six mapped defects format their message at the site, and
