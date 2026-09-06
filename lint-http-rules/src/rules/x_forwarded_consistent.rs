@@ -20,6 +20,20 @@ use crate::helpers::forwarded_node::NodeForm;
 use crate::helpers::headers::combined_field_value_as_written;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::node::{
+    node_defect, NODE_IPV4_ADDRESS_MALFORMED, NODE_IPV6_ADDRESS_MALFORMED,
+    NODE_IPV6_BRACKETS_MISSING, NODE_IPV6_CLOSING_BRACKET_MISSING,
+    NODE_IPV6_REPRESENTATION_INVALID, NODE_MALFORMED, NODE_PORT_MALFORMED, RFC_7239_6,
+    RFC_7239_6_1,
+};
+use crate::violations::uri::{
+    host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
+    RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
+    URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
+    URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
+};
+use crate::violations::ViolationDef;
 
 /// The production a field's members are measured against, after §7.4's
 /// conversion has said which `Forwarded` parameter each field becomes.
@@ -71,8 +85,49 @@ fn members(value: &str) -> impl Iterator<Item = &str> {
         .filter(|m| !m.is_empty())
 }
 
-/// One member of one field: the finding's text, or `None`.
-fn check_member(field: &str, kind: Members, member: &str) -> Option<String> {
+/// Everything this rule can say, and none of it is this rule's own: three
+/// productions read through three shared helpers, so every id here is the
+/// vocabulary of a document rather than of a field the specifications call
+/// non-standard. That is the whole of §7.4's conversion made into a catalogue —
+/// an `X-Forwarded-For` member that is not a node identifier draws the same
+/// defect a `Forwarded` `for=` value will, because it is the same defect.
+///
+/// Two of the node entries are unreachable from here and declared anyway. The
+/// brackets and the textual representation are asked of the `Forwarded`
+/// spelling only — §7.4 records that these fields do not bracket — so the
+/// mapping is exhaustive over a helper whose other caller reaches them.
+static DECLARED: &[&ViolationDef] = &[
+    &NODE_IPV6_BRACKETS_MISSING,
+    &NODE_IPV6_CLOSING_BRACKET_MISSING,
+    &NODE_IPV6_ADDRESS_MALFORMED,
+    &NODE_IPV4_ADDRESS_MALFORMED,
+    &NODE_MALFORMED,
+    &NODE_IPV6_REPRESENTATION_INVALID,
+    &NODE_PORT_MALFORMED,
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
+];
+
+/// One member of one field: the defect it reports as and the finding's text, or
+/// `None`.
+///
+/// The pair is what a judge function hands back once the catalogue exists. The
+/// message is still formatted here, where its arguments are, and the def comes
+/// from the subject that owns the production — so the one site below decides
+/// nothing about either.
+fn check_member(
+    field: &str,
+    kind: Members,
+    member: &str,
+) -> Option<(&'static ViolationDef, String)> {
     match kind {
         // §7.4 converts an element of this field into a `for=` value by
         // prepending `for=`, and §5.2 sends that value to §6's `node` — so an
@@ -86,7 +141,12 @@ fn check_member(field: &str, kind: Members, member: &str) -> Option<String> {
         Members::Node => {
             crate::helpers::forwarded_node::validate_node(member, NodeForm::XForwarded)
                 .err()
-                .map(|defect| format!("{} {}", field, defect.message()))
+                .map(|defect| {
+                    (
+                        node_defect(defect),
+                        format!("{} {}", field, defect.message()),
+                    )
+                })
         }
 
         // The MUST has two halves and this is the first. A scheme is also
@@ -99,7 +159,12 @@ fn check_member(field: &str, kind: Members, member: &str) -> Option<String> {
         // cite(RFC 7239 § 5.4): "Typical values are "http" or "https"."
         Members::Proto => crate::helpers::uri::validate_scheme_name(member)
             .err()
-            .map(|defect| format!("{} is not a URI scheme name: {}", field, defect.message())),
+            .map(|defect| {
+                (
+                    scheme_name(defect),
+                    format!("{} is not a URI scheme name: {}", field, defect.message()),
+                )
+            }),
 
         // The `Host` ABNF, whole: a `uri-host` and an optional `port`, where the
         // port is `*DIGIT` and has neither a lower bound nor an upper one. The
@@ -112,7 +177,12 @@ fn check_member(field: &str, kind: Members, member: &str) -> Option<String> {
         // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
         Members::Host => crate::helpers::uri::validate_host_and_optional_port(member)
             .err()
-            .map(|e| format!("{} is not a Host field value: {}", field, e)),
+            .map(|defect| {
+                (
+                    host_and_port(defect),
+                    format!("{} is not a Host field value: {}", field, defect.message()),
+                )
+            }),
     }
 }
 
@@ -132,12 +202,6 @@ const RFC_7239_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("1"),
     url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-1",
     note: "Names `X-Forwarded-For`, `X-Forwarded-By` and `X-Forwarded-Proto` as non-standard header fields",
-};
-const RFC_7239_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7239",
-    section: Some("6"),
-    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-6",
-    note: "`node` — the identifier an `X-Forwarded-For` / `X-Forwarded-By` member becomes once §7.4's conversion prepends `for=` / `by=`",
 };
 const RFC_7239_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7239",
@@ -182,10 +246,19 @@ severity = "warn"
             RFC_7239_7_4,
             RFC_7239_1,
             RFC_7239_6,
+            RFC_7239_6_1,
             RFC_7239_5_4,
             RFC_7239_5_3,
             RFC_9110_7_2,
+            RFC_3986_3_1,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
+            RFC_3986_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -262,8 +335,8 @@ impl Rule for XForwardedConsistent {
                     continue;
                 };
                 for member in members(&value) {
-                    if let Some(message) = check_member(field, *kind, member) {
-                        return Some(self.violation(ctx.severity, message));
+                    if let Some((def, message)) = check_member(field, *kind, member) {
+                        return Some(ctx.report_with(def, message));
                     }
                 }
             }
@@ -312,6 +385,75 @@ mod tests {
     fn judge(pairs: &[(&str, &str)]) -> Option<String> {
         let octets: Vec<(&str, &[u8])> = pairs.iter().map(|(n, v)| (*n, v.as_bytes())).collect();
         judge_bytes(&octets)
+    }
+
+    /// The same transaction, judged for the defect it reports rather than for
+    /// what the message says.
+    fn judge_defect(pairs: &[(&str, &str)]) -> Option<(String, crate::lint::Severity)> {
+        let rule = XForwardedConsistent;
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(pairs);
+        crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .map(|v| (v.violation, v.severity))
+    }
+
+    /// Three fields, three productions, three subjects' vocabularies — and not
+    /// one of the ids names this rule or the fields it reads. A member of a
+    /// field no document defines draws the defect of the thing §7.4 says it
+    /// becomes, which is the whole of what this rule's licence amounts to.
+    ///
+    /// The percent-encoding row is the one worth reading twice: a `Cookie`
+    /// `Path` and an `X-Forwarded-Host` report the *same* id for the same
+    /// mistake, which is the state a rule-shaped catalogue could not reach.
+    #[rstest]
+    #[case("x-forwarded-for", "not-an-ip", "node_malformed")]
+    #[case("x-forwarded-for", "010.1.2.3", "node_ipv4_address_malformed")]
+    #[case("x-forwarded-for", "[::1", "node_ipv6_closing_bracket_missing")]
+    #[case("x-forwarded-for", "[nope]", "node_ipv6_address_malformed")]
+    #[case("x-forwarded-for", "192.0.2.43:999999", "node_port_malformed")]
+    #[case("x-forwarded-proto", "2https", "uri_scheme_leading_letter_missing")]
+    #[case("x-forwarded-proto", "ht/tps", "uri_scheme_character_forbidden")]
+    #[case("x-forwarded-host", "user@host", "uri_host_character_forbidden")]
+    #[case("x-forwarded-host", "[::1", "uri_host_closing_bracket_missing")]
+    #[case("x-forwarded-host", "[::zz]", "uri_host_ip_literal_malformed")]
+    #[case("x-forwarded-host", "example.com]:80", "uri_host_bracket_forbidden")]
+    #[case("x-forwarded-host", "[::1]:notnum", "uri_port_character_forbidden")]
+    #[case("x-forwarded-host", "%zz.example.com", "percent_encoding_malformed")]
+    #[case(
+        "x-forwarded-host",
+        "example.com/%4",
+        "percent_encoding_digits_missing"
+    )]
+    fn a_member_reports_the_defect_of_the_production_it_is_measured_against(
+        #[case] name: &str,
+        #[case] value: &str,
+        #[case] id: &str,
+    ) {
+        let (violation, _) = judge_defect(&[(name, value)]).expect("a finding");
+        assert_eq!(violation, id, "{name}: {value}");
+    }
+
+    /// The reason the subject is worth splitting out of the rule at all: one
+    /// `ctx.severity` said everything this rule says at one level, and the
+    /// defects do not agree about level. Both of these are well-formed values
+    /// carrying no grammar failure — the first is the port `*DIGIT` admits and
+    /// the second the address §6.1 spells differently — and only one of them is
+    /// reported at all.
+    #[test]
+    fn the_defect_carries_the_level_and_not_the_rule() {
+        let (violation, severity) =
+            judge_defect(&[("x-forwarded-for", "not-an-ip")]).expect("a finding");
+        assert_eq!(violation, "node_malformed");
+        assert_eq!(severity, crate::lint::Severity::Warn);
+
+        // `[::1]:70000` is a `Host` value and `192.0.2.43:999999` is not a node
+        // identifier: two ports, two productions, one of them silent.
+        assert_eq!(judge_defect(&[("x-forwarded-host", "[::1]:70000")]), None);
     }
 
     #[rstest]

@@ -1242,17 +1242,52 @@ pub fn port_number(digits: &str) -> Option<u16> {
 // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
 // cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
 // cite(RFC 3986 § 3.2.3): "URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default."
-pub fn validate_host_and_optional_port(value: &str) -> Result<(), String> {
+pub fn validate_host_and_optional_port(value: &str) -> Result<(), HostAndPortDefect<'_>> {
     let (host, port) = split_host_and_port(value);
 
-    validate_uri_host(host).map_err(UriHostDefect::message)?;
+    validate_uri_host(host).map_err(HostAndPortDefect::Host)?;
 
     if let Some(port) = port {
         if let Some(c) = port.chars().find(|c| !c.is_ascii_digit()) {
-            return Err(format!("invalid character '{}' in port '{}'", c, port));
+            return Err(HostAndPortDefect::PortCharacter { character: c, port });
         }
     }
     Ok(())
+}
+
+/// What a `uri-host [ ":" port ]` fails to be.
+///
+/// Two halves and therefore two variants: everything the host can be wrong
+/// about is [`UriHostDefect`]'s and is nested rather than flattened, because a
+/// host is the same production wherever it is read and this composition adds
+/// nothing to it. What the composition does add is the second half — a `port`
+/// of `*DIGIT` — and that is the only defect spelled out here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostAndPortDefect<'a> {
+    /// The `uri-host` half.
+    Host(UriHostDefect<'a>),
+    /// A character in the port that is not a `DIGIT`. There is no out-of-range
+    /// variant beside it: `port = *DIGIT` bounds nothing at either end, and a
+    /// rule wanting the transport's namespace wants [`port_number`] and a
+    /// sentence of its own.
+    PortCharacter {
+        /// The character.
+        character: char,
+        /// The port it was found in.
+        port: &'a str,
+    },
+}
+
+impl HostAndPortDefect<'_> {
+    /// The finding fragment.
+    pub fn message(self) -> String {
+        match self {
+            Self::Host(defect) => defect.message(),
+            Self::PortCharacter { character, port } => {
+                format!("invalid character '{}' in port '{}'", character, port)
+            }
+        }
+    }
 }
 
 // ── The serialized origin ────────────────────────────────────────────

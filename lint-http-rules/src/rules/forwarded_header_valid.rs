@@ -54,7 +54,12 @@ fn validate_node(param: &str, value: &str) -> Option<String> {
 fn validate_host(value: &str) -> Option<String> {
     crate::helpers::uri::validate_host_and_optional_port(value)
         .err()
-        .map(|e| format!("Forwarded 'host' is not a Host field value: {}", e))
+        .map(|defect| {
+            format!(
+                "Forwarded 'host' is not a Host field value: {}",
+                defect.message()
+            )
+        })
 }
 
 /// A `proto=` value, after unescaping: a URI scheme name.

@@ -249,11 +249,15 @@ impl Rule for HostHeader {
             // is the `Host` production; the port it admits is `*DIGIT`, which is
             // the whole of what RFC 3986 §3.2.3 says a port looks like.
             // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
-            if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(s) {
+            if let Err(defect) = crate::helpers::uri::validate_host_and_optional_port(s) {
                 return Some(self.cited(
                     &RFC_9110_7_2,
                     ctx.severity,
-                    format!("Host field value '{}' is not a host and port: {}", s, msg),
+                    format!(
+                        "Host field value '{}' is not a host and port: {}",
+                        s,
+                        defect.message()
+                    ),
                 ));
             }
 

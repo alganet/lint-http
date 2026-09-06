@@ -475,11 +475,11 @@ impl Rule for RefererUriValid {
                 // `uri-host [ ":" port ]` is one question with one answer, and the
                 // shared reader is where it lives: the bracket that distinguishes an
                 // IP literal, the address inside it, and a port of digits.
-                if let Err(msg) = validate_host_and_optional_port(host_and_port) {
+                if let Err(defect) = validate_host_and_optional_port(host_and_port) {
                     return violation(format!(
                         "Referer value '{}' does not carry a well-formed authority: {}",
                         shown_referer(value),
-                        msg
+                        defect.message()
                     ));
                 }
             }

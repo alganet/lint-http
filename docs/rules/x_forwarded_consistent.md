@@ -26,10 +26,15 @@ Despite its name, this rule checks each field on its own and cross-checks nothin
 
 - [RFC 7239 §7.4](https://www.rfc-editor.org/rfc/rfc7239.html#section-7.4): Transition: what each `X-Forwarded-*` field converts into, and the one difference in how an IPv6 address is written there. The only sentences in any specification that reach these fields.
 - [RFC 7239 §1](https://www.rfc-editor.org/rfc/rfc7239.html#section-1): Names `X-Forwarded-For`, `X-Forwarded-By` and `X-Forwarded-Proto` as non-standard header fields
-- [RFC 7239 §6](https://www.rfc-editor.org/rfc/rfc7239.html#section-6): `node` — the identifier an `X-Forwarded-For` / `X-Forwarded-By` member becomes once §7.4's conversion prepends `for=` / `by=`
+- [RFC 7239 §6](https://www.rfc-editor.org/rfc/rfc7239.html#section-6): `node` — an IPv4 address, a bracketed IPv6 address, `unknown` or an obfuscated identifier, each optionally followed by a `node-port`
+- [RFC 7239 §6.1](https://www.rfc-editor.org/rfc/rfc7239.html#section-6.1): How an `IPv6address` is spelled in a node identifier: always in square brackets, and following RFC 5952's textual representation recommendations
 - [RFC 7239 §5.4](https://www.rfc-editor.org/rfc/rfc7239.html#section-5.4): `proto` is a URI scheme name; `http` and `https` are called typical, not exhaustive
 - [RFC 7239 §5.3](https://www.rfc-editor.org/rfc/rfc7239.html#section-5.3): `host` conforms to the `Host` field ABNF. That `X-Forwarded-Host` is the field this parameter carries is a reading of §7.4's `X-Forwarded-*` wildcard, not a sentence.
 - [RFC 9110 §7.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2): `Host = uri-host [ ":" port ]`, the production an `X-Forwarded-Host` member is measured against
+- [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
+- [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere
+- [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
 
 ## Configuration
 
