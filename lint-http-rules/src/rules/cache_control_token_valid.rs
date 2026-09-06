@@ -4,8 +4,46 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{cache_directive_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct CacheControlTokenValid;
+
+/// The same eight defects `pragma_token_valid` declares, and for the same
+/// reason: this rule measures `cache-directive = token [ "=" ( token /
+/// quoted-string ) ]` and every part of that is RFC 9110 § 5.6 machinery the
+/// field borrows.
+///
+/// **The two rules used to write two of these findings out in identical words.**
+/// "Invalid quoted-string in directive value" and "Directive value contains
+/// invalid character" appear character for character in both files — one of the
+/// fourteen duplicate templates this campaign's measurement counted — because
+/// each rule had to word a finding about a production neither of them owns.
+/// They are one id apiece now, which is the state Phase 5's dedup can act on and
+/// a rule-shaped catalogue could not reach.
+///
+/// The non-UTF-8 site stays on the old API, with open question 1's reasoning:
+/// the verdict names an encoding where the defect is an octet the grammar does
+/// not admit, and the right conversion is an octet-wise reader first.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -29,19 +67,19 @@ impl CacheControlTokenValid {
         &self,
         headers: &hyper::HeaderMap,
         side: &str,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         for line in headers.get_all("cache-control").iter() {
             let Ok(line) = line.to_str() else {
                 return Some(self.violation(
-                    severity,
+                    ctx.severity,
                     "Cache-Control header contains non-UTF8 value".into(),
                 ));
             };
             for member in crate::helpers::cache_control::members_of(line) {
-                if let Some(message) = member_defect(member) {
-                    return Some(self.violation(
-                        severity,
+                if let Some((def, message)) = member_defect(member) {
+                    return Some(ctx.report_with(
+                        def,
                         format!("Invalid Cache-Control header in {}: {}", side, message),
                     ));
                 }
@@ -67,7 +105,16 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2]
+        &[
+            RFC_9111_5_2,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -105,10 +152,10 @@ impl Rule for CacheControlTokenValid {
         // only the word in the finding differs.
         // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         let finding = || -> Option<Violation> {
-            self.defect(&tx.request.headers, "request", ctx.severity)
+            self.defect(&tx.request.headers, "request", ctx)
                 .or_else(|| {
                     let resp = tx.response.as_ref()?;
-                    self.defect(&resp.headers, "response", ctx.severity)
+                    self.defect(&resp.headers, "response", ctx)
                 })
         };
         Vec::from_iter(finding())
@@ -121,10 +168,10 @@ impl Rule for CacheControlTokenValid {
 /// own question, which is about the value's *shape* rather than about what any
 /// particular directive means by it.
 // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
-fn member_defect(member: &str) -> Option<String> {
+fn member_defect(member: &str) -> Option<(&'static ViolationDef, String)> {
     let directive = match crate::helpers::cache_control::read_member(member) {
         Ok(directive) => directive,
-        Err(message) => return Some(message),
+        Err(defect) => return Some((cache_directive_member(defect), defect.message())),
     };
     let argument = directive.argument?;
 
@@ -140,13 +187,16 @@ fn member_defect(member: &str) -> Option<String> {
         // behavior change. (`foo=""` is genuinely valid: quoted-string permits
         // empty content.)
         Err(crate::helpers::word::WordDefect::Empty) => None,
-        Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => Some(format!(
-            "Invalid quoted-string in directive value: {}",
-            defect.message(argument)
+        Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => Some((
+            quoted_string_defect(defect),
+            format!(
+                "Invalid quoted-string in directive value: {}",
+                defect.message(argument)
+            ),
         )),
-        Err(crate::helpers::word::WordDefect::NotToken(c)) => Some(format!(
-            "Directive value contains invalid character: '{}'",
-            c
+        Err(crate::helpers::word::WordDefect::NotToken(c)) => Some((
+            token_character(c),
+            format!("Directive value contains invalid character: '{}'", c),
         )),
     }
 }
@@ -283,6 +333,49 @@ mod tests {
         );
         assert!(v.is_none());
         Ok(())
+    }
+
+    /// The pair of rules that used to write the same sentence twice now report
+    /// the same id, and the ids are the productions': the list, the token, the
+    /// quoted-string. Asserted here against the *other* rule's verdict on the
+    /// equivalent value, which is the whole claim in one assertion — two fields,
+    /// two rules, one name for one mistake.
+    #[test]
+    fn the_directive_and_the_pragma_rule_report_one_id_for_one_mistake() {
+        let judge = |rule: &dyn crate::rules::Rule, field: &str, value: &str| -> String {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+            crate::test_helpers::run_rule(
+                rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .unwrap_or_else(|| panic!("{field}: {value}"))
+            .violation
+        };
+
+        for (value, id) in [
+            ("no-cache,,foo", "list_member_empty"),
+            ("=abc", "token_empty"),
+            ("foo=bad@value", "token_character_forbidden"),
+            ("foo=\"unterminated", "quoted_string_delimiter_missing"),
+        ] {
+            assert_eq!(
+                judge(&CacheControlTokenValid, "cache-control", value),
+                id,
+                "{value}"
+            );
+            assert_eq!(
+                judge(
+                    &crate::rules::pragma_token_valid::PragmaTokenValid,
+                    "pragma",
+                    value
+                ),
+                id,
+                "{value}"
+            );
+        }
     }
 
     #[test]

@@ -17,9 +17,11 @@
 //! the recipient's job, which is the correction several of those rules already
 //! carry in their own comments.
 
+use crate::helpers::cache_control::MemberDefect as CacheControlMemberDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
-use crate::violations::defects;
+use crate::violations::token::{token_character, TOKEN_EMPTY};
+use crate::violations::{defects, ViolationDef};
 
 /// The list construct: what `#` expands to, and the one thing a sender may not
 /// do with it.
@@ -49,9 +51,48 @@ defects! {
     }
 }
 
+/// The defect one `Cache-Control` list member reports as.
+///
+/// The reader is [`crate::helpers::cache_control::read_member`], shared by the
+/// two rules that measure that field's syntax, and none of its three defects is
+/// the field's: the first is this subject's, and the other two are the `token`
+/// a directive name has to be. The mapping lives here rather than beside the
+/// name's subject because the first thing the reader measures is the list
+/// member — and there is no `cache_control` subject file for it to live in,
+/// since a file holding no defect has no statement to cite and the citation
+/// ratchet reads every file under `violations/`.
+pub fn cache_directive_member(defect: CacheControlMemberDefect<'_>) -> &'static ViolationDef {
+    match defect {
+        CacheControlMemberDefect::Empty => &LIST_MEMBER_EMPTY,
+        CacheControlMemberDefect::NameEmpty(_) => &TOKEN_EMPTY,
+        CacheControlMemberDefect::NameCharacter(c) => token_character(c),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Three variants, three subjects' answers — and only the first of them is
+    /// this file's, which is the finding worth pinning: a `Cache-Control`
+    /// member that fails does so at the list, at the token, or not at all.
+    #[test]
+    fn a_cache_control_member_answers_with_the_production_it_failed() {
+        for (defect, id) in [
+            (CacheControlMemberDefect::Empty, "list_member_empty"),
+            (CacheControlMemberDefect::NameEmpty("=abc"), "token_empty"),
+            (
+                CacheControlMemberDefect::NameCharacter('@'),
+                "token_character_forbidden",
+            ),
+            (
+                CacheControlMemberDefect::NameCharacter(' '),
+                "token_whitespace_or_control_forbidden",
+            ),
+        ] {
+            assert_eq!(cache_directive_member(defect).id, id);
+        }
+    }
 
     /// The whole of this subject so far, and the assertion that matters about
     /// it: the id names the construct and no field.

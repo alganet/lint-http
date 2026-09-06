@@ -150,24 +150,50 @@ pub fn directives(headers: &HeaderMap) -> impl Iterator<Item = Directive<'_>> {
 /// rules do *after* the name is read is genuinely different, and stays theirs.
 // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-pub fn read_member(member: &str) -> Result<Directive<'_>, String> {
+pub fn read_member(member: &str) -> Result<Directive<'_>, MemberDefect<'_>> {
     if member.is_empty() {
-        return Err("Empty directive in Cache-Control header".into());
+        return Err(MemberDefect::Empty);
     }
     let directive = Directive::parse(member);
     if directive.name.is_empty() {
-        return Err(format!(
-            "Empty directive name in Cache-Control member: '{}'",
-            member
-        ));
+        return Err(MemberDefect::NameEmpty(member));
     }
     if let Some(c) = crate::helpers::token::find_invalid_token_char(directive.name) {
-        return Err(format!(
-            "Directive name contains invalid character: '{}'",
-            c
-        ));
+        return Err(MemberDefect::NameCharacter(c));
     }
     Ok(directive)
+}
+
+/// What one `Cache-Control` list member fails to be.
+///
+/// Three variants and not one of them is this field's: the first is the list
+/// construct's, and the other two are the `token` a directive name has to be.
+/// The type exists so the two rules reading this field can name *which* — they
+/// used to receive one rendered sentence and could only pass it on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemberDefect<'a> {
+    /// A member contributing nothing to the list: a stray or trailing comma.
+    Empty,
+    /// A member whose name is empty — `=abc`, the `=` with nothing before it.
+    /// Carries the member, because the finding shows what was written.
+    NameEmpty(&'a str),
+    /// A character in the directive name that no `tchar` admits.
+    NameCharacter(char),
+}
+
+impl MemberDefect<'_> {
+    /// The finding, worded as both rules have always worded it.
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => "Empty directive in Cache-Control header".into(),
+            Self::NameEmpty(member) => {
+                format!("Empty directive name in Cache-Control member: '{}'", member)
+            }
+            Self::NameCharacter(c) => {
+                format!("Directive name contains invalid character: '{}'", c)
+            }
+        }
+    }
 }
 
 /// Whether the section carries the named directive at all.
@@ -469,16 +495,28 @@ mod tests {
 
     #[test]
     fn read_member_names_each_defect_in_the_directive_name() {
+        // The variant and the sentence it renders to, together: the callers
+        // that report through the catalogue match on the first and the caller
+        // that has not converted prints the second, so both halves are pinned.
+        assert_eq!(read_member("").unwrap_err(), MemberDefect::Empty);
         assert_eq!(
-            read_member("").unwrap_err(),
+            read_member("").unwrap_err().message(),
             "Empty directive in Cache-Control header"
         );
         assert_eq!(
             read_member("=1").unwrap_err(),
+            MemberDefect::NameEmpty("=1")
+        );
+        assert_eq!(
+            read_member("=1").unwrap_err().message(),
             "Empty directive name in Cache-Control member: '=1'"
         );
         assert_eq!(
             read_member("no cache").unwrap_err(),
+            MemberDefect::NameCharacter(' ')
+        );
+        assert_eq!(
+            read_member("no cache").unwrap_err().message(),
             "Directive name contains invalid character: ' '"
         );
         let directive = read_member("max-age=60").unwrap();
