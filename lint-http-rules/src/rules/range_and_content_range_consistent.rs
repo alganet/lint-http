@@ -4,8 +4,39 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_range::{
+    content_range_defect, CONTENT_RANGE_COMPLETE_LENGTH_CONFLICTING, CONTENT_RANGE_EMPTY,
+    CONTENT_RANGE_INCL_RANGE_MALFORMED, CONTENT_RANGE_NUMERAL_INVALID,
+    CONTENT_RANGE_NUMERAL_MALFORMED, CONTENT_RANGE_POSITIONS_CONFLICTING,
+    CONTENT_RANGE_SLASH_MISSING, CONTENT_RANGE_SPEC_MISSING,
+    CONTENT_RANGE_SPEC_WHITESPACE_FORBIDDEN, CONTENT_RANGE_UNIT_MALFORMED,
+    CONTENT_RANGE_UNSATISFIED_RANGE_MALFORMED, RFC_9110_14_1, RFC_9110_14_1_2, RFC_9110_14_4,
+};
+use crate::violations::ViolationDef;
 
 pub struct RangeAndContentRangeConsistent;
+
+/// The defects this rule reports so far, and they are all one field's: the
+/// eleven ways `Content-Range = range-unit SP ( range-resp / unsatisfied-range )`
+/// is not that. They are the *field's* rather than this rule's — five other
+/// rules parse the same value, and the four that only ask whether it parsed
+/// will report these same ids when they say why.
+///
+/// The rest of what this rule says is about two fields *agreeing*, which is a
+/// different subject and converts with the reading that owns the pair.
+static DECLARED: &[&ViolationDef] = &[
+    &CONTENT_RANGE_EMPTY,
+    &CONTENT_RANGE_UNIT_MALFORMED,
+    &CONTENT_RANGE_SPEC_MISSING,
+    &CONTENT_RANGE_SPEC_WHITESPACE_FORBIDDEN,
+    &CONTENT_RANGE_SLASH_MISSING,
+    &CONTENT_RANGE_UNSATISFIED_RANGE_MALFORMED,
+    &CONTENT_RANGE_INCL_RANGE_MALFORMED,
+    &CONTENT_RANGE_NUMERAL_MALFORMED,
+    &CONTENT_RANGE_NUMERAL_INVALID,
+    &CONTENT_RANGE_POSITIONS_CONFLICTING,
+    &CONTENT_RANGE_COMPLETE_LENGTH_CONFLICTING,
+];
 
 pub struct RangeConsistencyConfig {
     pub severity: crate::lint::Severity,
@@ -99,12 +130,6 @@ const RFC_9110_15_3_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.2",
     note: "206 Partial Content, multiple parts: the parts carry the `Content-Range` fields and the header section MUST NOT carry one; a request for a single range MUST NOT be answered with a multipart response",
 };
-const RFC_9110_14_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("14.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.4",
-    note: "Content-Range: syntax of `Content-Range` and the semantics for satisfied and unsatisfiable ranges",
-};
 const RFC_9110_15_5_17: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.5.17"),
@@ -152,8 +177,14 @@ units = ["bytes"]
             RFC_9110_15_3_7,
             RFC_9110_15_3_7_2,
             RFC_9110_14_4,
+            RFC_9110_14_1,
+            RFC_9110_14_1_2,
             RFC_9110_15_5_17,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -360,8 +391,8 @@ impl Rule for RangeAndContentRangeConsistent {
                         return Some(self.violation(config.severity, "206 response uses the unsatisfied-range form ('*/complete-length'), which describes no enclosed range (that form belongs in a 416)".into()));
                     }
                     Err(e) => {
-                        return Some(self.violation(
-                            config.severity,
+                        return Some(ctx.report_with(
+                            content_range_defect(e),
                             format!("Invalid Content-Range header '{}': {}", cr, e.message()),
                         ));
                     }
@@ -424,9 +455,8 @@ impl Rule for RangeAndContentRangeConsistent {
                                     .into()));
                     }
                     Err(e) => {
-                        return Some(self.cited(
-                            &RFC_9110_14_4,
-                            config.severity,
+                        return Some(ctx.report_with(
+                            content_range_defect(e),
                             format!("Invalid Content-Range header '{}': {}", cr, e.message()),
                         ));
                     }
