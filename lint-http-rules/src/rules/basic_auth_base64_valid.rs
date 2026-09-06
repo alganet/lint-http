@@ -4,18 +4,33 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::base64::{BASE64_MALFORMED, RFC_4648_3_3};
+use crate::violations::basic_credentials::{
+    basic_credentials_defect, BASIC_CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN,
+    BASIC_CREDENTIALS_SEPARATOR_MISSING, RFC_7617_2,
+};
+use crate::violations::credentials::{CREDENTIALS_MISSING, RFC_9110_11_6_2};
+use crate::violations::ViolationDef;
 
 pub struct BasicAuthBase64Valid;
+
+/// The defects this rule reports. Two are RFC 7617's own — the separator and
+/// the control characters it forbids — and two are not this scheme's at all: a
+/// `Basic` with nothing after it is the framework's `credentials_missing`,
+/// which `authorization_credentials_present` reports about the same request,
+/// and a value that does not decode is `base64_malformed`, which the WebSocket
+/// handshake's key will report under the same name. Naming either of them after
+/// this scheme would give an operator one id per field for one mistake.
+static DECLARED: &[&ViolationDef] = &[
+    &BASIC_CREDENTIALS_SEPARATOR_MISSING,
+    &BASIC_CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN,
+    &CREDENTIALS_MISSING,
+    &BASE64_MALFORMED,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7617_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7617",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc7617.html#section-2",
-    note: "The Basic authentication scheme and the `user-pass` encoding (Base64)",
-};
 const RFC_4648_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 4648",
     section: Some("4"),
@@ -39,7 +54,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7617_2, RFC_4648_4]
+        &[RFC_7617_2, RFC_4648_4, RFC_4648_3_3, RFC_9110_11_6_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -88,8 +107,12 @@ impl Rule for BasicAuthBase64Valid {
                         if scheme.eq_ignore_ascii_case("Basic") {
                             let creds = parts.next().unwrap_or("").trim();
                             if creds.is_empty() {
-                                return Some(self.violation(
-                                    ctx.severity,
+                                // The framework's defect rather than this
+                                // scheme's: a scheme with nothing after it is
+                                // what `credentials` says must not happen,
+                                // whichever scheme was named.
+                                return Some(ctx.report_with(
+                                    &CREDENTIALS_MISSING,
                                     "Basic Authorization missing credentials".into(),
                                 ));
                             }
@@ -101,9 +124,8 @@ impl Rule for BasicAuthBase64Valid {
                             if let Err(defect) =
                                 crate::helpers::auth::validate_basic_credentials(creds)
                             {
-                                return Some(self.cited(
-                                    &RFC_7617_2,
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    basic_credentials_defect(&defect),
                                     format!(
                                         "Invalid Basic credentials: {} (RFC 7617)",
                                         defect.message()
@@ -136,6 +158,46 @@ mod tests {
     use base64::Engine;
     use hyper::header::HeaderValue;
     use rstest::rstest;
+
+    /// Four names where the rule had one, and two of them are not this
+    /// scheme's: a `Basic` with nothing after it is the framework's defect,
+    /// reported under the id `authorization_credentials_present` reports about
+    /// the same request, and a value that does not decode is the encoding's.
+    /// The control octet defaults a level above the rest — RFC 7617 forbids it
+    /// in either half in so many words.
+    #[rstest]
+    #[case("Basic", "credentials_missing", crate::lint::Severity::Warn)]
+    #[case("Basic not-base64", "base64_malformed", crate::lint::Severity::Warn)]
+    #[case(
+        "Basic YWJj",
+        "basic_credentials_separator_missing",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "Basic YQE6Yg==",
+        "basic_credentials_control_character_forbidden",
+        crate::lint::Severity::Error
+    )]
+    fn each_finding_names_the_defect_and_carries_its_severity(
+        #[case] header: &str,
+        #[case] violation: &str,
+        #[case] severity: crate::lint::Severity,
+    ) -> anyhow::Result<()> {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request
+            .headers
+            .append("authorization", HeaderValue::from_str(header)?);
+        let v = crate::test_helpers::run_rule(
+            &BasicAuthBase64Valid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["basic_auth_base64_valid"]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {header:?}"));
+        assert_eq!(v.violation, violation, "{}", v.message);
+        assert_eq!(v.severity, severity, "{}", v.message);
+        Ok(())
+    }
 
     #[rstest]
     #[case(Some("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="), false)]
