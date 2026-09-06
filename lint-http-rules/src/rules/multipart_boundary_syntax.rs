@@ -4,8 +4,42 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::parameter::{PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct MultipartBoundarySyntax;
+
+/// What this rule reports about the *parameter* carrying the boundary, before
+/// anything about the boundary itself: `boundary=` with nothing after it, a
+/// `quoted-string` that does not close, an unquoted value holding an octet no
+/// `tchar` admits. Those are § 5.6.6's defects, read here because this rule
+/// walks the parameters, and they are the same seven `charset_registered`
+/// declares about the parameter *it* reads.
+///
+/// What stays on the older API is RFC 2046 § 5.1.1's, which is the whole of
+/// what this rule is named for: an absent boundary, an octet outside `bchars`,
+/// the 1-to-70 length and the trailing space. The two grammars are separate
+/// questions asked of one value — whether it may be written in a parameter at
+/// all, and whether it is a boundary — and only the first has a subject
+/// written.
+static DECLARED: &[&ViolationDef] = &[
+    &PARAMETER_VALUE_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -21,12 +55,6 @@ const RFC_9110_8_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.3.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.3",
     note: "Multipart Types: where HTTP adopts RFC 2046 §5.1.1 and makes the boundary part of the media type value. It also says HTTP framing does not use the boundary as a length indicator, so nothing here is a framing check",
-};
-const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-    note: "Parameters: the `parameters`/`parameter`/`parameter-value` grammar this walks, case-insensitive parameter names, and the equivalence of the quoted and unquoted forms",
 };
 const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -59,8 +87,14 @@ severity = "warn"
             RFC_2046_5_1_1,
             RFC_9110_8_3_3,
             RFC_9110_5_6_6,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
             RFC_9110_8_3_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -154,7 +188,7 @@ impl Rule for MultipartBoundarySyntax {
                     // below rejects it, as `bcharsnospace` is US-ASCII throughout.
                     // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                     let s = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(v) = check_multipart_boundary(which, &s, ctx.severity) {
+                    if let Some(v) = check_multipart_boundary(which, &s, ctx) {
                         return Some(v);
                     }
                 }
@@ -177,10 +211,17 @@ impl Rule for MultipartBoundarySyntax {
     }
 }
 
+/// The reading of one field line: the parameter's half converted, the
+/// boundary's half not.
+///
+/// It takes the whole context rather than a severity because the two APIs
+/// coexist inside it — a `parameter-value` defect resolves the severity
+/// configured for that defect, while everything RFC 2046 § 5.1.1 says still
+/// emits at the rule's.
 fn check_multipart_boundary(
     which: &str,
     val: &str,
-    severity: crate::lint::Severity,
+    ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     // A value that is not a media-type at all has no type to compare and no
     // parameters to read. Saying so is `content_type_valid`'s
@@ -235,11 +276,12 @@ fn check_multipart_boundary(
                     found = true;
                     // Nothing after the "=" is not a boundary that happens
                     // to be too short — it is not a `parameter-value` at
-                    // all, since both alternatives are non-empty.
-                    // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
+                    // all, since both alternatives are non-empty. That is the
+                    // parameter's defect rather than the boundary's, and the
+                    // sentence saying so is on the def three other rules read.
                     if value.is_empty() {
-                        return Some(MultipartBoundarySyntax.violation(
-                            severity,
+                        return Some(ctx.report_with(
+                            &PARAMETER_VALUE_EMPTY,
                             format!(
                                 "Invalid multipart Content-Type in {}: empty 'boundary' parameter",
                                 which
@@ -266,8 +308,8 @@ fn check_multipart_boundary(
                         match crate::helpers::quoted_string::unescape_quoted_string(value) {
                             Ok(u) => u,
                             Err(defect) => {
-                                return Some(MultipartBoundarySyntax.violation(
-                                    severity,
+                                return Some(ctx.report_with(
+                                    quoted_string_defect(defect),
                                     format!(
                                         "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
                                         which,
@@ -287,8 +329,8 @@ fn check_multipart_boundary(
                         // are rejected either way and only the wording of the
                         // finding differs.
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(value) {
-                            return Some(MultipartBoundarySyntax.violation(
-                                severity,
+                            return Some(ctx.report_with(
+                                token_character(c),
                                 format!(
                                     "Invalid multipart Content-Type in {}: boundary contains invalid token character '{}'",
                                     which, c
@@ -335,7 +377,7 @@ fn check_multipart_boundary(
                             continue;
                         }
                         return Some(MultipartBoundarySyntax.violation(
-                            severity,
+                            ctx.severity,
                             format!(
                                 "Invalid multipart Content-Type in {}: boundary contains invalid character '{}'",
                                 which, ch
@@ -353,7 +395,7 @@ fn check_multipart_boundary(
                     let len = boundary_unquoted.chars().count();
                     if len == 0 || len > 70 {
                         return Some(MultipartBoundarySyntax.violation(
-                            severity,
+                            ctx.severity,
                             format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
                                 which
@@ -372,7 +414,7 @@ fn check_multipart_boundary(
                     // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
                     if boundary_unquoted.ends_with(' ') {
                         return Some(MultipartBoundarySyntax.violation(
-                            severity,
+                            ctx.severity,
                             format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
                                 which
@@ -397,7 +439,7 @@ fn check_multipart_boundary(
         // list is `content_type_valid`'s finding.
         if !found && !unreadable {
             return Some(MultipartBoundarySyntax.violation(
-                severity,
+                ctx.severity,
                 format!(
                     "Invalid multipart Content-Type in {}: missing required 'boundary' parameter",
                     which
