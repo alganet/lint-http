@@ -33,6 +33,7 @@ pub mod auth_scheme;
 pub mod base64;
 pub mod basic_credentials;
 pub mod challenge;
+pub mod content_length;
 pub mod content_range;
 pub mod cookie;
 pub mod credentials;
@@ -350,7 +351,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 96;
+        const FLOOR: usize = 97;
         let cited = VIOLATIONS.iter().filter(|d| d.spec.is_some()).count();
         assert!(
             cited >= FLOOR,

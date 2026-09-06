@@ -1107,6 +1107,10 @@ severity = "warn"
 # Authentication token68 is indistinguishable from a parameter
 severity = "info"
 
+[violations.content_length_conflicting]
+# Content-Length disagrees with the octets received
+severity = "error"
+
 [violations.content_range_complete_length_conflicting]
 # Content-Range complete-length does not exceed its last-pos
 severity = "error"
