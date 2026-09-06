@@ -4,24 +4,37 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cookie::{
+    domain_defect, COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_IPV4_ADDRESS_FORBIDDEN,
+    COOKIE_DOMAIN_IPV6_LITERAL_FORBIDDEN, COOKIE_DOMAIN_LEADING_DOT_OBSOLETE,
+    COOKIE_DOMAIN_MISSING, RFC_6265_5_1_3, RFC_6265_5_2_3,
+};
+use crate::violations::domain::{
+    DOMAIN_LABEL_CHARACTER_FORBIDDEN, DOMAIN_LABEL_EDGE_HYPHEN_FORBIDDEN, DOMAIN_LABEL_EMPTY,
+    DOMAIN_LABEL_LENGTH_INVALID, DOMAIN_NAME_CHARACTER_FORBIDDEN, DOMAIN_NAME_LENGTH_INVALID,
+    RFC_1035_2_3_1, RFC_1035_2_3_4,
+};
+use crate::violations::ViolationDef;
 
 pub struct CookieDomainValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_6265_5_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6265",
-    section: Some("5.2.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.3",
-    note: "`Domain` attribute processing — an empty value is undefined (UA ignores it) and a leading dot is stripped; the domain-value *format* is §4.1.1 / RFC 1035",
-};
-const RFC_1035: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 1035",
-    section: None,
-    url: "https://www.rfc-editor.org/rfc/rfc1035.html",
-    note: "Domain name label rules (length, allowed characters)",
-};
+/// The defects this rule reports. Six of the eleven are not its own: a domain
+/// name is answered by the same sentences wherever a field carries one, so
+/// `domain_*` is what a `From` mailbox's host half will report too. Declaring
+/// them here is what says this rule may report them; it does not own them.
+static DECLARED: &[&ViolationDef] = &[
+    &COOKIE_DOMAIN_MISSING,
+    &COOKIE_DOMAIN_EMPTY,
+    &COOKIE_DOMAIN_LEADING_DOT_OBSOLETE,
+    &COOKIE_DOMAIN_IPV4_ADDRESS_FORBIDDEN,
+    &COOKIE_DOMAIN_IPV6_LITERAL_FORBIDDEN,
+    &DOMAIN_NAME_LENGTH_INVALID,
+    &DOMAIN_NAME_CHARACTER_FORBIDDEN,
+    &DOMAIN_LABEL_EMPTY,
+    &DOMAIN_LABEL_LENGTH_INVALID,
+    &DOMAIN_LABEL_EDGE_HYPHEN_FORBIDDEN,
+    &DOMAIN_LABEL_CHARACTER_FORBIDDEN,
+];
 
 impl RuleMeta for CookieDomainValid {
     fn id(&self) -> &'static str {
@@ -39,7 +52,16 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6265_5_2_3, RFC_1035]
+        &[
+            RFC_1035_2_3_1,
+            RFC_1035_2_3_4,
+            RFC_6265_5_1_3,
+            RFC_6265_5_2_3,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -103,7 +125,11 @@ impl Rule for CookieDomainValid {
                     ));
                 };
 
-                // split into cookie-pair and attributes
+                // Split into cookie-pair and attributes — § 5.2's own parsing
+                // algorithm, which is the reading this rule does before any
+                // defect exists. The defects' sentences are on their defs.
+                //
+                // cite(RFC 6265 § 5.2): "Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character."
                 let parts = s.split(';').map(|p| p.trim()).collect::<Vec<_>>();
                 for attr in parts.iter().skip(1) {
                     if attr.is_empty() {
@@ -112,31 +138,20 @@ impl Rule for CookieDomainValid {
                     let mut av = attr.splitn(2, '=');
                     let key = av.next().unwrap().trim();
                     let val = av.next().map(|v| v.trim()).unwrap_or("");
+                    // cite(RFC 6265 § 5.2.3): "If the attribute-name case-insensitively matches the string "Domain", the user agent MUST process the cookie-av as follows."
                     if key.eq_ignore_ascii_case("domain") {
-                        // cite(RFC 6265 § 5.2.3): "If the attribute-value is empty, the behavior is undefined."
                         if val.is_empty() {
-                            return Some(self.cited(
-                                &RFC_6265_5_2_3,
-                                ctx.severity,
-                                "Set-Cookie attribute 'Domain' requires a value".into(),
-                            ));
+                            return Some(ctx.report(&COOKIE_DOMAIN_MISSING));
                         }
                         match crate::helpers::domain::validate_cookie_domain(val) {
                             Ok(()) => {
-                                // A leading dot is not a *syntax* error — the user agent
-                                // strips it, so `.example.com` and `example.com` are the same
-                                // cookie-domain. That is exactly why it is flagged: the dot is a
-                                // redundant legacy form (RFC 2965 gave it meaning; RFC 6265 does
-                                // not), so the server should send the registry form without it.
-                                // cite(RFC 6265 § 5.2.3): "Let cookie-domain be the attribute-value without the leading %x2E (".") character."
                                 if val.starts_with('.') {
-                                    return Some(self.cited(&RFC_6265_5_2_3, ctx.severity, "Set-Cookie 'Domain' attribute uses a leading '.' which is deprecated; prefer the registry form without leading dot".into()));
+                                    return Some(ctx.report(&COOKIE_DOMAIN_LEADING_DOT_OBSOLETE));
                                 }
                             }
                             Err(e) => {
-                                return Some(self.cited(
-                                    &RFC_6265_5_2_3,
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    domain_defect(e),
                                     format!(
                                         "Invalid Set-Cookie Domain attribute '{}': {}",
                                         val,
@@ -195,6 +210,54 @@ mod tests {
                 v
             );
         }
+    }
+
+    /// The same rule, five names. The last two are the interesting pair: an
+    /// underscore and a doubled dot are defects of *domain names*, not of
+    /// cookies, so they report under the shared `domain_*` ids that any other
+    /// field carrying a name will report under too.
+    #[rstest]
+    #[case("SID=1; Domain=", "cookie_domain_missing", crate::lint::Severity::Warn)]
+    #[case(
+        "SID=1; Domain=.example.com",
+        "cookie_domain_leading_dot_obsolete",
+        crate::lint::Severity::Info
+    )]
+    #[case(
+        "SID=1; Domain=192.168.0.1",
+        "cookie_domain_ipv4_address_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "SID=1; Domain=exa_mple.com",
+        "domain_label_character_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "SID=1; Domain=example..com",
+        "domain_label_empty",
+        crate::lint::Severity::Warn
+    )]
+    fn each_defect_reports_under_its_own_name(
+        #[case] cookie: &str,
+        #[case] violation: &str,
+        #[case] severity: crate::lint::Severity,
+    ) {
+        let v = check_set_cookie(cookie).expect("reports");
+        assert_eq!(v.rule, "cookie_domain_valid");
+        assert_eq!(v.violation, violation);
+        assert_eq!(v.severity, severity);
+    }
+
+    /// The leading dot costs nothing at run time and is `info` because of it —
+    /// so a report filtered to warnings and above does not carry it, while the
+    /// same rule's IP-address finding still does. One rule, two audiences.
+    #[test]
+    fn the_obsolete_form_is_below_the_defects_that_break_something() {
+        let dot = check_set_cookie("SID=1; Domain=.example.com").expect("reports");
+        let ip = check_set_cookie("SID=1; Domain=192.168.0.1").expect("reports");
+        assert!(dot.severity < crate::lint::Severity::Warn);
+        assert!(ip.severity >= crate::lint::Severity::Warn);
     }
 
     #[test]

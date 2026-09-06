@@ -797,6 +797,18 @@ sources:
 - label: RFC 1035
   url: https://www.rfc-editor.org/rfc/rfc1035.html
   fragments:
+  - label: domain
+    section: § 2.3.1
+    snippet: They must start with a letter, end with a letter or digit, and have as interior characters only letters, digits, and hyphen.
+    cited_by:
+    - file: lint-http-rules/src/violations/domain.rs
+      line: 61
+    - file: lint-http-rules/src/violations/domain.rs
+      line: 73
+    - file: lint-http-rules/src/violations/domain.rs
+      line: 98
+    - file: lint-http-rules/src/violations/domain.rs
+      line: 110
   - label: lint-http-rules/src/helpers/domain.rs
     section: § 2.3.1
     snippet: Labels must be 63 characters or less.
@@ -805,6 +817,8 @@ sources:
       line: 31
     - file: lint-http-rules/src/helpers/domain.rs
       line: 166
+    - file: lint-http-rules/src/violations/domain.rs
+      line: 85
   - label: lint-http-rules/src/helpers/domain.rs (2)
     section: § 2.3.1
     snippet: end with a letter or digit, and have as interior characters only letters, digits, and hyphen.
@@ -819,6 +833,8 @@ sources:
       line: 26
     - file: lint-http-rules/src/helpers/domain.rs
       line: 157
+    - file: lint-http-rules/src/violations/domain.rs
+      line: 48
 - label: RFC 1123
   url: https://www.rfc-editor.org/rfc/rfc1123.html
   fragments:
@@ -1198,7 +1214,7 @@ sources:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 49
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 101
+      line: 126
   - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 2.2
     snippet: A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component.
@@ -2000,6 +2016,28 @@ sources:
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
+  - label: cookie
+    section: § 5.1.3
+    snippet: The string is a host name (i.e., not an IP address).
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 221
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 234
+  - label: cookie (2)
+    section: § 5.2.3
+    snippet: If the attribute-value is empty, the behavior is undefined.
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 177
+  - label: cookie (3)
+    section: § 5.2.3
+    snippet: Let cookie-domain be the attribute-value without the leading %x2E (".") character.
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 192
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 207
   - label: cookie_attribute_consistent
     section: § 4.1.1
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
@@ -2055,17 +2093,19 @@ sources:
     - file: lint-http-rules/src/rules/cookie_domain_matching.rs
       line: 173
   - label: cookie_domain_valid
-    section: § 5.2.3
-    snippet: If the attribute-value is empty, the behavior is undefined.
+    section: § 5.2
+    snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_valid.rs
-      line: 116
+      line: 132
+    - file: lint-http-rules/src/rules/cookie_path_valid.rs
+      line: 149
   - label: cookie_domain_valid (2)
     section: § 5.2.3
-    snippet: Let cookie-domain be the attribute-value without the leading %x2E (".") character.
+    snippet: If the attribute-name case-insensitively matches the string "Domain", the user agent MUST process the cookie-av as follows.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_valid.rs
-      line: 131
+      line: 141
   - label: cookie_lifecycle
     section: § 4.1.2.5
     snippet: The Secure attribute limits the scope of the cookie to "secure" channels
@@ -2092,12 +2132,6 @@ sources:
       line: 63
   - label: cookie_path_valid
     section: § 5.2
-    snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
-    cited_by:
-    - file: lint-http-rules/src/rules/cookie_path_valid.rs
-      line: 149
-  - label: cookie_path_valid (2)
-    section: § 5.2
     snippet: If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_path_valid.rs
@@ -2109,9 +2143,9 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 97
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 113
+      line: 138
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 126
+      line: 151
   - label: lint-http-rules/src/helpers/cookie.rs (2)
     section: § 4.1.1
     snippet: cookie-av         = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av
@@ -2173,11 +2207,11 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 346
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 66
+      line: 91
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 77
+      line: 102
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 90
+      line: 115
   - label: lint-http-rules/src/helpers/cookie.rs (9)
     section: § 5.3
     snippet: Set the cookie's host-only-flag to true.
