@@ -11,8 +11,29 @@ use crate::helpers::uri::{
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    RFC_3986_3_1, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
+};
+use crate::violations::ViolationDef;
 
 pub struct RefererUriValid;
+
+/// The defects this rule reports through the catalogue so far — the three ways
+/// a scheme name is not one. They are the *scheme's* and not the `Referer`'s:
+/// six rules in this tree read a scheme through the same helper, from a
+/// `Forwarded` `proto`, a `Link` target, an `Alt-Svc` value and an
+/// absolute-form request target, and each of them will report these three.
+///
+/// The rest of what this rule says about a URI reference is still on the old
+/// API: those messages are this field's own reading of `Referer =
+/// absolute-URI / partial-URI` and convert with the subjects that own the
+/// components — the authority, the path, the fragment.
+static DECLARED: &[&ViolationDef] = &[
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
+];
 
 /// The value as a finding may print it: escaped, and with the password half of a
 /// userinfo subcomponent withheld.
@@ -142,7 +163,12 @@ severity = "warn"
             RFC_3986_4_3,
             RFC_3986_4_4,
             RFC_3986_2_1,
+            RFC_3986_3_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -373,10 +399,13 @@ impl Rule for RefererUriValid {
             let scheme = scheme_prefix(value);
             if let Some(scheme) = scheme {
                 if let Err(defect) = validate_scheme_name(scheme) {
-                    return violation(format!(
+                    return Some(ctx.report_with(
+                        crate::violations::uri::scheme_name(defect),
+                        format!(
                         "Referer value '{}' derives from neither alternative of `Referer = absolute-URI / partial-URI`: {} — and a first path segment holding a colon is no `path-noscheme` either, so it is not a relative reference (RFC 3986 §4.2)",
                         shown_referer(value),
                         defect.message()
+                        ),
                     ));
                 }
             }
@@ -508,6 +537,27 @@ mod tests {
     use super::*;
     use hyper::header::{HeaderName, HeaderValue};
     use rstest::rstest;
+
+    /// The scheme findings, by name. Three ways a value's scheme candidate is
+    /// not a scheme, reported under ids that belong to RFC 3986 § 3.1 rather
+    /// than to this field — the same three a `Forwarded` `proto` or a `Link`
+    /// target will report when those rules convert.
+    #[rstest]
+    #[case(":/x", "uri_scheme_empty")]
+    #[case("1http://example.com/", "uri_scheme_leading_letter_missing")]
+    #[case("ht_tp://example.com/", "uri_scheme_character_forbidden")]
+    fn a_scheme_that_is_not_one_names_which_way(#[case] referer: &str, #[case] violation: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("referer", referer)]);
+        let v = crate::test_helpers::run_rule(
+            &RefererUriValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn"),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {referer:?}"));
+        assert_eq!(v.violation, violation, "{}", v.message);
+    }
 
     /// Run the rule over a request carrying `referer` field lines, with the
     /// request-target the caller names.
