@@ -1619,7 +1619,7 @@ sources:
     snippet: A basic language range differs from the language tags defined in [RFC4646] only in that there is no requirement that it be "well-formed" or be validated against the IANA Language Subtag Registry.
     cited_by:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 149
+      line: 167
   - label: lint-http-rules/src/helpers/language.rs
     section: § 2.1
     snippet: language-range   = (1*8ALPHA *("-" 1*8alphanum)) / "*"
@@ -1627,7 +1627,7 @@ sources:
     - file: lint-http-rules/src/helpers/language.rs
       line: 123
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 230
+      line: 247
 - label: RFC 4648
   url: https://www.rfc-editor.org/rfc/rfc4648.html
   fragments:
@@ -1878,6 +1878,34 @@ sources:
 - label: RFC 5646
   url: https://www.rfc-editor.org/rfc/rfc5646.html
   fragments:
+  - label: language
+    section: § 2.1
+    snippet: Language-Tag  = langtag             ; normal language tags
+    cited_by:
+    - file: lint-http-rules/src/violations/language.rs
+      line: 40
+  - label: language (2)
+    section: § 2.1
+    snippet: alphanum      = (ALPHA / DIGIT)     ; letters and numbers
+    cited_by:
+    - file: lint-http-rules/src/violations/language.rs
+      line: 68
+  - label: language (3)
+    section: § 2.1
+    snippet: are a sequence of alphanumeric characters (letters and digits), distinguished and separated from other subtags in a tag by a hyphen
+    cited_by:
+    - file: lint-http-rules/src/violations/language.rs
+      line: 55
+    - file: lint-http-rules/src/violations/language.rs
+      line: 80
+    - file: lint-http-rules/src/violations/language.rs
+      line: 92
+  - label: language (4)
+    section: § 2.1
+    snippet: privateuse    = "x" 1*("-" (1*8alphanum))
+    cited_by:
+    - file: lint-http-rules/src/violations/language.rs
+      line: 119
   - label: lint-http-rules/src/helpers/language.rs
     section: § 2.1
     snippet: A language tag is composed from a sequence of one or more "subtags", each of which refines or narrows the range of language identified by the overall tag.
@@ -1908,6 +1936,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/language.rs
       line: 126
+    - file: lint-http-rules/src/violations/language.rs
+      line: 106
 - label: RFC 5789
   url: https://www.rfc-editor.org/rfc/rfc5789.html
   fragments:
@@ -4631,7 +4661,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 139
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 221
+      line: 238
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 82
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -6091,25 +6121,25 @@ sources:
     snippet: 'Content-Language = #language-tag'
     cited_by:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 196
+      line: 213
   - label: language_tag_syntax (2)
     section: § 8.5
     snippet: The "Content-Language" header field describes the natural language(s) of the intended audience for the representation.
     cited_by:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 117
+      line: 135
   - label: language_tag_syntax (3)
     section: § 8.5.1
     snippet: A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings.
     cited_by:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 151
+      line: 169
   - label: language_tag_syntax (4)
     section: § 8.5.1
     snippet: HTTP uses language tags within the Accept-Language and Content-Language header fields.  Accept-Language uses the broader language-range production defined in Section 12.5.4, whereas Content-Language uses the language-tag production defined below.
     cited_by:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 148
+      line: 166
   - label: last_modified_rfc1123_syntax
     section: § 8.8.2
     snippet: Last-Modified = HTTP-date
@@ -6891,7 +6921,7 @@ sources:
     - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
       line: 94
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
-      line: 222
+      line: 239
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 260
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs

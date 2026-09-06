@@ -4,8 +4,28 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::language::{
+    tag_defect, LANGUAGE_TAG_CHARACTER_FORBIDDEN, LANGUAGE_TAG_EDGE_HYPHEN_FORBIDDEN,
+    LANGUAGE_TAG_EMPTY, LANGUAGE_TAG_LEADING_LETTER_MISSING, LANGUAGE_TAG_SUBTAG_EMPTY,
+    LANGUAGE_TAG_SUBTAG_LENGTH_INVALID, LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_5646_2_1,
+};
+use crate::violations::ViolationDef;
 
 pub struct LanguageTagSyntax;
+
+/// The defects this rule reports — the seven the two productions agree on.
+/// They are the tag's, not this rule's: `link_header_valid` reads a tag out of
+/// an `hreflang` parameter through the same validator and will report the same
+/// seven.
+static DECLARED: &[&ViolationDef] = &[
+    &LANGUAGE_TAG_EMPTY,
+    &LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &LANGUAGE_TAG_CHARACTER_FORBIDDEN,
+    &LANGUAGE_TAG_EDGE_HYPHEN_FORBIDDEN,
+    &LANGUAGE_TAG_SUBTAG_EMPTY,
+    &LANGUAGE_TAG_LEADING_LETTER_MISSING,
+    &LANGUAGE_TAG_SUBTAG_LENGTH_INVALID,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -15,12 +35,6 @@ const RFC_9110_8_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.5.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5.1",
     note: "Language Tags: the sentence that assigns a different production to each of the two fields — `language-range` for Accept-Language, `language-tag` for Content-Language",
-};
-const RFC_5646_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5646",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
-    note: "Syntax: the `Language-Tag` production Content-Language carries. Its prose properties are enforced; its subtag ordering and length classes are not",
 };
 const RFC_4647_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 4647",
@@ -69,6 +83,10 @@ severity = "warn"
             RFC_9110_8_5,
             RFC_9110_12_5_4,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -150,9 +168,8 @@ impl Rule for LanguageTagSyntax {
             let check_tag = |hdr: &str, tag: &str| -> Option<Violation> {
                 // cite(RFC 9110 § 8.5.1): "A language tag, as defined in [RFC5646], identifies a natural language spoken, written, or otherwise conveyed by human beings for communication of information to other human beings."
                 if let Err(e) = crate::helpers::language::validate_language_tag(tag) {
-                    return Some(self.cited(
-                        &RFC_9110_8_5_1,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        tag_defect(e),
                         format!("Invalid language tag '{}' in {}: {}", tag, hdr, e.message()),
                     ));
                 }
@@ -343,6 +360,62 @@ mod tests {
         let rule = LanguageTagSyntax;
         assert_eq!(rule.id(), "language_tag_syntax");
         assert_eq!(rule.scope(), crate::rules::RuleScope::Both);
+    }
+
+    /// One message shape, seven names — and the one an operator cannot have
+    /// typed reports a level above the ones a sender chose. A `%01` in a
+    /// language tag is something that happened to the value; `en_US` is a
+    /// sender writing the locale spelling of another ecosystem.
+    #[rstest]
+    #[case(
+        "en_US",
+        "language_tag_character_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    // HTAB rather than a stricter control octet: `HeaderValue` refuses to hold
+    // one at all, and a tab is `is_whitespace` on the same branch.
+    #[case(
+        "en\tUS",
+        "language_tag_whitespace_or_control_forbidden",
+        crate::lint::Severity::Error
+    )]
+    #[case("en--US", "language_tag_subtag_empty", crate::lint::Severity::Warn)]
+    #[case(
+        "-en",
+        "language_tag_edge_hyphen_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "1en",
+        "language_tag_leading_letter_missing",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "en-toolongsubtag",
+        "language_tag_subtag_length_invalid",
+        crate::lint::Severity::Warn
+    )]
+    fn each_defect_reports_under_its_own_name(
+        #[case] tag: &str,
+        #[case] violation: &str,
+        #[case] severity: crate::lint::Severity,
+    ) {
+        let rule = LanguageTagSyntax;
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-language", tag)]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["language_tag_syntax"]),
+        )
+        .unwrap_or_else(|| panic!("{tag} reports"));
+        assert_eq!(v.violation, violation);
+        assert_eq!(v.severity, severity);
+        // The sentence comes from the def now, and it is the grammar rather
+        // than the definition of what a tag is for.
+        assert_eq!(v.cite.expect("cited from the def").spec, "RFC 5646");
     }
 
     /// `to_str` refuses every octet outside visible US-ASCII, and the whole

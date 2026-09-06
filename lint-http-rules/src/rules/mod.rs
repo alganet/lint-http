@@ -1266,14 +1266,14 @@ severity = "warn"
     /// it on the other side, and this one keeps the unconverted remainder
     /// honest until the last site goes. `cookie_path_valid`'s `Path` reading
     /// was the first and took one cited site with it; `cookie_domain_valid`
-    /// took three more.
+    /// took three more and `language_tag_syntax` one.
     #[test]
     fn citation_coverage_does_not_regress() {
         /// Finding sites that name the specification sentence they enforce.
         /// The rest are the per-rule reading that has not happened yet — the
         /// denominator is computed below, because merges and conversions both
         /// move it.
-        const FLOOR: usize = 167;
+        const FLOOR: usize = 166;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
