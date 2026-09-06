@@ -506,11 +506,11 @@ fn validate_warn_agent(agent: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    validate_host_and_optional_port(agent).map_err(|e| {
+    validate_host_and_optional_port(agent).map_err(|defect| {
         format!(
             "has a warn-agent '{}' that is neither a pseudonym nor a host and port: {}",
             shown_in_finding(agent),
-            e
+            defect.message()
         )
     })
 }

@@ -1331,6 +1331,34 @@ severity = "warn"
 # Mailbox is followed by something else
 severity = "warn"
 
+[violations.node_ipv4_address_malformed]
+# Node identifier is digits and dots that are not an IPv4 address
+severity = "warn"
+
+[violations.node_ipv6_address_malformed]
+# Node identifier brackets something that is not an IPv6 address
+severity = "warn"
+
+[violations.node_ipv6_brackets_missing]
+# Node identifier holds an IPv6 address without its square brackets
+severity = "warn"
+
+[violations.node_ipv6_closing_bracket_missing]
+# Node identifier opens an IPv6 literal and never closes it
+severity = "warn"
+
+[violations.node_ipv6_representation_invalid]
+# Node identifier writes an IPv6 address outside the recommended representation
+severity = "info"
+
+[violations.node_malformed]
+# Node identifier derives from no alternative of the production
+severity = "warn"
+
+[violations.node_port_malformed]
+# Node identifier holds something that is not a node-port
+severity = "warn"
+
 [violations.percent_encoding_digits_missing]
 # Percent-encoding stops before its two hexadecimal digits
 severity = "warn"
@@ -1370,6 +1398,26 @@ severity = "warn"
 [violations.token68_whitespace_or_control_forbidden]
 # token68 holds whitespace or a control character
 severity = "error"
+
+[violations.uri_host_bracket_forbidden]
+# Host holds a square bracket outside an IP literal
+severity = "warn"
+
+[violations.uri_host_character_forbidden]
+# Host holds a character outside the registered-name alphabet
+severity = "warn"
+
+[violations.uri_host_closing_bracket_missing]
+# Host opens an IP literal and never closes it
+severity = "warn"
+
+[violations.uri_host_ip_literal_malformed]
+# Host brackets something that is not an IP literal
+severity = "warn"
+
+[violations.uri_port_character_forbidden]
+# Port holds a character that is not a digit
+severity = "warn"
 
 [violations.uri_scheme_character_forbidden]
 # URI scheme holds a character outside letters, digits, '+', '-' and '.'

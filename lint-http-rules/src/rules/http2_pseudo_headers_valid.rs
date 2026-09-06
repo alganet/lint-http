@@ -53,9 +53,10 @@ fn connect_authority_finding(authority: &str) -> Option<String> {
     }
 
     let (host, port) = crate::helpers::uri::split_host_and_port(authority);
-    if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(authority) {
+    if let Err(defect) = crate::helpers::uri::validate_host_and_optional_port(authority) {
+        let message = defect.message();
         return Some(format!(
-            "CONNECT ':authority' '{shown}' is not a host and port: {msg}"
+            "CONNECT ':authority' '{shown}' is not a host and port: {message}"
         ));
     }
 
@@ -461,12 +462,15 @@ impl Rule for Http2PseudoHeadersValid {
                 // an IP literal, the address inside it, and a port of digits. The
                 // copy this replaced guessed at an unbracketed IPv6 literal by
                 // counting colons.
-                if let Err(msg) = crate::helpers::uri::validate_host_and_optional_port(&authority) {
+                if let Err(defect) =
+                    crate::helpers::uri::validate_host_and_optional_port(&authority)
+                {
                     return Some(self.violation(
                         ctx.severity,
                         format!(
-                            "Authority '{}' is not a host and port: {msg}",
-                            crate::helpers::shown::shown_in_finding(&authority)
+                            "Authority '{}' is not a host and port: {}",
+                            crate::helpers::shown::shown_in_finding(&authority),
+                            defect.message()
                         ),
                     ));
                 }

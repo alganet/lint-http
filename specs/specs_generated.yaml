@@ -42,19 +42,19 @@ sources:
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1311
+      line: 1346
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 3.2
     snippet: This supplants the definition in The Web Origin Concept
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1306
+      line: 1341
   - label: lint-http-rules/src/helpers/uri.rs (3)
     section: § 3.2
     snippet: serialized-origin = serialized-scheme "://" serialized-host [ ":" serialized-port ]
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1305
+      line: 1340
   - label: origin_matching_for_cors
     section: § 4.10
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
@@ -342,7 +342,7 @@ sources:
     snippet: A URL’s port is either null or a 16-bit unsigned integer that identifies a networking port.
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1371
+      line: 1406
   - label: refresh_header_syntax
     section: § 1.1
     snippet: A code point is found that is not a URL unit.
@@ -1161,6 +1161,8 @@ sources:
       line: 50
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1175
+    - file: lint-http-rules/src/violations/uri.rs
+      line: 169
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 2
     snippet: A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols.
@@ -1214,9 +1216,9 @@ sources:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 49
     - file: lint-http-rules/src/violations/uri.rs
-      line: 49
+      line: 81
     - file: lint-http-rules/src/violations/uri.rs
-      line: 61
+      line: 93
   - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 2.2
     snippet: A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component.
@@ -1306,11 +1308,11 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 397
     - file: lint-http-rules/src/violations/uri.rs
-      line: 73
+      line: 105
     - file: lint-http-rules/src/violations/uri.rs
-      line: 85
+      line: 117
     - file: lint-http-rules/src/violations/uri.rs
-      line: 97
+      line: 129
   - label: lint-http-rules/src/helpers/uri.rs (17)
     section: § 3.2
     snippet: The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI.
@@ -1324,7 +1326,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 205
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1353
+      line: 1388
   - label: lint-http-rules/src/helpers/uri.rs (18)
     section: § 3.2.1
     snippet: Applications should not render as clear text any data after the first colon (":") character found within a userinfo subcomponent unless the data after the colon is the empty string (indicating no password).
@@ -1351,6 +1353,10 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1053
+    - file: lint-http-rules/src/violations/uri.rs
+      line: 141
+    - file: lint-http-rules/src/violations/uri.rs
+      line: 155
   - label: lint-http-rules/src/helpers/uri.rs (22)
     section: § 3.2.2
     snippet: IPvFuture  = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
@@ -1381,6 +1387,8 @@ sources:
       line: 207
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 499
+    - file: lint-http-rules/src/violations/uri.rs
+      line: 184
   - label: lint-http-rules/src/helpers/uri.rs (23)
     section: § 3.2.3
     snippet: The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character.
@@ -1397,6 +1405,8 @@ sources:
       line: 52
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 408
+    - file: lint-http-rules/src/violations/uri.rs
+      line: 198
   - label: lint-http-rules/src/helpers/uri.rs (24)
     section: § 3.2.3
     snippet: URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default.
@@ -2365,7 +2375,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 187
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 101
+      line: 102
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 6
     snippet: TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries.
@@ -2375,7 +2385,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 186
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 100
+      line: 101
 - label: RFC 6454
   url: https://www.rfc-editor.org/rfc/rfc6454.html
   fragments:
@@ -2392,7 +2402,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 355
     - file: lint-http-rules/src/helpers/uri.rs
-      line: 1307
+      line: 1342
 - label: RFC 6455
   url: https://www.rfc-editor.org/rfc/rfc6455.html
   fragments:
@@ -3224,49 +3234,49 @@ sources:
     snippet: This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 225
+      line: 230
   - label: forwarded_header_valid (2)
     section: § 4
     snippet: '"Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses.'
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 401
+      line: 406
   - label: forwarded_header_valid (3)
     section: § 4
     snippet: Each parameter MUST NOT occur more than once per field-value.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 111
+      line: 116
   - label: Forwarded grammar
     section: § 4
     snippet: Forwarded   = 1#forwarded-element
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 226
+      line: 231
   - label: forwarded_header_valid (4)
     section: § 4
     snippet: Note that as ":" and "[]" are not valid characters in "token", IPv6 addresses are written as "quoted-string".
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 158
+      line: 163
   - label: forwarded_header_valid (5)
     section: § 4
     snippet: The parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 141
+      line: 146
   - label: forwarded-element grammar
     section: § 4
     snippet: forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 98
+      line: 103
   - label: forwarded-pair grammar
     section: § 4
     snippet: forwarded-pair = token "=" value value          = token / quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 121
+      line: 126
   - label: forwarded_header_valid (6)
     section: § 5.1
     snippet: The syntax of a "by" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6.
@@ -3286,47 +3296,47 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 52
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 111
+      line: 176
   - label: forwarded_header_valid (9)
     section: § 5.4
     snippet: The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 68
+      line: 73
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 98
+      line: 158
   - label: forwarded_header_valid (10)
     section: § 5.5
     snippet: All extension parameters SHOULD be registered in the "HTTP Forwarded Parameter" registry.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 196
+      line: 201
   - label: forwarded_header_valid (11)
     section: § 6
     snippet: It is important to note that an IPv6 address and any nodename with node-port specified MUST be quoted, since ":" is not an allowed character in "token".
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 159
+      line: 164
   - label: forwarded_header_valid (12)
     section: § 7.1
     snippet: Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 97
+      line: 102
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 383
+      line: 388
   - label: forwarded_header_valid (13)
     section: § 8.2
     snippet: This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 402
+      line: 407
   - label: forwarded_header_valid (14)
     section: § 9
     snippet: New parameters and their values MUST conform with the forwarded-pair as defined in ABNF in Section 4.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 197
+      line: 202
   - label: lint-http-rules/src/helpers/forwarded_node.rs
     section: § 6
     snippet: To distinguish an "obfport" from a port, the "obfport" MUST have a leading underscore. Further, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-".
@@ -3347,12 +3357,22 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 273
+    - file: lint-http-rules/src/violations/node.rs
+      line: 133
   - label: nodename grammar
     section: § 6
     snippet: nodename = IPv4address / "[" IPv6address "]" / "unknown" / obfnode
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 199
+    - file: lint-http-rules/src/violations/node.rs
+      line: 66
+    - file: lint-http-rules/src/violations/node.rs
+      line: 79
+    - file: lint-http-rules/src/violations/node.rs
+      line: 92
+    - file: lint-http-rules/src/violations/node.rs
+      line: 105
   - label: obfnode grammar
     section: § 6
     snippet: obfnode = "_" 1*( ALPHA / DIGIT / "." / "_" / "-")
@@ -3365,12 +3385,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 184
+    - file: lint-http-rules/src/violations/node.rs
+      line: 53
   - label: lint-http-rules/src/helpers/forwarded_node.rs (3)
     section: § 6.1
     snippet: The "IPv6address" SHOULD comply with textual representation recommendations [RFC5952] (for example, lowercase, compression of zeros).
     cited_by:
     - file: lint-http-rules/src/helpers/forwarded_node.rs
       line: 217
+    - file: lint-http-rules/src/violations/node.rs
+      line: 120
   - label: lint-http-rules/src/helpers/forwarded_node.rs (4)
     section: § 6.2
     snippet: The "unknown" identifier is used when the identity of the preceding entity is not known, but the proxy server still wants to signal that a forwarding of the request was made.
@@ -3394,31 +3418,31 @@ sources:
     snippet: A common way to disclose this information is by using the non-standard header fields such as X-Forwarded-For, X-Forwarded-By, and X-Forwarded-Proto.
     cited_by:
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 46
+      line: 60
   - label: x_forwarded_consistent (2)
     section: § 5.4
     snippet: Typical values are "http" or "https".
     cited_by:
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 99
+      line: 159
   - label: x_forwarded_consistent (3)
     section: § 7.4
     snippet: If a proxy gets incoming requests with X-Forwarded-* header fields present, it is encouraged to convert these into the header field described in this document, if it can be done in a sensible way.
     cited_by:
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 47
+      line: 61
   - label: x_forwarded_consistent (4)
     section: § 7.4
     snippet: If the request only contains one type -- for example, X-Forwarded-For -- this can be translated to "Forwarded", by prepending each element with "for=".
     cited_by:
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 84
+      line: 139
   - label: x_forwarded_consistent (5)
     section: § 8.3
     snippet: The default configuration for both the "by" and "for" parameters SHOULD contain obfuscated identifiers.
     cited_by:
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 85
+      line: 140
 - label: RFC 7240
   url: https://www.rfc-editor.org/rfc/rfc7240.html
   fragments:
@@ -4341,13 +4365,13 @@ sources:
     snippet: A new pseudo-header field :protocol MAY be included on request HEADERS indicating the desired protocol to be spoken on the tunnel created by CONNECT.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 344
+      line: 345
   - label: http2_pseudo_headers_valid (2)
     section: § 4
     snippet: On requests that contain the :protocol pseudo-header field, the :scheme and :path pseudo-header fields of the target URI (see Section 5) MUST also be included.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 345
+      line: 346
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 5
     snippet: Implementations using this extended CONNECT to bootstrap WebSockets do not do the processing of the Sec-WebSocket-Key and Sec-WebSocket-Accept header fields of [RFC6455] as that functionality has been superseded by the :protocol pseudo-header field.
@@ -4937,7 +4961,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 355
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 334
+      line: 335
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 192
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -5203,7 +5227,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 107
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 311
+      line: 312
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 296
   - label: alt_svc_header_syntax
@@ -6087,7 +6111,7 @@ sources:
     snippet: For OPTIONS (Section 9.3.7), the request target can be a single asterisk ("*").
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 375
+      line: 376
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 231
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -6097,7 +6121,7 @@ sources:
     snippet: These forms MUST NOT be used with other methods.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 376
+      line: 377
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 232
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -6453,7 +6477,7 @@ sources:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
       line: 116
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 244
+      line: 249
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 300
     - file: lint-http-rules/src/rules/status_code_semantics.rs
@@ -6599,7 +6623,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 189
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 227
+      line: 232
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
       line: 155
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
@@ -7027,7 +7051,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 153
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 66
+      line: 80
   - label: lint-http-rules/src/helpers/headers.rs (9)
     section: § 5.6.3
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
@@ -7097,7 +7121,7 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 192
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 430
+      line: 435
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 594
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -7433,7 +7457,7 @@ sources:
     - file: lint-http-rules/src/rules/host_header.rs
       line: 251
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
-      line: 112
+      line: 177
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 7.2
     snippet: In HTTP/2 [HTTP/2] and HTTP/3 [HTTP/3], the Host header field is, in some cases, supplanted by the ":authority" pseudo-header field of a request's control data.
@@ -7445,7 +7469,7 @@ sources:
     - file: lint-http-rules/src/rules/host_header.rs
       line: 23
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 358
+      line: 359
   - label: lint-http-rules/src/helpers/uri.rs (3)
     section: § 7.2
     snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
@@ -10200,7 +10224,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 354
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 374
+      line: 375
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 235
   - label: host_and_authority_consistent (2)
@@ -10230,7 +10254,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 337
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 406
+      line: 407
   - label: host_and_authority_consistent (6)
     section: § 8.3.1
     snippet: The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986]).
@@ -10242,37 +10266,37 @@ sources:
     snippet: A field value MUST NOT start or end with an ASCII whitespace character (ASCII SP or HTAB, 0x20 or 0x09).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 324
+      line: 325
   - label: http2_pseudo_headers_valid (2)
     section: § 8.3
     snippet: Endpoints MUST treat a request or response that contains undefined or invalid pseudo-header fields as malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 312
+      line: 313
   - label: http2_pseudo_headers_valid (3)
     section: § 8.3.1
     snippet: '":authority" MUST NOT include the deprecated userinfo subcomponent for "http" or "https" schemed URIs.'
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 446
+      line: 447
   - label: http2_pseudo_headers_valid (4)
     section: § 8.3.1
     snippet: '":scheme" is not restricted to "http" and "https" schemed URIs.'
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 411
+      line: 412
   - label: http2_pseudo_headers_valid (5)
     section: § 8.3.1
     snippet: All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 386
+      line: 387
   - label: http2_pseudo_headers_valid (6)
     section: § 8.3.1
     snippet: The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 307
+      line: 308
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 297
   - label: http2_pseudo_headers_valid (7)
@@ -10280,37 +10304,37 @@ sources:
     snippet: The ":scheme" pseudo-header field includes the scheme portion of the request target.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 405
+      line: 406
   - label: http2_pseudo_headers_valid (8)
     section: § 8.3.1
     snippet: This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of '/'.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 385
+      line: 386
   - label: http2_pseudo_headers_valid (9)
     section: § 8.3.2
     snippet: For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 491
+      line: 495
   - label: http2_pseudo_headers_valid (10)
     section: § 8.3.2
     snippet: This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 492
+      line: 496
   - label: http2_pseudo_headers_valid (11)
     section: § 8.5
     snippet: A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 350
+      line: 351
   - label: http2_pseudo_headers_valid (12)
     section: § 8.5
     snippet: A proxy that supports CONNECT establishes a TCP connection [TCP] to the host and port identified in the ":authority" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 99
+      line: 100
   - label: http2_pseudo_headers_valid (13)
     section: § 8.5
     snippet: The ":authority" pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 3.2.3 of [HTTP/1.1]).
@@ -10318,13 +10342,13 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 20
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 349
+      line: 350
   - label: http2_pseudo_headers_valid (14)
     section: § 8.5
     snippet: The ":method" pseudo-header field is set to CONNECT.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 335
+      line: 336
   - label: lint-http-core/src/http_version.rs
     section: § 8.3.1
     snippet: All HTTP/2 requests implicitly have a protocol version of "2.0"
