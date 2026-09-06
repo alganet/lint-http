@@ -1399,6 +1399,14 @@ severity = "warn"
 # token68 holds whitespace or a control character
 severity = "error"
 
+[violations.token_character_forbidden]
+# Token holds a character outside tchar
+severity = "warn"
+
+[violations.token_whitespace_or_control_forbidden]
+# Token holds whitespace or a control character
+severity = "error"
+
 [violations.uri_host_bracket_forbidden]
 # Host holds a square bracket outside an IP literal
 severity = "warn"
