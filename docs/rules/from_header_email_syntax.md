@@ -17,13 +17,16 @@ This rule measures the `From` request header against the one production RFC 9110
 - [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): A sender MUST NOT write a second field line for a field whose value is not a comma-separated list
 - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): Singleton fields, and the `OWS` a parser must exclude before evaluating a field value
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The MUST NOT that makes a value outside the field's ABNF a finding
-- [RFC 5322 §3.4](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4): `mailbox = name-addr / addr-spec`, and `mailbox-list` beside it — the production this field does *not* import
-- [RFC 5322 §3.4.1](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4.1): `addr-spec = local-part "@" domain`, `domain-literal`, and the sentence handing a `dot-atom` domain to the host-name documents
-- [RFC 5322 §3.2.2](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.2): `CFWS` — folding whitespace and nested parenthesised comments, admitted around nearly every token of a mailbox
-- [RFC 5322 §3.2.3](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.3): `atext`, `atom` and `dot-atom-text` — the `1*atext` floors either side of every dot
-- [RFC 5322 §3.2.4](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.4): `quoted-string` and `qtext`, the alternative a local-part or a display-name word may take
+- [RFC 5322 §3.2.1](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.1): `quoted-pair` — the backslash and the one `VCHAR` or `WSP` it owes
+- [RFC 5322 §3.2.2](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.2): `CFWS`, `comment` and `ctext` — the comment names itself, so what it holds is balanced and its character class stops at %x7E
+- [RFC 5322 §3.2.3](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.3): `atext`, `atom` and `dot-atom-text` — the printable US-ASCII an atom is made of, and the floor a dot may not leave empty
+- [RFC 5322 §3.2.4](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.4): `quoted-string` and `qtext` — the quoted alternative, and the class it admits between the two DQUOTEs
+- [RFC 5322 §3.2.5](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.5): `phrase = 1*word` — a display-name holds at least one atom or quoted-string, and `obs-phrase`'s bare `.` is not one
+- [RFC 5322 §3.4](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4): `mailbox = name-addr / addr-spec`, `angle-addr` beside it, and `mailbox-list` — the neighbouring production a top-level comma derives from
+- [RFC 5322 §3.4.1](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4.1): `addr-spec = local-part "@" domain`, and the `domain-literal` alternative with the `dtext` inside it
 - [RFC 5322 §4](https://www.rfc-editor.org/rfc/rfc5322.html#section-4): Obsolete syntax: MUST NOT be generated, MUST be accepted by a receiver — this rule reports on the generator
-- [RFC 1035 §2.3.1](https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.1): Preferred name syntax for the `dot-atom` form of a domain — advisory, and the one finding here that is reported as advice
+- [RFC 1035 §2.3.1](https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.1): Preferred name syntax — labels start with a letter, end with a letter or digit, hold only letters, digits and hyphen, and run to 63 characters
+- [RFC 1035 §2.3.4](https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.4): Size limits — a name is 255 octets or less
 - [RFC 1123 §2.1](https://www.rfc-editor.org/rfc/rfc1123.html): Relaxes RFC 1035's first-character rule to a letter or a digit
 
 ## Configuration

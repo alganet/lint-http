@@ -73,8 +73,150 @@ pub enum MailboxDefect {
     /// into "malformed" would be telling an operator to fix a comma, when what
     /// happened is that a list was written where one address goes.
     ListSeparator,
-    /// Any other departure from § 3's grammar, described.
-    Syntax(String),
+    /// Any other departure from § 3's grammar, named by the production that
+    /// refused the value.
+    Syntax(MailboxSyntaxDefect),
+}
+
+/// Where § 3's grammar stopped, and in which production.
+///
+/// Typed rather than rendered, for the reason the whole catalogue is being
+/// split: a caller that receives a sentence can only report one thing about a
+/// value, and these are seventeen things — a `ctext` refusing an octet nobody
+/// typed, an atom with a doubled dot, a comment nobody closed. The sentence
+/// each of them is answered by is a different line of RFC 5322, and an operator
+/// tuning one is not tuning the others.
+///
+/// The wording of every one is [`MailboxSyntaxDefect::message`]'s, so a caller
+/// embedding it says what this reader found and not what it guessed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MailboxSyntaxDefect {
+    /// An octet inside a `comment` that `ctext` does not admit.
+    CommentCharacter(char),
+    /// A `comment` opened and never closed.
+    CommentUnterminated,
+    /// An octet inside a `quoted-string` that `qtext` does not admit.
+    QuotedStringCharacter(char),
+    /// A `quoted-string` opened and never closed.
+    QuotedStringUnterminated,
+    /// An octet inside a `domain-literal` that `dtext` does not admit.
+    DomainLiteralCharacter(char),
+    /// A `domain-literal` opened and never closed.
+    DomainLiteralUnterminated,
+    /// A backslash with nothing after it to quote, in the named construct.
+    QuotedPairAtEnd {
+        /// The construct holding the backslash — `comment` or `quoted-string`.
+        inside: &'static str,
+    },
+    /// A backslash quoting an octet that is neither `VCHAR` nor `WSP`.
+    QuotedPairCharacter {
+        /// The construct holding the pair — `comment` or `quoted-string`.
+        inside: &'static str,
+        /// What it tried to quote.
+        character: char,
+    },
+    /// An octet in a `dot-atom` that `atext` does not admit.
+    AtomCharacter {
+        /// Which `dot-atom` — `local-part` or `domain`.
+        what: &'static str,
+        /// The octet.
+        character: char,
+    },
+    /// A `.` in a `dot-atom` with no `atext` after it: a trailing or a doubled
+    /// one, either way an atom the `1*atext` floor has nothing to fill.
+    AtomEmpty {
+        /// Which `dot-atom` — `local-part` or `domain`.
+        what: &'static str,
+    },
+    /// The value ends where the `addr-spec` has its `local-part`.
+    LocalPartMissing,
+    /// The `addr-spec`'s `"@"` is not where the production puts it.
+    AtSignMissing(Option<char>),
+    /// The value ends where the `addr-spec` has its `domain`.
+    DomainMissing,
+    /// The `angle-addr`'s `"<"` is not where the `name-addr` puts it — which
+    /// is what an `obs-phrase`'s bare `.` in a display-name comes to.
+    AngleAddrMissing(Option<char>),
+    /// The `angle-addr`'s closing `">"` is not where the production puts it.
+    AngleAddrUnterminated(Option<char>),
+    /// A display-name was opened and holds no `word`.
+    DisplayNameWordMissing(Option<char>),
+    /// A complete `mailbox` with something after it.
+    TrailingCharacter(char),
+}
+
+impl MailboxSyntaxDefect {
+    /// The finding fragment. Every caller embeds this after naming the field
+    /// the value came out of.
+    pub fn message(self) -> String {
+        match self {
+            Self::CommentCharacter(c) => format!(
+                "a comment holds {}, which no ctext admits",
+                describe_char(c)
+            ),
+            Self::CommentUnterminated => "a comment is opened and never closed".to_string(),
+            Self::QuotedStringCharacter(c) => format!(
+                "a quoted-string holds {}, which no qtext admits",
+                describe_char(c)
+            ),
+            Self::QuotedStringUnterminated => {
+                "a quoted-string is opened and never closed".to_string()
+            }
+            Self::DomainLiteralCharacter(c) => format!(
+                "a domain-literal holds {}, which no dtext admits",
+                describe_char(c)
+            ),
+            Self::DomainLiteralUnterminated => {
+                "a domain-literal is opened and never closed".to_string()
+            }
+            Self::QuotedPairAtEnd { inside } => {
+                format!("a {inside} ends on a backslash with nothing after it to quote")
+            }
+            Self::QuotedPairCharacter { inside, character } => format!(
+                "a {inside} quotes {}, where quoted-pair admits only VCHAR and WSP",
+                describe_char(character)
+            ),
+            Self::AtomCharacter { what, character } => format!(
+                "the {what} holds {}, which no atext admits",
+                describe_char(character)
+            ),
+            Self::AtomEmpty { what } => {
+                format!("the {what} has a \".\" with no atext after it")
+            }
+            Self::LocalPartMissing => {
+                "the value ends where the addr-spec has a local-part".to_string()
+            }
+            Self::AtSignMissing(at) => {
+                format!("{} where the addr-spec has its \"@\"", stopped_at(at))
+            }
+            Self::DomainMissing => "the value ends where the addr-spec has a domain".to_string(),
+            Self::AngleAddrMissing(at) => format!(
+                "{} where the mailbox has the \"<\" of its angle-addr",
+                stopped_at(at)
+            ),
+            Self::AngleAddrUnterminated(at) => {
+                format!("{} where the angle-addr has its \">\"", stopped_at(at))
+            }
+            Self::DisplayNameWordMissing(at) => {
+                format!("{} where the display-name has a word", stopped_at(at))
+            }
+            Self::TrailingCharacter(c) => {
+                format!("{} follows a complete mailbox", describe_char(c))
+            }
+        }
+    }
+}
+
+/// What a construct stopped at, as the subject of a finding's sentence.
+///
+/// One rendering for both endings — a character the grammar has no room for,
+/// and the value running out — so the four defects that carry a position state
+/// what they wanted once each instead of twice.
+fn stopped_at(at: Option<char>) -> String {
+    match at {
+        Some(c) => describe_char(c),
+        None => "the value ends".to_string(),
+    }
 }
 
 /// Parse one `mailbox`.
@@ -108,10 +250,9 @@ pub fn parse_mailbox(value: &str) -> Result<Mailbox, MailboxDefect> {
     match r.peek() {
         None => Ok(parsed),
         Some(',') => Err(MailboxDefect::ListSeparator),
-        Some(c) => Err(MailboxDefect::Syntax(format!(
-            "{} follows a complete mailbox",
-            describe_char(c)
-        ))),
+        Some(c) => Err(MailboxDefect::Syntax(
+            MailboxSyntaxDefect::TrailingCharacter(c),
+        )),
     }
 }
 
@@ -234,22 +375,10 @@ impl<'a> Reader<'a> {
         false
     }
 
-    /// What a construct stopped at, as the subject of a finding's sentence.
-    ///
-    /// One rendering for both endings — a character the grammar has no room for,
-    /// and the value running out — so the six sites below state what they wanted
-    /// once each instead of twice.
-    fn stopped_at(&self) -> String {
-        match self.peek() {
-            Some(c) => describe_char(c),
-            None => "the value ends".to_string(),
-        }
-    }
-
     /// Consume `[CFWS]`.
     ///
     /// cite(RFC 5322 § 3.2.2): "CFWS = (1*([FWS] comment) [FWS]) / FWS"
-    fn skip_cfws(&mut self) -> Result<(), String> {
+    fn skip_cfws(&mut self) -> Result<(), MailboxSyntaxDefect> {
         loop {
             while matches!(self.peek(), Some(c) if is_wsp(c)) {
                 self.i += 1;
@@ -263,7 +392,7 @@ impl<'a> Reader<'a> {
 
     /// cite(RFC 5322 § 3.2.2): "comment = "(" *([FWS] ccontent) [FWS] ")""
     /// cite(RFC 5322 § 3.2.2): "ccontent = ctext / quoted-pair / comment"
-    fn comment(&mut self) -> Result<(), String> {
+    fn comment(&mut self) -> Result<(), MailboxSyntaxDefect> {
         self.i += 1;
         // `comment` names itself, so the count is the production and not a
         // convenience: `(a (b) c)` ends at the last parenthesis and a single
@@ -282,34 +411,27 @@ impl<'a> Reader<'a> {
                     self.quoted_pair("comment")?;
                 }
                 c if is_ctext(c) || is_wsp(c) => {}
-                c => {
-                    return Err(format!(
-                        "a comment holds {}, which no ctext admits",
-                        describe_char(c)
-                    ))
-                }
+                c => return Err(MailboxSyntaxDefect::CommentCharacter(c)),
             }
         }
-        Err("a comment is opened and never closed".into())
+        Err(MailboxSyntaxDefect::CommentUnterminated)
     }
 
     /// The octet after a backslash, in whichever construct is quoting it.
-    fn quoted_pair(&mut self, inside: &str) -> Result<char, String> {
+    fn quoted_pair(&mut self, inside: &'static str) -> Result<char, MailboxSyntaxDefect> {
         match self.bump() {
-            None => Err(format!(
-                "a {inside} ends on a backslash with nothing after it to quote"
-            )),
+            None => Err(MailboxSyntaxDefect::QuotedPairAtEnd { inside }),
             Some(c) if is_quotable(c) => Ok(c),
-            Some(c) => Err(format!(
-                "a {inside} quotes {}, where quoted-pair admits only VCHAR and WSP",
-                describe_char(c)
-            )),
+            Some(c) => Err(MailboxSyntaxDefect::QuotedPairCharacter {
+                inside,
+                character: c,
+            }),
         }
     }
 
     /// cite(RFC 5322 § 3.2.4): "quoted-string = [CFWS] DQUOTE *([FWS] qcontent) [FWS] DQUOTE [CFWS]"
     /// cite(RFC 5322 § 3.2.4): "qcontent = qtext / quoted-pair"
-    fn quoted_string(&mut self) -> Result<(), String> {
+    fn quoted_string(&mut self) -> Result<(), MailboxSyntaxDefect> {
         self.i += 1;
         while let Some(ch) = self.bump() {
             match ch {
@@ -318,15 +440,10 @@ impl<'a> Reader<'a> {
                     self.quoted_pair("quoted-string")?;
                 }
                 c if is_qtext(c) || is_wsp(c) => {}
-                c => {
-                    return Err(format!(
-                        "a quoted-string holds {}, which no qtext admits",
-                        describe_char(c)
-                    ))
-                }
+                c => return Err(MailboxSyntaxDefect::QuotedStringCharacter(c)),
             }
         }
-        Err("a quoted-string is opened and never closed".into())
+        Err(MailboxSyntaxDefect::QuotedStringUnterminated)
     }
 
     /// cite(RFC 5322 § 3.2.3): "dot-atom = [CFWS] dot-atom-text [CFWS]"
@@ -335,7 +452,7 @@ impl<'a> Reader<'a> {
     /// the `domain` caller keeps the text, and the local-part — which every
     /// well-formed `From` has — would otherwise pay for a string it drops on
     /// the next statement.
-    fn dot_atom_text(&mut self, what: &str) -> Result<&'a [char], String> {
+    fn dot_atom_text(&mut self, what: &'static str) -> Result<&'a [char], MailboxSyntaxDefect> {
         let start = self.i;
         let mut after_dot = false;
         loop {
@@ -349,15 +466,14 @@ impl<'a> Reader<'a> {
             // doubled `.` derives from nothing and reads as clean.
             if self.i == run {
                 return Err(match self.peek() {
-                    Some(c) if !after_dot => format!(
-                        "the {what} holds {}, which no atext admits",
-                        describe_char(c)
-                    ),
+                    Some(c) if !after_dot => {
+                        MailboxSyntaxDefect::AtomCharacter { what, character: c }
+                    }
                     // The value running out on the *first* pass is unreachable:
                     // both callers test for the end before entering the
                     // production. So a `None` here has always just followed the
                     // `.` this loop consumed, and reads as that arm does.
-                    _ => format!("the {what} has a \".\" with no atext after it"),
+                    _ => MailboxSyntaxDefect::AtomEmpty { what },
                 });
             }
             if self.peek() == Some('.') {
@@ -370,27 +486,22 @@ impl<'a> Reader<'a> {
     }
 
     /// cite(RFC 5322 § 3.4.1): "domain-literal = [CFWS] "[" *([FWS] dtext) [FWS] "]" [CFWS]"
-    fn domain_literal(&mut self) -> Result<(), String> {
+    fn domain_literal(&mut self) -> Result<(), MailboxSyntaxDefect> {
         self.i += 1;
         while let Some(ch) = self.bump() {
             match ch {
                 ']' => return Ok(()),
                 c if is_dtext(c) || is_wsp(c) => {}
-                c => {
-                    return Err(format!(
-                        "a domain-literal holds {}, which no dtext admits",
-                        describe_char(c)
-                    ))
-                }
+                c => return Err(MailboxSyntaxDefect::DomainLiteralCharacter(c)),
             }
         }
-        Err("a domain-literal is opened and never closed".into())
+        Err(MailboxSyntaxDefect::DomainLiteralUnterminated)
     }
 
     /// cite(RFC 5322 § 3.4.1): "addr-spec = local-part "@" domain"
     /// cite(RFC 5322 § 3.4.1): "local-part = dot-atom / quoted-string / obs-local-part"
     /// cite(RFC 5322 § 3.4.1): "domain = dot-atom / domain-literal / obs-domain"
-    fn addr_spec(&mut self) -> Result<Option<String>, String> {
+    fn addr_spec(&mut self) -> Result<Option<String>, MailboxSyntaxDefect> {
         self.skip_cfws()?;
         // The alternation is decided by one character, and the sentence beside
         // the grammar says which: a quoted-string can only open on a DQUOTE, and
@@ -402,16 +513,13 @@ impl<'a> Reader<'a> {
             Some(_) => {
                 self.dot_atom_text("local-part")?;
             }
-            None => return Err("the value ends where the addr-spec has a local-part".into()),
+            None => return Err(MailboxSyntaxDefect::LocalPartMissing),
         }
 
         self.skip_cfws()?;
         // cite(RFC 5322 § 3.4.1): "An addr-spec is a specific Internet identifier that contains a locally interpreted string followed by the at-sign character ("@", ASCII value 64) followed by an Internet domain."
         if self.peek() != Some('@') {
-            return Err(format!(
-                "{} where the addr-spec has its \"@\"",
-                self.stopped_at()
-            ));
+            return Err(MailboxSyntaxDefect::AtSignMissing(self.peek()));
         }
         self.i += 1;
 
@@ -422,13 +530,13 @@ impl<'a> Reader<'a> {
                 None
             }
             Some(_) => Some(self.dot_atom_text("domain")?.iter().collect()),
-            None => return Err("the value ends where the addr-spec has a domain".into()),
+            None => return Err(MailboxSyntaxDefect::DomainMissing),
         };
         self.skip_cfws()?;
         Ok(domain_name)
     }
 
-    fn name_addr(&mut self) -> Result<Mailbox, String> {
+    fn name_addr(&mut self) -> Result<Mailbox, MailboxSyntaxDefect> {
         self.skip_cfws()?;
         // The display-name is optional, so `<user@example.com>` is a whole
         // `name-addr` and the branch below is not entered for it.
@@ -441,20 +549,14 @@ impl<'a> Reader<'a> {
         // because a parser that panics on its own invariant is worse than one
         // that reports a sentence nobody reads.
         if self.peek() != Some('<') {
-            return Err(format!(
-                "{} where the mailbox has the \"<\" of its angle-addr",
-                self.stopped_at()
-            ));
+            return Err(MailboxSyntaxDefect::AngleAddrMissing(self.peek()));
         }
         self.i += 1;
 
         let domain_name = self.addr_spec()?;
 
         if self.peek() != Some('>') {
-            return Err(format!(
-                "{} where the angle-addr has its \">\"",
-                self.stopped_at()
-            ));
+            return Err(MailboxSyntaxDefect::AngleAddrUnterminated(self.peek()));
         }
         self.i += 1;
         self.skip_cfws()?;
@@ -465,7 +567,7 @@ impl<'a> Reader<'a> {
     /// cite(RFC 5322 § 3.2.5): "phrase = 1*word / obs-phrase"
     /// cite(RFC 5322 § 3.2.5): "word = atom / quoted-string"
     /// cite(RFC 5322 § 3.2.3): "atom = [CFWS] 1*atext [CFWS]"
-    fn display_name(&mut self) -> Result<(), String> {
+    fn display_name(&mut self) -> Result<(), MailboxSyntaxDefect> {
         let mut saw_a_word = false;
         loop {
             self.skip_cfws()?;
@@ -484,10 +586,7 @@ impl<'a> Reader<'a> {
             }
         }
         if !saw_a_word {
-            return Err(format!(
-                "{} where the display-name has a word",
-                self.stopped_at()
-            ));
+            return Err(MailboxSyntaxDefect::DisplayNameWordMissing(self.peek()));
         }
         Ok(())
     }
@@ -502,7 +601,7 @@ mod tests {
         match parse_mailbox(v) {
             Ok(m) => m,
             Err(MailboxDefect::ListSeparator) => panic!("{v:?} read as a mailbox-list"),
-            Err(MailboxDefect::Syntax(e)) => panic!("{v:?} rejected: {e}"),
+            Err(MailboxDefect::Syntax(e)) => panic!("{v:?} rejected: {}", e.message()),
         }
     }
 
@@ -510,7 +609,7 @@ mod tests {
         match parse_mailbox(v) {
             Ok(_) => panic!("{v:?} accepted"),
             Err(MailboxDefect::ListSeparator) => "list separator".to_string(),
-            Err(MailboxDefect::Syntax(e)) => e,
+            Err(MailboxDefect::Syntax(e)) => e.message(),
         }
     }
 
@@ -593,6 +692,20 @@ mod tests {
     )]
     #[case("Team: a@example.com;", "':' where the addr-spec has its \"@\"")]
     #[case("alice@exa mple.com", "'m' follows a complete mailbox")]
+    // The four productions whose refusal nothing above reaches: `dtext`,
+    // either half of a `quoted-pair`, and a display-name opened on something
+    // that is no `word`. Each names a defect of its own, so each is worded
+    // once and asserted here rather than trusted to the parse it shares.
+    #[case("alice@[a\u{e9}b]", "a domain-literal holds 0xE9")]
+    #[case(
+        "a@example.com (x\\",
+        "a comment ends on a backslash with nothing after it to quote"
+    )]
+    #[case(
+        "\"a\\\u{e9}b\"@example.com",
+        "a quoted-string quotes 0xE9, where quoted-pair admits only VCHAR and WSP"
+    )]
+    #[case(". <alice@example.com>", "'.' where the display-name has a word")]
     fn section_4_and_worse_is_refused(#[case] value: &str, #[case] expected: &str) {
         let e = err(value);
         assert!(e.contains(expected), "{value:?} was rejected as {e:?}");
