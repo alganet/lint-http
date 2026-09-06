@@ -4,8 +4,30 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::auth_scheme::RFC_9110_11_2;
+use crate::violations::credentials::{CREDENTIALS_MISSING, RFC_9110_11_6_2};
+use crate::violations::token68::{
+    bearer_token_defect, TOKEN68_BODY_EMPTY, TOKEN68_CHARACTER_FORBIDDEN,
+    TOKEN68_PADDING_MALFORMED, TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct BearerTokenSyntax;
+
+/// The defects this rule reports, and not one of them is `Bearer`'s. RFC 6750
+/// § 2.1 gives the scheme `b64token`, which is § 11.2's `token68` spelled
+/// again with the same alphabet — so the four grammar defects are the
+/// production's, and a `WWW-Authenticate` challenge carrying a bare word
+/// reports the first of them under the same id. A `Bearer` with nothing after
+/// it is the framework's `credentials_missing`, which is what two other rules
+/// say about the same request.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN68_CHARACTER_FORBIDDEN,
+    &TOKEN68_BODY_EMPTY,
+    &TOKEN68_PADDING_MALFORMED,
+    &CREDENTIALS_MISSING,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -15,12 +37,6 @@ const RFC_6750_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("2.1"),
     url: "https://www.rfc-editor.org/rfc/rfc6750.html#section-2.1",
     note: "Bearer credentials — `credentials = \"Bearer\" 1*SP b64token`; the Authorization header form and grammar for the Bearer scheme",
-};
-const RFC_9110_11_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2",
-    note: "token68 — the current auth framework's credential-token grammar, defined identically to RFC 6750's b64token; anchors the shape in a live spec (RFC 6750 references the obsolete RFC 2617). Replaces a stale RFC 7235 pointer.",
 };
 
 impl RuleMeta for BearerTokenSyntax {
@@ -39,7 +55,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6750_2_1, RFC_9110_11_2]
+        &[RFC_6750_2_1, RFC_9110_11_2, RFC_9110_11_6_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -97,16 +117,18 @@ impl Rule for BearerTokenSyntax {
                     // cite(RFC 6750 § 2.1): "credentials = "Bearer" 1*SP b64token"
                     let creds = parts.next().map(|r| r.trim()).unwrap_or("");
                     if creds.is_empty() {
-                        return Some(self.cited(
-                            &RFC_6750_2_1,
-                            ctx.severity,
+                        // The framework's defect and not this scheme's: what
+                        // must follow a scheme is `credentials`' sentence,
+                        // whichever scheme was named.
+                        return Some(ctx.report_with(
+                            &CREDENTIALS_MISSING,
                             "Authorization: Bearer missing token".into(),
                         ));
                     }
 
                     if let Err(defect) = crate::helpers::auth::validate_bearer_token(creds) {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            bearer_token_defect(defect),
                             format!("Invalid Bearer token: {}", defect.message()),
                         ));
                     }
@@ -126,6 +148,51 @@ static REGISTRATION: &dyn crate::rules::Rule = &BearerTokenSyntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Five names where the rule had one, and none of them is `Bearer`'s: the
+    /// token is `token68` under another spelling, and a scheme with nothing
+    /// after it is the framework's defect. The whitespace row defaults a level
+    /// above the rest — a space inside credentials is the value having been
+    /// split or joined by something on the way, not a sender's choice.
+    #[rstest]
+    #[case("Bearer", "credentials_missing", crate::lint::Severity::Warn)]
+    #[case(
+        "Bearer a b",
+        "token68_whitespace_or_control_forbidden",
+        crate::lint::Severity::Error
+    )]
+    #[case(
+        "Bearer a@b",
+        "token68_character_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    #[case("Bearer ==", "token68_body_empty", crate::lint::Severity::Warn)]
+    #[case(
+        "Bearer ab=c",
+        "token68_padding_malformed",
+        crate::lint::Severity::Warn
+    )]
+    fn each_finding_names_the_defect_and_carries_its_severity(
+        #[case] header: &str,
+        #[case] violation: &str,
+        #[case] severity: crate::lint::Severity,
+    ) -> anyhow::Result<()> {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers.append(
+            "authorization",
+            hyper::header::HeaderValue::from_str(header)?,
+        );
+        let v = crate::test_helpers::run_rule(
+            &BearerTokenSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["bearer_token_syntax"]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {header:?}"));
+        assert_eq!(v.violation, violation, "{}", v.message);
+        assert_eq!(v.severity, severity, "{}", v.message);
+        Ok(())
+    }
 
     #[rstest]
     #[case(Some("Bearer abc123"), false)]

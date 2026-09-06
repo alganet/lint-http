@@ -137,6 +137,16 @@ rather than by luck, and `every_violation_id_names_a_defect` checks the ending
 against the same words. Extending it is a reviewed act: the row here and the
 word in that test move in one commit.
 
+**One pair is spelled the same way everywhere.** When a subject separates the
+octets nobody typed from the ones a sender chose, the two ids are
+`<subject>_whitespace_or_control_forbidden` and
+`<subject>_character_forbidden`, and the first defaults a level above the
+second. A control octet or a space inside a value whose grammar admits neither
+is something that happened to the value — in transit, or in whatever assembled
+it — while a `_` in a host name or an `@` in a token is a sender being wrong on
+purpose. Three subjects reached this split independently before it was written
+down here; a fourth should not invent a fourth spelling for it.
+
 An id must be a valid Rust identifier, because the def is a `static` named by
 the id in `SCREAMING_SNAKE_CASE` — `IF_MATCH_MEMBER_MALFORMED` — the same
 one-name-several-spellings rule the rule files follow. The def lives in
