@@ -48,7 +48,8 @@ fn validate_ext_value_invalid_charset_non_ascii() {
 #[test]
 fn a_mailbox_whose_angle_addr_holds_no_addr_spec_is_refused() {
     match parse_mailbox("Alice <not-an-email>") {
-        Err(MailboxDefect::Syntax(msg)) => {
+        Err(MailboxDefect::Syntax(defect)) => {
+            let msg = defect.message();
             assert!(msg.contains("where the addr-spec has its \"@\""), "{msg}")
         }
         Err(MailboxDefect::ListSeparator) => panic!("read as a mailbox-list"),

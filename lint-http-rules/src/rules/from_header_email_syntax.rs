@@ -8,8 +8,58 @@ use crate::helpers::mailbox::{parse_mailbox, MailboxDefect};
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::domain::{
+    preferred_name_defect, DOMAIN_LABEL_CHARACTER_FORBIDDEN, DOMAIN_LABEL_EDGE_HYPHEN_FORBIDDEN,
+    DOMAIN_LABEL_EMPTY, DOMAIN_LABEL_LENGTH_INVALID, DOMAIN_NAME_LENGTH_INVALID, RFC_1035_2_3_1,
+    RFC_1035_2_3_4,
+};
+use crate::violations::mailbox::{
+    syntax_defect, MAILBOX_ANGLE_ADDR_MISSING, MAILBOX_ANGLE_ADDR_TERMINATOR_MISSING,
+    MAILBOX_ATOM_CHARACTER_FORBIDDEN, MAILBOX_ATOM_EMPTY, MAILBOX_AT_SIGN_MISSING,
+    MAILBOX_COMMENT_CHARACTER_FORBIDDEN, MAILBOX_COMMENT_TERMINATOR_MISSING,
+    MAILBOX_DISPLAY_NAME_WORD_MISSING, MAILBOX_DOMAIN_LITERAL_CHARACTER_FORBIDDEN,
+    MAILBOX_DOMAIN_LITERAL_TERMINATOR_MISSING, MAILBOX_DOMAIN_MISSING, MAILBOX_EMPTY,
+    MAILBOX_LIST_SEPARATOR_FORBIDDEN, MAILBOX_LOCAL_PART_MISSING, MAILBOX_QUOTED_PAIR_MALFORMED,
+    MAILBOX_QUOTED_STRING_CHARACTER_FORBIDDEN, MAILBOX_QUOTED_STRING_TERMINATOR_MISSING,
+    MAILBOX_TRAILING_CHARACTER_FORBIDDEN, RFC_5322_3_2_1, RFC_5322_3_2_2, RFC_5322_3_2_3,
+    RFC_5322_3_2_4, RFC_5322_3_2_5, RFC_5322_3_4, RFC_5322_3_4_1,
+};
+use crate::violations::ViolationDef;
 
 pub struct FromHeaderEmailSyntax;
+
+/// The defects this rule reports. None of them is its own: the eighteen
+/// `mailbox_*` belong to the production RFC 9110 § 10.1.2 imports rather than
+/// to the field that imports it, and the five `domain_*` are the preferred name
+/// syntax any field carrying a host name is answered by — `cookie_domain_valid`
+/// declares those same five. What is missing from this list is the second field
+/// line, which is not this rule's defect either: it belongs to the shared
+/// singleton reading, and converts with that subject.
+static DECLARED: &[&ViolationDef] = &[
+    &MAILBOX_EMPTY,
+    &MAILBOX_LIST_SEPARATOR_FORBIDDEN,
+    &MAILBOX_COMMENT_CHARACTER_FORBIDDEN,
+    &MAILBOX_COMMENT_TERMINATOR_MISSING,
+    &MAILBOX_QUOTED_STRING_CHARACTER_FORBIDDEN,
+    &MAILBOX_QUOTED_STRING_TERMINATOR_MISSING,
+    &MAILBOX_QUOTED_PAIR_MALFORMED,
+    &MAILBOX_ATOM_CHARACTER_FORBIDDEN,
+    &MAILBOX_ATOM_EMPTY,
+    &MAILBOX_LOCAL_PART_MISSING,
+    &MAILBOX_AT_SIGN_MISSING,
+    &MAILBOX_DOMAIN_MISSING,
+    &MAILBOX_DOMAIN_LITERAL_CHARACTER_FORBIDDEN,
+    &MAILBOX_DOMAIN_LITERAL_TERMINATOR_MISSING,
+    &MAILBOX_ANGLE_ADDR_MISSING,
+    &MAILBOX_ANGLE_ADDR_TERMINATOR_MISSING,
+    &MAILBOX_DISPLAY_NAME_WORD_MISSING,
+    &MAILBOX_TRAILING_CHARACTER_FORBIDDEN,
+    &DOMAIN_NAME_LENGTH_INVALID,
+    &DOMAIN_LABEL_EMPTY,
+    &DOMAIN_LABEL_LENGTH_INVALID,
+    &DOMAIN_LABEL_EDGE_HYPHEN_FORBIDDEN,
+    &DOMAIN_LABEL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -44,48 +94,11 @@ const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
     note: "The MUST NOT that makes a value outside the field's ABNF a finding",
 };
-const RFC_5322_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5322",
-    section: Some("3.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4",
-    note: "`mailbox = name-addr / addr-spec`, and `mailbox-list` beside it — the production this field does *not* import",
-};
-const RFC_5322_3_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5322",
-    section: Some("3.4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.4.1",
-    note: "`addr-spec = local-part \"@\" domain`, `domain-literal`, and the sentence handing a `dot-atom` domain to the host-name documents",
-};
-const RFC_5322_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5322",
-    section: Some("3.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.2",
-    note: "`CFWS` — folding whitespace and nested parenthesised comments, admitted around nearly every token of a mailbox",
-};
-const RFC_5322_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5322",
-    section: Some("3.2.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.3",
-    note: "`atext`, `atom` and `dot-atom-text` — the `1*atext` floors either side of every dot",
-};
-const RFC_5322_3_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5322",
-    section: Some("3.2.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-3.2.4",
-    note:
-        "`quoted-string` and `qtext`, the alternative a local-part or a display-name word may take",
-};
 const RFC_5322_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 5322",
     section: Some("4"),
     url: "https://www.rfc-editor.org/rfc/rfc5322.html#section-4",
     note: "Obsolete syntax: MUST NOT be generated, MUST be accepted by a receiver — this rule reports on the generator",
-};
-const RFC_1035_2_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 1035",
-    section: Some("2.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.1",
-    note: "Preferred name syntax for the `dot-atom` form of a domain — advisory, and the one finding here that is reported as advice",
 };
 const RFC_1123_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 1123",
@@ -116,15 +129,22 @@ severity = "warn"
             RFC_9110_5_3,
             RFC_9110_5_5,
             RFC_9110_2_2,
-            RFC_5322_3_4,
-            RFC_5322_3_4_1,
+            RFC_5322_3_2_1,
             RFC_5322_3_2_2,
             RFC_5322_3_2_3,
             RFC_5322_3_2_4,
+            RFC_5322_3_2_5,
+            RFC_5322_3_4,
+            RFC_5322_3_4_1,
             RFC_5322_4,
             RFC_1035_2_3_1,
+            RFC_1035_2_3_4,
             RFC_1123_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -274,19 +294,18 @@ impl Rule for FromHeaderEmailSyntax {
             let value = trim_ows(&value);
 
             if value.is_empty() {
-                // Both of `mailbox`'s alternatives contain an `addr-spec`, and
-                // `addr-spec` writes a literal `"@"` — so the shortest value the
-                // field's grammar generates is not the empty one, whichever
-                // alternative each half takes. That is the whole argument, and it is
-                // deliberately about the at-sign rather than about a `1*atext` floor:
-                // a `quoted-string` local-part has no such floor (`""` derives), and
-                // neither does a `domain-literal` (`[]` derives).
+                // The argument is on the def, which is the mailbox production's
+                // and not this field's. What is this rule's own is the sentence
+                // that makes an off-grammar value reportable at all: RFC 9110
+                // hands `From` a production and forbids generating anything that
+                // does not derive from it.
                 //
                 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-                return violation(
+                return Some(ctx.report_with(
+                    &MAILBOX_EMPTY,
                     "From is present with an empty value. `From = mailbox`, both of that production's alternatives contain an `addr-spec`, and `addr-spec = local-part \"@\" domain` writes an at-sign the value does not have — so no empty value derives from the field's grammar (RFC 5322 §3.4.1)"
                         .to_string(),
-                );
+                ));
             }
 
             match parse_mailbox(value) {
@@ -315,12 +334,20 @@ impl Rule for FromHeaderEmailSyntax {
                     // address, not a name, so the helper is asked only for the
                     // `dot-atom` form.
                     //
+                    // The five defects it can answer with are the shared
+                    // `domain_*` ones, which is what an operator who considers
+                    // the preferred name syntax advisory now tunes once for
+                    // every field carrying a name rather than once per rule.
+                    //
                     // cite(RFC 5322 § 3.4.1): "In the dot-atom form, this is interpreted as an Internet domain name (either a host name or a mail exchanger name) as described in [RFC1034], [RFC1035], and [RFC1123]."
                     // cite(RFC 5322 § 3.4.1): "It is therefore incumbent upon implementations to conform to the syntax of addresses for the context in which they are used."
-                    violation(format!(
-                        "From names the domain '{}', which is a conforming `dot-atom` but not an Internet domain name in RFC 1035 §2.3.1's preferred syntax: {}. This is advice, not a violation — RFC 5322 §3.4.1 hands the domain to the host-name documents rather than restricting it itself, and RFC 9110 §10.1.2 asks only that the address be machine-usable",
-                        shown_in_finding(&domain),
-                        defect.message()
+                    Some(ctx.report_with(
+                        preferred_name_defect(defect),
+                        format!(
+                            "From names the domain '{}', which is a conforming `dot-atom` but not an Internet domain name in RFC 1035 §2.3.1's preferred syntax: {}. This is advice, not a violation — RFC 5322 §3.4.1 hands the domain to the host-name documents rather than restricting it itself, and RFC 9110 §10.1.2 asks only that the address be machine-usable",
+                            shown_in_finding(&domain),
+                            defect.message()
+                        ),
                     ))
                 }
                 Err(MailboxDefect::ListSeparator) => {
@@ -332,12 +359,12 @@ impl Rule for FromHeaderEmailSyntax {
                     // The previous rule validated a `mailbox-list`, published
                     // `From: Alice <alice@example.com>, bob@example.org` to operators
                     // as a compliant example, and so had nothing to report here.
-                    //
-                    // cite(RFC 5322 § 3.4): "mailbox = name-addr / addr-spec"
-                    // cite(RFC 5322 § 3.4): "mailbox-list = (mailbox *("," mailbox)) / obs-mbox-list"
-                    violation(format!(
-                        "From value '{}' carries a comma outside every quoted-string, comment and angle-addr — `mailbox-list`'s separator, in a field whose value is one `mailbox`. RFC 5322 §3.4 defines the list form two lines below the one RFC 9110 §10.1.2 imports, so a request that means to name two people has no way to say so in this field",
-                        shown_in_finding(value)
+                    Some(ctx.report_with(
+                        &MAILBOX_LIST_SEPARATOR_FORBIDDEN,
+                        format!(
+                            "From value '{}' carries a comma outside every quoted-string, comment and angle-addr — `mailbox-list`'s separator, in a field whose value is one `mailbox`. RFC 5322 §3.4 defines the list form two lines below the one RFC 9110 §10.1.2 imports, so a request that means to name two people has no way to say so in this field",
+                            shown_in_finding(value)
+                        ),
                     ))
                 }
                 Err(MailboxDefect::Syntax(defect)) => {
@@ -346,13 +373,18 @@ impl Rule for FromHeaderEmailSyntax {
                     // `obs-angle-addr`'s source route, `obs-domain`'s whitespace
                     // around the dots. § 4 admits them for a *receiver* and forbids
                     // generating them in the same sentence, which is the half that
-                    // applies to the party this rule reports on.
+                    // applies to the party this rule reports on — the sentence this
+                    // rule reads, where the sentence each defect breaks is on its
+                    // own def.
                     //
                     // cite(RFC 5322 § 4): "Though these syntactic forms MUST NOT be generated according to the grammar in section 3, they MUST be accepted and parsed by a conformant receiver."
-                    violation(format!(
-                        "From value '{}' is not an RFC 5322 §3.4 `mailbox`: {} (RFC 9110 §10.1.2)",
-                        shown_in_finding(value),
-                        defect
+                    Some(ctx.report_with(
+                        syntax_defect(defect),
+                        format!(
+                            "From value '{}' is not an RFC 5322 §3.4 `mailbox`: {} (RFC 9110 §10.1.2)",
+                            shown_in_finding(value),
+                            defect.message()
+                        ),
                     ))
                 }
             }
@@ -508,6 +540,58 @@ mod tests {
         assert!(v.message.contains("preferred syntax"), "{}", v.message);
         // And the bracketed form is not asked the question at all.
         assert_eq!(judge_value("alice@[192.0.2.1]").map(|v| v.message), None);
+    }
+
+    /// One message shape, many names. Each row is a value whose defect the
+    /// grammar refuses in a different production, and the last two are the
+    /// interesting pair: a comma keeps a name of its own because what it says
+    /// is that a list was written where one address goes, and an underscore in
+    /// the domain half reports under the *shared* name every field carrying a
+    /// host name reports it under — the same id `cookie_domain_valid` emits.
+    #[rstest]
+    #[case("", "mailbox_empty")]
+    #[case("not-an-email", "mailbox_at_sign_missing")]
+    #[case("alice@", "mailbox_domain_missing")]
+    #[case("@example.com", "mailbox_atom_character_forbidden")]
+    #[case("alice.@example.com", "mailbox_atom_empty")]
+    #[case("Alice <alice@example.com", "mailbox_angle_addr_terminator_missing")]
+    #[case("John Q. Public <jqp@example.com>", "mailbox_angle_addr_missing")]
+    #[case("alice@exa mple.com", "mailbox_trailing_character_forbidden")]
+    #[case("a@b.com (unclosed", "mailbox_comment_terminator_missing")]
+    #[case("\"unclosed@example.com", "mailbox_quoted_string_terminator_missing")]
+    #[case("alice@[192.0.2.1", "mailbox_domain_literal_terminator_missing")]
+    #[case(
+        "Alice <alice@example.com>, bob@example.org",
+        "mailbox_list_separator_forbidden"
+    )]
+    #[case("alice@my_host.example", "domain_label_character_forbidden")]
+    fn each_finding_names_the_defect_behind_it(#[case] from: &str, #[case] violation: &str) {
+        let v = judge_value(from).unwrap_or_else(|| panic!("expected a finding for {from:?}"));
+        assert_eq!(v.violation, violation, "{}", v.message);
+    }
+
+    /// The rule's configured severity no longer answers for what it reports.
+    /// It is set to `error` here and the finding still arrives at the defect's
+    /// own `warn`, which is the whole point of the split: `[violations.
+    /// mailbox_at_sign_missing]` is what moves this one, and it moves it in
+    /// every rule that reports it.
+    #[test]
+    fn the_defect_carries_its_severity_and_the_rule_does_not() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("from", "not-an-email")]);
+        let config = crate::test_helpers::make_test_config_with_severity(
+            "from_header_email_syntax",
+            "error",
+        );
+        let v = crate::test_helpers::run_rule(
+            &FromHeaderEmailSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .expect("a finding");
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
     }
 
     #[test]

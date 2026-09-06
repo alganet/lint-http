@@ -1151,6 +1151,78 @@ severity = "warn"
 # Language tag holds whitespace or a control character
 severity = "error"
 
+[violations.mailbox_angle_addr_missing]
+# Mailbox has no angle-addr where the name-addr wants one
+severity = "warn"
+
+[violations.mailbox_angle_addr_terminator_missing]
+# Mailbox angle-addr is never closed
+severity = "warn"
+
+[violations.mailbox_at_sign_missing]
+# Mailbox has no at-sign
+severity = "warn"
+
+[violations.mailbox_atom_character_forbidden]
+# Mailbox atom holds a character outside atext
+severity = "warn"
+
+[violations.mailbox_atom_empty]
+# Mailbox atom is empty beside a dot
+severity = "warn"
+
+[violations.mailbox_comment_character_forbidden]
+# Mailbox comment holds a character outside ctext
+severity = "warn"
+
+[violations.mailbox_comment_terminator_missing]
+# Mailbox comment is never closed
+severity = "warn"
+
+[violations.mailbox_display_name_word_missing]
+# Mailbox display-name holds no word
+severity = "warn"
+
+[violations.mailbox_domain_literal_character_forbidden]
+# Mailbox domain-literal holds a character outside dtext
+severity = "warn"
+
+[violations.mailbox_domain_literal_terminator_missing]
+# Mailbox domain-literal is never closed
+severity = "warn"
+
+[violations.mailbox_domain_missing]
+# Mailbox has no domain
+severity = "warn"
+
+[violations.mailbox_empty]
+# Mailbox field is present with an empty value
+severity = "warn"
+
+[violations.mailbox_list_separator_forbidden]
+# Mailbox holds a comma where one address goes
+severity = "warn"
+
+[violations.mailbox_local_part_missing]
+# Mailbox has no local-part
+severity = "warn"
+
+[violations.mailbox_quoted_pair_malformed]
+# Mailbox escape is not a quoted-pair
+severity = "warn"
+
+[violations.mailbox_quoted_string_character_forbidden]
+# Mailbox quoted-string holds a character outside qtext
+severity = "warn"
+
+[violations.mailbox_quoted_string_terminator_missing]
+# Mailbox quoted-string is never closed
+severity = "warn"
+
+[violations.mailbox_trailing_character_forbidden]
+# Mailbox is followed by something else
+severity = "warn"
+
 [violations.percent_encoding_digits_missing]
 # Percent-encoding stops before its two hexadecimal digits
 severity = "warn"
