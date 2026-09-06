@@ -2,10 +2,53 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::parameter::ParameterDefect;
+use crate::helpers::word::WordDefect;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::parameter::{
+    PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
+};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct AcceptHeaderMediaTypeSyntax;
+
+/// Everything in an `Accept` member that is a `token`, a `parameter` or a
+/// `quoted-string` — which is everything about a member except what makes it a
+/// *media-range* and what makes a `q` a weight.
+///
+/// `media-range = ( "*/*" / ( type "/" "*" ) / ( type "/" subtype ) )
+/// parameters` borrows both of its halves: each side of the slash is a `token`
+/// and the tail is § 5.6.6's, the same two productions `Content-Type` is
+/// written out of. So the nine ids below are `content_type_valid`'s nine, and
+/// the character in `Accept: text/pl@in` draws the same one as the character in
+/// `Content-Type: text/pl@in`.
+///
+/// What stays on the older API is what only this field can say: an empty
+/// media-range, whitespace inside one, a `/` that is missing, a bare `*`, a
+/// wildcard type beside a concrete subtype, a parameter written after the
+/// weight, and a `q` whose value is no `qvalue`. Those are § 12.5.1's and
+/// § 12.4.2's, and neither has a subject yet.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_EMPTY,
+    &PARAMETER_EQUALS_MISSING,
+    &PARAMETER_VALUE_EMPTY,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -27,12 +70,6 @@ const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.3.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
     note: "Media Type: `type` and `subtype` are both `token`, which is what the character checks enforce",
-};
-const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-    note: "Parameters: the `name=value` grammar and the two alternatives a value may take. Its prohibition on whitespace around `=` is NOT enforced here",
 };
 const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -66,8 +103,14 @@ severity = "warn"
             RFC_9110_12_4_2,
             RFC_9110_8_3_1,
             RFC_9110_5_6_6,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
             RFC_9110_5_6_1_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -243,9 +286,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             if let Some(c) =
                                 crate::helpers::token::find_invalid_token_char(parsed.type_)
                             {
-                                return Some(self.cited(
-                                    &RFC_9110_8_3_1,
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    token_character(c),
                                     format!(
                                         "Invalid token '{}' in media type '{}' of {}",
                                         c, parsed.type_, hdr
@@ -272,8 +314,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(parsed.subtype)
                                 {
-                                    return Some(self.violation(
-                                        ctx.severity,
+                                    return Some(ctx.report_with(
+                                        token_character(c),
                                         format!(
                                             "Invalid token '{}' in media subtype '{}' of {}",
                                             c, parsed.subtype, hdr
@@ -322,9 +364,9 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         };
                         let parsed = match parsed {
                             Ok(parsed) => parsed,
-                            Err(crate::helpers::parameter::ParameterDefect::NoEquals(_)) => {
-                                return Some(self.violation(
-                                    ctx.severity,
+                            Err(ParameterDefect::NoEquals(_)) => {
+                                return Some(ctx.report_with(
+                                    &PARAMETER_EQUALS_MISSING,
                                     format!(
                                         "Invalid parameter '{}' in {} header: missing '='",
                                         p, hdr
@@ -343,16 +385,15 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         // on its own; §5.6.2's sentence carries the same point and
                         // covers the whitespace check above as well.)
                         // cite(RFC 9110 § 5.6.6): "parameter-name  = token"
-                        // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
                         if k.is_empty() {
-                            return Some(self.violation(ctx.severity, format!(
+                            return Some(ctx.report_with(&TOKEN_EMPTY, format!(
                                     "Empty parameter name in '{}' of {} header: a token is one or more characters",
                                     p, hdr
                                 )));
                         }
                         if let Some(c) = crate::helpers::token::find_invalid_token_char(k) {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                token_character(c),
                                 format!(
                                     "Invalid character '{}' in parameter name '{}' in {} header",
                                     c, k, hdr
@@ -384,7 +425,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                         } else {
                             // `parameter-value` is `( token / quoted-string )`, and
                             // the alternation is read by the helper that owns it.
-                            // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
+                            // Each half's defect is named after the half, which is
+                            // why the three arms below report three subjects.
                             match crate::helpers::word::token_or_quoted_string(v) {
                                 Ok(_) => {}
                                 // The same shape the parameter *name* above was
@@ -396,15 +438,15 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                 // `quoted-string` is its two DQUOTEs -- so the value
                                 // as written derives from no `parameter-value`.
                                 // (`x=""` is a different value and still conforms.)
-                                Err(crate::helpers::word::WordDefect::Empty) => {
-                                    return Some(self.violation(ctx.severity, format!(
+                                Err(WordDefect::Empty) => {
+                                    return Some(ctx.report_with(&PARAMETER_VALUE_EMPTY, format!(
                                             "Empty parameter value in '{}' of {} header: a parameter-value is a token or a quoted-string, and neither derives the empty string",
                                             p, hdr
                                         )));
                                 }
-                                Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => {
-                                    return Some(self.violation(
-                                        ctx.severity,
+                                Err(WordDefect::NotQuotedString(defect)) => {
+                                    return Some(ctx.report_with(
+                                        quoted_string_defect(defect),
                                         format!(
                                             "Invalid quoted-string parameter '{}' in {} header: {}",
                                             p,
@@ -413,8 +455,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                         ),
                                     ));
                                 }
-                                Err(crate::helpers::word::WordDefect::NotToken(c)) => {
-                                    return Some(self.violation(ctx.severity, format!(
+                                Err(WordDefect::NotToken(c)) => {
+                                    return Some(ctx.report_with(token_character(c), format!(
                                             "Invalid token '{}' in parameter value '{}' of {} header",
                                             c, v, hdr
                                         )));
@@ -500,6 +542,49 @@ mod tests {
             &cfg,
         );
         assert!(v.is_some(), "text/html carrying %xA0 drew nothing");
+    }
+
+    /// A media-range is a media type in another field, and a member's parts now
+    /// say so by name: the same value read as an `Accept` member and as a
+    /// `Content-Type` draws one id, out of two rules that share no code on this
+    /// path — this one walks the member itself, `content_type_valid` reads it
+    /// through the media type helper.
+    ///
+    /// Six rows: both halves of the slash, and every position a parameter has.
+    #[rstest]
+    #[case("te@xt/html", "token_character_forbidden")]
+    #[case("text/ht@ml", "token_character_forbidden")]
+    #[case("text/html; charset", "parameter_equals_missing")]
+    #[case("text/html; =value", "token_empty")]
+    #[case("text/html; charset=", "parameter_value_empty")]
+    #[case("text/html; param=\"unterminated", "quoted_string_delimiter_missing")]
+    fn an_accept_member_and_a_content_type_report_one_id(#[case] value: &str, #[case] id: &str) {
+        let history = crate::transaction_history::TransactionHistory::empty();
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("accept", value)]);
+        let member = crate::test_helpers::run_rule(
+            &AcceptHeaderMediaTypeSyntax,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "accept_header_media_type_syntax",
+            ]),
+        )
+        .expect("a finding about the Accept member");
+        assert_eq!(member.violation, id, "Accept: {value}");
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", value)]);
+        let field = crate::test_helpers::run_rule(
+            &crate::rules::content_type_valid::ContentTypeValid,
+            &tx,
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_valid"]),
+        )
+        .expect("a finding about the Content-Type");
+        assert_eq!(field.violation, id, "Content-Type: {value}");
     }
 
     #[rstest]
