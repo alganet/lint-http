@@ -16,6 +16,56 @@ use crate::helpers::quoted_string::unescape_quoted_string;
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::node::{
+    node_defect, NODE_IPV4_ADDRESS_MALFORMED, NODE_IPV6_ADDRESS_MALFORMED,
+    NODE_IPV6_BRACKETS_MISSING, NODE_IPV6_CLOSING_BRACKET_MISSING,
+    NODE_IPV6_REPRESENTATION_INVALID, NODE_MALFORMED, NODE_PORT_MALFORMED, RFC_7239_6,
+    RFC_7239_6_1,
+};
+use crate::violations::uri::{
+    host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
+    RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
+    URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
+    URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
+};
+use crate::violations::ViolationDef;
+
+/// The defects the four registered parameters report, and not one of them is
+/// this field's. `for` and `by` are §6's node identifier, `host` is the `Host`
+/// field's ABNF and `proto` is a URI scheme name — the same three productions
+/// `x_forwarded_consistent` measures its members against, because §7.4 says the
+/// legacy fields convert into these very parameters. **Every id here is the same
+/// id that rule reports**, which is the whole premise of the campaign holding at
+/// a pair of rules rather than in the abstract, and it is why the two node
+/// defects that spelling makes unreachable there are reachable here.
+///
+/// What is not converted is the field's own grammar — the element, the pair, the
+/// name, the duplicate parameter, the empty list member, and the response
+/// carrying the field at all. Those are §4's and belong to a `forwarded` subject
+/// that nothing has written. Neither is the `quoted-string` arm, which has a
+/// subject already: `unescape_quoted_string` still answers in a rendered
+/// `String` over a `QuotedStringDefect` it has in hand, and typing it converts
+/// seven rules at once rather than this one.
+static DECLARED: &[&ViolationDef] = &[
+    &NODE_IPV6_BRACKETS_MISSING,
+    &NODE_IPV6_CLOSING_BRACKET_MISSING,
+    &NODE_IPV6_ADDRESS_MALFORMED,
+    &NODE_IPV4_ADDRESS_MALFORMED,
+    &NODE_MALFORMED,
+    &NODE_IPV6_REPRESENTATION_INVALID,
+    &NODE_PORT_MALFORMED,
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
+];
 
 /// Every octet of a field line as the `char` of the same value.
 ///
@@ -39,25 +89,34 @@ fn field_line(bytes: &[u8]) -> String {
 /// The production is shared with the legacy `X-Forwarded-For` / `X-Forwarded-By`
 /// family, which §7.4 converts into these very parameters, so it lives in
 /// [`crate::helpers::forwarded_node`] and this function supplies the subject its
-/// findings name. Returns the finding's text, or `None` when the value is a node.
+/// findings name. Returns the defect and its text, or `None` when the value is
+/// a node.
 // cite(RFC 7239 § 5.2): "The syntax of a "for" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6."
 // cite(RFC 7239 § 5.1): "The syntax of a "by" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6."
-fn validate_node(param: &str, value: &str) -> Option<String> {
+fn validate_node(param: &str, value: &str) -> Option<(&'static ViolationDef, String)> {
     crate::helpers::forwarded_node::validate_node(value, NodeForm::Forwarded)
         .err()
-        .map(|defect| format!("Forwarded '{}' {}", param, defect.message()))
+        .map(|defect| {
+            (
+                node_defect(defect),
+                format!("Forwarded '{}' {}", param, defect.message()),
+            )
+        })
 }
 
 /// A `host=` value, after unescaping: the `Host` field's own ABNF.
 // cite(RFC 7239 § 5.3): "The syntax for a "host" value, after potential quoted-string unescaping, MUST conform to the Host ABNF described in Section 5.4 of [RFC7230]."
 // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
-fn validate_host(value: &str) -> Option<String> {
+fn validate_host(value: &str) -> Option<(&'static ViolationDef, String)> {
     crate::helpers::uri::validate_host_and_optional_port(value)
         .err()
         .map(|defect| {
-            format!(
-                "Forwarded 'host' is not a Host field value: {}",
-                defect.message()
+            (
+                host_and_port(defect),
+                format!(
+                    "Forwarded 'host' is not a Host field value: {}",
+                    defect.message()
+                ),
             )
         })
 }
@@ -71,13 +130,16 @@ fn validate_host(value: &str) -> Option<String> {
 /// §5.4 calls typical, not what it permits.
 ///
 // cite(RFC 7239 § 5.4): "The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395]."
-fn validate_proto(value: &str) -> Option<String> {
+fn validate_proto(value: &str) -> Option<(&'static ViolationDef, String)> {
     crate::helpers::uri::validate_scheme_name(value)
         .err()
         .map(|defect| {
-            format!(
-                "Forwarded 'proto' is not a URI scheme name: {}",
-                defect.message()
+            (
+                scheme_name(defect),
+                format!(
+                    "Forwarded 'proto' is not a URI scheme name: {}",
+                    defect.message()
+                ),
             )
         })
 }
@@ -90,8 +152,8 @@ impl ForwardedHeaderValid {
     /// The element arrives trimmed of the whitespace the *list* allows around
     /// its commas. Everything inside it is the element's own production, which
     /// has no `OWS` in it anywhere.
-    fn check_element(&self, elem: &str, severity: crate::lint::Severity) -> Option<Violation> {
-        let violation = |message: String| Some(self.violation(severity, message));
+    fn check_element(&self, elem: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+        let violation = |message: String| Some(self.violation(ctx.severity, message));
 
         // §7.1's whitespace is the list's, between elements; the element itself
         // is `[ forwarded-pair ] *( ";" [ forwarded-pair ] )` and generates none
@@ -202,8 +264,12 @@ impl ForwardedHeaderValid {
                 // cite(RFC 7239 § 9): "New parameters and their values MUST conform with the forwarded-pair as defined in ABNF in Section 4."
                 _ => None,
             };
-            if let Some(message) = finding {
-                return violation(message);
+            // The three judges answer with a def as well as a message, so this
+            // site chooses nothing: the id comes from the subject that owns the
+            // production the value was measured against, and the severity from
+            // that def rather than from this rule.
+            if let Some((def, message)) = finding {
+                return Some(ctx.report_with(def, message));
             }
         }
 
@@ -211,8 +277,12 @@ impl ForwardedHeaderValid {
     }
 
     /// One `Forwarded` field line.
-    fn check_field_line(&self, line: &str, severity: crate::lint::Severity) -> Option<Violation> {
-        let violation = |message: String| Some(self.violation(severity, message));
+    fn check_field_line(
+        &self,
+        line: &str,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Option<Violation> {
+        let violation = |message: String| Some(self.violation(ctx.severity, message));
 
         // Quote-aware, because a comma inside a quoted-string is `qdtext` and
         // not a member separator: the recipient's list reader used here before
@@ -251,7 +321,7 @@ impl ForwardedHeaderValid {
                 continue;
             }
             carried_an_element = true;
-            if let Some(v) = self.check_element(elem, severity) {
+            if let Some(v) = self.check_element(elem, ctx) {
                 return Some(v);
             }
         }
@@ -281,12 +351,6 @@ const RFC_7239_4: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-4",
     note: "The field's grammar, the case-insensitivity of parameter names, the MUST NOT on naming a parameter twice in one element, and the sentence restricting the field to requests",
 };
-const RFC_7239_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7239",
-    section: Some("6"),
-    url: "https://www.rfc-editor.org/rfc/rfc7239.html#section-6",
-    note: "`node`, `nodename`, `node-port`: the obfuscated forms MUST begin with an underscore, a numeric port is one to five digits, and an address with a port MUST be quoted. §6.1's SHOULD asks for the RFC 5952 textual form",
-};
 const RFC_7239_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7239",
     section: Some("5"),
@@ -304,12 +368,6 @@ const RFC_9110_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("7.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.2",
     note: "`Host = uri-host [ \":\" port ]`, which §5.3 makes the syntax of a `host` parameter",
-};
-const RFC_3986_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1",
-    note: "`scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, which §5.4 makes the syntax of a `proto` parameter",
 };
 
 impl RuleMeta for ForwardedHeaderValid {
@@ -331,11 +389,19 @@ severity = "warn"
         &[
             RFC_7239_4,
             RFC_7239_6,
+            RFC_7239_6_1,
             RFC_7239_5,
             RFC_7239_8_2,
             RFC_9110_7_2,
             RFC_3986_3_1,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
+            RFC_3986_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -387,7 +453,7 @@ impl Rule for ForwardedHeaderValid {
             //
             // cite(RFC 7239 § 7.1): "Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields."
             for hv in tx.request.headers.get_all("forwarded").iter() {
-                if let Some(v) = self.check_field_line(&field_line(hv.as_bytes()), ctx.severity) {
+                if let Some(v) = self.check_field_line(&field_line(hv.as_bytes()), ctx) {
                     return Some(v);
                 }
             }
@@ -482,6 +548,73 @@ mod tests {
     /// One field line, which is what all but a couple of the cases below need.
     fn judge_one(value: &str) -> Option<String> {
         judge(&[value])
+    }
+
+    /// The same field line, judged for the defect it reports rather than for
+    /// what the message says.
+    fn judge_defect(value: &str) -> Option<(String, crate::lint::Severity)> {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[]);
+        tx.request.headers.append(
+            "forwarded",
+            HeaderValue::from_bytes(value.as_bytes()).expect("a field value"),
+        );
+        crate::test_helpers::run_rule(
+            &ForwardedHeaderValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["forwarded_header_valid"]),
+        )
+        .map(|v| (v.violation, v.severity))
+    }
+
+    /// Every one of these ids is `x_forwarded_consistent`'s too, and that is
+    /// the point of the commit that wrote them: §7.4 says an `X-Forwarded-For`
+    /// element becomes a `for=` value, so the two fields do not merely fail in
+    /// similar ways — they fail at the same production, and an operator who
+    /// tunes `node_malformed` has tuned both fields at once.
+    ///
+    /// The last two rows are reachable from this rule and from no other. The
+    /// brackets and the RFC 5952 spelling are asked of the `Forwarded` node
+    /// alone, so the two defs the mirror rule could only declare are now
+    /// exercised.
+    #[test]
+    fn a_parameter_reports_the_defect_of_the_production_it_is_measured_against() {
+        for (value, id) in [
+            ("for=x-foo", "node_malformed"),
+            ("for=010.1.2.3", "node_ipv4_address_malformed"),
+            ("for=\"[::1\"", "node_ipv6_closing_bracket_missing"),
+            ("for=\"[nope]\"", "node_ipv6_address_malformed"),
+            ("for=\"192.0.2.1:123456\"", "node_port_malformed"),
+            ("proto=9https", "uri_scheme_leading_letter_missing"),
+            ("proto=ht_tp", "uri_scheme_character_forbidden"),
+            ("host=\"user@host\"", "uri_host_character_forbidden"),
+            ("host=\"[::1\"", "uri_host_closing_bracket_missing"),
+            ("host=\"[::zz]\"", "uri_host_ip_literal_malformed"),
+            ("host=\"a]b\"", "uri_host_bracket_forbidden"),
+            ("host=\"example.com:8o8\"", "uri_port_character_forbidden"),
+            ("host=\"%zz.example\"", "percent_encoding_malformed"),
+            ("host=\"example.com%4\"", "percent_encoding_digits_missing"),
+            ("for=\"2001:db8::1\"", "node_ipv6_brackets_missing"),
+            ("for=\"[2001:DB8::1]\"", "node_ipv6_representation_invalid"),
+        ] {
+            let (violation, _) = judge_defect(value).unwrap_or_else(|| panic!("{value}"));
+            assert_eq!(violation, id, "{value}");
+        }
+    }
+
+    /// The spelling recommendation is the only thing this rule says at `info`,
+    /// and it is the only thing it says about a value that parses. One
+    /// `ctx.severity` reported it beside a node identifier nothing generates.
+    #[test]
+    fn the_recommended_spelling_reports_below_the_grammar() {
+        let (violation, severity) = judge_defect("for=\"[2001:DB8::1]\"").expect("a finding");
+        assert_eq!(violation, "node_ipv6_representation_invalid");
+        assert_eq!(severity, crate::lint::Severity::Info);
+
+        let (violation, severity) = judge_defect("for=x-foo").expect("a finding");
+        assert_eq!(violation, "node_malformed");
+        assert_eq!(severity, crate::lint::Severity::Warn);
     }
 
     #[test]
