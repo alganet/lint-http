@@ -28,6 +28,7 @@ use crate::helpers::domain::CookieDomainDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::domain::preferred_name_defect;
+use crate::violations::uri::percent_encoding;
 use crate::violations::{defects, ViolationDef};
 
 /// The `Set-Cookie` grammar, which is what the character defects below are
@@ -49,16 +50,6 @@ pub const RFC_6265_5_2_4: SpecRef = SpecRef {
     section: Some("5.2.4"),
     url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.4",
     note: "Path attribute — the user agent replaces an empty or non-`/` Path with the default-path (why those forms are flagged)",
-};
-
-/// The triplet a `%` obliges. `path-value` admits `%` as an ordinary
-/// character, so a broken escape is answered by the document that defines the
-/// escape and not by RFC 6265.
-pub const RFC_3986_2_1: SpecRef = SpecRef {
-    spec: "RFC 3986",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
-    note: "Percent-Encoding — `pct-encoded = \"%\" HEXDIG HEXDIG`, the two digits a `%` in a cookie path still owes",
 };
 
 /// What a user agent does with a `Domain` it is given: an empty value leaves
@@ -119,17 +110,6 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: Some(RFC_6265_5_2_4),
-    }
-
-    /// A `%` in the path that no two hex digits follow.
-    ///
-    // cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
-    COOKIE_PATH_PERCENT_ENCODING_MALFORMED = {
-        id: "cookie_path_percent_encoding_malformed",
-        title: "Set-Cookie Path attribute has a broken percent-encoding",
-        message: "",
-        default_severity: Severity::Warn,
-        spec: Some(RFC_3986_2_1),
     }
 
     /// A byte at or above %x80. `path-value` is built on `CHAR` = %x01-7F, so
@@ -252,7 +232,7 @@ pub fn path_defect(defect: &CookiePathDefect<'_>) -> &'static ViolationDef {
     match defect {
         CookiePathDefect::Empty => &COOKIE_PATH_EMPTY,
         CookiePathDefect::NotAbsolute(_) => &COOKIE_PATH_LEADING_SLASH_MISSING,
-        CookiePathDefect::PercentEncoding(_) => &COOKIE_PATH_PERCENT_ENCODING_MALFORMED,
+        CookiePathDefect::PercentEncoding(defect) => percent_encoding(*defect),
         CookiePathDefect::NonAscii(_) => &COOKIE_PATH_NON_ASCII_CHARACTER_FORBIDDEN,
         CookiePathDefect::ControlCharacter(_) => &COOKIE_PATH_CONTROL_CHARACTER_FORBIDDEN,
         CookiePathDefect::Whitespace(_) => &COOKIE_PATH_WHITESPACE_INVALID,
@@ -293,7 +273,9 @@ mod tests {
         let defects = [
             CookiePathDefect::Empty,
             CookiePathDefect::NotAbsolute("login"),
-            CookiePathDefect::PercentEncoding("%ZZ".to_string()),
+            CookiePathDefect::PercentEncoding(
+                crate::helpers::uri::PercentEncodingDefect::NotHexDigits("%ZZ"),
+            ),
             CookiePathDefect::NonAscii(3),
             CookiePathDefect::ControlCharacter(3),
             CookiePathDefect::Whitespace(3),
@@ -346,7 +328,9 @@ mod tests {
         for defect in [
             CookiePathDefect::Empty,
             CookiePathDefect::NotAbsolute("login"),
-            CookiePathDefect::PercentEncoding("%ZZ".to_string()),
+            CookiePathDefect::PercentEncoding(
+                crate::helpers::uri::PercentEncodingDefect::NotHexDigits("%ZZ"),
+            ),
             CookiePathDefect::NonAscii(3),
             CookiePathDefect::ControlCharacter(3),
             CookiePathDefect::Whitespace(3),
