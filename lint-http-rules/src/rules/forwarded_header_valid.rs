@@ -27,6 +27,10 @@ use crate::violations::quoted_string::{
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
     QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
 use crate::violations::uri::{
     host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
     RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
@@ -79,6 +83,8 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
 ];
 
 /// Every octet of a field line as the `char` of the same value.
@@ -212,10 +218,17 @@ impl ForwardedHeaderValid {
             if name.is_empty() {
                 return violation(format!("Forwarded parameter '{}' has no name", param));
             }
+            // The name production is `token`, whole and unmodified, so the
+            // character that fails it is the `token` subject's defect and not
+            // this field's — the same id a media type's parameter name, a
+            // cache directive and seventy-six other sites report.
             if let Some(c) = find_invalid_token_char(name) {
-                return violation(format!(
-                    "Forwarded parameter name '{}' is not a token ({:?} is not a tchar)",
-                    name, c
+                return Some(ctx.report_with(
+                    token_character(c),
+                    format!(
+                        "Forwarded parameter name '{}' is not a token ({:?} is not a tchar)",
+                        name, c
+                    ),
                 ));
             }
 
@@ -262,9 +275,12 @@ impl ForwardedHeaderValid {
                     return violation(format!("Forwarded parameter '{}' has no value", param));
                 }
                 if let Some(c) = find_invalid_token_char(raw_value) {
-                    return violation(format!(
-                        "Forwarded '{}' value '{}' is neither a token ({:?} is not a tchar) nor a quoted-string",
-                        name, raw_value, c
+                    return Some(ctx.report_with(
+                        token_character(c),
+                        format!(
+                            "Forwarded '{}' value '{}' is neither a token ({:?} is not a tchar) nor a quoted-string",
+                            name, raw_value, c
+                        ),
                     ));
                 }
                 raw_value.to_string()
@@ -421,6 +437,7 @@ severity = "warn"
             RFC_3986_3_2_3,
             RFC_3986_2_1,
             RFC_9110_5_6_4,
+            RFC_9110_5_6_2,
         ]
     }
 
@@ -648,6 +665,21 @@ mod tests {
             let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value:?}"));
             assert_eq!(violation, id, "{value:?}");
             assert_eq!(severity, crate::lint::Severity::Warn, "{value:?}");
+        }
+    }
+
+    /// A parameter name and a bare parameter value are both `token`, so the
+    /// character that fails one fails the other under the same id — and the
+    /// split inside it is by what the character is. `@` is a delimiter a sender
+    /// typed; the space in `for=a b` never reaches here, because the element's
+    /// own no-whitespace check answers first, which is a fact about this field
+    /// and not about the production.
+    #[test]
+    fn a_name_and_a_bare_value_are_the_token_production() {
+        for value in ["@=1", "foo=bad@value"] {
+            let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value}"));
+            assert_eq!(violation, "token_character_forbidden", "{value}");
+            assert_eq!(severity, crate::lint::Severity::Warn, "{value}");
         }
     }
 
