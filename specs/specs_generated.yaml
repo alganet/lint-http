@@ -1998,7 +1998,7 @@ sources:
     snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 368
+      line: 423
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 296
     - file: lint-http-rules/src/rules/patch_partial_update.rs
@@ -2008,25 +2008,25 @@ sources:
     snippet: Such a response SHOULD include an Accept-Patch response header as described in Section 3.1 to notify the client what patch document media types are supported.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 369
+      line: 424
   - label: accept_patch_header_valid (3)
     section: § 3
     snippet: A server can advertise its support for the PATCH method by adding it to the listing of allowed methods in the "Allow" OPTIONS response header defined in HTTP/1.1.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 180
+      line: 228
   - label: accept_patch_header_valid (4)
     section: § 3
     snippet: The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 410
+      line: 465
   - label: Accept-Patch grammar
     section: § 3.1
     snippet: Accept-Patch = "Accept-Patch" ":" 1#media-type
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 49
+      line: 89
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 86
   - label: accept_patch_header_valid (5)
@@ -2034,7 +2034,7 @@ sources:
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 409
+      line: 464
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 51
   - label: accept_patch_header_valid (6)
@@ -2042,7 +2042,7 @@ sources:
     snippet: The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 50
+      line: 90
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 87
   - label: accept_patch_header_valid (7)
@@ -2050,7 +2050,7 @@ sources:
     snippet: The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 348
+      line: 403
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 257
   - label: accept_patch_header_valid (8)
@@ -2058,7 +2058,7 @@ sources:
     snippet: This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 321
+      line: 376
   - label: patch_method_content_type_match
     section: § 3.1
     snippet: The presence of a specific patch document format in this header indicates that that specific format is allowed on the resource identified by the Request-URI.
@@ -4675,7 +4675,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 213
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 257
+      line: 309
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 277
   - label: accept_and_content_type_negotiation (11)
@@ -4705,7 +4705,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 166
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 178
+      line: 221
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 226
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
@@ -4903,7 +4903,7 @@ sources:
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 181
+      line: 229
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 32
     - file: lint-http-rules/src/rules/context_fields_direction.rs
@@ -4917,19 +4917,19 @@ sources:
     snippet: If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 371
+      line: 426
   - label: accept_patch_header_valid (3)
     section: § 15.5.16
     snippet: The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 370
+      line: 425
   - label: accept_patch_header_valid (4)
     section: § 5.6.1.2
     snippet: 'Empty elements do not contribute to the count of elements present.  A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism.'
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 87
+      line: 132
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 86
   - label: accept_patch_header_valid (5)
@@ -4937,7 +4937,7 @@ sources:
     snippet: 'In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:'
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 147
+      line: 195
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 286
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -4949,9 +4949,9 @@ sources:
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 182
+      line: 230
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 357
+      line: 412
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 74
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
@@ -4991,7 +4991,7 @@ sources:
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 411
+      line: 466
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 244
   - label: accept_ranges_and_206_consistent
@@ -5361,7 +5361,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 116
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 137
+      line: 180
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 142
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -5673,7 +5673,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 179
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 176
+      line: 219
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 35
   - label: content_type_present (4)
@@ -5713,7 +5713,7 @@ sources:
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 177
+      line: 220
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 225
   - label: context_fields_direction
@@ -6555,7 +6555,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 226
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 75
+      line: 120
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 329
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -6609,7 +6609,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 123
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 86
+      line: 131
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 333
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
@@ -6925,7 +6925,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 226
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 179
+      line: 222
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 96
     - file: lint-http-rules/src/rules/etag_syntax.rs
@@ -6967,7 +6967,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 221
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 200
+      line: 243
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 260
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -7113,7 +7113,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 48
     - file: lint-http-rules/src/violations/token.rs
-      line: 87
+      line: 89
   - label: lint-http-rules/src/helpers/list.rs (4)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -7177,7 +7177,7 @@ sources:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 209
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 76
+      line: 121
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 61
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -7205,7 +7205,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 274
+      line: 355
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 256
     - file: lint-http-rules/src/rules/charset_registered.rs
@@ -7217,7 +7217,7 @@ sources:
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 191
+      line: 295
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 81
     - file: lint-http-rules/src/helpers/parameter.rs
@@ -7231,7 +7231,7 @@ sources:
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 205
+      line: 308
     - file: lint-http-rules/src/helpers/word.rs
       line: 26
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
@@ -7244,6 +7244,8 @@ sources:
       line: 239
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 89
+    - file: lint-http-rules/src/violations/parameter.rs
+      line: 91
   - label: lint-http-rules/src/helpers/media_type.rs (4)
     section: § 5.6.6
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
@@ -7265,7 +7267,7 @@ sources:
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 136
+      line: 246
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 304
     - file: lint-http-rules/src/rules/charset_present.rs
@@ -7291,7 +7293,7 @@ sources:
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 155
+      line: 262
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 88
   - label: media-type grammar
@@ -7301,7 +7303,7 @@ sources:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 70
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 99
+      line: 144
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 172
   - label: lint-http-rules/src/helpers/media_type.rs (7)
@@ -7309,7 +7311,7 @@ sources:
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 135
+      line: 245
   - label: lint-http-rules/src/helpers/parameter.rs
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
@@ -7320,6 +7322,8 @@ sources:
       line: 107
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 400
+    - file: lint-http-rules/src/violations/parameter.rs
+      line: 69
   - label: lint-http-rules/src/helpers/product.rs
     section: § 10.1.5
     snippet: The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts.
@@ -7441,9 +7445,9 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 227
     - file: lint-http-rules/src/violations/token.rs
-      line: 54
+      line: 56
     - file: lint-http-rules/src/violations/token.rs
-      line: 73
+      line: 75
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".

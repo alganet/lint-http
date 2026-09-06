@@ -4,8 +4,51 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::parameter::{
+    PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
+};
+use crate::violations::quoted_string::{
+    QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
+    QUOTED_STRING_QUOTED_PAIR_MALFORMED, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY, TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct ContentTypeValid;
+
+/// What this rule reports about the parts of a `media-type`, and not one of
+/// them is this field's. `Content-Type = media-type` is a type, a subtype and
+/// the parameters after them, so every defect below belongs to the production
+/// the failing part is written in: both halves and every parameter name are
+/// `token`s, a parameter value is `( token / quoted-string )`, and the `=` that
+/// joins a parameter's halves is § 5.6.6's. `Accept-Patch` declares the same
+/// nine, because `1#media-type` asks the same question of each of its members.
+///
+/// The rule's own findings stay on the older API and are named here so the
+/// omission is a decision on the page: the duplicated field line, the wildcard,
+/// and the two shapes `parse_media_type` refuses — no `/` and an empty half.
+/// The first two are this field's own reading rather than a production's, and
+/// the last two belong to a `media-type` subject that nothing has written yet.
+///
+/// One of the nine cannot be reached through a field line, and is declared
+/// because the mapping is exhaustive rather than because this rule can report
+/// it: `quoted_string_control_character_forbidden` needs an octet below SP that
+/// is not HTAB, and a `HeaderValue` holds none. The same is true of every rule
+/// declaring that subject, and the reachability question belongs to the
+/// reading of every body rather than to this list.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_EMPTY,
+    &PARAMETER_EQUALS_MISSING,
+    &PARAMETER_VALUE_EMPTY,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -21,12 +64,6 @@ const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.3.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
     note: "Media Type: `media-type = type \"/\" subtype parameters`, both halves `token`, both case-insensitive",
-};
-const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-    note: "Parameters: the `name=value` grammar, and the bracketing that makes a trailing `;` conforming. Its prohibition on whitespace around `=` is NOT enforced here",
 };
 const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -65,9 +102,15 @@ severity = "warn"
             RFC_9110_8_3,
             RFC_9110_8_3_1,
             RFC_9110_5_6_6,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
             RFC_9110_12_5_1,
             RFC_9110_5_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -199,7 +242,7 @@ impl Rule for ContentTypeValid {
                     // reject it, so the decode decides nothing on its own.
                     // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
                     let s = crate::helpers::headers::field_line_as_written(hv);
-                    if let Some(v) = check_content_type(which, &s, ctx.severity) {
+                    if let Some(v) = check_content_type(which, &s, ctx) {
                         return Some(v);
                     }
                 }
@@ -225,10 +268,19 @@ impl Rule for ContentTypeValid {
     }
 }
 
+/// The reading of one field line, converted at the site that fans out and
+/// unconverted at the two that do not.
+///
+/// It takes the whole context rather than a severity because the two APIs
+/// coexist here: the parts of the media type report declared defects and
+/// resolve their own severity, while the wildcard and the two shapes
+/// `parse_media_type` refuses still emit at the rule's. That is the shape every
+/// partially converted rule takes, and it is cheaper than splitting the rule in
+/// two.
 fn check_content_type(
     _which: &str,
     val: &str,
-    severity: crate::lint::Severity,
+    ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     use crate::helpers::media_type::parse_media_type;
 
@@ -244,7 +296,7 @@ fn check_content_type(
             } else {
                 msg.replace("media-type", "Content-Type")
             };
-            return Some(ContentTypeValid.violation(severity, message));
+            return Some(ContentTypeValid.violation(ctx.severity, message));
         }
     };
 
@@ -257,7 +309,7 @@ fn check_content_type(
     // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
     if parsed.type_ == "*" || parsed.subtype == "*" {
         return Some(ContentTypeValid.violation(
-            severity,
+            ctx.severity,
             format!(
                 "Content-Type '{}' uses a wildcard, which names a set of media types rather than one; a representation's Content-Type is expected to identify a single media type (wildcards belong to Accept's media-range)",
                 val
@@ -274,12 +326,15 @@ fn check_content_type(
     // its members against this production, and a copy here would have been the
     // grammar transcribed twice.
     //
-    // The helper returns the reason rather than a message, so this rule still
-    // names its own field in the finding.
-    if let Some(reason) = crate::helpers::media_type::media_type_parts_defect(&parsed) {
-        return Some(ContentTypeValid.violation(
-            severity,
-            format!("Invalid Content-Type '{}': {}", val, reason),
+    // The helper returns which part failed rather than a message, so this rule
+    // still names its own field in the finding while the defect names the
+    // production the part is written in — a `token`, a `quoted-string`, or the
+    // `=` a parameter is joined by. The wording did not move: the `format!` is
+    // still here, with the clause the reader rendered inside it.
+    if let Some(defect) = crate::helpers::media_type::media_type_parts_defect(&parsed) {
+        return Some(ctx.report_with(
+            crate::violations::token::media_type_defect(defect),
+            format!("Invalid Content-Type '{}': {}", val, defect.message()),
         ));
     }
 
@@ -294,6 +349,24 @@ static REGISTRATION: &dyn crate::rules::Rule = &ContentTypeValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// One field line, read the way dispatch reads it.
+    ///
+    /// The context is built here rather than in `test_helpers` because these
+    /// cases cannot go through a `HeaderMap`: a `Content-Type` carrying a
+    /// control octet inside a `quoted-string` is exactly what several of them
+    /// measure, and `HeaderValue` refuses to hold one. So the reading is called
+    /// directly, under a context assembled the way the engine assembles one —
+    /// which is what makes a declared defect resolve its configured severity
+    /// here too.
+    fn check_one_value(val: &str) -> Option<Violation> {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_valid"]);
+        let resolved = ContentTypeValid.prepare(&cfg).expect("a preparable config");
+        let severities = crate::rules::severities_for(&ContentTypeValid, &cfg);
+        let ctx = crate::rules::RuleContext::new(&resolved)
+            .with_violations(&ContentTypeValid, &severities);
+        super::check_content_type("test", val, &ctx)
+    }
 
     #[rstest]
     #[case("text/plain", false)]
@@ -321,7 +394,7 @@ mod tests {
     #[case("text/plain; charset=", true)]
     #[case("text/plain; charset=\"\"", false)]
     fn content_type_parsing_cases(#[case] val: &str, #[case] expect_violation: bool) {
-        let res = super::check_content_type("test", val, crate::lint::Severity::Warn);
+        let res = check_one_value(val);
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", val);
         } else {
@@ -351,7 +424,7 @@ mod tests {
     #[case("text/plain; foo=\"a\\\"b\"", false)]
     #[case("text/plain; foo=\"\"", false)]
     fn extra_content_type_cases(#[case] val: &str, #[case] expect_violation: bool) {
-        let res = super::check_content_type("test", val, crate::lint::Severity::Warn);
+        let res = check_one_value(val);
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", val);
         } else {
