@@ -1370,3 +1370,15 @@ severity = "warn"
 [violations.token68_whitespace_or_control_forbidden]
 # token68 holds whitespace or a control character
 severity = "error"
+
+[violations.uri_scheme_character_forbidden]
+# URI scheme holds a character outside letters, digits, '+', '-' and '.'
+severity = "warn"
+
+[violations.uri_scheme_empty]
+# URI scheme is empty
+severity = "warn"
+
+[violations.uri_scheme_leading_letter_missing]
+# URI scheme does not begin with a letter
+severity = "warn"
