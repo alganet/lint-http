@@ -4,8 +4,21 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::challenge::{
+    challenge_defect, CHALLENGE_MEMBER_EMPTY, CHALLENGE_SCHEME_MISSING, RFC_9110_11_3,
+    RFC_9110_11_6_1,
+};
+use crate::violations::ViolationDef;
 
 pub struct AuthSchemeRegistered;
+
+/// The two defects this rule reports so far, and neither is about a registry:
+/// they are the `#challenge` list's, reported here because reading a scheme out
+/// of `WWW-Authenticate` means grouping its members first.
+/// `www_authenticate_challenge_syntax` declares the same two, which is what a
+/// shared subject is for — one `[violations.challenge_member_empty]` answers
+/// for both rules. The registry findings themselves are still on the old API.
+static DECLARED: &[&ViolationDef] = &[&CHALLENGE_MEMBER_EMPTY, &CHALLENGE_SCHEME_MISSING];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -66,9 +79,15 @@ allowed = ["Basic", "Bearer", "Digest"]
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9110_11_1,
+            RFC_9110_11_3,
+            RFC_9110_11_6_1,
             RFC_9110_16_4_1,
             IANA_HTTP_AUTHENTICATION_SCHEMES,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -154,10 +173,10 @@ impl Rule for AuthSchemeRegistered {
                                 }
                             }
                         }
-                        Err(e) => {
-                            return Some(self.violation(
-                                ctx.severity,
-                                format!("Invalid WWW-Authenticate header: {}", e),
+                        Err(defect) => {
+                            return Some(ctx.report_with(
+                                challenge_defect(defect),
+                                format!("Invalid WWW-Authenticate header: {}", defect.message()),
                             ))
                         }
                     }

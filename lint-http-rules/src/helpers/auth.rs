@@ -31,11 +31,14 @@
 //! The fourth was `Basic`'s "decoded credentials empty", which needed base64's
 //! arithmetic rather than a reading — zero octets come out of zero symbols.
 //!
-//! The two remaining `Result<_, String>`s here are deliberate.
-//! `split_and_group_challenges` and `parse_auth_params` have two distinct
-//! defects each, and `parse_nc_hex` has one; an enum with a single variant is a
-//! `bool` with ceremony, and the ranked conversion order stopped where the
-//! count did.
+//! `split_and_group_challenges` answers with [`ChallengeDefect`] too, rather
+//! than with a type of its own: it reads the same field value as
+//! `validate_challenge_syntax`, one half each, and a caller that has to match
+//! on two types to report one field is a split made for the reader's
+//! convenience and not for the operator's. The remaining `Result<_, String>`s
+//! are deliberate — `parse_auth_params` has two distinct defects and
+//! `parse_nc_hex` one, and an enum with a single variant is a `bool` with
+//! ceremony.
 
 use crate::helpers::list::split_commas_respecting_quotes;
 use base64::Engine;
@@ -48,12 +51,17 @@ use base64::Engine;
 /// members without a leading scheme are treated as continuation parameters for
 /// the current challenge.
 ///
-/// Returns `Ok(Vec<String>)` on success or `Err(String)` describing a parsing
-/// problem: an empty member, or a parameter with no challenge before it. There
-/// was a third — *missing scheme on a member that starts with whitespace* — and
-/// it was the same problem read off a character the list grammar puts outside
-/// the element.
-pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, String> {
+/// Returns `Ok(Vec<String>)` on success or the [`ChallengeDefect`] naming a
+/// parsing problem: an empty member, or a parameter with no challenge before
+/// it. There was a third — *missing scheme on a member that starts with
+/// whitespace* — and it was the same problem read off a character the list
+/// grammar puts outside the element.
+///
+/// The two it can answer with are the list's rather than one challenge's, and
+/// they are variants of the same type as the rest because a caller reports them
+/// the same way: this function and [`validate_challenge_syntax`] are two halves
+/// of reading one field value.
+pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, ChallengeDefect<'_>> {
     let members: Vec<&str> = split_commas_respecting_quotes(s);
     let mut challenges: Vec<String> = Vec::new();
 
@@ -64,7 +72,7 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, String> {
         // are two of the octets the `auth-scheme` check below exists to name.
         let mm = m;
         if mm.is_empty() {
-            return Err("WWW-Authenticate header contains empty challenge/member".into());
+            return Err(ChallengeDefect::EmptyMember);
         }
 
         let is_new = {
@@ -94,7 +102,7 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, String> {
             // one thing to say about it.
             // cite(RFC 9110 § 11.6.1): "WWW-Authenticate = #challenge"
             // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
-            return Err("WWW-Authenticate contains parameter before any auth-scheme".into());
+            return Err(ChallengeDefect::SchemeMissing);
         }
     }
 
@@ -120,6 +128,15 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, String> {
 pub enum ChallengeDefect<'a> {
     /// Nothing between the commas the challenge was assembled from.
     Empty,
+    /// An empty member of `WWW-Authenticate = #challenge`, found while the
+    /// members were being grouped rather than while one challenge was read.
+    /// Kept apart from [`Empty`](Self::Empty) because the two are found by
+    /// different halves of the reading and one of them may be a stray comma
+    /// between two well-formed challenges.
+    EmptyMember,
+    /// A member that continues a challenge with no challenge before it: an
+    /// `auth-param` arriving where the list has not yet had an `auth-scheme`.
+    SchemeMissing,
     /// A non-`token` octet in the `auth-scheme`, carrying the character.
     SchemeCharacter(char),
     /// A control octet where a `token68` was read. `token68`'s alphabet is
@@ -164,6 +181,12 @@ impl ChallengeDefect<'_> {
     pub fn message(self) -> String {
         match self {
             Self::Empty => "WWW-Authenticate header contains empty challenge".to_string(),
+            Self::EmptyMember => {
+                "WWW-Authenticate header contains empty challenge/member".to_string()
+            }
+            Self::SchemeMissing => {
+                "WWW-Authenticate contains parameter before any auth-scheme".to_string()
+            }
             Self::SchemeCharacter(c) => {
                 format!("Invalid character '{}' in WWW-Authenticate auth-scheme", c)
             }
@@ -766,15 +789,13 @@ mod tests {
     #[test]
     fn empty_member_is_error() {
         let r = split_and_group_challenges(", Basic realm=\"x\"");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("empty"));
+        assert_eq!(r.unwrap_err(), ChallengeDefect::EmptyMember);
     }
 
     #[test]
     fn parameter_before_scheme_is_error() {
         let r = split_and_group_challenges("error=\"x\"");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("parameter before any auth-scheme"));
+        assert_eq!(r.unwrap_err(), ChallengeDefect::SchemeMissing);
     }
 
     /// The leading space is `#challenge`'s own `OWS`, so this member is the one
@@ -787,7 +808,7 @@ mod tests {
             let r = split_and_group_challenges(value);
             assert!(
                 r.as_ref()
-                    .is_err_and(|e| e.contains("parameter before any auth-scheme")),
+                    .is_err_and(|e| *e == ChallengeDefect::SchemeMissing),
                 "{value}: {r:?}"
             );
         }
@@ -796,8 +817,7 @@ mod tests {
     #[test]
     fn consecutive_commas_report_error() {
         let r = split_and_group_challenges("Basic realm=\"x\", , error=\"y\"");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("empty"));
+        assert_eq!(r.unwrap_err(), ChallengeDefect::EmptyMember);
     }
 
     #[test]

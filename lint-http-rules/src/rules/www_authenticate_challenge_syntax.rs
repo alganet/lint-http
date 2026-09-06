@@ -4,24 +4,44 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::challenge::{
+    challenge_defect, CHALLENGE_EMPTY, CHALLENGE_MEMBER_EMPTY, CHALLENGE_PARAMETER_EMPTY,
+    CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN, CHALLENGE_PARAMETER_NAME_EMPTY,
+    CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN, CHALLENGE_PARAMETER_VALUE_MISSING,
+    CHALLENGE_SCHEME_CHARACTER_FORBIDDEN, CHALLENGE_SCHEME_MISSING,
+    CHALLENGE_TOKEN68_CHARACTER_FORBIDDEN, CHALLENGE_TOKEN68_INVALID, RFC_9110_11_2, RFC_9110_11_3,
+    RFC_9110_11_6_1,
+};
+use crate::violations::quoted_string::{
+    QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
+    QUOTED_STRING_QUOTED_PAIR_MALFORMED, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::ViolationDef;
 
 pub struct WwwAuthenticateChallengeSyntax;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_11_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.1",
-    note: "WWW-Authenticate",
-};
-const RFC_9110_11_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.3",
-    note: "Challenge and Response — `challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]` (RFC 7235, which defined this, is obsoleted by RFC 9110; `token68` itself is defined in §11.2)",
-};
+/// The defects this rule reports, and none of them is its own. The eleven
+/// `challenge_*` belong to `challenge = auth-scheme [ 1*SP ( token68 /
+/// #auth-param ) ]`, which `Proxy-Authenticate` carries under another name; the
+/// four `quoted_string_*` belong to the production a parameter's value may
+/// take, which seven other rules read through the same helper.
+static DECLARED: &[&ViolationDef] = &[
+    &CHALLENGE_EMPTY,
+    &CHALLENGE_MEMBER_EMPTY,
+    &CHALLENGE_SCHEME_MISSING,
+    &CHALLENGE_SCHEME_CHARACTER_FORBIDDEN,
+    &CHALLENGE_TOKEN68_CHARACTER_FORBIDDEN,
+    &CHALLENGE_TOKEN68_INVALID,
+    &CHALLENGE_PARAMETER_EMPTY,
+    &CHALLENGE_PARAMETER_NAME_EMPTY,
+    &CHALLENGE_PARAMETER_VALUE_MISSING,
+    &CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
+    &CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 impl RuleMeta for WwwAuthenticateChallengeSyntax {
     fn id(&self) -> &'static str {
@@ -39,7 +59,16 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_11_6_1, RFC_9110_11_3]
+        &[
+            RFC_9110_11_6_1,
+            RFC_9110_11_3,
+            RFC_9110_11_2,
+            RFC_9110_5_6_4,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -103,8 +132,10 @@ impl Rule for WwwAuthenticateChallengeSyntax {
                     // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
                     let challenges = match crate::helpers::auth::split_and_group_challenges(s) {
                         Ok(c) => c,
-                        Err(msg) => {
-                            return Some(self.cited(&RFC_9110_11_6_1, ctx.severity, msg));
+                        Err(defect) => {
+                            return Some(
+                                ctx.report_with(challenge_defect(defect), defect.message()),
+                            );
                         }
                     };
 
@@ -113,7 +144,9 @@ impl Rule for WwwAuthenticateChallengeSyntax {
                         if let Err(defect) =
                             crate::helpers::auth::validate_challenge_syntax(challenge)
                         {
-                            return Some(self.violation(ctx.severity, defect.message()));
+                            return Some(
+                                ctx.report_with(challenge_defect(defect), defect.message()),
+                            );
                         }
                     }
                 }
@@ -165,6 +198,75 @@ mod tests {
         } else {
             assert!(v.is_none(), "val='{}' expected no violation", val);
         }
+    }
+
+    /// Fifteen names where the rule had one, and two severities among the rows
+    /// below where it had one: the bare word after a scheme is `info`, because
+    /// `token68` admits it and only this crate finds it suspicious, while
+    /// everything else here is a grammar failure at `warn`. The last two rows
+    /// leave the subject entirely — a value between DQUOTEs is a
+    /// `quoted-string` defect wherever it is read, and reports under the id
+    /// seven other rules will report it under.
+    #[rstest]
+    #[case(
+        ", Basic realm=\"x\"",
+        "challenge_member_empty",
+        crate::lint::Severity::Warn
+    )]
+    #[case("realm=\"x\"", "challenge_scheme_missing", crate::lint::Severity::Warn)]
+    #[case(
+        "Basic realm=\"x\", , error=\"y\"",
+        "challenge_member_empty",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "Basic =\"x\"",
+        "challenge_parameter_name_empty",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "Basic realm=",
+        "challenge_parameter_value_missing",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "Basic re@alm=\"x\"",
+        "challenge_parameter_name_character_forbidden",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "NewScheme word",
+        "challenge_token68_invalid",
+        crate::lint::Severity::Info
+    )]
+    #[case(
+        "Basic realm=\"unfinished",
+        "quoted_string_delimiter_missing",
+        crate::lint::Severity::Warn
+    )]
+    #[case(
+        "Basic realm=\"a\\\"",
+        "quoted_string_quoted_pair_malformed",
+        crate::lint::Severity::Warn
+    )]
+    fn each_finding_names_the_defect_and_carries_its_severity(
+        #[case] val: &str,
+        #[case] violation: &str,
+        #[case] severity: crate::lint::Severity,
+    ) {
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "www_authenticate_challenge_syntax",
+        ]);
+        let tx = make_resp(val);
+        let v = crate::test_helpers::run_rule(
+            &WwwAuthenticateChallengeSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {val:?}"));
+        assert_eq!(v.violation, violation, "{}", v.message);
+        assert_eq!(v.severity, severity, "{}", v.message);
     }
 
     #[test]
