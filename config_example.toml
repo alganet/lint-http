@@ -1107,6 +1107,50 @@ severity = "warn"
 # Authentication token68 is indistinguishable from a parameter
 severity = "info"
 
+[violations.content_range_complete_length_conflicting]
+# Content-Range complete-length does not exceed its last-pos
+severity = "error"
+
+[violations.content_range_empty]
+# Content-Range is empty
+severity = "warn"
+
+[violations.content_range_incl_range_malformed]
+# Content-Range range is not first-pos '-' last-pos
+severity = "warn"
+
+[violations.content_range_numeral_invalid]
+# Content-Range numeral is too large to represent
+severity = "warn"
+
+[violations.content_range_numeral_malformed]
+# Content-Range numeral is not 1*DIGIT
+severity = "warn"
+
+[violations.content_range_positions_conflicting]
+# Content-Range first-pos is greater than its last-pos
+severity = "error"
+
+[violations.content_range_slash_missing]
+# Content-Range has no '/'
+severity = "warn"
+
+[violations.content_range_spec_missing]
+# Content-Range has no range after its unit
+severity = "warn"
+
+[violations.content_range_spec_whitespace_forbidden]
+# Content-Range holds whitespace after its single space
+severity = "warn"
+
+[violations.content_range_unit_malformed]
+# Content-Range unit is not a token
+severity = "warn"
+
+[violations.content_range_unsatisfied_range_malformed]
+# Content-Range writes something other than '*' before its '/'
+severity = "warn"
+
 [violations.cookie_domain_empty]
 # Set-Cookie Domain attribute is empty
 severity = "warn"

@@ -5041,7 +5041,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 118
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 236
+      line: 267
   - label: accept_ranges_on_partial_content
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
@@ -6397,9 +6397,11 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 355
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 54
+      line: 85
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 241
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 69
   - label: lint-http-rules/src/helpers/accept_ranges.rs (2)
     section: § 14.1
     snippet: Range units are intended to be extensible, as described in Section 16.5.
@@ -6447,7 +6449,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 244
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 269
+      line: 300
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 16
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -6704,6 +6706,8 @@ sources:
       line: 338
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 394
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 158
   - label: lint-http-rules/src/helpers/content_range.rs (4)
     section: § 14.4
     snippet: A Content-Range field value is invalid if it contains a range-resp that has a last-pos value less than its first-pos value, or a complete-length value less than or equal to its last-pos value.
@@ -6712,6 +6716,10 @@ sources:
       line: 283
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 299
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 173
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 188
   - label: Content-Range grammar
     section: § 14.4
     snippet: Content-Range = range-unit SP ( range-resp / unsatisfied-range )
@@ -6720,6 +6728,12 @@ sources:
       line: 236
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 36
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 56
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 81
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 93
   - label: lint-http-rules/src/helpers/content_range.rs (5)
     section: § 14.4
     snippet: complete-length = 1*DIGIT
@@ -6728,24 +6742,32 @@ sources:
       line: 258
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 337
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 142
   - label: lint-http-rules/src/helpers/content_range.rs (6)
     section: § 14.4
     snippet: incl-range = first-pos "-" last-pos
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 268
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 130
   - label: lint-http-rules/src/helpers/content_range.rs (7)
     section: § 14.4
     snippet: range-resp = incl-range "/" ( complete-length / "*" )
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 267
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 104
   - label: lint-http-rules/src/helpers/content_range.rs (8)
     section: § 14.4
     snippet: unsatisfied-range = "*/" complete-length
     cited_by:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 251
+    - file: lint-http-rules/src/violations/content_range.rs
+      line: 117
   - label: lint-http-rules/src/helpers/content_range.rs (9)
     section: § 5.5
     snippet: A field value does not include leading or trailing whitespace.
@@ -7229,7 +7251,7 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 164
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 73
+      line: 104
   - label: lint-http-rules/src/helpers/media_type.rs (6)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
@@ -7913,97 +7935,97 @@ sources:
     snippet: If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 331
+      line: 362
   - label: range_and_content_range_consistent (2)
     section: § 14.1.2
     snippet: The first-pos value in a bytes int-range gives the offset of the first byte in a range.  The last-pos value gives the offset of the last byte in the range; that is, the byte positions specified are inclusive.  Byte offsets start at zero.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 318
+      line: 349
   - label: range_and_content_range_consistent (3)
     section: § 14.4
     snippet: 'A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:'
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 404
+      line: 435
   - label: range_and_content_range_consistent (4)
     section: § 14.4
     snippet: If a 206 (Partial Content) response contains a Content-Range header field with a range unit (Section 14.1) that the recipient does not understand, the recipient MUST NOT attempt to recombine it with a stored representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 319
+      line: 350
   - label: range_and_content_range_consistent (5)
     section: § 14.4
     snippet: The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 243
+      line: 274
   - label: range_and_content_range_consistent (6)
     section: § 14.4
     snippet: The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 204
+      line: 235
   - label: range_and_content_range_consistent (7)
     section: § 14.4
     snippet: The complete-length in a 416 response indicates the current length of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 422
+      line: 453
   - label: range_and_content_range_consistent (8)
     section: § 14.5
     snippet: Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 387
+      line: 418
   - label: range_and_content_range_consistent (9)
     section: § 15.3.7
     snippet: A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 330
+      line: 361
   - label: range_and_content_range_consistent (10)
     section: § 15.3.7.1
     snippet: If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 287
+      line: 318
   - label: range_and_content_range_consistent (11)
     section: § 15.3.7.2
     snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 268
+      line: 299
   - label: range_and_content_range_consistent (12)
     section: § 15.3.7.2
     snippet: If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 254
+      line: 285
   - label: range_and_content_range_consistent (13)
     section: § 15.3.7.2
     snippet: To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead).
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 256
+      line: 287
   - label: range_and_content_range_consistent (14)
     section: § 15.3.7.2
     snippet: Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 281
+      line: 312
   - label: range_and_content_range_consistent (15)
     section: § 15.5.17
     snippet: A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4).
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 403
+      line: 434
   - label: range_and_content_range_consistent (16)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 386
+      line: 417
   - label: range_header_syntax
     section: § 14.1.1
     snippet: A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit.
