@@ -12,8 +12,10 @@ Validate that `Authorization: Basic ...` credentials are syntactically valid Bas
 
 ## Specifications
 
-- [RFC 7617 §2](https://www.rfc-editor.org/rfc/rfc7617.html#section-2): The Basic authentication scheme and the `user-pass` encoding (Base64)
+- [RFC 7617 §2](https://www.rfc-editor.org/rfc/rfc7617.html#section-2): The 'Basic' Authentication Scheme — `user-pass = userid ":" password`, base64-encoded, with control characters forbidden in either half
 - [RFC 4648 §4](https://www.rfc-editor.org/rfc/rfc4648.html#section-4): Base64 encoding used for `token68`
+- [RFC 4648 §3.3](https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3): Interpretation of non-alphabet characters — a MUST to reject data outside the base alphabet, unless the referring specification says otherwise
+- [RFC 9110 §11.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-11.6.2): Authorization — the field's value *consists of* credentials, which is stricter than § 11.4's optional second half
 
 ## Configuration
 

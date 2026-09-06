@@ -1641,6 +1641,8 @@ sources:
       line: 511
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 210
+    - file: lint-http-rules/src/violations/base64.rs
+      line: 41
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 3.5
     snippet: MAY chose to reject an encoding if the pad bits have not been set to zero.
@@ -3770,13 +3772,15 @@ sources:
     snippet: The value is computed based on user-id and password as defined below.
     cited_by:
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
-      line: 100
+      line: 123
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 2
     snippet: The user-id and password MUST NOT contain any control characters
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 524
+    - file: lint-http-rules/src/violations/basic_credentials.rs
+      line: 60
   - label: basic-credentials base64
     section: § 2
     snippet: and obtains the basic-credentials by encoding this octet sequence using Base64
@@ -3789,6 +3793,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 516
+    - file: lint-http-rules/src/violations/basic_credentials.rs
+      line: 45
 - label: RFC 7838
   url: https://www.rfc-editor.org/rfc/rfc7838.html
   fragments:
@@ -6473,7 +6479,7 @@ sources:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
       line: 129
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
-      line: 85
+      line: 104
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
       line: 90
     - file: lint-http-rules/src/rules/digest_auth_valid.rs

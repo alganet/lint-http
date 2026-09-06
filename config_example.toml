@@ -1059,6 +1059,18 @@ severity = "warn"
 # Authentication scheme holds a character outside token
 severity = "warn"
 
+[violations.base64_malformed]
+# Value is not a base64 encoding
+severity = "warn"
+
+[violations.basic_credentials_control_character_forbidden]
+# Basic credentials hold a control character
+severity = "error"
+
+[violations.basic_credentials_separator_missing]
+# Basic credentials hold no ':' separator
+severity = "warn"
+
 [violations.challenge_empty]
 # Authentication challenge is empty
 severity = "warn"
