@@ -1126,3 +1126,31 @@ severity = "warn"
 [violations.domain_name_length_invalid]
 # Domain name is longer than 255 octets
 severity = "warn"
+
+[violations.language_tag_character_forbidden]
+# Language tag holds a character outside letters, digits and hyphen
+severity = "warn"
+
+[violations.language_tag_edge_hyphen_forbidden]
+# Language tag starts or ends with a hyphen
+severity = "warn"
+
+[violations.language_tag_empty]
+# Language tag is empty
+severity = "warn"
+
+[violations.language_tag_leading_letter_missing]
+# Language tag does not begin with a letter
+severity = "warn"
+
+[violations.language_tag_subtag_empty]
+# Language tag has an empty subtag
+severity = "warn"
+
+[violations.language_tag_subtag_length_invalid]
+# Language subtag is longer than eight characters
+severity = "warn"
+
+[violations.language_tag_whitespace_or_control_forbidden]
+# Language tag holds whitespace or a control character
+severity = "error"
