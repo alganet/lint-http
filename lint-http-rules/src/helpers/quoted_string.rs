@@ -282,13 +282,14 @@ pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
     // Reuse `unescape_quoted_string` to perform unescaping and validation
     match unescape_quoted_string(val) {
         Ok(s) => Ok(s.trim().is_empty()),
-        Err(e) => Err(e),
+        Err(defect) => Err(defect.message(val)),
     }
 }
 
 /// Unescape a well-formed HTTP `quoted-string` value and return its inner contents.
 /// - Input must include surrounding DQUOTE characters (e.g., `"a\"b"`).
-/// - Returns `Ok(inner_string)` on success or `Err(msg)` if the input is not a valid quoted-string.
+/// - Returns `Ok(inner_string)`, or the [`QuotedStringDefect`] that stopped the
+///   walk.
 ///
 /// **One pass.** This used to call [`validate_quoted_string`] and then walk the
 /// interior a second time to substitute, which is two readings of one production
@@ -296,13 +297,23 @@ pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
 /// out. Both functions now drain [`quoted_string_interior_chars`], which measures
 /// and substitutes in the same step, so the pair cannot disagree and neither pays
 /// for the other.
-pub fn unescape_quoted_string(val: &str) -> Result<String, String> {
+///
+/// **The `Err` is the defect and not a sentence**, which is the same shape
+/// [`check_quoted_string`] has and the opposite of what this returned while
+/// thirty callers spliced its prose into their own. Rendering it is
+/// [`QuotedStringDefect::message`] at the call site — one method, and the value
+/// it words the finding against is the one the caller was reading. What the
+/// change buys is that the four defects this production has are *nameable* by a
+/// caller: a rule reporting through the catalogue answers with the
+/// `quoted_string_*` def the variant maps to instead of one id for every way a
+/// value failed to be quoted.
+pub fn unescape_quoted_string(val: &str) -> Result<String, QuotedStringDefect> {
     let Some(inner) = quoted_string_interior(val) else {
-        return Err(QuotedStringDefect::NotQuoted.message(val));
+        return Err(QuotedStringDefect::NotQuoted);
     };
     let mut out = String::with_capacity(inner.len());
     for step in quoted_string_interior_chars(inner) {
-        out.push(step.map_err(|defect| defect.message(val))?);
+        out.push(step?);
     }
     Ok(out)
 }
@@ -463,9 +474,14 @@ mod tests {
                 case
             );
             if let Err(v) = validate_quoted_string(case) {
+                // Both answer with the same defect, and one of them renders it:
+                // the rendering is the comparison, because that is the half a
+                // caller embedding either of these into a finding reads.
                 assert_eq!(
                     Some(v),
-                    unescape_quoted_string(case).err(),
+                    unescape_quoted_string(case)
+                        .err()
+                        .map(|defect| defect.message(case)),
                     "same value, two messages, for {:?}",
                     case
                 );

@@ -126,11 +126,12 @@ fn extension_defect(member: &str) -> Option<String> {
                         shown_in_finding(member)
                     ))
                 }
-                Err(e) => {
+                Err(defect) => {
+                    let defect = defect.message(value);
                     return Some(format!(
-                        "member '{}' has a parameter whose quoted-string value is malformed: {e}",
+                        "member '{}' has a parameter whose quoted-string value is malformed: {defect}",
                         shown_in_finding(member)
-                    ))
+                    ));
                 }
             };
             if unescaped.is_empty() {

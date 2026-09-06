@@ -185,10 +185,10 @@ impl Rule for CharsetRegistered {
                             if value.starts_with('"') {
                                 match crate::helpers::quoted_string::unescape_quoted_string(value) {
                                     Ok(u) => value_owned = Some(u),
-                                    Err(e) => {
+                                    Err(defect) => {
                                         return Some(CharsetRegistered.violation(ctx.severity, format!(
                                                 "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
-                                                which, e
+                                                which, defect.message(value)
                                             )))
                                     }
                                 }

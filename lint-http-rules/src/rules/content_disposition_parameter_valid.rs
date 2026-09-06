@@ -213,12 +213,13 @@ impl Rule for ContentDispositionParameterValid {
                         let raw_val = if val.starts_with('"') {
                             match crate::helpers::quoted_string::unescape_quoted_string(val) {
                                 Ok(u) => u.trim().to_string(),
-                                Err(e) => {
+                                Err(defect) => {
                                     return Some(self.violation(
                                         ctx.severity,
                                         format!(
                                             "{} size parameter invalid quoted-string: {}",
-                                            hdr_name, e
+                                            hdr_name,
+                                            defect.message(val)
                                         ),
                                     ))
                                 }

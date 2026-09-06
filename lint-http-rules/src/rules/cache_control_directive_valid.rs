@@ -189,7 +189,13 @@ fn field_name_list_defect(name: &str, argument: &str) -> Option<String> {
     let list = if argument.starts_with('"') {
         match crate::helpers::quoted_string::unescape_quoted_string(argument) {
             Ok(inner) => inner,
-            Err(e) => return Some(format!("Invalid quoted-string in {} value: {}", name, e)),
+            Err(defect) => {
+                return Some(format!(
+                    "Invalid quoted-string in {} value: {}",
+                    name,
+                    defect.message(argument)
+                ))
+            }
         }
     } else {
         // unquoted: allow single token or comma-separated tokens
