@@ -4,8 +4,22 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_length::{CONTENT_LENGTH_CONFLICTING, RFC_9112_6_2};
+use crate::violations::ViolationDef;
 
 pub struct RequestBodyLengthAccuracy;
+
+/// The one defect this rule and its mirror both report. A declared length that
+/// disagrees with the octets received is the same defect whichever end of the
+/// exchange wrote it, so the id names `Content-Length` and neither the
+/// direction nor the rule — and the `error` default the two rules had each
+/// chosen for themselves is now stated once, where an operator can change it
+/// for both at once.
+///
+/// The rule's other findings, where it has them, are about *whether* a length
+/// may be declared at all rather than about it being wrong, and they belong to
+/// the message-framing subject nothing has written yet.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_LENGTH_CONFLICTING];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -15,12 +29,6 @@ const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("6.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
     note: "Message body length — item 6 is what licenses this rule at all, and its condition is 'without Transfer-Encoding'; item 3 is why a message carrying both is measured by neither",
-};
-const RFC_9112_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-    note: "Content-Length as framing — why a mismatch matters rather than merely differing. Also the MUST NOT against sending it beside Transfer-Encoding, which is another rule's finding",
 };
 const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -46,6 +54,10 @@ severity = "error"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9112_6_3, RFC_9112_6_2, RFC_9110_8_6]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -174,8 +186,8 @@ impl Rule for RequestBodyLengthAccuracy {
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
             if let Some(body_len) = req.body_length {
                 if declared != body_len as u128 {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CONTENT_LENGTH_CONFLICTING,
                         format!(
                             "Content-Length ({}) does not match captured body bytes ({})",
                             declared, body_len
@@ -502,6 +514,38 @@ mod tests {
         crate::test_helpers::enable_rule(&mut cfg, "request_body_length_accuracy");
         crate::rules::validate_rules(&cfg)?;
         Ok(())
+    }
+
+    /// The mirror rule reports the same id for the same defect, and at the
+    /// same level — which is now a property of one def rather than of two
+    /// configuration examples that happened to agree. The severity is `error`
+    /// where nearly everything else in the catalogue defaults to `warn`,
+    /// because the value is what a recipient frames the message with.
+    #[test]
+    fn both_directions_report_one_id_at_one_level() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.method = "POST".into();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-length", "5")]);
+        tx.request.body_length = Some(9);
+        let found = crate::test_helpers::run_rule(
+            &RequestBodyLengthAccuracy,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "request_body_length_accuracy",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "content_length_conflicting");
+        assert_eq!(found.severity, crate::lint::Severity::Error);
+        assert_eq!(
+            crate::rules::response_body_length_accuracy::ResponseBodyLengthAccuracy
+                .violations()
+                .first()
+                .map(|d| d.id),
+            Some("content_length_conflicting"),
+        );
     }
 
     #[test]

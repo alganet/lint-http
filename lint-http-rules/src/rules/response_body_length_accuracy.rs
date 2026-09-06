@@ -4,8 +4,22 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_length::{CONTENT_LENGTH_CONFLICTING, RFC_9112_6_2};
+use crate::violations::ViolationDef;
 
 pub struct ResponseBodyLengthAccuracy;
+
+/// The one defect this rule and its mirror both report. A declared length that
+/// disagrees with the octets received is the same defect whichever end of the
+/// exchange wrote it, so the id names `Content-Length` and neither the
+/// direction nor the rule — and the `error` default the two rules had each
+/// chosen for themselves is now stated once, where an operator can change it
+/// for both at once.
+///
+/// The rule's other findings, where it has them, are about *whether* a length
+/// may be declared at all rather than about it being wrong, and they belong to
+/// the message-framing subject nothing has written yet.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_LENGTH_CONFLICTING];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -21,12 +35,6 @@ const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.6"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
     note: "Content-Length: the field, its grammar, the MUSTs that make a HEAD or 304 response's value describe a body it did not send, and the MUST NOT against forwarding a value known to be incorrect — this rule's reason to exist",
-};
-const RFC_9112_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-    note: "Content-Length as framing, and the MUST NOT against sending it beside Transfer-Encoding — another rule's finding",
 };
 const RFC_9110_9_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -52,6 +60,10 @@ severity = "error"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9112_6_3, RFC_9110_8_6, RFC_9112_6_2, RFC_9110_9_3_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -224,8 +236,8 @@ impl Rule for ResponseBodyLengthAccuracy {
             // cite(RFC 9110 § 8.6): "The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets."
             if let Some(body_len) = resp.body_length {
                 if declared != body_len as u128 {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &CONTENT_LENGTH_CONFLICTING,
                         format!(
                             "Content-Length ({}) does not match captured body bytes ({})",
                             declared, body_len
