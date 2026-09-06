@@ -224,11 +224,11 @@ pub fn media_type_parts_defect(parsed: &ParsedMediaType<'_>) -> Option<String> {
             // around the whole clause rather than around the name alone -- a
             // control octet inside the quoted-string is exactly what that reason
             // is about, and it arrived raw.
-            Err(WordDefect::NotQuotedString(e)) => {
+            Err(WordDefect::NotQuotedString(defect)) => {
                 return Some(format!(
                     "parameter '{}' has invalid quoted-string: {}",
                     parameter.name.escape_debug(),
-                    e.escape_debug()
+                    defect.message(parameter.value).escape_debug()
                 ))
             }
         }

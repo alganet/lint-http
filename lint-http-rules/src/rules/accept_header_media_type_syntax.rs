@@ -402,12 +402,14 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                                             p, hdr
                                         )));
                                 }
-                                Err(crate::helpers::word::WordDefect::NotQuotedString(e)) => {
+                                Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => {
                                     return Some(self.violation(
                                         ctx.severity,
                                         format!(
                                             "Invalid quoted-string parameter '{}' in {} header: {}",
-                                            p, hdr, e
+                                            p,
+                                            hdr,
+                                            defect.message(v)
                                         ),
                                     ));
                                 }

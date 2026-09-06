@@ -24,8 +24,10 @@
 //! `token68` admits `/` and `=` and no `!#$%&'*^\`|~` — and a value that is one
 //! is not measured against the other anywhere in this crate.
 
+use crate::helpers::word::WordDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::quoted_string::quoted_string_defect;
 use crate::violations::{defects, ViolationDef};
 
 /// The production and its character set, in the one section that writes both.
@@ -87,6 +89,31 @@ pub fn token_character(c: char) -> &'static ViolationDef {
     }
 }
 
+/// The defect a [`WordDefect`] reports as — `None` when the answer is the
+/// caller's rather than the catalogue's.
+///
+/// `( token / quoted-string )` is an alternation and owns no defect of its
+/// own: a value that failed did so at one of the two halves, and each half has
+/// a subject. This lives here rather than in a `word` file because a value that
+/// does not open with a DQUOTE is a `token` by elimination, which is the same
+/// reasoning [`crate::helpers::word::token_or_quoted_string`] uses to pick the
+/// alternative — and the quoted half delegates, the way every nested mapping in
+/// this catalogue does.
+///
+/// [`WordDefect::Empty`] is the `None`, and deliberately so. Neither
+/// alternative derives the empty string, which is arithmetic — but what a
+/// *field* does about a value that is empty is a per-field verdict, and
+/// `helpers::word` records that six callers had answered it in four different
+/// ways. Two of them tolerate it outright. A def here would be this catalogue
+/// deciding a question its callers have not agreed on.
+pub fn word_defect(defect: WordDefect) -> Option<&'static ViolationDef> {
+    match defect {
+        WordDefect::Empty => None,
+        WordDefect::NotToken(c) => Some(token_character(c)),
+        WordDefect::NotQuotedString(defect) => Some(quoted_string_defect(defect)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,6 +135,28 @@ mod tests {
         ] {
             assert_eq!(token_character(c).id, "token_character_forbidden", "{c:?}");
         }
+    }
+
+    /// The alternation answers with the half that failed, and with nothing at
+    /// all for the empty value — which is the one verdict this catalogue leaves
+    /// to the field.
+    #[test]
+    fn a_word_answers_with_the_half_that_failed() {
+        use crate::helpers::quoted_string::QuotedStringDefect;
+
+        assert_eq!(word_defect(WordDefect::Empty).map(|d| d.id), None);
+        assert_eq!(
+            word_defect(WordDefect::NotToken('@')).map(|d| d.id),
+            Some("token_character_forbidden"),
+        );
+        assert_eq!(
+            word_defect(WordDefect::NotToken(' ')).map(|d| d.id),
+            Some("token_whitespace_or_control_forbidden"),
+        );
+        assert_eq!(
+            word_defect(WordDefect::NotQuotedString(QuotedStringDefect::NotQuoted)).map(|d| d.id),
+            Some("quoted_string_delimiter_missing"),
+        );
     }
 
     /// The pair defaults a level apart, which is the convention

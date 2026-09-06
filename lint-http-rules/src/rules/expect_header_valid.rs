@@ -498,11 +498,11 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
                     crate::helpers::shown::shown_in_finding(seg)
                 ))
             }
-            Err(crate::helpers::word::WordDefect::NotQuotedString(e)) => {
+            Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => {
                 return Err(format!(
                     "Invalid quoted-string in Expect parameter '{}': {}",
                     crate::helpers::shown::shown_in_finding(seg),
-                    e
+                    defect.message(pvalue)
                 ))
             }
             Err(crate::helpers::word::WordDefect::NotToken(c)) => {

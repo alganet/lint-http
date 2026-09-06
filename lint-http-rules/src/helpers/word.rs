@@ -41,7 +41,7 @@ use crate::helpers::shown::describe_char;
 /// measurements behind it; **the wording, and the verdict on
 /// [`WordDefect::Empty`], stay at the caller** — which is where each field's own
 /// sentence about it is.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WordDefect {
     /// The value is empty, and neither alternative derives the empty string:
     /// `token = 1*tchar` has a one-character floor, and the shortest
@@ -53,8 +53,16 @@ pub enum WordDefect {
     /// elimination rather than by inspection: see [`token_or_quoted_string`].
     NotToken(char),
     /// A leading DQUOTE opened something that is not a well-formed
-    /// `quoted-string`, carrying the interior walk's own account of it.
-    NotQuotedString(String),
+    /// `quoted-string`, carrying that production's own defect.
+    ///
+    /// Nested rather than rendered, for the reason
+    /// [`UriHostDefect::PercentEncoding`](crate::helpers::uri::UriHostDefect::PercentEncoding)
+    /// nests its own: a `quoted-string` is the same production wherever it is
+    /// read, and this alternation adds nothing to it. It carried a `String`
+    /// while [`unescape_quoted_string`] rendered one, which put prose inside a
+    /// typed defect and left every caller matching this variant unable to name
+    /// *which* of the four ways the value failed.
+    NotQuotedString(crate::helpers::quoted_string::QuotedStringDefect),
 }
 
 /// Read one `( token / quoted-string )` and return what it holds.
@@ -87,7 +95,7 @@ pub fn token_or_quoted_string(value: &str) -> Result<std::borrow::Cow<'_, str>, 
     if value.starts_with('"') {
         return unescape_quoted_string(value)
             .map(std::borrow::Cow::Owned)
-            .map_err(|defect| WordDefect::NotQuotedString(defect.message(value)));
+            .map_err(WordDefect::NotQuotedString);
     }
     match crate::helpers::token::find_invalid_token_char(value) {
         Some(c) => Err(WordDefect::NotToken(c)),
@@ -173,7 +181,7 @@ pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, String> {
             Err(WordDefect::NotToken(c)) => {
                 return Err(format!("value contains {}", describe_char(c)))
             }
-            Err(WordDefect::NotQuotedString(e)) => return Err(e),
+            Err(WordDefect::NotQuotedString(defect)) => return Err(defect.message(v)),
         },
     };
 
