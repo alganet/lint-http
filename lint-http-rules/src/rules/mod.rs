@@ -1268,14 +1268,16 @@ severity = "warn"
     /// was the first and took one cited site with it; `cookie_domain_valid`
     /// took three more, `language_tag_syntax` one, and
     /// `www_authenticate_challenge_syntax` the one that read the `#challenge`
-    /// list before its members were grouped.
+    /// list before its members were grouped, and
+    /// `authorization_credentials_present` the one that read the credentials
+    /// after the scheme.
     #[test]
     fn citation_coverage_does_not_regress() {
         /// Finding sites that name the specification sentence they enforce.
         /// The rest are the per-rule reading that has not happened yet — the
         /// denominator is computed below, because merges and conversions both
         /// move it.
-        const FLOOR: usize = 165;
+        const FLOOR: usize = 164;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

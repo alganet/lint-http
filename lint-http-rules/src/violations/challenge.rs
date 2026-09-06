@@ -8,7 +8,12 @@
 //! RFC 9110 § 11.3's production, and not the field carrying it.
 //! `WWW-Authenticate` is the one this crate reads today; `Proxy-Authenticate`
 //! is the same production under a different name, and a rule for it declares
-//! these same eleven rather than eleven of its own.
+//! these same ten rather than ten of its own.
+//!
+//! The scheme at the front of a challenge is *not* here. `auth-scheme = token`
+//! is § 11.2's, shared with § 11.4's `credentials`, and its defect lives in
+//! [`crate::violations::auth_scheme`] where an `Authorization` value reports
+//! the same one.
 //!
 //! **The wording is still the field's, and that is the part left to move.**
 //! The messages come from [`crate::helpers::auth::ChallengeDefect`], which was
@@ -26,17 +31,9 @@
 use crate::helpers::auth::ChallengeDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
 use crate::violations::quoted_string::quoted_string_defect;
 use crate::violations::{defects, ViolationDef};
-
-/// The parameters the framework is built out of: the scheme's `token`, the
-/// `auth-param` pair, and the `token68` alternative.
-pub const RFC_9110_11_2: SpecRef = SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.2",
-    note: "Authentication Parameters — `auth-scheme = token`, `auth-param = token BWS \"=\" BWS ( token / quoted-string )`, and `token68`'s alphabet",
-};
 
 /// The challenge itself: a scheme, and then one of two alternatives.
 pub const RFC_9110_11_3: SpecRef = SpecRef {
@@ -93,19 +90,6 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: Some(RFC_9110_11_3),
-    }
-
-    /// A non-`tchar` octet in the `auth-scheme`. The scheme is a `token`, and a
-    /// recipient matches it case-insensitively against a registry — so an octet
-    /// outside the class is a name nothing can be looked up under.
-    ///
-    // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-    CHALLENGE_SCHEME_CHARACTER_FORBIDDEN = {
-        id: "challenge_scheme_character_forbidden",
-        title: "Authentication scheme holds a character outside token",
-        message: "",
-        default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
     }
 
     /// A control octet where a `token68` was read. `error` by default, the same
@@ -175,7 +159,7 @@ defects! {
     }
 
     /// A non-`tchar` octet in an `auth-param` name. The same complaint as
-    /// [`CHALLENGE_SCHEME_CHARACTER_FORBIDDEN`] under a different production,
+    /// [`AUTH_SCHEME_CHARACTER_FORBIDDEN`] under a different production,
     /// and kept apart from it for exactly that reason: an operator reading a
     /// report is told which half of the challenge the octet was in.
     ///
@@ -214,7 +198,7 @@ pub fn challenge_defect(defect: ChallengeDefect<'_>) -> &'static ViolationDef {
         ChallengeDefect::Empty => &CHALLENGE_EMPTY,
         ChallengeDefect::EmptyMember => &CHALLENGE_MEMBER_EMPTY,
         ChallengeDefect::SchemeMissing => &CHALLENGE_SCHEME_MISSING,
-        ChallengeDefect::SchemeCharacter(_) => &CHALLENGE_SCHEME_CHARACTER_FORBIDDEN,
+        ChallengeDefect::SchemeCharacter(_) => &AUTH_SCHEME_CHARACTER_FORBIDDEN,
         ChallengeDefect::Token68ControlCharacter => &CHALLENGE_TOKEN68_CHARACTER_FORBIDDEN,
         ChallengeDefect::SuspiciousSingleToken(_) => &CHALLENGE_TOKEN68_INVALID,
         ChallengeDefect::EmptyParameter => &CHALLENGE_PARAMETER_EMPTY,
@@ -232,9 +216,11 @@ pub fn challenge_defect(defect: ChallengeDefect<'_>) -> &'static ViolationDef {
 mod tests {
     use super::*;
 
-    /// Twelve variants, twelve ids, spelled out — the last of them belonging to
-    /// another subject, which is the mapping most worth pinning: a quoted value
-    /// inside an `auth-param` is a `quoted-string` defect, not a challenge one.
+    /// Twelve variants, twelve ids, spelled out — two of them belonging to other
+    /// subjects, which are the mappings most worth pinning: the scheme is
+    /// § 11.2's `auth-scheme` wherever it was written, and a quoted value
+    /// inside an `auth-param` is a `quoted-string` defect and not a challenge
+    /// one.
     #[test]
     fn each_challenge_defect_maps_to_its_own_id() {
         for (defect, id) in [
@@ -243,7 +229,7 @@ mod tests {
             (ChallengeDefect::SchemeMissing, "challenge_scheme_missing"),
             (
                 ChallengeDefect::SchemeCharacter('@'),
-                "challenge_scheme_character_forbidden",
+                "auth_scheme_character_forbidden",
             ),
             (
                 ChallengeDefect::Token68ControlCharacter,

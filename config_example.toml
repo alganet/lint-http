@@ -1055,6 +1055,10 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[violations.auth_scheme_character_forbidden]
+# Authentication scheme holds a character outside token
+severity = "warn"
+
 [violations.challenge_empty]
 # Authentication challenge is empty
 severity = "warn"
@@ -1081,10 +1085,6 @@ severity = "warn"
 
 [violations.challenge_parameter_value_missing]
 # Authentication parameter has no value
-severity = "warn"
-
-[violations.challenge_scheme_character_forbidden]
-# Authentication scheme holds a character outside token
 severity = "warn"
 
 [violations.challenge_scheme_missing]
@@ -1142,6 +1142,18 @@ severity = "warn"
 [violations.cookie_path_whitespace_invalid]
 # Set-Cookie Path attribute holds unencoded whitespace
 severity = "info"
+
+[violations.credentials_control_character_forbidden]
+# Credentials hold a control character
+severity = "error"
+
+[violations.credentials_empty]
+# Credentials are empty
+severity = "warn"
+
+[violations.credentials_missing]
+# Credentials are absent after the scheme
+severity = "warn"
 
 [violations.domain_label_character_forbidden]
 # Domain label holds a character outside letters, digits and hyphen
