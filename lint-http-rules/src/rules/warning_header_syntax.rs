@@ -525,8 +525,8 @@ fn validate_warn_agent(agent: &str) -> Result<(), String> {
 /// decides on its own.
 // cite(RFC 7234 § 5.5): "warn-date = DQUOTE HTTP-date DQUOTE"
 fn validate_warn_date(quoted: &str) -> Result<(), String> {
-    let inner =
-        unescape_quoted_string(quoted).map_err(|e| format!("has an invalid warn-date: {e}"))?;
+    let inner = unescape_quoted_string(quoted)
+        .map_err(|defect| format!("has an invalid warn-date: {}", defect.message(quoted)))?;
 
     // The DQUOTEs of `warn-date` sit directly against the `HTTP-date`, and SP is
     // `qdtext` — so a padded date is a well-formed quoted-string holding

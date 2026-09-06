@@ -87,7 +87,7 @@ pub fn token_or_quoted_string(value: &str) -> Result<std::borrow::Cow<'_, str>, 
     if value.starts_with('"') {
         return unescape_quoted_string(value)
             .map(std::borrow::Cow::Owned)
-            .map_err(WordDefect::NotQuotedString);
+            .map_err(|defect| WordDefect::NotQuotedString(defect.message(value)));
     }
     match crate::helpers::token::find_invalid_token_char(value) {
         Some(c) => Err(WordDefect::NotToken(c)),

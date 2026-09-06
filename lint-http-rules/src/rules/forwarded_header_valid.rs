@@ -22,6 +22,11 @@ use crate::violations::node::{
     NODE_IPV6_REPRESENTATION_INVALID, NODE_MALFORMED, NODE_PORT_MALFORMED, RFC_7239_6,
     RFC_7239_6_1,
 };
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
 use crate::violations::uri::{
     host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
     RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
@@ -40,13 +45,18 @@ use crate::violations::ViolationDef;
 /// a pair of rules rather than in the abstract, and it is why the two node
 /// defects that spelling makes unreachable there are reachable here.
 ///
+/// The `quoted_string_*` four are here for the same reason: `value = token /
+/// quoted-string` borrows RFC 9110's production whole, so a parameter value that
+/// opens with a DQUOTE and then fails is failing at *that* grammar and reports
+/// its id. The control-character one is declared and unreachable from any rule
+/// reading a field value — a `HeaderValue` admits no octet below SP but HTAB,
+/// and no DEL — which is a fact about the transport rather than about this
+/// field's grammar.
+///
 /// What is not converted is the field's own grammar — the element, the pair, the
 /// name, the duplicate parameter, the empty list member, and the response
 /// carrying the field at all. Those are §4's and belong to a `forwarded` subject
-/// that nothing has written. Neither is the `quoted-string` arm, which has a
-/// subject already: `unescape_quoted_string` still answers in a rendered
-/// `String` over a `QuotedStringDefect` it has in hand, and typing it converts
-/// seven rules at once rather than this one.
+/// that nothing has written.
 static DECLARED: &[&ViolationDef] = &[
     &NODE_IPV6_BRACKETS_MISSING,
     &NODE_IPV6_CLOSING_BRACKET_MISSING,
@@ -65,6 +75,10 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_PORT_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
 
 /// Every octet of a field line as the `char` of the same value.
@@ -227,10 +241,19 @@ impl ForwardedHeaderValid {
             let value = if raw_value.starts_with('"') {
                 match unescape_quoted_string(raw_value) {
                     Ok(unescaped) => unescaped,
-                    Err(e) => {
-                        return violation(format!(
-                            "Forwarded '{}' is not a well-formed quoted-string: {}",
-                            name, e
+                    // The production is RFC 9110's and so is the defect: a
+                    // parameter value that opens with a DQUOTE and then fails is
+                    // failing at `quoted-string`, which this field borrows whole.
+                    // The message still names the parameter, because that is what
+                    // this rule knows and the catalogue does not.
+                    Err(defect) => {
+                        return Some(ctx.report_with(
+                            quoted_string_defect(defect),
+                            format!(
+                                "Forwarded '{}' is not a well-formed quoted-string: {}",
+                                name,
+                                defect.message(raw_value)
+                            ),
                         ))
                     }
                 }
@@ -397,6 +420,7 @@ severity = "warn"
             RFC_3986_3_2_2,
             RFC_3986_3_2_3,
             RFC_3986_2_1,
+            RFC_9110_5_6_4,
         ]
     }
 
@@ -600,6 +624,30 @@ mod tests {
         ] {
             let (violation, _) = judge_defect(value).unwrap_or_else(|| panic!("{value}"));
             assert_eq!(violation, id, "{value}");
+        }
+    }
+
+    /// `value = token / quoted-string` borrows RFC 9110's production whole, so
+    /// a value that opens with a DQUOTE and then fails is failing at that
+    /// grammar — and the ways it can are ids of that production, where one rule
+    /// severity and one message shape used to be all this field could say.
+    ///
+    /// Three of the four, and the fourth is not a gap in the reading:
+    /// `quoted_string_control_character_forbidden` cannot be reached through a
+    /// field value at all, because a `HeaderValue` refuses every octet below SP
+    /// but HTAB and refuses DEL — so the octet never survives to the field
+    /// reader. It is declared because the mapping is exhaustive, and it is the
+    /// same shape as the two node defects the legacy spelling cannot reach.
+    #[test]
+    fn a_quoted_value_reports_the_quoted_string_defect() {
+        for (value, id) in [
+            ("foo=\"abc", "quoted_string_delimiter_missing"),
+            ("foo=\"a\"b\"", "quoted_string_quote_escape_missing"),
+            ("foo=\"ab\\\"", "quoted_string_quoted_pair_malformed"),
+        ] {
+            let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value:?}"));
+            assert_eq!(violation, id, "{value:?}");
+            assert_eq!(severity, crate::lint::Severity::Warn, "{value:?}");
         }
     }
 

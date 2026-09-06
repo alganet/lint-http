@@ -265,12 +265,13 @@ fn check_multipart_boundary(
                         // Unescape quoted-string interior using helper
                         match crate::helpers::quoted_string::unescape_quoted_string(value) {
                             Ok(u) => u,
-                            Err(e) => {
+                            Err(defect) => {
                                 return Some(MultipartBoundarySyntax.violation(
                                     severity,
                                     format!(
                                         "Invalid multipart Content-Type in {}: boundary quoted-string invalid: {}",
-                                        which, e
+                                        which,
+                                        defect.message(value)
                                     ),
                                 ))
                             }

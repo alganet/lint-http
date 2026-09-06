@@ -126,10 +126,11 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
     // behind -- which reads as an early exit and can never fire.
     let inner = match unescape_quoted_string(authority) {
         Ok(inner) => inner,
-        Err(e) => {
+        Err(defect) => {
+            let defect = defect.message(authority);
             return Some(format!(
-                "Alt-Svc alternative '{shown}' carries an alt-authority that is not a well-formed `quoted-string`: {e}"
-            ))
+                "Alt-Svc alternative '{shown}' carries an alt-authority that is not a well-formed `quoted-string`: {defect}"
+            ));
         }
     };
 

@@ -879,7 +879,7 @@ sources:
     snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 389
+      line: 390
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 121
   - label: multipart_boundary_syntax (3)
@@ -887,7 +887,7 @@ sources:
     snippet: The boundary delimiter line is then defined as a line consisting entirely of two hyphen characters ("-", decimal value 45) followed by the boundary parameter value from the Content-Type header field, optional linear whitespace, and a terminating CRLF.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 390
+      line: 391
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 222
   - label: multipart_boundary_syntax (4)
@@ -901,27 +901,27 @@ sources:
     snippet: The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 351
+      line: 352
   - label: multipart_boundary_syntax (6)
     section: § 5.1.1
     snippet: bchars := bcharsnospace / " "
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 313
+      line: 314
   - label: multipart_boundary_syntax (7)
     section: § 5.1.1
     snippet: bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" / "," / "-" / "." / "/" / ":" / "=" / "?"
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 314
+      line: 315
   - label: multipart_boundary_syntax (8)
     section: § 5.1.1
     snippet: boundary := 0*69<bchars> bcharsnospace
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 350
+      line: 351
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 371
+      line: 372
   - label: multipart_content_type_and_body_consistent
     section: § 5.1.1
     snippet: An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF.
@@ -1079,7 +1079,7 @@ sources:
     snippet: Therefore, where at least one element is required, at least one non-null element MUST be present.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 194
+      line: 195
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 48
   - label: sec_websocket_extensions_syntax (3)
@@ -1087,7 +1087,7 @@ sources:
     snippet: Wherever this construct is used, null elements are allowed, but do not contribute to the count of elements present.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 193
+      line: 194
     - file: lint-http-rules/src/rules/sec_websocket_version_advertised.rs
       line: 24
 - label: RFC 2617
@@ -1380,7 +1380,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1050
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 141
+      line: 142
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 356
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
@@ -1400,7 +1400,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1243
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 153
+      line: 154
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 52
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -2373,7 +2373,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1219
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 187
+      line: 188
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 102
   - label: lint-http-rules/src/helpers/uri.rs (2)
@@ -2383,7 +2383,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1218
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 186
+      line: 187
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 101
 - label: RFC 6454
@@ -2577,7 +2577,7 @@ sources:
     snippet: A client requests extensions by including a |Sec-WebSocket-Extensions| header field, which follows the normal rules for HTTP header fields (see [RFC2616], Section 4.2) and the value of the header field is defined by the following ABNF [RFC2616].
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 327
+      line: 328
   - label: sec_websocket_extensions_syntax (2)
     section: § 9.1
     snippet: Any extension-token used MUST be a registered token (see Section 11.4).
@@ -2591,13 +2591,13 @@ sources:
     snippet: If a value is received by either the client or the server during negotiation that does not conform to the ABNF below, the recipient of such malformed data MUST immediately _Fail the WebSocket Connection_.
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 212
+      line: 213
   - label: sec_websocket_extensions_syntax (4)
     section: § 9.1
     snippet: Note that this section is using ABNF syntax/rules from [RFC2616], including the "implied *LWS rule".
     cited_by:
     - file: lint-http-rules/src/rules/sec_websocket_extensions_syntax.rs
-      line: 192
+      line: 193
   - label: Sec-WebSocket-Extensions grammar
     section: § 9.1
     snippet: Sec-WebSocket-Extensions = extension-list extension-list = 1#extension extension = extension-token *( ";" extension-param ) extension-token = registered-token registered-token = token extension-param = token [ "=" (token | quoted-string) ]
@@ -3234,67 +3234,67 @@ sources:
     snippet: This specification uses the Augmented Backus-Naur Form (ABNF) notation of [RFC5234] with the list rule extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 300
+      line: 323
   - label: forwarded_header_valid (2)
     section: § 4
     snippet: '"Forwarded" is only for use in HTTP requests and is not to be used in HTTP responses.'
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 472
+      line: 496
   - label: forwarded_header_valid (3)
     section: § 4
     snippet: Each parameter MUST NOT occur more than once per field-value.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 178
+      line: 192
   - label: Forwarded grammar
     section: § 4
     snippet: Forwarded   = 1#forwarded-element
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 301
+      line: 324
   - label: forwarded_header_valid (4)
     section: § 4
     snippet: Note that as ":" and "[]" are not valid characters in "token", IPv6 addresses are written as "quoted-string".
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 225
+      line: 239
   - label: forwarded_header_valid (5)
     section: § 4
     snippet: The parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 208
+      line: 222
   - label: forwarded-element grammar
     section: § 4
     snippet: forwarded-element = [ forwarded-pair ] *( ";" [ forwarded-pair ] )
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 165
+      line: 179
   - label: forwarded-pair grammar
     section: § 4
     snippet: forwarded-pair = token "=" value value          = token / quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 188
+      line: 202
   - label: forwarded_header_valid (6)
     section: § 5.1
     snippet: The syntax of a "by" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 95
+      line: 109
   - label: forwarded_header_valid (7)
     section: § 5.2
     snippet: The syntax of a "for" value, after potential quoted-string unescaping, conforms to the "node" ABNF described in Section 6.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 94
+      line: 108
   - label: forwarded_header_valid (8)
     section: § 5.3
     snippet: The syntax for a "host" value, after potential quoted-string unescaping, MUST conform to the Host ABNF described in Section 5.4 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 108
+      line: 122
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 176
   - label: forwarded_header_valid (9)
@@ -3302,7 +3302,7 @@ sources:
     snippet: The syntax of a "proto" value, after potential quoted-string unescaping, MUST conform to the URI scheme name as defined in Section 3.1 in [RFC3986] and registered with IANA according to [RFC4395].
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 132
+      line: 146
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 158
   - label: forwarded_header_valid (10)
@@ -3310,33 +3310,33 @@ sources:
     snippet: All extension parameters SHOULD be registered in the "HTTP Forwarded Parameter" registry.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 263
+      line: 286
   - label: forwarded_header_valid (11)
     section: § 6
     snippet: It is important to note that an IPv6 address and any nodename with node-port specified MUST be quoted, since ":" is not an allowed character in "token".
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 226
+      line: 240
   - label: forwarded_header_valid (12)
     section: § 7.1
     snippet: Note that an HTTP list allows white spaces to occur between the identifiers, and the list may be split over multiple header fields.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 164
+      line: 178
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 454
+      line: 478
   - label: forwarded_header_valid (13)
     section: § 8.2
     snippet: This header field should never be copied into response messages by origin servers or intermediaries, as it can reveal the whole proxy chain to the client.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 473
+      line: 497
   - label: forwarded_header_valid (14)
     section: § 9
     snippet: New parameters and their values MUST conform with the forwarded-pair as defined in ABNF in Section 4.
     cited_by:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 264
+      line: 287
   - label: lint-http-rules/src/helpers/forwarded_node.rs
     section: § 6
     snippet: To distinguish an "obfport" from a port, the "obfport" MUST have a leading underscore. Further, it MUST also consist of only "ALPHA", "DIGIT", and the characters ".", "_", and "-".
@@ -3845,7 +3845,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 179
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 474
+      line: 475
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 328
   - label: alt_svc_h3_advertisement_valid (2)
@@ -3855,7 +3855,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 277
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 222
+      line: 223
   - label: alt_svc_h3_advertisement_valid (3)
     section: § 3
     snippet: Unknown parameters MUST be ignored.
@@ -3863,7 +3863,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 40
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 223
+      line: 224
   - label: alt_svc_h3_advertisement_valid (4)
     section: § 3
     snippet: clear         = %s"clear"; "clear", case-sensitive
@@ -3873,7 +3873,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 21
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 324
+      line: 325
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 368
   - label: alt_svc_h3_advertisement_valid (5)
@@ -3885,7 +3885,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 276
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 221
+      line: 222
   - label: alt_svc_h3_advertisement_valid (6)
     section: § 3.1
     snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
@@ -3897,25 +3897,25 @@ sources:
     snippet: This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 558
+      line: 559
   - label: alt_svc_header_syntax (2)
     section: § 2
     snippet: Note that for the purpose of this specification, an ALPN protocol name implicitly includes TLS in the suite of protocols it identifies, unless specified otherwise in its definition.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 185
+      line: 186
   - label: alt_svc_header_syntax (3)
     section: § 3
     snippet: A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services).
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 543
+      line: 544
   - label: alt_svc_header_syntax (4)
     section: § 3
     snippet: Alt-Svc MAY occur in any HTTP response message, regardless of the status code.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 491
+      line: 492
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 349
   - label: alt_svc_header_syntax (5)
@@ -3995,7 +3995,7 @@ sources:
     snippet: alternative   = protocol-id "=" alt-authority
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 317
+      line: 318
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 400
   - label: alt_svc_header_syntax (17)
@@ -4003,7 +4003,7 @@ sources:
     snippet: protocol-id   = token ; percent-encoded ALPN protocol name
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 318
+      line: 319
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 135
   - label: alt_svc_header_syntax (18)
@@ -4011,25 +4011,25 @@ sources:
     snippet: Alternative services that are intended to be longer lived (such as those that are not specific to the client access network) can carry the "persist" parameter with a value "1" as a hint that the service is potentially useful beyond a network configuration change.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 288
+      line: 289
   - label: alt_svc_header_syntax (19)
     section: § 3.1
     snippet: Clients MUST ignore "persist" parameters with values other than "1".
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 290
+      line: 291
   - label: alt_svc_header_syntax (20)
     section: § 3.1
     snippet: This specification only defines a single value for "persist".
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 289
+      line: 290
   - label: alt_svc_header_syntax (21)
     section: § 8
     snippet: An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1).
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 140
+      line: 141
   - label: alt_svc_protocol_registered
     section: § 2
     snippet: An Application Layer Protocol Negotiation (ALPN) protocol name, as per [RFC7301]
@@ -5235,7 +5235,7 @@ sources:
     snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 475
+      line: 476
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 329
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -6477,7 +6477,7 @@ sources:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
       line: 116
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 319
+      line: 342
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 300
     - file: lint-http-rules/src/rules/status_code_semantics.rs
@@ -6615,7 +6615,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 85
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 559
+      line: 560
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 105
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -6623,7 +6623,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 189
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 302
+      line: 325
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
       line: 155
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
@@ -7083,7 +7083,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 145
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 533
+      line: 534
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 515
   - label: lint-http-rules/src/helpers/list.rs (2)
@@ -7121,7 +7121,7 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 192
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 501
+      line: 525
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 594
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -7385,7 +7385,7 @@ sources:
     - file: lint-http-rules/src/helpers/quoted_string.rs
       line: 191
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 82
+      line: 96
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 416
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
@@ -7421,7 +7421,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 81
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 319
+      line: 320
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 407
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
@@ -7453,7 +7453,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1242
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
-      line: 109
+      line: 123
     - file: lint-http-rules/src/rules/host_header.rs
       line: 251
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
@@ -7523,7 +7523,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 180
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 508
+      line: 509
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 359
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -7711,7 +7711,7 @@ sources:
     snippet: Parameter values might or might not be case-sensitive, depending on the semantics of the parameter name.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 315
+      line: 316
   - label: multipart_boundary_syntax (3)
     section: § 5.6.6
     snippet: The quoted and unquoted values are equivalent.
