@@ -124,7 +124,11 @@ impl Rule for CacheControlDirectiveValid {
 fn member_defect(member: &str) -> Option<String> {
     let directive = match crate::helpers::cache_control::read_member(member) {
         Ok(directive) => directive,
-        Err(message) => return Some(message),
+        // The three defects the reader names are the list's and the token's,
+        // and `cache_control_token_valid` reports them through the catalogue.
+        // This rule is unconverted and renders them, which is the same finding
+        // in the same words it has always been.
+        Err(defect) => return Some(defect.message()),
     };
     let name = directive.name;
     // An empty argument is accepted for directives that take one; the `=` with

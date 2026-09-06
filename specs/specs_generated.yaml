@@ -6655,7 +6655,7 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 349
     - file: lint-http-rules/src/violations/list.rs
-      line: 42
+      line: 44
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
@@ -9242,7 +9242,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 315
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 153
+      line: 157
   - label: age_header_numeric (2)
     section: § 1.2.2
     snippet: or the greatest positive integer it can conveniently represent.
@@ -9252,7 +9252,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 316
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 154
+      line: 158
   - label: age_header_numeric (3)
     section: § 5.1
     snippet: Although it is defined as a singleton header field, a cache encountering a message with a list-based Age field value SHOULD use the first member of the field value, discarding subsequent ones.
@@ -9274,7 +9274,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 304
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 138
+      line: 142
   - label: cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -9302,13 +9302,13 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 106
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
-      line: 106
+      line: 153
   - label: cache_control_directive_valid (2)
     section: § 5.2.2.7
     snippet: If a qualified private response directive is present, with an argument that lists one or more field names
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 161
+      line: 165
   - label: cache_control_present
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
@@ -9416,25 +9416,25 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 325
+      line: 351
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 335
+      line: 361
   - label: lint-http-rules/src/helpers/cache_control.rs (3)
     section: § 4.2.3
     snippet: corrected_initial_age = max(apparent_age, corrected_age_value)
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 290
+      line: 316
   - label: lint-http-rules/src/helpers/cache_control.rs (4)
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 289
+      line: 315
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 68
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
@@ -9462,13 +9462,13 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 123
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
-      line: 123
+      line: 170
   - label: lint-http-rules/src/helpers/cache_control.rs (8)
     section: § 5.2.2.4
     snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 212
+      line: 238
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 134
   - label: lint-http-rules/src/helpers/cache_control.rs (9)
@@ -9478,7 +9478,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 72
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 213
+      line: 239
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 150
   - label: lint-http-rules/src/helpers/cache_control.rs (10)
@@ -9486,7 +9486,7 @@ sources:
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 211
+      line: 237
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 150
     - file: lint-http-rules/src/rules/no_store_enforced.rs
