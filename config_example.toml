@@ -1259,6 +1259,10 @@ severity = "warn"
 # Language tag holds whitespace or a control character
 severity = "error"
 
+[violations.list_member_empty]
+# List holds an empty element
+severity = "warn"
+
 [violations.mailbox_angle_addr_missing]
 # Mailbox has no angle-addr where the name-addr wants one
 severity = "warn"
@@ -1401,6 +1405,10 @@ severity = "error"
 
 [violations.token_character_forbidden]
 # Token holds a character outside tchar
+severity = "warn"
+
+[violations.token_empty]
+# Token is written with no characters in it
 severity = "warn"
 
 [violations.token_whitespace_or_control_forbidden]

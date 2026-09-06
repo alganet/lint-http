@@ -4,6 +4,45 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::quoted_string::{
+    QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
+    QUOTED_STRING_QUOTED_PAIR_MALFORMED, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
+
+/// Everything this rule reports, and none of it is `Pragma`'s.
+///
+/// The field's own document deprecates it and states no grammar at all — RFC
+/// 9111 § 5.4 names it and stops — so what is left to measure is machinery this
+/// rule *borrows*: the `#` list construct, `token`, and `quoted-string`, each
+/// current RFC 9110 § 5.6 and each already a subject. A deprecated field with
+/// no grammar of its own turns out to be the cleanest possible demonstration
+/// that the defect belongs to the production and not to the field.
+///
+/// `cache_control_token_valid` writes two of these messages out in the same
+/// words, which is one of the fourteen duplicate templates the campaign's
+/// measurement found; when it converts, the two rules will report one id apiece
+/// rather than two identical sentences under two rule names.
+///
+/// The non-UTF-8 site stays on the old API. Its verdict is the wrong claim —
+/// `to_str` refuses every octet outside visible US-ASCII, so the finding names
+/// an encoding where the defect is an octet the grammar does not admit — and
+/// the right conversion is an octet-wise reader first, not a def for the claim.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// `Pragma` header directives must follow `directive = token ["=" ( token / quoted-string )]`
 /// and be syntactically valid. This rule flags invalid tokens, malformed quoted-strings,
@@ -42,7 +81,16 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_4]
+        &[
+            RFC_9111_5_4,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -91,9 +139,9 @@ impl Rule for PragmaTokenValid {
                         if v.is_empty() {
                             continue;
                         }
-                        if let Some(msg) = check_pragma_value(v) {
-                            return Some(self.violation(
-                                ctx.severity,
+                        if let Some((def, msg)) = check_pragma_value(v) {
+                            return Some(ctx.report_with(
+                                def,
                                 format!("Invalid Pragma header in request: {}", msg),
                             ));
                         }
@@ -117,9 +165,9 @@ impl Rule for PragmaTokenValid {
                             if v.is_empty() {
                                 continue;
                             }
-                            if let Some(msg) = check_pragma_value(v) {
-                                return Some(self.violation(
-                                    ctx.severity,
+                            if let Some((def, msg)) = check_pragma_value(v) {
+                                return Some(ctx.report_with(
+                                    def,
                                     format!("Invalid Pragma header in response: {}", msg),
                                 ));
                             }
@@ -138,7 +186,7 @@ impl Rule for PragmaTokenValid {
     }
 }
 
-fn check_pragma_value(s: &str) -> Option<String> {
+fn check_pragma_value(s: &str) -> Option<(&'static ViolationDef, String)> {
     // The `token ["=" (token / quoted-string)]` directive shape is RFC 7234 §5.4's historical
     // `extension-pragma` (dropped by RFC 9111). The pieces enforced below — the `#`-list split,
     // the empty-element rule, `token`, and `quoted-string` — are all current RFC 9110 §5.6.
@@ -147,7 +195,10 @@ fn check_pragma_value(s: &str) -> Option<String> {
         // forbidden, unlike the empty whole value skipped by the callers above.
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if member.is_empty() {
-            return Some("Empty directive in Pragma header".into());
+            return Some((
+                &LIST_MEMBER_EMPTY,
+                "Empty directive in Pragma header".into(),
+            ));
         }
 
         let mut kv = member.splitn(2, '=');
@@ -156,17 +207,17 @@ fn check_pragma_value(s: &str) -> Option<String> {
         // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
         let name = kv.next().unwrap().trim();
         if name.is_empty() {
-            return Some(format!(
-                "Empty directive name in Pragma member: '{}'",
-                member
+            return Some((
+                &TOKEN_EMPTY,
+                format!("Empty directive name in Pragma member: '{}'", member),
             ));
         }
 
         // Grammar owned by the helper (RFC 9110 §5.6.2 `token`).
         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-            return Some(format!(
-                "Directive name contains invalid character: '{}'",
-                c
+            return Some((
+                token_character(c),
+                format!("Directive name contains invalid character: '{}'", c),
             ));
         }
 
@@ -182,17 +233,25 @@ fn check_pragma_value(s: &str) -> Option<String> {
                 // deliberate tolerance for this deprecated field. Written as an
                 // arm rather than as a pre-check, because it is a verdict this
                 // rule reaches and not a step of reading the value.
+                //
+                // It is also the one answer the catalogue leaves open: the
+                // alternation's mapping returns nothing for an empty value,
+                // because the verdict is each field's, and this field's is
+                // written here.
                 Err(crate::helpers::word::WordDefect::Empty) => continue,
                 Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => {
-                    return Some(format!(
-                        "Invalid quoted-string in directive value: {}",
-                        defect.message(vpart)
+                    return Some((
+                        crate::violations::quoted_string::quoted_string_defect(defect),
+                        format!(
+                            "Invalid quoted-string in directive value: {}",
+                            defect.message(vpart)
+                        ),
                     ));
                 }
                 Err(crate::helpers::word::WordDefect::NotToken(c)) => {
-                    return Some(format!(
-                        "Directive value contains invalid character: '{}'",
-                        c
+                    return Some((
+                        token_character(c),
+                        format!("Directive value contains invalid character: '{}'", c),
                     ));
                 }
             }
@@ -227,6 +286,49 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    /// Every defect this deprecated field reports is a borrowed one, and the
+    /// ids say which document it was borrowed from: the list construct, the
+    /// token and the quoted-string, all RFC 9110 § 5.6. `Pragma`'s own document
+    /// states no grammar, so there was never anything else for these findings to
+    /// be named after — and the space in `bad token` is `error` while the `@` a
+    /// sender typed is `warn`, which one rule severity could not express.
+    #[test]
+    fn every_defect_is_the_borrowed_productions_and_not_the_fields() {
+        for (value, id, severity) in [
+            (
+                "no-cache,,foo",
+                "list_member_empty",
+                crate::lint::Severity::Warn,
+            ),
+            ("=abc", "token_empty", crate::lint::Severity::Warn),
+            (
+                "bad token",
+                "token_whitespace_or_control_forbidden",
+                crate::lint::Severity::Error,
+            ),
+            (
+                "foo=bad@value",
+                "token_character_forbidden",
+                crate::lint::Severity::Warn,
+            ),
+            (
+                "foo=\"unterminated",
+                "quoted_string_delimiter_missing",
+                crate::lint::Severity::Warn,
+            ),
+        ] {
+            let found = crate::test_helpers::run_rule(
+                &PragmaTokenValid,
+                &make_req(value),
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&["pragma_token_valid"]),
+            )
+            .unwrap_or_else(|| panic!("{value:?}"));
+            assert_eq!(found.violation, id, "{value:?}");
+            assert_eq!(found.severity, severity, "{value:?}");
+        }
     }
 
     #[rstest]

@@ -60,6 +60,25 @@ defects! {
         spec: Some(RFC_9110_5_6_2),
     }
 
+    /// A token with no characters in it: the `=` of a parameter with nothing
+    /// before it, a directive that is only its argument, a media type with an
+    /// empty subtype. `token = 1*tchar` has a one-character floor, so this is
+    /// arithmetic on the production and not a per-field tolerance.
+    ///
+    /// Not to be confused with the *value* half of `word = token /
+    /// quoted-string` being empty, which is a verdict each field makes for
+    /// itself — [`word_defect`] answers `None` there, and this def is not its
+    /// substitute.
+    ///
+    // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
+    TOKEN_EMPTY = {
+        id: "token_empty",
+        title: "Token is written with no characters in it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_5_6_2),
+    }
+
     /// A visible octet outside `tchar` — one of the delimiters § 5.6.2 names,
     /// most often, or an octet at or above %x80 in a name that was written in
     /// something other than US-ASCII. The sender chose the character; what is

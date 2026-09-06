@@ -6631,7 +6631,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 523
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 148
+      line: 196
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 298
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -6654,6 +6654,8 @@ sources:
       line: 274
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 349
+    - file: lint-http-rules/src/violations/list.rs
+      line: 42
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
@@ -7111,7 +7113,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 48
     - file: lint-http-rules/src/violations/token.rs
-      line: 68
+      line: 87
   - label: lint-http-rules/src/helpers/list.rs (4)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -7427,7 +7429,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 407
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 156
+      line: 207
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 118
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -7440,6 +7442,8 @@ sources:
       line: 227
     - file: lint-http-rules/src/violations/token.rs
       line: 54
+    - file: lint-http-rules/src/violations/token.rs
+      line: 73
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
@@ -9290,7 +9294,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
       line: 84
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 86
+      line: 134
   - label: cache_control_directive_valid
     section: § 5.2
     snippet: The "Cache-Control" header field is used to list directives for caches along the request/response chain.
@@ -9556,7 +9560,7 @@ sources:
     snippet: As a result, this specification deprecates Pragma.
     cited_by:
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 111
+      line: 159
   - label: range_request_and_caching
     section: § 3.3
     snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.
