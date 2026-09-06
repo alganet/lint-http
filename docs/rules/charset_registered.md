@@ -21,7 +21,9 @@ If a `Content-Type` header carries a `charset` parameter, this rule checks the n
 ## Specifications
 
 - [RFC 9110 §8.3.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2): Charset: what the parameter means, that names are matched case-insensitively, and the "ought to be registered" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies
-- [RFC 9110 §5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6): Parameters: case-insensitive names, and `parameter-value = ( token / quoted-string )` — the fork this rule takes on the value
+- [RFC 9110 §5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6): Parameters — `parameters = *( OWS ";" OWS [ parameter ] )`, the `name=value` pair inside it with neither half optional, and the bracketing that leaves a trailing `;` conforming
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 - [RFC 2978 §2.3](https://www.rfc-editor.org/rfc/rfc2978.html#section-2.3): `mime-charset`, the production a charset name actually follows. It and `token` are incomparable — `{`/`}` on one side, `*`/`.`/`|` on the other — so checking `token` is stricter in one direction and looser in the other, and neither direction changes a verdict
 - [IANA Character Sets](https://www.iana.org/assignments/character-sets/character-sets.xhtml): The registry this rule is named after but does not read; the configured `allowed` array stands in for it
 

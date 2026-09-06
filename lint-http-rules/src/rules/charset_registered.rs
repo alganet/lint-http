@@ -4,8 +4,42 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::parameter::{PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct CharsetRegistered;
+
+/// What this rule reports about the *parameter* it reads, which is everything
+/// it can say before the name is a charset at all. `charset=` with nothing
+/// after it, a `quoted-string` that does not close, an unquoted value holding
+/// an octet no `tchar` admits: none of those is about character sets, and each
+/// is the same defect `content_type_valid` reports about the same field line.
+///
+/// What stays on the older API is what this rule is named for — a name that is
+/// not in the configured list, and a `charset=""` whose quoting is well formed
+/// and whose *name* is empty. The second is the pair worth keeping apart:
+/// `charset=` is a parameter with no value and `charset=""` is a parameter
+/// whose value is a `quoted-string` deriving exactly as it should, holding a
+/// charset name of nothing. One is § 5.6.6's defect and the other is § 8.3.2's,
+/// and the `charset` subject that owns the second is unwritten.
+static DECLARED: &[&ViolationDef] = &[
+    &PARAMETER_VALUE_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -15,12 +49,6 @@ const RFC_9110_8_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.3.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
     note: "Charset: what the parameter means, that names are matched case-insensitively, and the \"ought to be registered\" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies",
-};
-const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-    note: "Parameters: case-insensitive names, and `parameter-value = ( token / quoted-string )` — the fork this rule takes on the value",
 };
 const RFC_2978_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 2978",
@@ -77,9 +105,15 @@ allowed = ["utf-8", "iso-8859-1", "us-ascii"]
         &[
             RFC_9110_8_3_2,
             RFC_9110_5_6_6,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
             RFC_2978_2_3,
             IANA_CHARACTER_SETS,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -160,14 +194,15 @@ impl Rule for CharsetRegistered {
                         let value = parameter.value;
                         // cite(RFC 9110 § 5.6.6): "Parameter names are case-insensitive."
                         if parameter.name.eq_ignore_ascii_case("charset") {
-                            // An unquoted value must satisfy `token`, and `token`
-                            // is `1*tchar`, so nothing after the "=" is not a
-                            // charset name that happens to be unregistered — it
-                            // is not a parameter value at all.
-                            // cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
+                            // Nothing after the "=" is not a charset name that
+                            // happens to be unregistered — it is not a
+                            // `parameter-value` at all, which is the parameter's
+                            // defect and not this field's. The sentence saying so
+                            // is on the def, where the three other rules reporting
+                            // it read the same one.
                             if value.is_empty() {
-                                return Some(CharsetRegistered.violation(
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    &PARAMETER_VALUE_EMPTY,
                                     format!(
                                         "Invalid Content-Type in {}: empty 'charset' parameter",
                                         which
@@ -186,10 +221,13 @@ impl Rule for CharsetRegistered {
                                 match crate::helpers::quoted_string::unescape_quoted_string(value) {
                                     Ok(u) => value_owned = Some(u),
                                     Err(defect) => {
-                                        return Some(CharsetRegistered.violation(ctx.severity, format!(
+                                        return Some(ctx.report_with(
+                                            quoted_string_defect(defect),
+                                            format!(
                                                 "Invalid Content-Type in {}: 'charset' quoted-string invalid: {}",
                                                 which, defect.message(value)
-                                            )))
+                                            ),
+                                        ))
                                     }
                                 }
                             } else {
@@ -213,14 +251,24 @@ impl Rule for CharsetRegistered {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(value)
                                 {
-                                    return Some(CharsetRegistered.violation(ctx.severity, format!(
+                                    return Some(ctx.report_with(
+                                        token_character(c),
+                                        format!(
                                             "Invalid Content-Type in {}: charset contains invalid character '{}'",
                                             which, c
-                                        )));
+                                        ),
+                                    ));
                                 }
                             }
                             let value = value_owned.as_deref().unwrap_or(value);
 
+                            // `charset=""` reaches here and the branch above it
+                            // does not: the value *is* a `parameter-value`, a
+                            // `quoted-string` deriving exactly as it should, and
+                            // what is empty is the charset name inside it. So this
+                            // is § 8.3.2's defect rather than § 5.6.6's, and it
+                            // waits for a `charset` subject — the two look like
+                            // one finding and are two.
                             if value.is_empty() {
                                 return Some(CharsetRegistered.violation(
                                     ctx.severity,
@@ -325,6 +373,85 @@ mod tests {
             }),
         );
         cfg
+    }
+
+    /// One `Content-Type` line, two rules, one id — and a third field with a
+    /// different parameter name reaching the same one.
+    ///
+    /// `charset=` is read by this rule for its name and by
+    /// `content_type_valid` for its grammar, and before the def existed the two
+    /// wrote different sentences about the same absent value with no name in
+    /// common. `boundary=` is the same defect under another parameter, which is
+    /// the claim a subject named after the *production* makes and a subject
+    /// named after a field cannot.
+    #[test]
+    fn an_empty_parameter_value_is_one_id_across_three_readings() {
+        let response_with = |ct: &str| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[("content-type", ct)]);
+            tx
+        };
+        let history = crate::transaction_history::TransactionHistory::empty();
+
+        let charset = crate::test_helpers::run_rule(
+            &CharsetRegistered,
+            &response_with("text/plain; charset="),
+            &history,
+            &make_cfg(),
+        )
+        .expect("a finding about the charset parameter");
+        assert_eq!(charset.violation, "parameter_value_empty");
+
+        let grammar = crate::test_helpers::run_rule(
+            &crate::rules::content_type_valid::ContentTypeValid,
+            &response_with("text/plain; charset="),
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["content_type_valid"]),
+        )
+        .expect("a finding about the field");
+        assert_eq!(grammar.violation, charset.violation);
+        assert_ne!(
+            grammar.message, charset.message,
+            "each rule keeps its wording"
+        );
+
+        let boundary = crate::test_helpers::run_rule(
+            &crate::rules::multipart_boundary_syntax::MultipartBoundarySyntax,
+            &response_with("multipart/mixed; boundary="),
+            &history,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "multipart_boundary_syntax",
+            ]),
+        )
+        .expect("a finding about the boundary parameter");
+        assert_eq!(boundary.violation, charset.violation);
+    }
+
+    /// `charset=""` is the pair that must not collapse into the one above: the
+    /// value is a `quoted-string` and derives exactly as § 5.6.6 says, so what
+    /// is empty is the charset name and the defect is this rule's own — still
+    /// on the older API, and reported at the rule's severity rather than the
+    /// parameter def's.
+    #[test]
+    fn a_quoted_empty_charset_is_not_the_parameters_defect() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[(
+                "content-type",
+                "text/plain; charset=\"\"",
+            )]);
+        let found = crate::test_helpers::run_rule(
+            &CharsetRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .expect("a finding");
+        assert!(
+            found.violation.is_empty(),
+            "unconverted sites carry no defect id"
+        );
     }
 
     #[rstest]
