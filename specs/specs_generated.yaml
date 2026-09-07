@@ -1386,7 +1386,7 @@ sources:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 207
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 499
+      line: 592
     - file: lint-http-rules/src/violations/uri.rs
       line: 184
   - label: lint-http-rules/src/helpers/uri.rs (23)
@@ -3181,51 +3181,51 @@ sources:
     snippet: Warning = 1#warning-value
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 336
+      line: 407
   - label: warning_header_syntax (2)
     section: § 5.5
     snippet: Warning header fields can in general be applied to any message, however some warn-codes are specific to caches and can only be applied to response messages.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 262
+      line: 327
   - label: warning_header_syntax (3)
     section: § 5.5
     snippet: Warnings are assigned three digit warn-codes.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 376
+      line: 449
   - label: warning_header_syntax (4)
     section: § 5.5
     snippet: warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 478
+      line: 571
   - label: warning_header_syntax (5)
     section: § 5.5
     snippet: warn-code = 3DIGIT warn-agent = ( uri-host [ ":" port ] ) / pseudonym
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 375
+      line: 448
   - label: warning_header_syntax (6)
     section: § 5.5
     snippet: warn-date = DQUOTE HTTP-date DQUOTE
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 437
+      line: 527
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 526
+      line: 622
   - label: warning_header_syntax (7)
     section: § 5.5
     snippet: warn-text = quoted-string
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 413
+      line: 492
   - label: warning_header_syntax (8)
     section: § 5.5
     snippet: warning-value = warn-code SP warn-agent SP warn-text [ SP warn-date ]
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 369
+      line: 442
 - label: RFC 7239
   url: https://www.rfc-editor.org/rfc/rfc7239.html
   fragments:
@@ -4941,7 +4941,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 254
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 337
+      line: 408
   - label: accept_patch_header_valid (6)
     section: § 9.1
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
@@ -5211,7 +5211,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_valid_range.rs
       line: 179
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 323
+      line: 394
   - label: Allow grammar, sender-expanded
     section: § A
     snippet: Allow = [ method *( OWS "," OWS method ) ]
@@ -6269,7 +6269,7 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 98
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 546
+      line: 646
     - file: lint-http-rules/src/violations/http_date.rs
       line: 100
   - label: lint-http-core/src/http_date.rs (3)
@@ -6299,7 +6299,7 @@ sources:
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
       line: 111
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 568
+      line: 674
     - file: lint-http-rules/src/violations/http_date.rs
       line: 72
   - label: lint-http-core/src/http_date.rs (6)
@@ -6660,8 +6660,6 @@ sources:
       line: 151
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 274
-    - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 349
     - file: lint-http-rules/src/violations/list.rs
       line: 44
   - label: lint-http-rules/src/helpers/comment.rs
@@ -6831,7 +6829,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 249
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 325
+      line: 396
   - label: lint-http-rules/src/helpers/field_placement.rs
     section: § 11.6.3
     snippet: Authentication-Info can be sent as a trailer field (Section 6.5) when the authentication scheme explicitly allows this.
@@ -7399,7 +7397,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 416
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 547
+      line: 647
     - file: lint-http-rules/src/violations/quoted_string.rs
       line: 72
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -9205,7 +9203,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 382
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 504
+      line: 597
   - label: via_header_syntax (13)
     section: § 7.6.3
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
@@ -9235,7 +9233,7 @@ sources:
     snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
-      line: 567
+      line: 673
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.html
   fragments:
