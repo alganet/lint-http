@@ -1235,6 +1235,18 @@ severity = "warn"
 # Domain name holds whitespace or a control character
 severity = "warn"
 
+[violations.http_date_malformed]
+# Timestamp derives from no HTTP-date format
+severity = "warn"
+
+[violations.http_date_obsolete]
+# Timestamp is written in an obsolete date format
+severity = "info"
+
+[violations.http_date_whitespace_forbidden]
+# Timestamp is padded with whitespace the grammar does not print
+severity = "warn"
+
 [violations.language_tag_character_forbidden]
 # Language tag holds a character outside letters, digits and hyphen
 severity = "warn"

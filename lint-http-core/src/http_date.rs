@@ -97,10 +97,67 @@ pub fn is_valid_http_date(s: &str) -> bool {
 /// cite(RFC 9110 § 5.6.7): "IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT"
 /// cite(RFC 9110 § 5.6.7): "A sender MUST NOT generate additional whitespace in an HTTP-date beyond that specifically included as SP in the grammar"
 pub fn is_valid_imf_fixdate(s: &str) -> bool {
-    // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
-    match httpdate::parse_http_date(s) {
-        Ok(st) => httpdate::fmt_http_date(st) == s,
-        Err(_) => false,
+    check_imf_fixdate(s).is_ok()
+}
+
+/// Why a timestamp is not one a sender may generate.
+///
+/// The three answers a `bool` cannot separate, and they are three different
+/// defects: a value no format parses says nothing a recipient can act on, an
+/// obsolete format says the right instant in a spelling § 5.6.7 retired and
+/// every recipient must still read, and a padded one derives from no
+/// `HTTP-date` at all though this parser accepts it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HttpDateDefect {
+    /// None of the three formats parses it — the value names no instant.
+    Unparsable,
+    /// It parses as one of the two obsolete formats: RFC 850's
+    /// `Sunday, 06-Nov-94 08:49:37 GMT` or asctime's
+    /// `Sun Nov  6 08:49:37 1994`. A recipient MUST accept both; a sender may
+    /// generate neither.
+    ObsoleteFormat,
+    /// An IMF-fixdate with whitespace around it. The production prints `SP` at
+    /// fixed offsets and nowhere else, so the padding derives from nothing —
+    /// but this parser trims before it reads, which is why the round trip
+    /// alone cannot tell this from an obsolete format.
+    ///
+    /// Where the value came off a field line, the `OWS` beside it is outside
+    /// the value by § 5.5 and the caller excludes it; what reaches here is
+    /// padding *inside* the value, as in a `Warning`'s quoted `warn-date`.
+    SurroundingWhitespace,
+}
+
+/// [`is_valid_imf_fixdate`] with the three answers kept apart.
+///
+/// The round trip is what finds them: IMF-fixdate is fixed-length, fixed-zone
+/// and fixed-capitalization, so it is the one format that survives a parse and
+/// a re-serialization unchanged. **It does not name them, though, and that is
+/// the trap this function exists to close.** The dependency trims before it
+/// parses, so a padded IMF-fixdate also comes back different — and calling that
+/// an obsolete format would report RFC 850 at a value written in the very
+/// format the sender was asked for. The two are separated by comparing against
+/// the trimmed string, which no `bool` could have carried.
+///
+/// Everything else that is not an IMF-fixdate is refused by the parser outright
+/// — a lowercase day name, a doubled interior `SP`, a zone that is not `GMT` —
+/// so those arrive as [`HttpDateDefect::Unparsable`], which is what they are.
+///
+/// cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
+/// cite(RFC 9110 § 5.6.7): "obs-date = rfc850-date / asctime-date"
+pub fn check_imf_fixdate(s: &str) -> Result<(), HttpDateDefect> {
+    let Ok(st) = httpdate::parse_http_date(s) else {
+        return Err(HttpDateDefect::Unparsable);
+    };
+    let fixdate = httpdate::fmt_http_date(st);
+    if fixdate == s {
+        return Ok(());
+    }
+    // The trimmed comparison is the whole of the distinction: a value that is
+    // an IMF-fixdate once its padding is taken off was written in the format
+    // § 5.6.7 asks for, with octets around it the production never generates.
+    match fixdate == s.trim() {
+        true => Err(HttpDateDefect::SurroundingWhitespace),
+        false => Err(HttpDateDefect::ObsoleteFormat),
     }
 }
 
