@@ -27,8 +27,9 @@
 //! recipient's half in the same breath — a recipient MUST parse for the bad
 //! whitespace and remove it — so the value is read as intended and what is
 //! wrong is the spelling. **A requirement whose counterpart obliges the other
-//! party to cope is a requirement about hygiene**, which is 2.28's ranking read
-//! at a terminal instead of at a format.
+//! party to cope is a requirement about hygiene** — the same ranking the
+//! `http_date` subject makes for an obsolete timestamp, read at a terminal
+//! instead of at a format.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;

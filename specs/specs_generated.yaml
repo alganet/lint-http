@@ -6283,7 +6283,7 @@ sources:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
       line: 353
     - file: lint-http-rules/src/violations/bws.rs
-      line: 61
+      line: 62
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -6301,7 +6301,7 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 653
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 100
+      line: 101
   - label: lint-http-core/src/http_date.rs (3)
     section: § 5.6.7
     snippet: HTTP-date = IMF-fixdate / obs-date
@@ -6309,7 +6309,7 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 31
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 53
+      line: 54
   - label: lint-http-core/src/http_date.rs (4)
     section: § 5.6.7
     snippet: IMF-fixdate  = day-name "," SP date1 SP time-of-day SP GMT
@@ -6331,7 +6331,7 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 681
     - file: lint-http-rules/src/violations/http_date.rs
-      line: 72
+      line: 73
   - label: lint-http-core/src/http_date.rs (6)
     section: § 5.6.7
     snippet: obs-date = rfc850-date / asctime-date

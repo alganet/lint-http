@@ -27,8 +27,9 @@
 //! is retired. `not-a-date` names no instant at all, and a padded IMF-fixdate
 //! derives from a production that prints no whitespace — both are values a
 //! strict recipient refuses. So: **a value the specification obliges the other
-//! party to accept sits below one it does not**, which is 2.13's rule of thumb
-//! read through the recipient rather than through the sentence.
+//! party to accept sits below one it does not** — the ranking rule of thumb
+//! this catalogue uses, read through the recipient rather than through the
+//! sentence.
 
 use crate::http_date::HttpDateDefect;
 use crate::lint::Severity;
