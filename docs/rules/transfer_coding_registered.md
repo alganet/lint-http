@@ -31,6 +31,7 @@ Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must 
 - [RFC 9112 §7.4](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4): Negotiating transfer codings: chunked is forbidden in TE, an empty TE is conforming, and the q is a rank
 - [RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4): TE, and the grammar both fields share — including the quoted-string a transfer-parameter may carry
 - [IANA HTTP Parameters](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding): The registry this rule is named after and does not read: names are checked against the configured 'allowed' list instead
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 
 ## Configuration
 

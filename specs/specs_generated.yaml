@@ -4779,7 +4779,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 195
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 133
+      line: 160
   - label: accept_encoding_parameter_valid (8)
     section: § 12.5.3
     snippet: The field value is evaluated the same way as in a request.
@@ -5399,7 +5399,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 182
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 232
+      line: 260
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 152
   - label: compression_and_transfer_encoding_consistent (2)
@@ -5409,7 +5409,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 183
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 213
+      line: 241
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 134
   - label: compression_and_transfer_encoding_consistent (3)
@@ -5427,7 +5427,7 @@ sources:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 88
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 118
+      line: 145
   - label: compression_and_transfer_encoding_consistent (5)
     section: § 8.4
     snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
@@ -5453,7 +5453,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 161
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 163
+      line: 193
   - label: conditional_headers_consistent
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -5567,19 +5567,19 @@ sources:
     snippet: codings = content-coding / "identity" / "*"
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 119
+      line: 146
   - label: content_encoding_registered (2)
     section: § 8.4
     snippet: Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included.
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 145
+      line: 172
   - label: content_encoding_registered (3)
     section: § 8.4.1
     snippet: content-coding = token
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
-      line: 152
+      line: 179
   - label: content_length_valid
     section: § 8.6
     snippet: The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets.
@@ -6509,7 +6509,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 16
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 218
+      line: 246
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 136
   - label: lint-http-rules/src/helpers/accept_ranges.rs (5)
@@ -6925,7 +6925,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 158
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 403
+      line: 431
   - label: lint-http-rules/src/helpers/headers.rs (3)
     section: § 5.3
     snippet: Since it cannot be combined into a single field value, recipients ought to handle "Set-Cookie" as a special case while processing fields.
@@ -7069,7 +7069,7 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 491
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 233
+      line: 261
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 153
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
@@ -7173,9 +7173,9 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 324
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 195
+      line: 223
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 415
+      line: 443
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 116
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -7409,7 +7409,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 102
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 416
+      line: 444
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 654
     - file: lint-http-rules/src/violations/quoted_string.rs
@@ -7455,7 +7455,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 253
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 258
+      line: 286
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 227
     - file: lint-http-rules/src/violations/token.rs
@@ -8943,7 +8943,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 42
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 451
+      line: 479
   - label: te_header_valid (3)
     section: § 5.6.3
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
@@ -9059,7 +9059,7 @@ sources:
     snippet: 'TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )'
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 342
+      line: 370
   - label: upgrade_and_connection_consistent
     section: § 7.6.1
     snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
@@ -9671,11 +9671,11 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 192
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 92
+      line: 115
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 290
+      line: 318
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 376
+      line: 404
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 158
   - label: compression_and_transfer_encoding_consistent (4)
@@ -10143,7 +10143,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 59
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 450
+      line: 478
   - label: te_header_valid (3)
     section: § 7.4
     snippet: Since the TE header field only applies to the immediate connection, a sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1 of [HTTP]) in order to prevent the TE header field from being forwarded by intermediaries that do not support its semantics.
@@ -10157,61 +10157,61 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 281
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 343
+      line: 371
   - label: transfer_coding_registered
     section: § 6.1
     snippet: A server that receives a request message with a transfer coding it does not understand SHOULD respond with 501 (Not Implemented).
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 364
+      line: 392
   - label: transfer_coding_registered (2)
     section: § 6.1
     snippet: 'Transfer-Encoding = #transfer-coding'
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 426
+      line: 454
   - label: transfer_coding_registered (3)
     section: § 7.1
     snippet: The chunked coding does not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 316
+      line: 344
   - label: transfer_coding_registered (4)
     section: § 7.1
     snippet: Their presence SHOULD be treated as an error.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 317
+      line: 345
   - label: transfer_coding_registered (5)
     section: § 7.2
     snippet: The compression codings do not define any parameters.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 307
+      line: 335
   - label: transfer_coding_registered (6)
     section: § 7.2
     snippet: The presence of parameters with any of these compression codings SHOULD be treated as an error.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 308
+      line: 336
   - label: transfer_coding_registered (7)
     section: § 7.3
     snippet: The "HTTP Transfer Coding Registry" defines the namespace for transfer coding names.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 205
+      line: 233
   - label: transfer_coding_registered (8)
     section: § 7.4
     snippet: A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 287
+      line: 315
   - label: transfer_coding_registered (9)
     section: § 7.4
     snippet: The keyword "trailers" indicates that the sender will not discard trailer fields, as described in Section 6.5 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
-      line: 242
+      line: 270
   - label: transfer_encoding_chunked_final
     section: § 6.1
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).

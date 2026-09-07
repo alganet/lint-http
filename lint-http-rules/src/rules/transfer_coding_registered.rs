@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 /// Every coding RFC 9112 says defines no parameters. The first five are § 7.2's
 /// compression codings, defined there by reference to the content coding of the
@@ -20,6 +25,24 @@ const PARAMETERLESS_CODINGS: [&str; 6] = [
 ];
 
 pub struct TransferCodingRegistered;
+
+/// The transfer coding's name is a `token`, and this rule declares the three
+/// ways one fails.
+///
+/// `transfer-coding = token *( OWS ";" OWS transfer-parameter )`, so a member
+/// that is nothing but parameters names no coding — the `1*` floor, which is
+/// arithmetic — and an octet outside `tchar` is the `token`'s defect wherever
+/// it appears. The mirror rule reports the same ids for `content-coding` out of
+/// two other fields.
+///
+/// What stays is the registry reading this rule is named for, `chunked` in a
+/// `TE`, and the coding's parameters — which are `token BWS "=" BWS ( token /
+/// quoted-string )` and belong to a later commit.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -119,7 +142,12 @@ allowed = ["chunked", "compress", "gzip", "deflate"]
             RFC_9112_7_4,
             RFC_9110_10_1_4,
             IANA_HTTP_PARAMETERS,
+            RFC_9110_5_6_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -257,8 +285,8 @@ impl Rule for TransferCodingRegistered {
                     // named `''`, which describes the wrong defect.
                     // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
                     if token.is_empty() {
-                        return Some(TransferCodingRegistered.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &TOKEN_EMPTY,
                             format!(
                                 "Missing transfer-coding name in {} header member '{}'",
                                 hdr_name, part
@@ -266,8 +294,8 @@ impl Rule for TransferCodingRegistered {
                         ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(TransferCodingRegistered.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            token_character(c),
                             // The offending character alone does not locate itself
                             // on a field with several members -- `Invalid token
                             // '<'` says nothing about which coding carried it.
