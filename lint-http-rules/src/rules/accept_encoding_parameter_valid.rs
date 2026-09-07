@@ -4,8 +4,32 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct AcceptEncodingParameterValid;
+
+/// The `token` pair, and nothing else in this rule belongs to a subject.
+///
+/// `content-coding = token` is the one production this field borrows whole, and
+/// § 8.4.1 states it here the way RFC 6797 § 6.1 states it for a directive
+/// name: the field's own section says *which* production, and § 5.6.2 says what
+/// the production is. So a `@` in a coding name draws the same id it draws in a
+/// `Content-Encoding`, a `TE`, a field name or a method.
+///
+/// **Everything else this rule reports is about the member's shape**, and
+/// `codings [ weight ]` owns all of it: a separator introducing a weight that
+/// is not there, two of something there may be at most one of, a member whose
+/// non-optional half is missing, and a `name=value` pair no derivation of the
+/// field produces. That is 2.38's residue — what a construct says about its own
+/// assembly — and it is the whole of what this rule is named for.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -60,7 +84,12 @@ severity = "warn"
             RFC_9110_12_4_2,
             RFC_9110_8_4_1,
             RFC_9110_5_6_1_2,
+            RFC_9110_5_6_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -207,8 +236,8 @@ impl Rule for AcceptEncodingParameterValid {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(primary)
                                 {
-                                    return Some(self.violation(
-                                        ctx.severity,
+                                    return Some(ctx.report_with(
+                                        token_character(c),
                                         format!("Invalid token '{}' in Accept-Encoding header", c),
                                     ));
                                 }

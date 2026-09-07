@@ -4,8 +4,34 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct ContentEncodingAndTypeConsistent;
+
+/// The `token` pair, and it is the same field 2.37 converted read by a second
+/// rule asking a different question.
+///
+/// 2.37 took `Content-Encoding` and `Accept-Encoding` for the rule that asks
+/// which coding *names* exist; this takes them for the rule that asks which
+/// were applied twice, and the octet no `tchar` admits comes out with the same
+/// id from both. The two even say it in the same words — one of S6's duplicate
+/// templates, written in two files that share no code — so here the id retires
+/// a duplication the prose still carries, which is the state Phase 5's dedup
+/// was deferred to act on.
+///
+/// **Nothing this rule is named for changed.** A coding repeated, a `*` where
+/// none is defined, a member whose coding half is missing, and the field on a
+/// response with no content are all statements about what a *well-formed* list
+/// means, and they keep the rule's severity because no production is broken by
+/// any of them.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -39,7 +65,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_4, RFC_9110_15_4_5]
+        &[RFC_9110_8_4, RFC_9110_15_4_5, RFC_9110_5_6_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -89,6 +119,13 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 for part in crate::helpers::list::list_members(val) {
                     // Strip parameters (not expected for Content-Encoding but be forgiving)
                     let token = part.split(';').next().unwrap().trim();
+                    // **Not `list_member_empty`, though the message says
+                    // "member".** The walk above drops the list's empty members
+                    // before this sees them, so what reaches here is a member
+                    // that is *present* and whose coding half is missing --
+                    // `;q=1` and the like. That is `#content-coding`'s element
+                    // saying it is not optional, which is a statement about the
+                    // member's assembly and belongs to no subject.
                     if token.is_empty() {
                         return Some(self.violation(
                             ctx.severity,
@@ -102,8 +139,8 @@ impl Rule for ContentEncodingAndTypeConsistent {
                         ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            token_character(c),
                             format!("Invalid token '{}' in {} header", c, hdr_name),
                         ));
                     }
@@ -200,6 +237,90 @@ mod tests {
     use super::*;
     use hyper::header::HeaderValue;
     use rstest::rstest;
+
+    /// The six fields spelling `content-coding = token` now answer for it with
+    /// one pair of ids, and the last two arrive from the rules that ask the
+    /// fields a *different* question. Asserted against 2.37's rule, which reads
+    /// the same field for which names exist and shares no code with this one.
+    #[test]
+    fn a_coding_name_is_a_token_whatever_the_rule_is_asking() {
+        let judge = |rule: &dyn crate::rules::Rule,
+                     cfg: &crate::config::Config,
+                     value: &str|
+         -> Violation {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().unwrap().headers =
+                crate::test_helpers::make_headers_from_pairs(&[("content-encoding", value)]);
+            crate::test_helpers::run_rule(
+                rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                cfg,
+            )
+            .unwrap_or_else(|| panic!("{}: {value}", rule.id()))
+        };
+
+        // The neighbour reads an operator's list of names, so it needs one; the
+        // octet below is refused before any name is looked up.
+        let mut registered_cfg = crate::config::Config::default();
+        registered_cfg.rules.insert(
+            "content_encoding_registered".into(),
+            toml::Value::Table({
+                let mut t = toml::map::Map::new();
+                t.insert("enabled".into(), toml::Value::Boolean(true));
+                t.insert("severity".into(), toml::Value::String("warn".into()));
+                t.insert(
+                    "allowed".into(),
+                    toml::Value::Array(vec![toml::Value::String("gzip".into())]),
+                );
+                t
+            }),
+        );
+
+        let here = judge(
+            &ContentEncodingAndTypeConsistent,
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_encoding_and_type_consistent",
+            ]),
+            "x@bad",
+        );
+        let registered = judge(
+            &crate::rules::content_encoding_registered::ContentEncodingRegistered,
+            &registered_cfg,
+            "x@bad",
+        );
+        assert_eq!(here.violation, "token_character_forbidden");
+        assert_eq!(registered.violation, "token_character_forbidden");
+        // And the sentence is *the same one*, written twice in two files that
+        // share no code -- one of the duplicate templates S6 counted, retired
+        // by the id and left as two strings for Phase 5's dedup to collapse.
+        assert_eq!(here.message, registered.message);
+    }
+
+    /// What this rule is named for keeps its own severity and no id: a coding
+    /// repeated and a wildcard where none is defined are both well-formed
+    /// tokens in a well-formed list, saying something § 8.4 does not license.
+    #[rstest]
+    #[case::duplicate("gzip, gzip", "")]
+    #[case::wildcard("*", "")]
+    #[case::no_coding("gzip, ;q=1", "")]
+    #[case::bad_octet("x@bad", "token_character_forbidden")]
+    #[case::space_inside("g zip", "token_whitespace_or_control_forbidden")]
+    fn the_grammars_defects_are_the_grammars(#[case] value: &str, #[case] violation: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-encoding", value)]);
+        let finding = crate::test_helpers::run_rule(
+            &ContentEncodingAndTypeConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_encoding_and_type_consistent",
+            ]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {value:?}"));
+        assert_eq!(finding.violation, violation, "for {value:?}");
+    }
 
     #[rstest]
     #[case(Some("gzip"), 200, false)]
