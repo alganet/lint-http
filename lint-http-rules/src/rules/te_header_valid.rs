@@ -8,6 +8,22 @@ use crate::helpers::quoted_string::validate_quoted_string;
 use crate::helpers::qvalue::valid_qvalue;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
+use crate::violations::ViolationDef;
+
+/// The one defect this rule reports that is not about a transfer coding.
+///
+/// `transfer-parameter = token BWS "=" BWS ( token / quoted-string )` prints
+/// the whitespace, so the octets derive from the grammar and what refuses them
+/// is § 5.6.3's requirement on the sender — the same sentence a `preference`
+/// and a `link-param` break, over three documents that share nothing else.
+///
+/// The rule's other twenty-odd findings stay in its own words. Most of them are
+/// about what a transfer coding *is* — `trailers` taking neither parameter nor
+/// weight, a coding named twice, `chunked` asked for by a client that cannot
+/// receive it — and the rest are the `token`, `quoted-string` and `qvalue` this
+/// field is written out of, which are conversions of their own.
+static DECLARED: &[&ViolationDef] = &[&BWS_FORBIDDEN];
 
 #[derive(Debug, Clone)]
 pub struct TeHeaderValid;
@@ -24,7 +40,8 @@ impl TeHeaderValid {
     ///
     /// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
     /// cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
-    fn check_members(&self, value: &str, severity: crate::lint::Severity) -> Option<Violation> {
+    fn check_members(&self, value: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
+        let severity = ctx.severity;
         let violation = |message: String| Some(self.violation(severity, message));
 
         // The field's list construct, expanded for a sender. The outer brackets are
@@ -121,7 +138,7 @@ impl TeHeaderValid {
             //
             // cite(RFC 9110 § A): "transfer-coding = token *( OWS ";" OWS transfer-parameter )"
             for parameter in segments.iter().skip(1) {
-                if let Some(v) = self.check_parameter(member, parameter, severity) {
+                if let Some(v) = self.check_parameter(member, parameter, ctx) {
                     return Some(v);
                 }
             }
@@ -197,8 +214,11 @@ impl TeHeaderValid {
         &self,
         member: &str,
         parameter: &str,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
+        // The unconverted branches read the rule's own severity, exactly as
+        // they did before the context was threaded through.
+        let severity = ctx.severity;
         let violation = |message: String| Some(self.violation(severity, message));
 
         // The `"="` is not optional in either production, so a segment written
@@ -291,11 +311,11 @@ impl TeHeaderValid {
         // Here the whitespace *is* `BWS`: the production prints it on both sides of the
         // `=`, for historical reasons and with a sender MUST NOT attached.
         if whitespace_around_equals {
-            return violation(format!(
+            return Some(ctx.report_with(&BWS_FORBIDDEN, format!(
                 "TE parameter '{}' in member '{}' writes whitespace around its '='; the production admits it there as BWS, which a sender must not generate",
                 parameter.escape_debug(),
                 member.escape_debug()
-            ));
+            )));
         }
 
         // `( token / quoted-string )` — the value is one or the other, and a value
@@ -371,12 +391,6 @@ const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
     note: "The sender's half of the list construct: no empty elements. The recipient's half (§5.6.1.2, ignore them) is a different party's requirement",
 };
-const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-    note: "`BWS`: the whitespace around a transfer-parameter's `=`, which a recipient MUST remove and a sender MUST NOT write",
-};
 const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.6.1"),
@@ -431,6 +445,7 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
+            RFC_9110_5_6_3,
             RFC_9110_10_1_4,
             RFC_9110_10_1,
             RFC_9110_A,
@@ -444,6 +459,10 @@ severity = "warn"
             RFC_9114_4_2,
             RFC_9110_6_5_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -554,7 +573,7 @@ impl Rule for TeHeaderValid {
 
             let value = combined_field_value_as_written(&tx.request.headers, "te")?;
 
-            if let Some(v) = self.check_members(&value, ctx.severity) {
+            if let Some(v) = self.check_members(&value, ctx) {
                 return Some(v);
             }
 
@@ -611,6 +630,39 @@ mod tests {
     /// A conforming request: whatever the value, the connection option is there.
     fn te(value: &[u8]) -> Option<Violation> {
         request("HTTP/1.1", &[value], &[b"TE"])
+    }
+
+    /// The whitespace three documents print as `BWS` is one defect.
+    ///
+    /// `transfer-parameter`, `preference` and `applied-pref` are written by RFC
+    /// 9110, RFC 7240 and RFC 7240 again; none of them says anything about the
+    /// octets themselves, because § 5.6.3 already did. The three rules reading
+    /// them share no code and now answer with one id — and it sits at `info`,
+    /// below every grammar failure in the same field, because a recipient is
+    /// required to remove the whitespace and read what is left.
+    #[test]
+    fn the_historical_whitespace_is_one_defect_in_three_fields() {
+        let parameter = te(b"gzip;a = b").expect("BWS beside a transfer-parameter's '='");
+        assert_eq!(parameter.violation, "bws_forbidden");
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut headers = hyper::HeaderMap::new();
+        headers.append("prefer", HeaderValue::from_static("wait = 10"));
+        tx.request.headers = headers;
+        let preference = crate::test_helpers::run_rule(
+            &crate::rules::prefer_header_valid::PreferHeaderValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["prefer_header_valid"]),
+        )
+        .expect("BWS beside a preference's '='");
+        assert_eq!(preference.violation, "bws_forbidden");
+
+        // One id, two sentences — and the level is the point: a `TE` whose
+        // parameter name is not a `token` still reports at the rule's own
+        // severity, and this does not.
+        assert_ne!(parameter.message, preference.message);
+        assert_eq!(parameter.severity, crate::lint::Severity::Info);
     }
 
     fn response(te: &[u8]) -> Option<Violation> {

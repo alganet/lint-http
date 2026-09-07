@@ -1083,6 +1083,10 @@ severity = "error"
 # Basic credentials hold no ':' separator
 severity = "warn"
 
+[violations.bws_forbidden]
+# Whitespace written where the grammar admits BWS
+severity = "info"
+
 [violations.challenge_empty]
 # Authentication challenge is empty
 severity = "warn"
