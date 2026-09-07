@@ -1277,14 +1277,20 @@ severity = "warn"
     /// the one that read a `media-range`'s parts, and — three at once, which is
     /// what a production shared across unrelated fields costs — the `Date`,
     /// `Sunset` and `Set-Cookie` `Expires` readings that each named § 5.6.7's
-    /// timestamp in their own field's words.
+    /// timestamp in their own field's words. `strict_transport_security_valid`
+    /// took two, and both had cited the *field's* section for a defect of a
+    /// production it imports: RFC 6797 § 6.1 names `token` and `quoted-string`
+    /// and defines neither, so the two sites had nowhere nearer to point. The
+    /// sentence saying what a token is now sits on the def; the sentence saying
+    /// that *this* field's directive name is one stays at the site, which is
+    /// what licensed the borrowing.
     #[test]
     fn citation_coverage_does_not_regress() {
         /// Finding sites that name the specification sentence they enforce.
         /// The rest are the per-rule reading that has not happened yet — the
         /// denominator is computed below, because merges and conversions both
         /// move it.
-        const FLOOR: usize = 157;
+        const FLOOR: usize = 155;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

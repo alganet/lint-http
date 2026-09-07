@@ -4,8 +4,56 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct StrictTransportSecurityValid;
+
+/// Six defects over two subjects, borrowed from a document RFC 6797 does not
+/// name — and the reading that says it may be.
+///
+/// § 6.1 imports both productions from RFC 2616 § 2.2 by reference:
+/// `directive-name = token`, `directive-value = token | quoted-string`. RFC
+/// 2616's `token` is RFC 9110's `tchar` set, which is the judgment
+/// `Sec-WebSocket-Extensions` reached from its own grammar — 2616 subtracts its
+/// separators and CTLs from `CHAR`, and what is left is `tchar`. So the two
+/// `token` entries transfer with nothing to decide.
+///
+/// **The `quoted-string` half genuinely differs, and the difference cannot
+/// arrive.** RFC 2616 writes `quoted-pair = "\" CHAR`, which admits an escaped
+/// control octet § 5.6.4 refuses and refuses the `obs-text` § 5.6.4 admits — so
+/// `quoted_string_quoted_pair_malformed` names a sentence this field's document
+/// does not use, for those two octets. Neither reaches this rule: the value is
+/// read through `to_str`, whose alphabet is HTAB and visible US-ASCII, so an
+/// escaped CTL and an `obs-text` are both refused at the door and every escape
+/// that gets here is one both documents admit. What does reach the def is a
+/// backslash with nothing after it, which is two octets short of a
+/// `quoted-pair` in either. **A divergence that no value can express is not a
+/// reason to decline the id** — but it is a reason to write down which reader
+/// keeps it that way, because a rule reading these octets some other day would
+/// have to ask again.
+///
+/// The other two `quoted_string_*` entries are declared and unreachable for the
+/// same reason the mapping is exhaustive: a control octet cannot enter a
+/// `hyper::HeaderValue`, and the grammar's reader is where the grammar's
+/// question is answered.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -27,18 +75,6 @@ const RFC_6797_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("6.1.2"),
     url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2",
     note: "The includeSubDomains Directive",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note: "Tokens — `token` syntax for directive names",
-};
-const RFC_9110_5_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
-    note: "Quoted Strings — `quoted-string` syntax for directive values",
 };
 
 impl RuleMeta for StrictTransportSecurityValid {
@@ -64,6 +100,10 @@ severity = "warn"
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -130,6 +170,11 @@ impl Rule for StrictTransportSecurityValid {
                     }
                 };
 
+                // Unnamed, and the grammar is the reason. § 6.1 writes
+                // `[ directive ] *( ";" [ directive ] )`, so the empty value
+                // derives — this finding is the rule saying a policy that
+                // declares nothing is not a policy, which is a statement about
+                // this field and not about a production it broke.
                 if v.is_empty() {
                     return Some(self.violation(
                         ctx.severity,
@@ -142,6 +187,13 @@ impl Rule for StrictTransportSecurityValid {
 
                 for member in crate::helpers::list::split_semicolons_respecting_quotes(v) {
                     let member = member.trim();
+                    // **Not `list_member_empty`.** That def carries § 5.6.1.1's
+                    // MUST NOT against an empty element of a `#` list, and this
+                    // is not one: the members are semicolon-separated by this
+                    // field's own production, whose optional brackets *generate*
+                    // the empty one. The rule refuses it anyway and that is its
+                    // own claim, which is the same shape of refusal
+                    // `Sec-WebSocket-Extensions` made about RFC 2616's list.
                     if member.is_empty() {
                         // skip stray semicolons but flag as violation
                         return Some(self.violation(
@@ -154,15 +206,20 @@ impl Rule for StrictTransportSecurityValid {
                     let mut kv = member.splitn(2, '=');
                     let name = kv.next().unwrap().trim();
                     if name.is_empty() {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &TOKEN_EMPTY,
                             "Empty directive name in Strict-Transport-Security header".into(),
                         ));
                     }
 
+                    // The statement below is RFC 6797's and stays: *this
+                    // field's* directive name is a token, which is what licenses
+                    // borrowing the subject at all. What moves onto the two defs
+                    // is the sentence saying what a token is — § 5.6.2's
+                    // `token = 1*tchar`, the character set RFC 2616's derives too.
                     // cite(RFC 6797 § 6.1): "directive-name            = token"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                        return Some(self.cited(&RFC_6797_6_1, ctx.severity, format!("Strict-Transport-Security directive name contains invalid character: '{}'", c)));
+                        return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security directive name contains invalid character: '{}'", c)));
                     }
 
                     let lname = name.to_ascii_lowercase();
@@ -179,10 +236,15 @@ impl Rule for StrictTransportSecurityValid {
                                 if vpart.is_empty() {
                                     return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' must have a numeric value".into()));
                                 }
+                                // Asked before the digits, and answered by the
+                                // catalogue: a `directive-value` is a `token` or
+                                // a `quoted-string` whatever the directive means
+                                // by it, so an octet no `tchar` admits is the
+                                // production's defect and not `max-age`'s.
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(vpart)
                                 {
-                                    return Some(self.violation(ctx.severity, format!("Strict-Transport-Security 'max-age' contains invalid character: '{}'", c)));
+                                    return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security 'max-age' contains invalid character: '{}'", c)));
                                 }
                                 if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
                                     return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' must be a non-negative integer".into()));
@@ -220,15 +282,15 @@ impl Rule for StrictTransportSecurityValid {
                             if let Some(vpart) = kv.next() {
                                 let vpart = vpart.trim();
                                 if vpart.starts_with('"') {
-                                    if let Err(e) =
-                                        crate::helpers::quoted_string::validate_quoted_string(vpart)
+                                    if let Err(defect) =
+                                        crate::helpers::quoted_string::check_quoted_string(vpart)
                                     {
-                                        return Some(self.cited(&RFC_6797_6_1, ctx.severity, format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", e)));
+                                        return Some(ctx.report_with(quoted_string_defect(defect), format!("Invalid quoted-string in Strict-Transport-Security directive value: {}", defect.message(vpart))));
                                     }
                                 } else if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(vpart)
                                 {
-                                    return Some(self.violation(ctx.severity, format!("Strict-Transport-Security directive '{}' value contains invalid character: '{}'", name, c)));
+                                    return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security directive '{}' value contains invalid character: '{}'", name, c)));
                                 }
                             }
                         }
@@ -309,6 +371,124 @@ mod tests {
         .is_some();
         assert_eq!(got, expect_violation, "value: {}", val);
         Ok(())
+    }
+
+    /// Every finding, with the sentence it says it in and the defect it reports
+    /// as. The named rows are the two productions § 6.1 imports and does not
+    /// define; the empty ones are RFC 6797's own policy — that a policy
+    /// declaring nothing is not one, that `max-age` counts seconds and is
+    /// required, that two directives are valueless, and that a directive
+    /// appears once.
+    #[rstest]
+    #[case::empty_value("", "must not be empty", "")]
+    #[case::empty_directive("max-age=1;;preload", "Empty directive in", "")]
+    #[case::empty_name("max-age=1; =2", "Empty directive name", "token_empty")]
+    #[case::name_character(
+        "max-age=1; pre@load",
+        "directive name contains",
+        "token_character_forbidden"
+    )]
+    #[case::max_age_character(
+        "max-age=1@2",
+        "'max-age' contains invalid",
+        "token_character_forbidden"
+    )]
+    #[case::max_age_not_a_number("max-age=1.5", "non-negative integer", "")]
+    #[case::max_age_empty("max-age=", "must have a numeric value", "")]
+    #[case::max_age_valueless("max-age", "must have a value", "")]
+    #[case::include_subdomains_valued(
+        "max-age=1; includeSubDomains=1",
+        "must not have a value",
+        ""
+    )]
+    #[case::preload_valued("max-age=1; preload=1", "must not have a value", "")]
+    #[case::value_character(
+        "max-age=1; foo=b@r",
+        "value contains invalid",
+        "token_character_forbidden"
+    )]
+    #[case::unterminated_quote(
+        "max-age=1; foo=\"bar",
+        "Invalid quoted-string",
+        "quoted_string_delimiter_missing"
+    )]
+    #[case::unescaped_quote(
+        "max-age=1; foo=\"a\"b\"",
+        "Invalid quoted-string",
+        "quoted_string_quote_escape_missing"
+    )]
+    #[case::trailing_escape(
+        "max-age=1; foo=\"ab\\\"",
+        "Invalid quoted-string",
+        "quoted_string_quoted_pair_malformed"
+    )]
+    #[case::repeated_max_age("max-age=1; max-age=2", "multiple 'max-age'", "")]
+    #[case::missing_max_age("includeSubDomains", "missing required 'max-age'", "")]
+    fn each_finding_reports_the_production_it_belongs_to(
+        #[case] value: &str,
+        #[case] expected: &str,
+        #[case] violation: &str,
+    ) {
+        let finding = crate::test_helpers::run_rule(
+            &StrictTransportSecurityValid,
+            &make_resp(value),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "strict_transport_security_valid",
+                "warn",
+            ),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {value:?}"));
+        assert!(
+            finding.message.contains(expected),
+            "for {value:?}: {:?}",
+            finding.message
+        );
+        assert_eq!(finding.violation, violation, "for {value:?}");
+    }
+
+    /// A directive name is a `token` here and in every other field, and RFC
+    /// 6797 taking the production from RFC 2616 changes nothing about the
+    /// octet: 2616 subtracts its separators and CTLs from `CHAR`, and what is
+    /// left is `tchar`. Asserted against a rule reading a field defined by
+    /// RFC 9110 itself, which shares no code with this one.
+    #[test]
+    fn a_directive_name_is_a_token_under_either_document() {
+        let here = crate::test_helpers::run_rule(
+            &StrictTransportSecurityValid,
+            &make_resp("max-age=1; pre@load"),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "strict_transport_security_valid",
+                "warn",
+            ),
+        )
+        .expect("a finding");
+        let elsewhere = crate::test_helpers::run_rule(
+            &crate::rules::vary_header_valid::VaryHeaderValid,
+            &crate::test_helpers::make_test_transaction_with_response(200, &[("vary", "b@d")]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_valid"]),
+        )
+        .expect("a finding");
+
+        assert_eq!(here.violation, elsewhere.violation);
+        assert_ne!(here.message, elsewhere.message);
+    }
+
+    /// The one place RFC 2616's `quoted-pair` and RFC 9110's disagree — an
+    /// escaped control octet, which 2616 admits and § 5.6.4 refuses — cannot
+    /// arrive, because the reader this rule uses does not admit the octet at
+    /// all. That is what makes borrowing the def safe here rather than a claim
+    /// about a sentence the field's document does not use.
+    #[test]
+    fn the_two_documents_disagreement_cannot_reach_this_rule() {
+        use hyper::header::HeaderValue;
+        assert!(HeaderValue::from_bytes(b"max-age=1; foo=\"a\x01b\"").is_err());
+        // `to_str` is what the rule reads through, and it refuses `obs-text`
+        // too -- the other half of the disagreement, in the other direction.
+        let obs = HeaderValue::from_bytes(b"max-age=1; foo=\"a\\\xe9b\"").expect("a value");
+        assert!(obs.to_str().is_err());
     }
 
     #[test]
