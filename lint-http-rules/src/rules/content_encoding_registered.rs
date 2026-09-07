@@ -4,8 +4,30 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct ContentEncodingRegistered;
+
+/// `content-coding = token`, and the two defects a `token` has.
+///
+/// RFC 9110 § 8.4.1 writes the production and adds no character to it, so an
+/// octet outside `tchar` in a coding name is the same defect it is in a field
+/// name, a method or a subtype. The rule reads two fields with it —
+/// `Content-Encoding` and `Accept-Encoding` — and the mirror rule reads
+/// `Transfer-Encoding` and `TE` off the same production.
+///
+/// What stays is everything the rule is named for: a coding the operator's list
+/// does not hold, and `identity` written where it is reserved away. Both are
+/// about which names exist rather than about how one is spelled, and the second
+/// is a SHOULD NOT that has no business sharing a level with a mangled octet.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -75,7 +97,12 @@ allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip"
             RFC_9110_8_4_1,
             RFC_9110_12_5_3,
             IANA_HTTP_PARAMETERS,
+            RFC_9110_5_6_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -151,8 +178,11 @@ impl Rule for ContentEncodingRegistered {
                     }
                     // cite(RFC 9110 § 8.4.1): "content-coding = token"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(ContentEncodingRegistered.violation(
-                            ctx.severity,
+                        // `content-coding = token` adds nothing to the
+                        // production, so which of the two ids the octet draws is
+                        // `token`'s question and not this field's.
+                        return Some(ctx.report_with(
+                            token_character(c),
                             format!("Invalid token '{}' in {} header", c, hdr_name),
                         ));
                     }
@@ -231,6 +261,77 @@ mod tests {
             }),
         );
         cfg
+    }
+
+    /// A coding name is a `token` and nothing more, and four fields over two
+    /// documents say so with one id.
+    ///
+    /// `Content-Encoding` and `Accept-Encoding` are read here,
+    /// `Transfer-Encoding` and `TE` by the mirror rule out of a body that
+    /// shares no line with this one, and `content-coding = token` /
+    /// `transfer-coding = token …` are the whole of what either field adds. The
+    /// split inside the pair is the token's too: a control octet is something
+    /// that happened to the value, a `<` is a sender that meant it.
+    #[test]
+    fn a_coding_name_is_a_token_in_all_four_fields() {
+        let content_encoding = |value: &str| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[("content-encoding", value)]);
+            crate::test_helpers::run_rule(
+                &ContentEncodingRegistered,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &make_cfg(),
+            )
+            .expect("a finding")
+            .violation
+        };
+        assert_eq!(content_encoding("gz<ip"), "token_character_forbidden");
+        // A `HeaderValue` refuses DEL outright, so the invisible half of the
+        // pair is reached here by the octet that *is* admitted and is still no
+        // `tchar`: the SP inside a member, left there after the list's `OWS`
+        // has been trimmed off both ends.
+        assert_eq!(
+            content_encoding("gz ip"),
+            "token_whitespace_or_control_forbidden"
+        );
+
+        let transfer_encoding = |value: &str| {
+            let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "transfer_coding_registered",
+            ]);
+            let table = cfg
+                .rules
+                .get_mut("transfer_coding_registered")
+                .expect("the rule's section")
+                .as_table_mut()
+                .expect("a table");
+            table.insert(
+                "allowed".into(),
+                toml::Value::Array(vec![toml::Value::String("chunked".into())]),
+            );
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("transfer-encoding", value)]);
+            crate::test_helpers::run_rule(
+                &crate::rules::transfer_coding_registered::TransferCodingRegistered,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .expect("a finding")
+            .violation
+        };
+        assert_eq!(transfer_encoding("chu<nked"), "token_character_forbidden");
+        assert_eq!(
+            transfer_encoding("chu nked"),
+            "token_whitespace_or_control_forbidden"
+        );
+        // The floor is the mirror rule's alone: a `Content-Encoding` member
+        // with no name reaches the registry check, where the finding is that
+        // nothing is registered under that name.
+        assert_eq!(transfer_encoding(";ext=1"), "token_empty");
     }
 
     #[rstest]
