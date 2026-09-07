@@ -4,21 +4,34 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::etag::{
+    entity_tag_defect, ETAG_CHARACTER_FORBIDDEN, ETAG_DELIMITER_MISSING,
+    ETAG_WEAK_INDICATOR_INVALID, RFC_9110_8_8_3,
+};
+use crate::violations::ViolationDef;
+
+/// The production's three defects, borrowed whole.
+///
+/// The field is `"*" / #entity-tag`: the `*` is the other alternative and the
+/// members are § 8.8.3's production, restated nowhere. So a member that is not
+/// a tag draws the same id an `ETag` carrying the same value draws, and what
+/// stays this rule's own is the alternation — a `*` written as a member rather
+/// than as the whole value — and the empty list element the list construct
+/// forbids.
+static DECLARED: &[&ViolationDef] = &[
+    &ETAG_WEAK_INDICATOR_INVALID,
+    &ETAG_DELIMITER_MISSING,
+    &ETAG_CHARACTER_FORBIDDEN,
+];
 
 /// `If-Match` header must be either `*` or a comma-separated list of entity-tags
 /// (possibly weak `W/"..."`). Validates the field grammar (RFC 9110 §13.1.1); the
-/// entity-tag grammar itself is RFC 9110 §8.8.3, owned by `validate_entity_tag`.
+/// entity-tag grammar itself is RFC 9110 §8.8.3, owned by `check_entity_tag`.
 pub struct IfMatchEtagSyntax;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.8.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
-    note: "ETag header field",
-};
 const RFC_9110_13_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("13.1.1"),
@@ -47,6 +60,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_8_8_3, RFC_9110_13_1_1]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -117,7 +134,7 @@ impl Rule for IfMatchEtagSyntax {
             // The field is `*` **or** a comma-separated list of entity-tags, and the
             // two are alternatives: `*` is the whole field value and is not a member
             // the list may hold. It was asked of each member instead -- through
-            // `validate_entity_tag`, which used to admit it -- so `If-Match:
+            // `check_entity_tag`, which used to admit it -- so `If-Match:
             // "abc", *` derived from neither alternative and passed as a conforming
             // list. `entity-tag` has no `*` in it; § 13.1.1's production is where
             // the `*` lives, and this is the construct that production governs.
@@ -159,13 +176,13 @@ impl Rule for IfMatchEtagSyntax {
                         "If-Match header contains an empty list element".into(),
                     ));
                 }
-                if let Err(msg) = crate::helpers::validator::validate_entity_tag(member) {
-                    return Some(self.violation(
-                        ctx.severity,
+                if let Err(defect) = crate::helpers::validator::check_entity_tag(member) {
+                    return Some(ctx.report_with(
+                        entity_tag_defect(defect),
                         format!(
                             "If-Match header has invalid member '{}': {}",
                             crate::helpers::shown::shown_in_finding(member),
-                            msg
+                            defect.message()
                         ),
                     ));
                 }

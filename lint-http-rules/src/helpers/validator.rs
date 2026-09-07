@@ -13,11 +13,10 @@
 //! only ever the *weak* comparison; the prefix it discards is exactly what a
 //! strong comparison turns on, which is why it must not be used to prepare one.
 //!
-//! [`validate_entity_tag`] is the grammar underneath all of it.
+//! [`check_entity_tag`] is the grammar underneath all of it.
 
 use crate::helpers::headers::get_header_str;
 use crate::helpers::list::split_commas_respecting_quotes;
-use crate::helpers::quoted_string::validate_quoted_string;
 use hyper::HeaderMap;
 
 /// Weak-compare an `If-None-Match` header value against a known ETag.
@@ -132,23 +131,93 @@ pub fn normalize_etag(s: &str) -> String {
 /// ostensibly for — where it made `If-None-Match: "abc", *` a conforming list.
 /// **A tolerance that every honest caller has to undo is not a tolerance.**
 // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
-pub fn validate_entity_tag(val: &str) -> Result<(), String> {
+pub fn check_entity_tag(val: &str) -> Result<(), EntityTagDefect> {
     // cite(RFC 9110 § 8.8.3, label: entity-tag grammar): "entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE"
     let s = val.trim();
 
     let rest = if let Some(stripped) = s.strip_prefix("W/") {
         stripped
+    } else if s.len() >= 2 && s[..2].eq_ignore_ascii_case("w/") {
+        // `%s"W/"` — the `%s` prefix is what makes the case part of the
+        // production, and RFC 5234 § 2.3 says an unprefixed string would have
+        // been case-insensitive. A `w/` is therefore a weakness indicator the
+        // sender meant and the grammar does not generate, which is a different
+        // finding from a tag that never opened its quotes.
+        // cite(RFC 5234 § 2.3): "ABNF strings are case insensitive and the character set for these strings is US-ASCII."
+        return Err(EntityTagDefect::WeakIndicatorInvalid);
     } else {
         s
     };
-    // rest must be a quoted-string
-    validate_quoted_string(rest)
+
+    // `opaque-tag = DQUOTE *etagc DQUOTE`, and the interior is **not** a
+    // `quoted-string`: `etagc` holds the backslash as an ordinary character
+    // and holds no DQUOTE at all, so nothing inside an opaque-tag is an
+    // escape. Reading one with the quoted-string reader — which this did —
+    // reported `"a\"` for a trailing escape the production generates, and
+    // accepted `"a\"b"` as an escaped DQUOTE the production cannot hold.
+    let Some(inner) = rest
+        .strip_prefix('"')
+        .and_then(|open| open.strip_suffix('"'))
+    else {
+        return Err(EntityTagDefect::DelimiterMissing);
+    };
+
+    match inner.chars().find(|&c| !is_etagc(c)) {
+        Some(c) => Err(EntityTagDefect::BadCharacter(c)),
+        None => Ok(()),
+    }
+}
+
+/// `etagc`, over a single character.
+///
+/// The class is the visible US-ASCII minus the DQUOTE that delimits the tag,
+/// plus `obs-text`. It is written as the ranges the production writes rather
+/// than as "visible, except the quote", because the exclusion at %x22 is the
+/// whole reason the tag can be scanned at all.
+fn is_etagc(c: char) -> bool {
+    // cite(RFC 9110 § 8.8.3): "etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text"
+    c == '\u{21}' || ('\u{23}'..='\u{7e}').contains(&c) || c >= '\u{80}'
+}
+
+/// Why a value is not an `entity-tag`.
+///
+/// Three defects and no fourth: the production is a two-character prefix, two
+/// delimiters and a character class, and there is nothing else in it to fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntityTagDefect {
+    /// A weakness indicator in any spelling but `W/`.
+    WeakIndicatorInvalid,
+    /// No opening DQUOTE, or nothing closing it.
+    DelimiterMissing,
+    /// A character `etagc` does not admit — a DQUOTE inside the tag, a control
+    /// octet, DEL.
+    BadCharacter(char),
+}
+
+impl EntityTagDefect {
+    /// The finding fragment. Callers name the field the tag came from and put
+    /// this after it.
+    pub fn message(self) -> String {
+        match self {
+            Self::WeakIndicatorInvalid => {
+                "weakness indicator must be written \"W/\", which is case-sensitive".to_string()
+            }
+            Self::DelimiterMissing => {
+                "entity-tag must be an opaque tag between two double quotes".to_string()
+            }
+            Self::BadCharacter(c) => format!(
+                "entity-tag holds {}, which no etagc admits",
+                crate::helpers::shown::describe_char(c)
+            ),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use hyper::header::HeaderValue;
+    use rstest::rstest;
 
     #[test]
     fn strong_etag_and_last_modified_are_returned() {
@@ -213,19 +282,37 @@ mod tests {
 
     // Entity-tag helper tests
     #[test]
-    fn validate_entity_tag_cases() {
+    fn check_entity_tag_cases() {
         // The production is `[ weak ] opaque-tag` and neither part generates a
         // `*`. This asserted the opposite, which is how `If-None-Match: "abc", *`
         // passed as a conforming list; the `*` is the *other* alternative of the
         // two conditional fields' own grammars, and each of them decides it on
         // the whole field value now.
-        assert!(validate_entity_tag("*").is_err());
-        assert!(validate_entity_tag("\"abc\"").is_ok());
+        assert!(check_entity_tag("*").is_err());
+        assert!(check_entity_tag("\"abc\"").is_ok());
         // `etagc` admits the comma, so this is one tag and not two.
-        assert!(validate_entity_tag("\"a,b\"").is_ok());
-        assert!(validate_entity_tag("W/\"abc\"").is_ok());
-        assert!(validate_entity_tag(" W/\"abc\" ").is_ok()); // leading/trailing whitespace tolerated
-        assert!(validate_entity_tag("abc").is_err()); // missing quotes
-        assert!(validate_entity_tag("W/abc").is_err()); // weak prefix without quoted-string
+        assert!(check_entity_tag("\"a,b\"").is_ok());
+        assert!(check_entity_tag("W/\"abc\"").is_ok());
+        assert!(check_entity_tag(" W/\"abc\" ").is_ok()); // leading/trailing whitespace tolerated
+        assert!(check_entity_tag("abc").is_err()); // missing quotes
+        assert!(check_entity_tag("W/abc").is_err()); // weak prefix without an opaque-tag
+    }
+
+    /// The interior is `*etagc` and not a `quoted-string`, which is the whole
+    /// of what separates this reader from the one it replaced. A backslash is
+    /// an ordinary `etagc`, so a tag may end in one; a DQUOTE is not, so an
+    /// "escaped" one closed the tag early and left content behind.
+    #[rstest]
+    #[case("\"a\\\"", Ok(()))]
+    #[case("\"a\\\"b\"", Err(EntityTagDefect::BadCharacter('"')))]
+    #[case("w/\"abc\"", Err(EntityTagDefect::WeakIndicatorInvalid))]
+    #[case("W\"abc\"", Err(EntityTagDefect::DelimiterMissing))]
+    #[case("\"\"", Ok(()))]
+    #[case("\"", Err(EntityTagDefect::DelimiterMissing))]
+    fn an_opaque_tag_is_not_a_quoted_string(
+        #[case] value: &str,
+        #[case] expected: Result<(), EntityTagDefect>,
+    ) {
+        assert_eq!(check_entity_tag(value), expected, "{value}");
     }
 }

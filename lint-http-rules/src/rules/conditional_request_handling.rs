@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::etag::RFC_9110_8_8_3;
 
 /// Stateful checks for conditional requests and their responses.
 ///
@@ -40,12 +41,6 @@ const RFC_9110_13_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("13.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.2",
     note: "Evaluation of Preconditions (precedence rules)",
-};
-const RFC_9110_8_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.8.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
-    note: "ETag header field",
 };
 const RFC_9110_8_8_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",

@@ -4,6 +4,25 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::etag::{
+    entity_tag_defect, ETAG_CHARACTER_FORBIDDEN, ETAG_DELIMITER_MISSING,
+    ETAG_WEAK_INDICATOR_INVALID, RFC_9110_8_8_3,
+};
+use crate::violations::ViolationDef;
+
+/// The production's three defects, which is everything this rule says about a
+/// value that is not an entity-tag.
+///
+/// `ETag = entity-tag` and § 8.8.3 adds nothing to the production, so the ids
+/// are the production's and the two conditional-field rules answer with the
+/// same three. What stays this rule's own is what an `ETag` *field* may be: a
+/// `*` is not a tag but is the shape a server copies from the conditional
+/// fields, and more than one field line is a statement about the message.
+static DECLARED: &[&ViolationDef] = &[
+    &ETAG_WEAK_INDICATOR_INVALID,
+    &ETAG_DELIMITER_MISSING,
+    &ETAG_CHARACTER_FORBIDDEN,
+];
 
 /// Validate `ETag` header values: must be a single entity-tag (strong or weak quoted-string)
 /// per RFC 9110 §8.8.3. Also flags invalid UTF-8 and multiple header fields.
@@ -12,12 +31,6 @@ pub struct EtagSyntax;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.8.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.8.3",
-    note: "`ETag` header field, the `ETag = entity-tag` field production, and the `entity-tag` grammar",
-};
 const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.3"),
@@ -46,6 +59,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_8_8_3, RFC_9110_5_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -112,7 +129,7 @@ impl Rule for EtagSyntax {
 
                 let t = s.trim();
                 // The `*` kept its own branch, and the reason changed. It stood here
-                // because `validate_entity_tag` admitted a `*` -- which no
+                // because `check_entity_tag` admitted a `*` -- which no
                 // `entity-tag` generates, and the helper refuses now -- so the branch
                 // is no longer a correction of the helper. It stays because this
                 // finding is worth more than the helper's: `*` is the one non-tag an
@@ -124,11 +141,12 @@ impl Rule for EtagSyntax {
                                 .into()));
                 }
 
-                // The entity-tag grammar itself (§8.8.3) is owned by `validate_entity_tag`.
-                if let Err(msg) = crate::helpers::validator::validate_entity_tag(t) {
-                    return Some(
-                        self.violation(ctx.severity, format!("ETag header invalid: {}", msg)),
-                    );
+                // The entity-tag grammar itself (§8.8.3) is owned by `check_entity_tag`.
+                if let Err(defect) = crate::helpers::validator::check_entity_tag(t) {
+                    return Some(ctx.report_with(
+                        entity_tag_defect(defect),
+                        format!("ETag header invalid: {}", defect.message()),
+                    ));
                 }
             }
 
@@ -157,6 +175,49 @@ static REGISTRATION: &dyn crate::rules::Rule = &EtagSyntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// One production, three fields: an `ETag` a server sends and the two
+    /// conditional lists a client sends back draw the same id for the same
+    /// value, out of rules that share no code and read opposite directions of
+    /// the exchange.
+    #[rstest]
+    #[case("abc", "etag_delimiter_missing")]
+    #[case("w/\"abc\"", "etag_weak_indicator_invalid")]
+    #[case("\"a\"b\"", "etag_character_forbidden")]
+    fn a_validator_is_the_same_defect_in_both_directions(#[case] value: &str, #[case] id: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("etag", value)]);
+        let found = crate::test_helpers::run_rule(
+            &EtagSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity("etag_syntax", "warn"),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, id, "{value}");
+
+        for (rule, field) in [
+            (
+                &super::super::if_match_etag_syntax::IfMatchEtagSyntax as &dyn crate::rules::Rule,
+                "if-match",
+            ),
+            (
+                &super::super::if_none_match_etag_syntax::IfNoneMatchEtagSyntax,
+                "if-none-match",
+            ),
+        ] {
+            let tx = crate::test_helpers::make_test_transaction_with_headers(&[(field, value)]);
+            let found = crate::test_helpers::run_rule(
+                rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+            )
+            .expect("a finding");
+            assert_eq!(found.violation, id, "{field}: {value}");
+        }
+    }
 
     #[rstest]
     #[case(Some("\"abc\""), false)]
