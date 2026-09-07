@@ -4,8 +4,66 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    host_and_port, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
+    RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN,
+    URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct Http2PseudoHeadersValid;
+
+/// The authority's defects, which is all this rule borrows.
+///
+/// `:authority` carries what the authority-form of a request-target carries —
+/// § 8.5 says so by pointing at that production rather than by writing one —
+/// so a bracket, a character or a port number is the same defect here as in a
+/// `Host` field, and the two rules answer with one id apiece for the same
+/// value.
+///
+/// Everything else this rule reports is about *which* pseudo-headers a message
+/// carries and where: a name that is not one of the four, a pseudo-header after
+/// a regular field, one repeated, one sent on a response, a CONNECT with no
+/// port. None of that is a defect of a production, and the two documents that
+/// require it write no grammar this catalogue could name it after.
+static DECLARED: &[&ViolationDef] = &[
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
+];
+
+/// One finding from the CONNECT reading, and the defect it reports as where
+/// the catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled: a judge that is half converted says
+/// so in its type. Here the named half is the authority's grammar and the
+/// unnamed half is what § 9.3.6 says a CONNECT's authority must *hold* — an
+/// authority at all, no userinfo, a port that is present and not empty — which
+/// is prose about this method's target rather than a production's defect.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed yet, reported at the rule's severity the
+    /// way every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+}
 
 /// What a basic CONNECT's `:authority` has to be, and what is wrong with this
 /// one.
@@ -22,15 +80,15 @@ pub struct Http2PseudoHeadersValid;
 // cite(RFC 9110 § 9.3.6): "CONNECT uses a special form of request target, unique to this method, consisting of only the host and port number of the tunnel destination, separated by a colon."
 // cite(RFC 9110 § 9.3.6): "There is no default port; a client MUST send the port number even if the CONNECT request is based on a URI reference that contains an authority component with an elided port (Section 4.1)."
 // cite(RFC 9110 § 9.3.6): "A server MUST reject a CONNECT request that targets an empty or invalid port number, typically by responding with a 400 (Bad Request) status code."
-fn connect_authority_finding(authority: &str) -> Option<String> {
+fn connect_authority_finding(authority: &str) -> Option<Defect> {
     let shown = crate::helpers::shown::shown_in_finding(authority);
 
     if authority.is_empty() {
-        return Some(
+        return Some(Defect::unnamed(
             "CONNECT request carries no ':authority', and there is nothing else in the message \
              naming the host and port to open the tunnel to"
                 .into(),
-        );
+        ));
     }
 
     // Asked before the grammar so the answer names what is wrong: a userinfo
@@ -46,17 +104,18 @@ fn connect_authority_finding(authority: &str) -> Option<String> {
         let shown = crate::helpers::uri::userinfo_password_withheld(authority)
             .map(|redacted| crate::helpers::shown::shown_in_finding(&redacted))
             .unwrap_or(shown);
-        return Some(format!(
+        return Some(Defect::unnamed(format!(
             "CONNECT ':authority' '{shown}' carries a userinfo subcomponent and its '@' \
              delimiter: the field is only the host and port number of the tunnel destination"
-        ));
+        )));
     }
 
     let (host, port) = crate::helpers::uri::split_host_and_port(authority);
     if let Err(defect) = crate::helpers::uri::validate_host_and_optional_port(authority) {
         let message = defect.message();
-        return Some(format!(
-            "CONNECT ':authority' '{shown}' is not a host and port: {message}"
+        return Some(Defect::named(
+            host_and_port(defect),
+            format!("CONNECT ':authority' '{shown}' is not a host and port: {message}"),
         ));
     }
 
@@ -65,20 +124,22 @@ fn connect_authority_finding(authority: &str) -> Option<String> {
     // is required outright; the host is what "the host and port number of the
     // tunnel destination" leaves nothing of if it is absent.
     match port {
-        None => Some(format!(
+        None => Some(Defect::unnamed(format!(
             "CONNECT ':authority' '{shown}' names no port, and a CONNECT has no default port: a \
              client sends the port number even when the URI reference it started from elided one"
-        )),
-        Some("") => Some(format!(
+        ))),
+        Some("") => Some(Defect::unnamed(format!(
             "CONNECT ':authority' '{shown}' ends at the colon with no port number, which a server \
              is required to reject"
-        )),
-        Some(port) if host.is_empty() => Some(format!(
+        ))),
+        Some(port) if host.is_empty() => Some(Defect::unnamed(format!(
             "CONNECT ':authority' '{shown}' names the port '{port}' and no host, so it names \
              nothing to open a tunnel to"
-        )),
+        ))),
         Some(port) => connect_port_range_finding(port).map(|msg| {
-            format!("CONNECT ':authority' '{shown}' targets an invalid port number: {msg}")
+            Defect::unnamed(format!(
+                "CONNECT ':authority' '{shown}' targets an invalid port number: {msg}"
+            ))
         }),
     }
 }
@@ -208,7 +269,14 @@ severity = "error"
             RFC_9112_3_2_3,
             RFC_8441_4,
             RFC_6335_6,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
+            RFC_3986_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -364,8 +432,11 @@ impl Rule for Http2PseudoHeadersValid {
                                 .into()));
                     }
                 } else if absolute_form.is_none() {
-                    if let Some(msg) = connect_authority_finding(target) {
-                        return Some(self.violation(ctx.severity, msg));
+                    if let Some(defect) = connect_authority_finding(target) {
+                        return Some(match defect.def {
+                            Some(def) => ctx.report_with(def, defect.message),
+                            None => self.violation(ctx.severity, defect.message),
+                        });
                     }
                 }
             } else {
@@ -465,8 +536,8 @@ impl Rule for Http2PseudoHeadersValid {
                 if let Err(defect) =
                     crate::helpers::uri::validate_host_and_optional_port(&authority)
                 {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        host_and_port(defect),
                         format!(
                             "Authority '{}' is not a host and port: {}",
                             crate::helpers::shown::shown_in_finding(&authority),
@@ -526,6 +597,45 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
         .map(|v| v.message)
+    }
+
+    /// The authority is one production wherever it is read, and this is the
+    /// assertion: a CONNECT `:authority` and a `Host` field value draw the same
+    /// id for the same value, out of two rules that share no code and read two
+    /// different parts of the message. What each still says in its own words is
+    /// which of the two carried it.
+    #[rstest]
+    #[case("[::1:443", "uri_host_closing_bracket_missing")]
+    #[case("[not-an-address]:443", "uri_host_ip_literal_malformed")]
+    #[case("exa mple.com:443", "uri_host_character_forbidden")]
+    #[case("example.com:44a", "uri_port_character_forbidden")]
+    #[case("exa%zzmple.com:443", "percent_encoding_malformed")]
+    fn an_authority_and_a_host_field_report_one_id(#[case] value: &str, #[case] id: &str) {
+        let mut tx = h2();
+        tx.request.method = "CONNECT".into();
+        tx.request.uri = value.into();
+        let authority = crate::test_helpers::run_rule(
+            &Http2PseudoHeadersValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "http2_pseudo_headers_valid",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(authority.violation, id, "{value}");
+        assert!(authority.message.contains("':authority'"), "{value}");
+
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[("host", value)]);
+        let host = crate::test_helpers::run_rule(
+            &super::super::host_header::HostHeader,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["host_header"]),
+        )
+        .expect("a finding");
+        assert_eq!(host.violation, id, "{value}");
+        assert!(host.message.contains("Host field value"), "{value}");
     }
 
     fn judge_request(method: &str, target: &str) -> Option<String> {

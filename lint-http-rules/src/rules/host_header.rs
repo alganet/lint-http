@@ -4,8 +4,37 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    host_and_port, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
+    RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN,
+    URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct HostHeader;
+
+/// The defects of `Host = uri-host [ ":" port ]`, every one of them the
+/// authority's rather than the field's.
+///
+/// § 7.2 writes the field as two productions RFC 3986 defines and adds nothing
+/// to either, so what an operator tunes here is a bracket, a character or a
+/// port — the same entries a `:authority`, a `Forwarded` `host` and a `Via`
+/// `received-by` draw, out of the one reader all of them call.
+///
+/// What stays this rule's own is everything § 7.2 says *about* the field and
+/// not about its grammar: that a request must carry one, that it must not be
+/// repeated, that its value excludes the userinfo, and that an IPv6 literal
+/// written without its brackets is a value the reader would otherwise have to
+/// guess at.
+static DECLARED: &[&ViolationDef] = &[
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
+];
 
 /// Whether this request sent its authority as control data rather than as a
 /// `Host` field — the state §7.2's MUST excepts.
@@ -52,19 +81,6 @@ const RFC_9112_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2",
     note: "Request Target — Host is required in all HTTP/1.1 requests, its value excludes userinfo, and it is empty when the target URI has no authority",
 };
-const RFC_3986_3_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("3.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2",
-    note: "Host — an IP literal is distinguished by its square brackets; every other host is a registered name",
-};
-const RFC_3986_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("3.2.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3",
-    note: "Port — `port = *DIGIT` bounds nothing, so a port outside the TCP range is not a syntax finding",
-};
-
 impl RuleMeta for HostHeader {
     fn id(&self) -> &'static str {
         "host_header"
@@ -87,7 +103,12 @@ severity = "warn"
             RFC_9112_3_2,
             RFC_3986_3_2_2,
             RFC_3986_3_2_3,
+            RFC_3986_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -249,10 +270,14 @@ impl Rule for HostHeader {
             // is the `Host` production; the port it admits is `*DIGIT`, which is
             // the whole of what RFC 3986 §3.2.3 says a port looks like.
             // cite(RFC 9110 § 7.2, label: Host grammar): "Host = uri-host [ ":" port ]"
+            //
+            // The sentence that stays here is the one saying the field carries
+            // those two productions; what each of them *is* moved onto the
+            // defects, which is why the finding is named after the authority
+            // and not after the field that carried it.
             if let Err(defect) = crate::helpers::uri::validate_host_and_optional_port(s) {
-                return Some(self.cited(
-                    &RFC_9110_7_2,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    host_and_port(defect),
                     format!(
                         "Host field value '{}' is not a host and port: {}",
                         s,

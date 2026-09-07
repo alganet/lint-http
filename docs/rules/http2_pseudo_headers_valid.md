@@ -39,6 +39,9 @@ HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `
 - [RFC 9112 §3.2.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.3): authority-form — the production RFC 9113 §8.5 points at for what `:authority` carries on a CONNECT, and where both halves turn out to be `*`-quantified
 - [RFC 8441 §4](https://www.rfc-editor.org/rfc/rfc8441.html#section-4): The Extended CONNECT Method — `:protocol` is what distinguishes it, and on such a request `:scheme` and `:path` MUST be included. A capture records no `:protocol`, which is why an absolute-form CONNECT target is accepted.
 - [RFC 6335 §6](https://www.rfc-editor.org/rfc/rfc6335.html#section-6): Port Number Ranges — the 16-bit namespace that bounds a CONNECT port above, and the reserved edge values that are why `0` is not reported
+- [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere
+- [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
 
 ## Configuration
 
