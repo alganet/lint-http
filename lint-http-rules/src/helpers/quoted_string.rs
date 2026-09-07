@@ -274,16 +274,26 @@ pub fn check_quoted_string(val: &str) -> Result<(), QuotedStringDefect> {
 }
 
 /// Check whether a quoted-string's unescaped inner content, after trimming,
-/// is empty. Returns Ok(true) if the inner content is empty after trimming,
-/// Ok(false) if it contains any non-whitespace character, or Err(msg) if the
-/// input is not a well-formed quoted-string. This is useful for treating
+/// is empty. Returns `Ok(true)` if the inner content is empty after trimming,
+/// `Ok(false)` if it contains any non-whitespace character, or the
+/// [`QuotedStringDefect`] that stopped the walk. This is useful for treating
 /// quoted-empty values (e.g., `""` or `"   "`) as empty for presence checks.
-pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, String> {
+///
+/// **The `Err` is the defect and not a sentence**, for the reason
+/// [`unescape_quoted_string`] gives: a caller reporting through the catalogue
+/// answers with the `quoted_string_*` def the variant maps to, and one that
+/// wants the prose asks [`QuotedStringDefect::message`] for it. This wrapper
+/// used to render on the way out, which put a rendered `String` between the
+/// only reporter and the four defects the production has.
+///
+/// The empty verdict itself belongs to no def: a `quoted-string` holding
+/// nothing derives from § 5.6.4 exactly as written, so what an empty one means
+/// is the *field's* question and each caller answers it. That is the same line
+/// `charset_registered` draws between `charset=`, a parameter value that does
+/// not exist, and `charset=""`, a well-formed pair of DQUOTEs around no name.
+pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, QuotedStringDefect> {
     // Reuse `unescape_quoted_string` to perform unescaping and validation
-    match unescape_quoted_string(val) {
-        Ok(s) => Ok(s.trim().is_empty()),
-        Err(defect) => Err(defect.message(val)),
-    }
+    unescape_quoted_string(val).map(|s| s.trim().is_empty())
 }
 
 /// Unescape a well-formed HTTP `quoted-string` value and return its inner contents.
@@ -571,8 +581,12 @@ mod tests {
     fn quoted_string_inner_unescaped_quote_reports_error() {
         let s = "\"a\"b\""; // inner unescaped quote before terminating quote
         let r = quoted_string_inner_trimmed_is_empty(s);
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("Unescaped quote"));
+        // The variant, not its prose: what the caller names the finding after
+        // is the defect, and the sentence is one method away from it.
+        assert_eq!(r.unwrap_err(), QuotedStringDefect::UnescapedQuote);
+        assert!(QuotedStringDefect::UnescapedQuote
+            .message(s)
+            .contains("Unescaped quote"));
     }
 
     /// Three of the four `quoted-string` defects are about an octet that would

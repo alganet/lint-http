@@ -4,8 +4,44 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::parameter::{PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::ViolationDef;
 
 pub struct FormDataContentDispositionValid;
+
+/// The defects this rule reports through the catalogue, all of them borrowed.
+///
+/// **The position decides the grammar, and the position is an HTTP header
+/// field.** RFC 7578 § 4.2 states its requirement about a *part* of a
+/// `multipart/form-data` body, where the field is MIME's and its parameters are
+/// RFC 2183's; what this rule can actually read is a message-level
+/// `Content-Disposition`, which RFC 6266 § 4.1 defines and which takes its
+/// `token`, its `quoted-string` and its `name=value` shape from HTTP. So the
+/// parameter defects are the shared ones — the same entries
+/// `content_disposition_parameter_valid` declares for the same field — and what
+/// stays this rule's own is what RFC 7578 says the `name` parameter *means*.
+/// The day the linter parses body parts, that reading is RFC 2183's and the
+/// question is worth asking again.
+///
+/// Two findings are deliberately absent. A `form-data` disposition missing its
+/// `name` altogether is § 4.2's MUST about the *set* of parameters, not a
+/// defect of any one of them. And a `name` whose quoted value holds nothing is
+/// a `quoted-string` deriving exactly as § 5.6.4 says, around a form field name
+/// of nothing: the production is satisfied and the requirement is not, which is
+/// why it does not answer with [`PARAMETER_VALUE_EMPTY`] the way the unquoted
+/// spelling does.
+static DECLARED: &[&ViolationDef] = &[
+    &PARAMETER_VALUE_EMPTY,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -43,7 +79,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7578_4_2, RFC_6266_4_1]
+        &[RFC_7578_4_2, RFC_6266_4_1, RFC_9110_5_6_6, RFC_9110_5_6_4]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -143,6 +183,14 @@ impl Rule for FormDataContentDispositionValid {
                         if raw.starts_with('"') {
                             // quoted-string: check if inner trimmed content is empty or invalid
                             match crate::helpers::quoted_string::quoted_string_inner_trimmed_is_empty(raw) {
+                                // The production is satisfied here and the
+                                // requirement is not: a pair of DQUOTEs around
+                                // nothing is the `quoted-string` § 5.6.4
+                                // writes, carrying a form field name of
+                                // nothing. That is § 4.2's sentence about what
+                                // the value *is*, so it stays this rule's, and
+                                // the unquoted spelling below — where there is
+                                // no value at all — is the parameter's.
                                 Ok(true) => {
                                     return Some(self.violation(ctx.severity, "Content-Disposition 'form-data' has empty 'name' parameter"
                                             .into()));
@@ -151,18 +199,28 @@ impl Rule for FormDataContentDispositionValid {
                                     name_found = true;
                                     break;
                                 }
-                                Err(e) => {
-                                    return Some(self.violation(ctx.severity, format!(
+                                // Whatever stopped the walk is the production's
+                                // defect and not this field's, and the sentence
+                                // it breaks is the same one whichever field
+                                // carried the value.
+                                Err(defect) => {
+                                    return Some(ctx.report_with(
+                                        quoted_string_defect(defect),
+                                        format!(
                                             "Content-Disposition 'form-data' has invalid quoted 'name' parameter: {}",
-                                            e
-                                        )))
+                                            defect.message(raw)
+                                        ),
+                                    ))
                                 }
                             }
                         } else {
                             // token/unquoted value
                             if raw.is_empty() {
-                                return Some(self.violation(ctx.severity, "Content-Disposition 'form-data' has empty 'name' parameter"
-                                            .into()));
+                                return Some(ctx.report_with(
+                                    &PARAMETER_VALUE_EMPTY,
+                                    "Content-Disposition 'form-data' has empty 'name' parameter"
+                                        .into(),
+                                ));
                             }
                             name_found = true;
                             break;
@@ -237,6 +295,72 @@ static REGISTRATION: &dyn crate::rules::Rule = &FormDataContentDispositionValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// The `name` parameter is read against the same productions any other
+    /// parameter of this field is, and the last two rows are the pair that
+    /// looks like one finding and is two: a value that does not exist is
+    /// § 5.6.6's, and a pair of DQUOTEs around nothing is a `quoted-string`
+    /// that derives — leaving a form field name of nothing, which is § 4.2's
+    /// sentence and stays this rule's.
+    ///
+    /// The first two rows are asserted against `content_disposition_parameter_
+    /// valid` reading the same shapes at the same field, out of a rule that
+    /// walks the parameters differently and shares no code with this one.
+    #[rstest]
+    #[case("form-data; name=\"unterminated", "quoted_string_delimiter_missing")]
+    // The fourth defect of the production, a control octet inside the quotes,
+    // is declared and unreachable from here: a `HeaderValue` refuses the octet
+    // outright, so the transaction cannot be built to carry one.
+    #[case("form-data; name=\"a\"b\"", "quoted_string_quote_escape_missing")]
+    #[case("form-data; name=", "parameter_value_empty")]
+    #[case("form-data; name=\"\"", "")]
+    #[case("form-data; filename=example.txt", "")]
+    fn the_name_parameter_reports_the_productions_it_borrows(
+        #[case] value: &str,
+        #[case] id: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-disposition", value)]);
+        let found = crate::test_helpers::run_rule(
+            &FormDataContentDispositionValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "form_data_content_disposition_valid",
+                "warn",
+            ),
+        )
+        .expect("a finding");
+        // An unconverted site carries no defect id at all, which is what the
+        // two empty rows assert.
+        assert_eq!(found.violation, id, "{value}");
+    }
+
+    /// The same two values at the same field, judged by the rule that reads an
+    /// `attachment` disposition: two rules, one id apiece, no shared code.
+    #[rstest]
+    #[case(
+        "attachment; filename=\"unterminated",
+        "quoted_string_delimiter_missing"
+    )]
+    #[case("attachment; filename=", "parameter_value_empty")]
+    fn the_sibling_rule_answers_with_the_same_ids(#[case] value: &str, #[case] id: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-disposition", value)]);
+        let found = crate::test_helpers::run_rule(
+            &crate::rules::content_disposition_parameter_valid::ContentDispositionParameterValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "content_disposition_parameter_valid",
+                "warn",
+            ),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, id, "{value}");
+    }
 
     #[rstest]
     #[case(Some("form-data; name=\"user\""), false)]
