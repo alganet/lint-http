@@ -13,6 +13,14 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
+use crate::violations::quoted_string::{
+    QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
+    QUOTED_STRING_QUOTED_PAIR_MALFORMED, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_bws_word_defect, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
 use crate::violations::ViolationDef;
 use std::collections::HashMap;
 
@@ -23,10 +31,25 @@ pub struct PreferenceAppliedHeaderValid;
 ///
 /// `Preference-Applied = "Preference-Applied" ":" 1#applied-pref`, so a
 /// response that applied nothing and a response with a stray comma report the
-/// list's ids. What stays is this field's own reading — a member carrying
-/// parameters its grammar does not include, and an applied preference the
-/// request never asked for.
-static DECLARED: &[&ViolationDef] = &[&LIST_MEMBER_MISSING, &LIST_MEMBER_EMPTY];
+/// list's ids — and `applied-pref` is `preference` minus its parameters, which
+/// the document states in prose, so the `token` and the `word` it is written
+/// out of report theirs. Nine ids, none of them written here, and the same nine
+/// the request field declares.
+///
+/// What stays is this field's own reading — a member carrying parameters its
+/// grammar does not include, the `BWS` beside an `=`, and an applied preference
+/// the request never asked for.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_MISSING,
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The preferences a request asked for, keyed by the lowercased token.
 ///
@@ -169,6 +192,8 @@ severity = "warn"
             RFC_7240_1_1,
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_1_2,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
             RFC_9110_5_6_3,
         ]
     }
@@ -308,12 +333,19 @@ impl Rule for PreferenceAppliedHeaderValid {
                 // cite(RFC 7240 § 3): "applied-pref = token [ BWS "=" BWS word ]"
                 let parsed = match parse_token_bws_word(member) {
                     Ok(parsed) => parsed,
-                    Err(e) => {
-                        return violation(format!(
+                    // Same two productions as the request field's, reported
+                    // through the same ids — `applied-pref` is `preference`
+                    // minus its parameters and the document says so in prose.
+                    Err(defect) => {
+                        let message = format!(
                             "Preference-Applied member '{}' does not match applied-pref: {}",
                             shown_in_finding(member),
-                            e
-                        ))
+                            defect.message(member)
+                        );
+                        return Some(match token_bws_word_defect(&defect) {
+                            Some(def) => ctx.report_with(def, message),
+                            None => self.violation(ctx.severity, message),
+                        });
                     }
                 };
 

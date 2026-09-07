@@ -701,11 +701,11 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
         // cite(RFC 8288 § 3): "Note that any link-param can be generated with values using either the token or the quoted-string syntax; therefore, recipients MUST be able to parse both forms."
         // cite(RFC 8288 § 3): "Individual link-params specify their syntax in terms of the value after any necessary unquoting"
         // cite(RFC 8288 § 1.1): "This document uses the Augmented Backus-Naur Form (ABNF) [RFC5234] notation of [RFC7230], including the #rule, and explicitly includes the following rules from it"
-        let parsed = parse_token_bws_word(segment).map_err(|e| {
+        let parsed = parse_token_bws_word(segment).map_err(|defect| {
             format!(
                 "parameter '{}' does not match link-param: {}",
                 shown_in_finding(segment),
-                e
+                defect.message(segment)
             )
         })?;
 
