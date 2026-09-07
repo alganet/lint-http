@@ -1293,7 +1293,7 @@ severity = "warn"
         /// The rest are the per-rule reading that has not happened yet — the
         /// denominator is computed below, because merges and conversions both
         /// move it.
-        const FLOOR: usize = 151;
+        const FLOOR: usize = 148;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

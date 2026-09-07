@@ -14,6 +14,7 @@ use crate::violations::quoted_string::{
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
     QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
+use crate::violations::qvalue::{QVALUE_MALFORMED, RFC_9110_12_4_2};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -48,6 +49,7 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &QVALUE_MALFORMED,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -58,12 +60,6 @@ const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("12.5.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
     note: "Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, the removal of the extension parameters that once followed the weight, and the meaning of an Accept sent in a response",
-};
-const RFC_9110_12_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-    note: "Quality Values: the `qvalue` production and its three-digit bound, and that the parameter name is matched case-insensitively",
 };
 const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -416,9 +412,8 @@ impl Rule for AcceptHeaderMediaTypeSyntax {
                             // the same bound, and it is senders this rule reports.
                             // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
                             if !crate::helpers::qvalue::valid_qvalue(v) {
-                                return Some(self.cited(
-                                    &RFC_9110_12_4_2,
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    &QVALUE_MALFORMED,
                                     format!("Invalid qvalue '{}' in {} header", v, hdr),
                                 ));
                             }

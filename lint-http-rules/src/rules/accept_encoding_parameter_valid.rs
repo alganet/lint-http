@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::qvalue::{QVALUE_MALFORMED, RFC_9110_12_4_2};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -29,6 +30,7 @@ pub struct AcceptEncodingParameterValid;
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QVALUE_MALFORMED,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -39,12 +41,6 @@ const RFC_9110_12_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("12.5.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
     note: "Accept-Encoding: `#( codings [ weight ] )` — the production that says a coding may carry a weight and nothing else. Also the three `codings` alternatives, the meaning of an empty field value, and the meaning of the field in a response",
-};
-const RFC_9110_12_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-    note: "Quality Values: the `weight` production this field admits, the `qvalue` its value must be, and the case-insensitive parameter name",
 };
 const RFC_9110_8_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -307,9 +303,8 @@ impl Rule for AcceptEncodingParameterValid {
 
                                 // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                                 if !crate::helpers::qvalue::valid_qvalue(v) {
-                                    return Some(self.cited(
-                                        &RFC_9110_12_4_2,
-                                        ctx.severity,
+                                    return Some(ctx.report_with(
+                                        &QVALUE_MALFORMED,
                                         format!(
                                             "Invalid qvalue '{}' in Accept-Encoding member '{}'",
                                             v, part

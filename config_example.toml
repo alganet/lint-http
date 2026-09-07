@@ -1435,6 +1435,10 @@ severity = "warn"
 # Quoted-string holds an escape that is not a quoted-pair
 severity = "warn"
 
+[violations.qvalue_malformed]
+# Weight is not a qvalue
+severity = "warn"
+
 [violations.token68_body_empty]
 # token68 is padding with no body
 severity = "warn"

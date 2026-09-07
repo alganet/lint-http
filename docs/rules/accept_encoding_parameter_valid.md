@@ -27,7 +27,7 @@ Check that an `Accept-Encoding` header reads as `#( codings [ weight ] )`: each 
 ## Specifications
 
 - [RFC 9110 §12.5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3): Accept-Encoding: `#( codings [ weight ] )` — the production that says a coding may carry a weight and nothing else. Also the three `codings` alternatives, the meaning of an empty field value, and the meaning of the field in a response
-- [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality Values: the `weight` production this field admits, the `qvalue` its value must be, and the case-insensitive parameter name
+- [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality Values — `weight = OWS ";" OWS "q=" qvalue`, the `qvalue` production and its three-digit fraction, the case-insensitive `q` parameter name, and what a weight of zero means
 - [RFC 9110 §8.4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1): Content Codings: `content-coding = token`, which is what the character check on each coding enforces
 - [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits

@@ -4,6 +4,18 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::qvalue::{QVALUE_MALFORMED, RFC_9110_12_4_2};
+use crate::violations::ViolationDef;
+
+/// The one defect this rule reports that is not about `Accept-Language`.
+///
+/// A weight is § 12.4.2's number and four fields carry it, so a `q=1.5` here
+/// and a `q=1.5` in an `Accept` are one defect with one severity. Everything
+/// else the rule says is about the *assembly* this field admits — a `;` with
+/// no weight after it, a second weight, a parameter that is not `q` at a field
+/// whose grammar has no parameter list — and each of those is read by this
+/// rule alone, so no subject holds them.
+static DECLARED: &[&ViolationDef] = &[&QVALUE_MALFORMED];
 
 pub struct AcceptLanguageWeightValid;
 
@@ -15,12 +27,6 @@ const RFC_9110_12_5_4: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("12.5.4"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4",
     note: "Accept-Language: `#( language-range [ weight ] )` — the production that says a range may carry a weight and nothing else. Note that, unlike Accept and Accept-Encoding, this section gives the field no meaning in a response",
-};
-const RFC_9110_12_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-    note: "Quality Values: the `weight` production this field admits, the `qvalue` its value must be, and the case-insensitive parameter name",
 };
 const RFC_4647_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 4647",
@@ -61,6 +67,10 @@ severity = "warn"
             RFC_4647_2_1,
             RFC_9110_5_6_1_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -212,9 +222,8 @@ impl Rule for AcceptLanguageWeightValid {
 
                         // cite(RFC 9110 § 12.4.2): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
                         if !crate::helpers::qvalue::valid_qvalue(val) {
-                            return Some(self.cited(
-                                &RFC_9110_12_4_2,
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                &QVALUE_MALFORMED,
                                 format!(
                                     "Invalid qvalue '{}' in Accept-Language member '{}'",
                                     val, member
@@ -268,6 +277,35 @@ static REGISTRATION: &dyn crate::rules::Rule = &AcceptLanguageWeightValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Four fields, one number. `q=1.5` derives from neither alternative of
+    /// § 12.4.2's production wherever it is written, and each rule still names
+    /// the field and the member it was written in.
+    #[rstest]
+    #[case("accept-language", "en;q=1.5")]
+    #[case("accept-encoding", "gzip;q=1.5")]
+    #[case("accept", "text/plain;q=1.5")]
+    #[case("te", "gzip;q=1.5")]
+    fn a_weight_is_the_same_defect_in_every_field(#[case] field: &str, #[case] value: &str) {
+        let rule: &dyn crate::rules::Rule = match field {
+            "accept-language" => &AcceptLanguageWeightValid,
+            "accept-encoding" => {
+                &super::super::accept_encoding_parameter_valid::AcceptEncodingParameterValid
+            }
+            "accept" => &super::super::accept_header_media_type_syntax::AcceptHeaderMediaTypeSyntax,
+            _ => &super::super::te_header_valid::TeHeaderValid,
+        };
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(field, value)]);
+        let found = crate::test_helpers::run_rule(
+            rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "qvalue_malformed", "{field}: {value}");
+        assert!(found.message.contains("1.5"), "{}", found.message);
+    }
 
     #[rstest]
     #[case(Some("en"), false)]
