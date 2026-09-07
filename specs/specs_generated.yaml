@@ -717,13 +717,13 @@ sources:
     snippet: samesite-value = "Strict" / "Lax" / "None"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 132
+      line: 148
   - label: cookie_attribute_consistent (2)
     section: § 5.7
     snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 89
+      line: 104
   - label: cookie_same_site_enforced
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
@@ -2125,43 +2125,43 @@ sources:
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 62
+      line: 77
   - label: cookie_attribute_consistent (2)
     section: § 4.1.1
     snippet: expires-av        = "Expires=" sane-cookie-date
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 180
+      line: 201
   - label: cookie_attribute_consistent (3)
     section: § 4.1.1
     snippet: extension-av      = <any CHAR except CTLs or ";">
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 103
+      line: 118
   - label: cookie_attribute_consistent (4)
     section: § 4.1.1
     snippet: httponly-av       = "HttpOnly"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 112
+      line: 128
   - label: cookie_attribute_consistent (5)
     section: § 4.1.1
     snippet: secure-av         = "Secure"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 111
+      line: 127
   - label: cookie_attribute_consistent (6)
     section: § 5.2.2
     snippet: If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 159
+      line: 175
   - label: cookie_attribute_consistent (7)
     section: § 5.2.2
     snippet: If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 160
+      line: 176
   - label: cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
@@ -4474,9 +4474,9 @@ sources:
     snippet: The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 148
+      line: 164
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 100
+      line: 127
 - label: RFC 8615
   url: https://www.rfc-editor.org/rfc/rfc8615.html
   fragments:
@@ -5305,7 +5305,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 144
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 89
+      line: 106
   - label: cache_coherence (3)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
@@ -5807,7 +5807,7 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 115
+      line: 131
   - label: early_data_header_safe_method
     section: § 16.1.1
     snippet: 'HTTP method registrations MUST include the following fields:'
@@ -10987,7 +10987,7 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 118
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 129
+      line: 155
   - label: lint-http-rules/src/helpers/structured_fields.rs
     section: § 3.1.2
     snippet: Note that parameters are ordered, and parameter keys cannot contain uppercase letters.
@@ -11457,10 +11457,10 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 117
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 128
+      line: 154
   - label: sunset_and_deprecation_consistent
     section: § 4
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
     cited_by:
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 167
+      line: 193

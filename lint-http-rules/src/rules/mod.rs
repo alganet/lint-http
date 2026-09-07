@@ -1273,14 +1273,18 @@ severity = "warn"
     /// after the scheme, `basic_auth_base64_valid` the one that read what was
     /// inside them, `bearer_token_syntax` the one that read the token, and
     /// `range_and_content_range_consistent` the one that parsed the
-    /// `Content-Range` it goes on to compare.
+    /// `Content-Range` it goes on to compare, `accept_header_media_type_syntax`
+    /// the one that read a `media-range`'s parts, and — three at once, which is
+    /// what a production shared across unrelated fields costs — the `Date`,
+    /// `Sunset` and `Set-Cookie` `Expires` readings that each named § 5.6.7's
+    /// timestamp in their own field's words.
     #[test]
     fn citation_coverage_does_not_regress() {
         /// Finding sites that name the specification sentence they enforce.
         /// The rest are the per-rule reading that has not happened yet — the
         /// denominator is computed below, because merges and conversions both
         /// move it.
-        const FLOOR: usize = 160;
+        const FLOOR: usize = 157;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
