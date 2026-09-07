@@ -28,8 +28,10 @@ Reads a request's `Expect` field as `#expectation`, where each member is `token 
 
 - [RFC 9110 §10.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.1): Expect: the field's grammar, the one expectation this specification defines, and the four client requirements — of which the MUST NOT on a request without content and the SHOULD after a 417 are the two a captured message can measure
 - [RFC 9110 §A](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A): Collected ABNF for senders: `Expect` with its list construct expanded, which is where the whole value being optional is written out
-- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): List sender requirements — the MUST NOT behind the empty-element finding
-- [RFC 9110 §5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6): `parameters`, the production this rule's transcribed grammar used to end one term short of
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6): Parameters — `parameters = *( OWS ";" OWS [ parameter ] )`, the `name=value` pair inside it with neither half optional, and the bracketing that leaves a trailing `;` conforming
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 - [RFC 9110 §15.5.18](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.18): 417 Expectation Failed — what the status the repeat check reads means
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): Requirements Notation — where the sentence that makes an element the ABNF does not generate a violation lives, rather than §2.4 Error Handling
 - [RFC 9110 §B.3](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.3): Changes from RFC 7231: the list-based grammar for `Expect` was restored, and an expectation's parameters may be empty — two sentences that decide how this rule reads the field

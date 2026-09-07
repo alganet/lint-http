@@ -33,13 +33,13 @@
 //! and `multipart_boundary_syntax` for its `boundary`. Where the callers
 //! already agree, the def records the agreement rather than making it.
 //!
-//! **Both entries default to `warn`, and the flatness is the finding.** Every
-//! other subject with two entries has had something to rank — an invisible
-//! octet against a chosen one, a value that parses against one that does not.
-//! Here both defects are a construct a sender wrote short, in a position the
-//! grammar prints; there is no octet, nothing parses, and neither leaves a
-//! recipient reading the wrong thing. 2.6 is the precedent: do not manufacture
-//! a split to make a subject look converted.
+//! **The two absences default to `warn` and the third entry to `info`.**
+//! Nothing separates a segment with no `=` from an `=` with nothing after it:
+//! both are a construct a sender wrote short, in a position the grammar prints,
+//! and neither leaves a recipient reading the wrong thing — do not manufacture
+//! a split to make a subject look converted. The whitespace beside the `=` is
+//! below both, because once it is trimmed the parameter is intact and what is
+//! wrong is only the spelling; the entry says so at length.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -96,6 +96,34 @@ defects! {
         default_severity: Severity::Warn,
         spec: Some(RFC_9110_5_6_6),
     }
+
+    /// Whitespace beside the `=`. The production writes none — `parameter =
+    /// parameter-name "=" parameter-value` has no `OWS` anywhere inside it —
+    /// and § 5.6.6 says so a second time in prose, naming the character and
+    /// refusing even the "bad" whitespace HTTP tolerates elsewhere.
+    ///
+    /// **`info`, alone among this catalogue's `_forbidden` entries, and the
+    /// tree is the reason.** Six rules reading a media type trim this
+    /// whitespace and publish the leniency in their `description()`; one rule
+    /// reports it. Nothing about the value is ambiguous once it is trimmed —
+    /// the name is the name and the value is the value — so what is wrong is
+    /// the spelling and not what a recipient will do with it. An operator who
+    /// wants the Note enforced raises this one entry.
+    ///
+    /// Not the `<subject>_whitespace_or_control_forbidden` half of the pair
+    /// `docs/development.md` mandates, and deliberately not spelled like it:
+    /// that pair is about an octet *inside* a value whose grammar admits none,
+    /// which is something that happened to the value. This octet sits between
+    /// two constructs, where a sender put it on purpose.
+    ///
+    // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
+    PARAMETER_EQUALS_WHITESPACE_FORBIDDEN = {
+        id: "parameter_equals_whitespace_forbidden",
+        title: "Parameter writes whitespace beside its '='",
+        message: "",
+        default_severity: Severity::Info,
+        spec: Some(RFC_9110_5_6_6),
+    }
 }
 
 #[cfg(test)]
@@ -112,15 +140,19 @@ mod tests {
         assert_eq!(PARAMETER_VALUE_EMPTY.id, "parameter_value_empty");
     }
 
-    /// Nothing here is invisible and nothing here parses, so the two entries
-    /// sit at one level. Asserted so that a later commit adding a third entry
-    /// has to decide whether it is ranking against this floor deliberately.
+    /// Nothing here is invisible and nothing here parses, so the two absences
+    /// sit at one level — and the whitespace sits below them, because the
+    /// parameter it is written beside is whole.
     #[test]
-    fn neither_half_outranks_the_other() {
+    fn neither_absence_outranks_the_other_and_the_spelling_sits_below_both() {
         assert_eq!(
             PARAMETER_EQUALS_MISSING.default_severity,
             PARAMETER_VALUE_EMPTY.default_severity,
         );
         assert_eq!(PARAMETER_EQUALS_MISSING.default_severity, Severity::Warn);
+        assert!(
+            PARAMETER_EQUALS_WHITESPACE_FORBIDDEN.default_severity
+                < PARAMETER_VALUE_EMPTY.default_severity,
+        );
     }
 }

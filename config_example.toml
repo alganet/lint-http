@@ -1371,6 +1371,10 @@ severity = "warn"
 # Parameter is written without its '='
 severity = "warn"
 
+[violations.parameter_equals_whitespace_forbidden]
+# Parameter writes whitespace beside its '='
+severity = "info"
+
 [violations.parameter_value_empty]
 # Parameter is written with no value after its '='
 severity = "warn"
