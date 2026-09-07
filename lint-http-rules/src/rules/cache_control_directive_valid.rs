@@ -4,8 +4,44 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{cache_directive_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct CacheControlDirectiveValid;
+
+/// The eight defects `cache_control_token_valid` declares, declared here for a
+/// second time and by a rule that reads a *different* question of the same
+/// members.
+///
+/// § 1.2.1 is why the ids transfer with nothing to decide: RFC 9111 imports
+/// `token`, `quoted-string` and `field-name` from RFC 9110 by reference and
+/// takes the `#` list construct from § 5.6.1, so every production this rule
+/// measures is one another field already reports through. What stays unnamed is
+/// the part its neighbour does not read — what each *named* directive means by
+/// its argument — which is the only thing left here that no production says.
+///
+/// The non-UTF-8 site stays on the old API, with open question 1's reasoning:
+/// the verdict names an encoding where the defect is an octet the grammar does
+/// not admit, and the right conversion is an octet-wise reader first.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -16,6 +52,44 @@ const RFC_9111_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2",
     note: "Cache-Control directives and general directive syntax",
 };
+const RFC_9111_1_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9111",
+    section: Some("1.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.1",
+    note: "Imported Rules — `token`, `quoted-string` and `field-name` are RFC 9110's, \
+           taken by reference and not restated, which is why a directive's parts report \
+           the same defects as any other field written out of them",
+};
+
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled: a judge that is half converted says
+/// so in its type. The unnamed half here is what the rule is *named* for — a
+/// `max-age` argument that is a token but not `delta-seconds`, and a qualified
+/// directive whose argument lists no field at all — both of which are RFC 9111
+/// saying what a particular directive means by its argument, which is a
+/// statement no production carries.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed, reported at the rule's severity the way
+    /// every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+}
 
 impl CacheControlDirectiveValid {
     /// The first defect in one message's `Cache-Control` field, if it has one.
@@ -29,21 +103,25 @@ impl CacheControlDirectiveValid {
         &self,
         headers: &hyper::HeaderMap,
         side: &str,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         for line in headers.get_all("cache-control").iter() {
             let Ok(line) = line.to_str() else {
                 return Some(self.violation(
-                    severity,
+                    ctx.severity,
                     "Cache-Control header contains non-UTF8 value".into(),
                 ));
             };
             for member in crate::helpers::cache_control::members_of(line) {
-                if let Some(message) = member_defect(member) {
-                    return Some(self.violation(
-                        severity,
-                        format!("Invalid Cache-Control header in {}: {}", side, message),
-                    ));
+                if let Some(defect) = member_defect(member) {
+                    let message = format!(
+                        "Invalid Cache-Control header in {}: {}",
+                        side, defect.message
+                    );
+                    return Some(match defect.def {
+                        Some(def) => ctx.report_with(def, message),
+                        None => self.violation(ctx.severity, message),
+                    });
                 }
             }
         }
@@ -67,7 +145,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9111_5_2]
+        &[
+            RFC_9111_5_2,
+            RFC_9111_1_2_1,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -105,10 +193,10 @@ impl Rule for CacheControlDirectiveValid {
         // only the word in the finding differs.
         // cite(RFC 9111 § 5.2): "The "Cache-Control" header field is used to list directives for caches along the request/response chain."
         let finding = || -> Option<Violation> {
-            self.defect(&tx.request.headers, "request", ctx.severity)
+            self.defect(&tx.request.headers, "request", ctx)
                 .or_else(|| {
                     let resp = tx.response.as_ref()?;
-                    self.defect(&resp.headers, "response", ctx.severity)
+                    self.defect(&resp.headers, "response", ctx)
                 })
         };
         Vec::from_iter(finding())
@@ -121,14 +209,19 @@ impl Rule for CacheControlDirectiveValid {
 /// the two Cache-Control syntax rules report identically. What this rule adds is
 /// the part that is its own: what each *named* directive's argument may say.
 // cite(RFC 9111 § 5.2): "cache-directive = token [ "=" ( token / quoted-string ) ]"
-fn member_defect(member: &str) -> Option<String> {
+fn member_defect(member: &str) -> Option<Defect> {
     let directive = match crate::helpers::cache_control::read_member(member) {
         Ok(directive) => directive,
         // The three defects the reader names are the list's and the token's,
-        // and `cache_control_token_valid` reports them through the catalogue.
-        // This rule is unconverted and renders them, which is the same finding
-        // in the same words it has always been.
-        Err(defect) => return Some(defect.message()),
+        // and both rules reading this field now answer with the same ids for
+        // them. Their *sentences* were already one, because the reader words
+        // them; what could not be shared until now is which defect they are.
+        Err(defect) => {
+            return Some(Defect::named(
+                cache_directive_member(defect),
+                defect.message(),
+            ))
+        }
     };
     let name = directive.name;
     // An empty argument is accepted for directives that take one; the `=` with
@@ -141,14 +234,25 @@ fn member_defect(member: &str) -> Option<String> {
             // decimal point or any non-digit is rejected here.
             // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
             if let Some(c) = crate::helpers::token::find_invalid_token_char(argument) {
-                // If it contains non-token chars it's invalid (no quotes allowed here)
-                return Some(format!(
-                    "{} value contains invalid character: '{}'",
-                    name, c
+                // Asked before the digits, and answered by the catalogue: an
+                // argument holding a character no `tchar` admits is not a
+                // `cache-directive`'s unquoted argument at all, which is a
+                // defect of the production every directive's argument is
+                // written in rather than of what *this* directive counts.
+                return Some(Defect::named(
+                    token_character(c),
+                    format!("{} value contains invalid character: '{}'", name, c),
                 ));
             }
             if argument.chars().any(|ch| !ch.is_ascii_digit()) {
-                return Some(format!("{} must be a non-negative integer", name));
+                // A well-formed token that is not a number. `delta-seconds` is
+                // this directive's own argument syntax and no shared production
+                // is broken by `-1` or `1.5` — both are tokens — so the finding
+                // stays the rule's.
+                return Some(Defect::unnamed(format!(
+                    "{} must be a non-negative integer",
+                    name
+                )));
             }
             // A digit run too large for any particular integer type is still
             // syntactically valid `1*DIGIT`, and the spec says what to do about
@@ -167,18 +271,25 @@ fn member_defect(member: &str) -> Option<String> {
         _ => {
             // For other directives, accept token or quoted-string and ensure token syntax if unquoted
             if argument.starts_with('"') {
-                if let Err(e) = crate::helpers::quoted_string::validate_quoted_string(argument) {
-                    return Some(format!(
-                        "Invalid quoted-string in directive {} value: {}",
-                        name, e
+                if let Err(defect) = crate::helpers::quoted_string::check_quoted_string(argument) {
+                    return Some(Defect::named(
+                        quoted_string_defect(defect),
+                        format!(
+                            "Invalid quoted-string in directive {} value: {}",
+                            name,
+                            defect.message(argument)
+                        ),
                     ));
                 }
                 return None;
             }
             crate::helpers::token::find_invalid_token_char(argument).map(|c| {
-                format!(
-                    "Directive {} value contains invalid character: '{}'",
-                    name, c
+                Defect::named(
+                    token_character(c),
+                    format!(
+                        "Directive {} value contains invalid character: '{}'",
+                        name, c
+                    ),
                 )
             })
         }
@@ -189,15 +300,28 @@ fn member_defect(member: &str) -> Option<String> {
 ///
 /// The two spellings ask the same question of each name, which is why the walk
 /// below is written once over whichever list the argument turned out to be.
-fn field_name_list_defect(name: &str, argument: &str) -> Option<String> {
+///
+/// **Every part of this argument is borrowed and the argument syntax says so.**
+/// `#field-name` is § 5.6.1's list construct around § 5.1's `field-name`, which
+/// is a `token` — so a stray comma inside the argument is the same defect as a
+/// stray comma between directives, and a `@` in a field name is the same defect
+/// as a `@` in a directive name. One sentence is left over, and it is the one
+/// this rule is named for: an argument that lists *no* field name.
+///
+/// cite(RFC 9111 § 5.2.2.7, label: private argument syntax): "This directive uses the quoted-string form of the argument syntax."
+/// cite(RFC 9110 § 5.1): "A field name labels the corresponding field value as having the semantics defined by that name."
+fn field_name_list_defect(name: &str, argument: &str) -> Option<Defect> {
     let list = if argument.starts_with('"') {
         match crate::helpers::quoted_string::unescape_quoted_string(argument) {
             Ok(inner) => inner,
             Err(defect) => {
-                return Some(format!(
-                    "Invalid quoted-string in {} value: {}",
-                    name,
-                    defect.message(argument)
+                return Some(Defect::named(
+                    quoted_string_defect(defect),
+                    format!(
+                        "Invalid quoted-string in {} value: {}",
+                        name,
+                        defect.message(argument)
+                    ),
                 ))
             }
         }
@@ -206,15 +330,28 @@ fn field_name_list_defect(name: &str, argument: &str) -> Option<String> {
         argument.to_string()
     };
 
+    // The empty list and the empty element reach the same line below and are
+    // not the same statement. `#field-name` is a plain `#`, so an argument of
+    // nothing is a zero-element list the production generates — what is wrong
+    // with `private=""` is that the *qualified* form is defined as listing one
+    // or more field names, which is § 5.2.2.7's sentence and no subject's.
+    // `private=","` is the other one: an element a sender wrote and left blank.
+    // cite(RFC 9110 § 5.6.1): "#element => [ element ] *( OWS "," OWS [ element ] )"
+    let lists_no_field = list.trim().is_empty();
+
     for field in list.split(',') {
         let field = field.trim();
         if field.is_empty() {
-            return Some(format!("Empty field-name in {} value", name));
+            let message = format!("Empty field-name in {} value", name);
+            return Some(match lists_no_field {
+                true => Defect::unnamed(message),
+                false => Defect::named(&LIST_MEMBER_EMPTY, message),
+            });
         }
         if let Some(c) = crate::helpers::token::find_invalid_token_char(field) {
-            return Some(format!(
-                "{} includes invalid field-name character: '{}'",
-                name, c
+            return Some(Defect::named(
+                token_character(c),
+                format!("{} includes invalid field-name character: '{}'", name, c),
             ));
         }
     }
@@ -623,6 +760,114 @@ mod tests {
         );
         assert!(v.is_some());
         Ok(())
+    }
+
+    /// Every finding whose defect belongs to a production RFC 9111 imports,
+    /// with the id it now carries. The rows are the whole of this rule's
+    /// borrowed half: the list construct around the directives, the list
+    /// construct *inside* a qualified argument, the `token` a directive name, a
+    /// directive value and a `field-name` all have to be, and the
+    /// `quoted-string` either of the two argument forms may use.
+    #[rstest]
+    #[case(",max-age=1", "list_member_empty")]
+    #[case("private=\"field1,,field3\"", "list_member_empty")]
+    #[case("=bar", "token_empty")]
+    #[case("ma x=1", "token_whitespace_or_control_forbidden")]
+    #[case("ma@x=1", "token_character_forbidden")]
+    #[case("max-age=1@2", "token_character_forbidden")]
+    #[case("foo=bad@val", "token_character_forbidden")]
+    #[case("private=\"field1,bad@field\"", "token_character_forbidden")]
+    #[case("private=\"Set Cookie\"", "token_whitespace_or_control_forbidden")]
+    #[case("custom=\"unterminated", "quoted_string_delimiter_missing")]
+    #[case("private=\"unterminated", "quoted_string_delimiter_missing")]
+    fn a_borrowed_production_reports_the_id_of_the_production(
+        #[case] value: &str,
+        #[case] id: &str,
+    ) {
+        assert_eq!(judge(value).violation, id, "{value}");
+    }
+
+    /// The two rules that read this field's members answer with one id apiece
+    /// for the defects they share.
+    ///
+    /// The last column is where the sentence comes from, and the two halves of
+    /// this table are the difference the catalogue makes. Above it, the member
+    /// reader words the finding and both rules pass its sentence on unchanged —
+    /// prose deduplicated by sharing code, which was possible before any of
+    /// this. Below it, each rule words the argument's finding itself and the
+    /// two texts differ; only the id makes them one defect.
+    #[test]
+    fn both_cache_control_syntax_rules_report_one_id_for_one_mistake() {
+        let judge_with = |rule: &dyn crate::rules::Rule, value: &str| -> Violation {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            tx.request.headers =
+                crate::test_helpers::make_headers_from_pairs(&[("cache-control", value)]);
+            crate::test_helpers::run_rule(
+                rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .unwrap_or_else(|| panic!("{}: {value}", rule.id()))
+        };
+
+        for (value, id, one_sentence) in [
+            ("no-cache,,foo", "list_member_empty", true),
+            ("=abc", "token_empty", true),
+            ("foo=bad@value", "token_character_forbidden", false),
+            (
+                "foo=\"unterminated",
+                "quoted_string_delimiter_missing",
+                false,
+            ),
+        ] {
+            let directive = judge_with(&CacheControlDirectiveValid, value);
+            let token = judge_with(
+                &crate::rules::cache_control_token_valid::CacheControlTokenValid,
+                value,
+            );
+            assert_eq!(directive.violation, id, "{value}");
+            assert_eq!(token.violation, id, "{value}");
+            assert_eq!(directive.message == token.message, one_sentence, "{value}");
+        }
+    }
+
+    /// What this rule is named for keeps its own severity and no id: RFC 9111
+    /// saying what a *particular* directive means by its argument is a
+    /// statement none of the productions carries.
+    #[rstest]
+    #[case("max-age=-1")]
+    #[case("max-age=1.5")]
+    #[case("s-maxage=1.5")]
+    #[case("max-age=abc")]
+    fn what_a_directive_counts_is_not_a_productions_defect(#[case] value: &str) {
+        assert_eq!(judge(value).violation, "", "{value}");
+    }
+
+    /// One line, two statements, and the argument syntax is what separates
+    /// them. `#field-name` generates the empty list, so an argument listing
+    /// nothing breaks § 5.2.2.7's definition of the qualified form and not
+    /// § 5.6.1.1's MUST NOT — which forbids an element a sender wrote and left
+    /// blank, and is exactly what the comma in the second value is.
+    #[test]
+    fn the_empty_list_and_the_empty_element_are_two_statements() {
+        let empty_list = judge("private=\"\"");
+        let empty_element = judge("private=\",\"");
+        assert_eq!(empty_list.message, empty_element.message);
+        assert_eq!(empty_list.violation, "");
+        assert_eq!(empty_element.violation, "list_member_empty");
+    }
+
+    /// Read a value's first finding, which every assertion above wants.
+    fn judge(value: &str) -> Violation {
+        let rule = CacheControlDirectiveValid;
+        crate::test_helpers::run_rule(
+            &rule,
+            &make_req(value),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for '{value}'"))
     }
 
     #[test]
