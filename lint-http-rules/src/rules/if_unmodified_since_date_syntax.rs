@@ -4,10 +4,28 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::http_date::{
+    http_date_defect, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN,
+    RFC_9110_5_6_7,
+};
+use crate::violations::ViolationDef;
 
 /// `If-Unmodified-Since` (RFC 9110 §13.1.4) is defined as an HTTP-date; a sender must
 /// generate it as an IMF-fixdate (§5.6.7). This checks the sender's obligation.
 pub struct IfUnmodifiedSinceDateSyntax;
+
+/// The two ways a timestamp fails, which are the production's rather than this
+/// field's — the same pair `If-Modified-Since` declares, because the two fields
+/// differ in which direction the comparison runs and in nothing about the
+/// value.
+///
+/// What stays on the older API is what this field says about itself: a value
+/// that is only whitespace, and one carrying octets outside visible US-ASCII.
+static DECLARED: &[&ViolationDef] = &[
+    &HTTP_DATE_MALFORMED,
+    &HTTP_DATE_OBSOLETE,
+    &HTTP_DATE_WHITESPACE_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -39,7 +57,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_13_1_4]
+        &[RFC_9110_13_1_4, RFC_9110_5_6_7]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -113,9 +135,14 @@ impl Rule for IfUnmodifiedSinceDateSyntax {
                 // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace"
                 // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
                 // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
-                if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
-                    return Some(self.violation(ctx.severity, "If-Unmodified-Since header is not a valid IMF-fixdate (RFC 9110 §5.6.7)"
-                                .into()));
+                if let Err(defect) =
+                    crate::http_date::check_imf_fixdate(crate::helpers::headers::trim_ows(s))
+                {
+                    return Some(ctx.report_with(
+                        http_date_defect(defect),
+                        "If-Unmodified-Since header is not a valid IMF-fixdate (RFC 9110 §5.6.7)"
+                            .into(),
+                    ));
                 }
             }
 

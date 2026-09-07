@@ -4,18 +4,29 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::http_date::{
+    http_date_defect, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN,
+    RFC_9110_5_6_7,
+};
+use crate::violations::ViolationDef;
 
 pub struct LastModifiedRfc1123Syntax;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_5_6_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.7"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
-    note: "Date/Time Formats",
-};
+/// The one defect this rule reports about the timestamp, split in two by the
+/// production it is written in. `Last-Modified = HTTP-date`, so a value that
+/// parses as none of the three formats and a value written in one of the two a
+/// sender may not generate are the two ways the field fails — and the same two
+/// ways `If-Modified-Since` and `If-Unmodified-Since` fail, which is why the ids
+/// name the timestamp and not the field.
+///
+/// The non-UTF-8 line stays on the older API: the verdict names an encoding
+/// where the defect is an octet the field's grammar does not admit, and the
+/// right conversion for such a site is an octet-wise reader before a def.
+static DECLARED: &[&ViolationDef] = &[
+    &HTTP_DATE_MALFORMED,
+    &HTTP_DATE_OBSOLETE,
+    &HTTP_DATE_WHITESPACE_FORBIDDEN,
+];
 
 impl RuleMeta for LastModifiedRfc1123Syntax {
     fn id(&self) -> &'static str {
@@ -38,6 +49,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_5_6_7]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -94,9 +109,11 @@ impl Rule for LastModifiedRfc1123Syntax {
                 // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace"
                 // cite(RFC 9112 § 5): "field-line   = field-name ":" OWS field-value OWS"
                 // cite(RFC 9110 § 5.6.7): "When a sender generates a field that contains one or more timestamps defined as HTTP-date, the sender MUST generate those timestamps in the IMF-fixdate format."
-                if !crate::http_date::is_valid_imf_fixdate(crate::helpers::headers::trim_ows(s)) {
-                    return Some(self.violation(
-                        ctx.severity,
+                if let Err(defect) =
+                    crate::http_date::check_imf_fixdate(crate::helpers::headers::trim_ows(s))
+                {
+                    return Some(ctx.report_with(
+                        http_date_defect(defect),
                         "Last-Modified header is not a valid IMF-fixdate (RFC 9110)".into(),
                     ));
                 }
@@ -121,6 +138,71 @@ static REGISTRATION: &dyn crate::rules::Rule = &LastModifiedRfc1123Syntax;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Three fields, one production, three ids — and the split a `bool` could
+    /// not make. `Sunday, 06-Nov-94 08:49:37 GMT` names the instant it means and
+    /// every recipient must read it, so the sender's MUST NOT is reported at
+    /// `info`; `not-a-date` names nothing, and sits above it. The two
+    /// conditional fields answer the same way, which is what the shared subject
+    /// buys.
+    #[test]
+    fn a_timestamp_fails_in_three_ways_and_three_fields_agree() {
+        let last_modified = |value: &str| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[("last-modified", value)]);
+            crate::test_helpers::run_rule(
+                &LastModifiedRfc1123Syntax,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "last_modified_rfc1123_syntax",
+                ]),
+            )
+            .expect("a finding")
+        };
+
+        let obsolete = last_modified("Sunday, 06-Nov-94 08:49:37 GMT");
+        assert_eq!(obsolete.violation, "http_date_obsolete");
+        assert_eq!(obsolete.severity, crate::lint::Severity::Info);
+
+        let unreadable = last_modified("not-a-date");
+        assert_eq!(unreadable.violation, "http_date_malformed");
+        assert_eq!(unreadable.severity, crate::lint::Severity::Warn);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("if-modified-since", "Sun Nov  6 08:49:37 1994"),
+            ("if-unmodified-since", "Sun Nov  6 08:49:37 1994"),
+        ]);
+        for rule_id in [
+            "if_modified_since_date_syntax",
+            "if_unmodified_since_date_syntax",
+        ] {
+            let rule = crate::rules::all_rules()
+                .find(|r| r.id() == rule_id)
+                .expect("a registered rule");
+            assert_eq!(
+                rule.violations().iter().map(|d| d.id).collect::<Vec<_>>(),
+                vec![
+                    "http_date_malformed",
+                    "http_date_obsolete",
+                    "http_date_whitespace_forbidden",
+                ],
+                "{rule_id}",
+            );
+        }
+        let conditional = crate::test_helpers::run_rule(
+            &crate::rules::if_modified_since_date_syntax::IfModifiedSinceDateSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "if_modified_since_date_syntax",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(conditional.violation, obsolete.violation);
+    }
 
     #[rstest]
     #[case(Some(vec![("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")] ), false)]
