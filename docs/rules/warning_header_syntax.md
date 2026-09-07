@@ -33,12 +33,14 @@ Four consequences of that grammar are worth stating.
 - [RFC 7234 §5.5](https://www.rfc-editor.org/rfc/rfc7234.html#section-5.5): The last statement of the `Warning` grammar, and the requirements about warn-codes and warn-dates that go with it. Obsoleted by RFC 9111, which removed the field rather than restating it — so this is where the productions are read from, and RFC 9111 §5.5 is where the field's status is read from
 - [RFC 9111 §5.5](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.5): Where `Warning` is obsoleted. The section carries no BCP 14 keyword, so it states no requirement on a sender and the field's presence is not reported
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The sender MUST NOT behind every finding here: a value that derives from none of §5.5's productions is a protocol element matching no ABNF rule
-- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct's sender requirement — an empty member is the finding, and §5.6.1.2's worked example is what makes an empty *value* one too, because `Warning` is `1#`
-- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string`, the `qdtext` that admits `obs-text` inside a warn-text, and the recipient's handling of a `quoted-pair` — which is why a warn-date is unescaped before it is read as a date
-- [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): `HTTP-date`, and the MUST that a sender generate it in the IMF-fixdate format — the two obsolete formats parse and are still findings. This reference said §7.1.1.1, which is RFC 7231's number for it and does not exist in RFC 9110
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
+- [RFC 9110 §5.6.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7): Date/Time Formats — `HTTP-date = IMF-fixdate / obs-date`, the recipient's MUST to accept all three, and the sender's MUST to generate only the first
 - [RFC 9110 §7.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3): `pseudonym = token`, the second alternative of `warn-agent`. RFC 7234 imported the name from RFC 7230 §5.7.1; this is where it lives now
 - [RFC 9110 §B.2](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.2): Why `Via` and `Warning` no longer agree: RFC 9110 removed `uri-host` from `received-by`, and RFC 7234's `warn-agent` — the same production — was never touched, so a bracketed IPv6 literal is a finding there and not here
-- [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): `host`, which `warn-agent`'s first alternative reaches through RFC 9110 §4.1 — including the `reg-name` that derives the empty string
+- [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere
+- [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
 
 ## Configuration
 
