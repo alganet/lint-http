@@ -31,6 +31,9 @@ Only HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshak
 - [RFC 4648 §3.3](https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3): Interpretation of non-alphabet characters — a MUST to reject data outside the base alphabet, unless the referring specification says otherwise
 - [RFC 4648 §4](https://www.rfc-editor.org/rfc/rfc4648.html#section-4): Base 64 Encoding — the 24-bit group written as four characters, and the padding that completes a final group of fewer bits
 - [RFC 4648 §3.5](https://www.rfc-editor.org/rfc/rfc4648.html#section-3.5): Canonical encoding — the discarded bits of a final symbol MUST be zero in what an encoder writes, and a decoder MAY reject an encoding where they are not
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): The values a `1#element` production does not generate — the empty value among them — beside the recipient's instruction to ignore empty elements
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 
 ## Configuration
 

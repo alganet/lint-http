@@ -8,6 +8,9 @@ use crate::helpers::media_type::{media_type_parts_defect, parse_media_type};
 use crate::helpers::shown::shown_in_finding;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
 };
@@ -53,6 +56,8 @@ pub struct AcceptPatchHeaderValid;
 /// where the field belongs. Those are the list construct's and RFC 5789's,
 /// which are subjects nothing has written yet.
 static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_MISSING,
+    &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -194,10 +199,10 @@ impl AcceptPatchHeaderValid {
         // omit here would have contradicted that reading in the same file.
         // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
         if members_present == 0 {
-            return violation(format!(
+            return Some(ctx.report_with(&LIST_MEMBER_MISSING, format!(
                 "Accept-Patch is `1#media-type` and names no patch document format; the response's field lines combine to '{}'",
                 shown_in_finding(value)
-            ));
+            )));
         }
 
         if saw_an_empty_element {
@@ -207,10 +212,10 @@ impl AcceptPatchHeaderValid {
             // an `Accept-Patch: text/example` line combines to `text/example,`,
             // whose comma is the join's. An operator grepping a capture for the
             // quoted text would otherwise find nothing.
-            return violation(format!(
+            return Some(ctx.report_with(&LIST_MEMBER_EMPTY, format!(
                 "Accept-Patch holds an empty list element; the response's field lines combine to '{}'. Every position in `1#media-type` holds a media type, and a comma with nothing beside it holds none",
                 shown_in_finding(value)
-            ));
+            )));
         }
 
         None
@@ -260,12 +265,6 @@ const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
     note: "`media-type`, transcribed once in `helpers::headers` and shared with the Content-Type rule. It is where RFC 5789 §3.1's pointer at `[RFC2616], Section 3.7` resolves today; the obsolete name stays byte-exact inside the quote because it is the RFC's own wording",
 };
-const RFC_9110_5_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
-    note: "The list construct expanded, and the worked example naming the values a `1#` production rejects for holding no non-empty member. §5.6.1.1 is the sender's half — the empty-member finding",
-};
 const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("9.1"),
@@ -308,6 +307,7 @@ severity = "warn"
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
             RFC_9110_5_6_1_2,
+            RFC_9110_5_6_1_1,
             RFC_9110_9_1,
             RFC_9110_10_2_1,
         ]
@@ -643,6 +643,64 @@ mod tests {
             violation.message.contains("names no patch document format"),
             "{}",
             violation.message
+        );
+        assert_eq!(violation.violation, "list_member_missing");
+    }
+
+    /// The `1#` floor is one sentence about a construct, and four fields with
+    /// nothing else in common now answer it with one id.
+    ///
+    /// `Accept-Patch` is `1#media-type`, `Accept-Ranges` is `1#range-unit`,
+    /// `Warning` is `1#warning-value` and a WebSocket handshake's
+    /// `Sec-WebSocket-Protocol` is `1#token` — four productions, four rules that
+    /// share no code, and the messages stay four because each names its own
+    /// field.
+    #[test]
+    fn every_field_with_a_floor_reports_the_same_missing_member() {
+        assert_eq!(
+            accept_patch("").expect("a floor of one").violation,
+            "list_member_missing"
+        );
+
+        let response_field = |rule: &dyn crate::rules::Rule, name: &str, value: &str| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[(name, value)]);
+            crate::test_helpers::run_rule(
+                rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .expect("a finding")
+            .violation
+        };
+
+        assert_eq!(
+            response_field(
+                &crate::rules::accept_ranges_values_valid::AcceptRangesValuesValid,
+                "accept-ranges",
+                ","
+            ),
+            "list_member_empty",
+            "this rule asks the members before the floor, and a comma is a member",
+        );
+        assert_eq!(
+            response_field(
+                &crate::rules::accept_ranges_values_valid::AcceptRangesValuesValid,
+                "accept-ranges",
+                ""
+            ),
+            "list_member_missing"
+        );
+        assert_eq!(
+            response_field(
+                &crate::rules::warning_header_syntax::WarningHeaderSyntax,
+                "warning",
+                ","
+            ),
+            "list_member_missing",
+            "and this one asks the floor first, which is the overlap the subject records",
         );
     }
 

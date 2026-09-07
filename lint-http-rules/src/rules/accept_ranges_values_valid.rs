@@ -4,10 +4,40 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 /// The `Accept-Ranges` response field is a list of range units, and this rule
 /// reads it as one.
 pub struct AcceptRangesValuesValid;
+
+/// `acceptable-ranges = 1#range-unit` and `range-unit = token`, so every defect
+/// in the *reading* of this field belongs to one of those two productions and
+/// none of them to range requests.
+///
+/// The field's own contribution is what the names mean, and that is the one
+/// finding this rule keeps: `none` beside a unit the server does support, which
+/// § 14.3 makes a contradiction about the resource rather than about the value.
+/// It stays at the rule's severity, and it is advice — nothing forbids the
+/// combination — so it was always the finding here that least deserved to share
+/// a level with an octet no `token` admits.
+///
+/// The non-UTF-8 line stays on the older API, with its own reasoning at the
+/// site: `to_str` refuses every octet outside visible US-ASCII, and what is
+/// wrong is that a range unit name is spelled from a subset of that — which is
+/// the octet-wise reading the rest of the tree owes this family.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_MISSING,
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -29,18 +59,6 @@ const RFC_9110_16_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("16.5.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-16.5.1",
     note: "The \"HTTP Range Unit Registry\", which holds `bytes` and `none` today and takes IETF Review to add to. Those two entries are the two this rule used to accept as though they were the grammar",
-};
-const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-    note: "Sender Requirements for the list construct: OWS on either side of each comma, and a sender MUST NOT generate empty list elements. §5.6.1.2 tells recipients the opposite — parse and ignore them — so the shared list reader, which drops them, cannot answer this rule's question, and a value with no non-empty element at all is among that section's own examples of an invalid `1#`",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note: "Tokens: `tchar` is \"any VCHAR, except delimiters\", so every character of a range unit name is visible US-ASCII. An octet outside that is reported for being outside the production and not for failing to decode as UTF-8, which refuses a perfectly good `é` for a reason that was never the point",
 };
 const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -74,9 +92,14 @@ severity = "warn"
             RFC_9110_14_1,
             RFC_9110_16_5_1,
             RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
             RFC_9110_5_6_2,
             RFC_9110_5_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -207,9 +230,9 @@ impl Rule for AcceptRangesValuesValid {
             let mut section_units: Vec<String> = Vec::new();
             match read_units(&value, &mut section_units) {
                 Ok(()) => units.append(&mut section_units),
-                Err(e) => out.push(self.violation(
-                    ctx.severity,
-                    format!("Invalid Accept-Ranges field value '{}': {}", value, e),
+                Err((def, why)) => out.push(ctx.report_with(
+                    def,
+                    format!("Invalid Accept-Ranges field value '{}': {}", value, why),
                 )),
             }
         }
@@ -308,7 +331,7 @@ impl Rule for AcceptRangesValuesValid {
 ///
 // cite(RFC 9110 § 14.1): "Range units are intended to be extensible, as described in Section 16.5."
 // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
-fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), String> {
+fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), (&'static ViolationDef, String)> {
     // The `1` in `1#`. A field line with nothing in it is not a list of one
     // range unit; it is a list of none, which this production does not generate.
     // The specification prints the empty value among its own examples of what a
@@ -316,7 +339,10 @@ fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), String> {
     //
     // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production"
     if value.is_empty() {
-        return Err("the value is empty, and a list of range units needs at least one".into());
+        return Err((
+            &LIST_MEMBER_MISSING,
+            "the value is empty, and a list of range units needs at least one".into(),
+        ));
     }
 
     for element in value.split(',') {
@@ -332,7 +358,10 @@ fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), String> {
 
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if element.is_empty() {
-            return Err("a list element is empty, which no sender may generate".into());
+            return Err((
+                &LIST_MEMBER_EMPTY,
+                "a list element is empty, which no sender may generate".into(),
+            ));
         }
 
         // § 14.1 prints this production alone between two paragraphs, where it
@@ -342,9 +371,12 @@ fn read_units(value: &str, units: &mut Vec<String>) -> Result<(), String> {
         //
         // cite(RFC 9110 § A): "range-unit = token ranges-specifier = range-unit "=" range-set"
         if let Some(c) = crate::helpers::token::find_invalid_token_char(element) {
-            return Err(format!(
-                "'{}' is not a range-unit: a range unit name is a token, and {:?} is not a token character",
-                element, c
+            return Err((
+                token_character(c),
+                format!(
+                    "'{}' is not a range-unit: a range unit name is a token, and {:?} is not a token character",
+                    element, c
+                ),
             ));
         }
 

@@ -1291,6 +1291,10 @@ severity = "error"
 # List holds an empty element
 severity = "warn"
 
+[violations.list_member_missing]
+# List with a one-element floor holds no element
+severity = "warn"
+
 [violations.mailbox_angle_addr_missing]
 # Mailbox has no angle-addr where the name-addr wants one
 severity = "warn"
