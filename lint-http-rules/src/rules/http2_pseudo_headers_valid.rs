@@ -5,9 +5,11 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
-    host_and_port, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
-    RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN,
-    URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
+    host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
+    RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
+    URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
+    URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -34,6 +36,9 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_PORT_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
 ];
 
 /// One finding from the CONNECT reading, and the defect it reports as where
@@ -272,6 +277,7 @@ severity = "error"
             RFC_3986_3_2_2,
             RFC_3986_3_2_3,
             RFC_3986_2_1,
+            RFC_3986_3_1,
         ]
     }
 
@@ -481,11 +487,13 @@ impl Rule for Http2PseudoHeadersValid {
                 // carries the production. Nothing here asks whether it is one
                 // anybody serves: this pseudo-header is deliberately open.
                 // cite(RFC 9113 § 8.3.1): "":scheme" is not restricted to "http" and "https" schemed URIs."
-                if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(target) {
-                    return Some(self.cited(
-                        &RFC_9113_8_3_1,
-                        ctx.severity,
-                        format!("Request target's scheme is not a scheme name: {msg}"),
+                if let Some(defect) = crate::helpers::uri::scheme_if_present(target) {
+                    return Some(ctx.report_with(
+                        scheme_name(defect),
+                        format!(
+                            "Request target's scheme is not a scheme name: {}",
+                            defect.message()
+                        ),
                     ));
                 }
 

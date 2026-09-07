@@ -5,7 +5,9 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
-    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
+    scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
+    RFC_3986_3_1, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -23,6 +25,9 @@ pub struct ContentLocationAndUriConsistent;
 static DECLARED: &[&ViolationDef] = &[
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -117,6 +122,7 @@ severity = "info"
             RFC_3986_6_2_2_2,
             RFC_3986_6_2_2_3,
             RFC_3986_2_1,
+            RFC_3986_3_1,
         ]
     }
 
@@ -291,8 +297,14 @@ impl Rule for ContentLocationAndUriConsistent {
 
                 // Only the `absolute-URI` alternative has a scheme; the helper is a
                 // no-op on a `partial-URI`, which is why nothing here gates on form.
-                if let Some(msg) = crate::helpers::uri::validate_scheme_if_present(s) {
-                    return Some(self.violation(ctx.severity, msg));
+                if let Some(defect) = crate::helpers::uri::scheme_if_present(s) {
+                    return Some(ctx.report_with(
+                        scheme_name(defect),
+                        format!(
+                            "Content-Location value's scheme is not one: {}",
+                            defect.message()
+                        ),
+                    ));
                 }
 
                 // The value's production is not `URI-reference`, and the fragment
