@@ -18,6 +18,8 @@ Because `Vary` is a comma-separated (`#`) list, an entirely empty value is a leg
 ## Specifications
 
 - [RFC 9110 §12.5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.5): Vary = #( "*" / field-name ) — a comma-separated list; "*" is an ordinary member (RFC 7231's "*"-or-a-list form is obsolete). Not checked: the same section's "A proxy MUST NOT generate \"*\"", since a forwarded "*" is indistinguishable from a generated one in an observed response
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 
 ## Configuration
 
