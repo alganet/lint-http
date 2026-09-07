@@ -4869,7 +4869,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 178
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 76
+      line: 100
   - label: accept_header_media_type_syntax (7)
     section: § 8.3.1
     snippet: media-type = type "/" subtype parameters type       = token subtype    = token
@@ -5509,13 +5509,13 @@ sources:
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 99
+      line: 126
   - label: Connection grammar
     section: § 7.6.1
     snippet: 'Connection        = #connection-option connection-option = token'
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 24
+      line: 46
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 166
   - label: connection_header_tokens_valid (2)
@@ -5523,19 +5523,19 @@ sources:
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 23
+      line: 45
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 221
+      line: 242
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 219
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 33
+      line: 55
   - label: Connection grammar, sender-expanded
     section: § A
     snippet: Connection = [ connection-option *( OWS "," OWS connection-option ) ]
     cited_by:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 50
+      line: 74
   - label: content_disposition_token_valid
     section: § 5.5
     snippet: Field values are usually constrained to the range of US-ASCII characters [USASCII].
@@ -6067,7 +6067,7 @@ sources:
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
       line: 162
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 76
+      line: 100
   - label: host_and_authority_consistent
     section: § 4.2.1
     snippet: If the port subcomponent is empty or not given, TCP port 80 (the reserved port for WWW services) is the default.
@@ -6377,7 +6377,7 @@ sources:
     - file: lint-http-proxy/src/proxy/hop_by_hop.rs
       line: 108
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 98
+      line: 125
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (7)
     section: § 7.6.1
     snippet: Furthermore, intermediaries SHOULD remove or replace fields that are known to require removal before forwarding, whether or not they appear as a connection-option, after applying those fields' semantics.
@@ -6399,7 +6399,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 177
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 109
+      line: 136
   - label: lint-http-proxy/src/proxy/websocket/handshake.rs
     section: § 15.2
     snippet: A 1xx response is terminated by the end of the header section; it cannot contain content or trailers.
@@ -6619,7 +6619,7 @@ sources:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 105
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 65
+      line: 89
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 341
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
@@ -6643,7 +6643,7 @@ sources:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
       line: 160
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 68
+      line: 92
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 151
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -6869,7 +6869,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 234
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 90
+      line: 117
     - file: lint-http-rules/src/rules/user_agent_present.rs
       line: 111
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
@@ -7177,7 +7177,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 80
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
-      line: 51
+      line: 75
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 293
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
@@ -7897,7 +7897,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 227
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 93
+      line: 120
   - label: post_creates_resource (3)
     section: § 9.3.3
     snippet: An origin server indicates response semantics by choosing an appropriate status code depending on the result of processing the POST request; almost all of the status codes defined by this specification could be received in a response to POST (the exceptions being 206 (Partial Content), 304 (Not Modified), and 416 (Range Not Satisfiable)).
@@ -9003,7 +9003,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 283
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 91
+      line: 118
   - label: trailer_fields_valid (3)
     section: § 7.6.1
     snippet: When a field aside from Connection is used to supply control information for or about the current connection, the sender MUST list the corresponding field name within the Connection header field.
@@ -9017,19 +9017,19 @@ sources:
     snippet: The "Trailer" header field (Section 6.6.2) can be sent to indicate fields likely to be sent in the trailer section, which allows recipients to prepare for their receipt before processing the content.
     cited_by:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 15
+      line: 21
   - label: trailer_header_valid (2)
     section: § 6.6
     snippet: Fields that describe the message itself, such as when and how the message has been generated, can appear in both requests and responses.
     cited_by:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 240
+      line: 269
   - label: Trailer grammar
     section: § A
     snippet: Trailer = [ field-name *( OWS "," OWS field-name ) ]
     cited_by:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
-      line: 52
+      line: 76
   - label: transfer_coding_registered
     section: § 10.1.4
     snippet: 'TE                 = #t-codings t-codings          = "trailers" / ( transfer-coding [ weight ] ) transfer-coding    = token *( OWS ";" OWS transfer-parameter ) transfer-parameter = token BWS "=" BWS ( token / quoted-string )'

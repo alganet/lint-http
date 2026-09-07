@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 /// The `Trailer` header field's own syntax, and the fields it may name.
 ///
@@ -15,6 +21,22 @@ use crate::rules::{Rule, RuleMeta};
 /// cite(RFC 9110 § 6.5.2): "The "Trailer" header field (Section 6.6.2) can be sent to indicate fields likely to be sent in the trailer section, which allows recipients to prepare for their receipt before processing the content."
 #[derive(Debug, Clone)]
 pub struct TrailerHeaderValid;
+
+/// The list's and the token's defects, which is everything this rule says about
+/// the *shape* of the declaration. `Trailer = #field-name` and `field-name =
+/// token`, the same two productions `Allow`, `Vary` and `Connection` are built
+/// from.
+///
+/// What stays is what the declaration *names*: a `Trailer` nominating `Trailer`
+/// itself, which announces a section the recipient has finished reading, and a
+/// nomination of a connection-specific field, which does not survive the hop.
+/// Both are well-formed tokens in a well-formed list, and both are about what
+/// the name means rather than what it is.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::sender_list_members;
@@ -34,9 +56,11 @@ impl TrailerHeaderValid {
     fn check_field_section(
         &self,
         hdrs: &hyper::HeaderMap,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let violation = |message: String| Some(self.violation(severity, message));
+        // The list's and the token's defects report through the catalogue; the
+        // sentences this field owns still emit at the rule's severity.
+        let violation = |message: String| Some(self.violation(ctx.severity, message));
 
         let value = combined_field_value_as_written(hdrs, "trailer")?;
         let connection_val = combined_field_value_as_written(hdrs, "connection");
@@ -75,9 +99,12 @@ impl TrailerHeaderValid {
             //
             // cite(RFC 9110 § A, label: field-name grammar): "field-name = token field-value = *field-content"
             if let Some(ch) = crate::helpers::token::find_invalid_token_char(member) {
-                return violation(format!(
-                    "Trailer header contains invalid character '{}' in member '{}'; a member is a field-name, which is a token",
-                    ch, member
+                return Some(ctx.report_with(
+                    token_character(ch),
+                    format!(
+                        "Trailer header contains invalid character '{}' in member '{}'; a member is a field-name, which is a token",
+                        ch, member
+                    ),
                 ));
             }
 
@@ -119,7 +146,10 @@ impl TrailerHeaderValid {
         }
 
         if saw_an_empty_element {
-            return violation(format!("Trailer header holds an empty member: '{}'", value));
+            return Some(ctx.report_with(
+                &LIST_MEMBER_EMPTY,
+                format!("Trailer header holds an empty member: '{}'", value),
+            ));
         }
 
         None
@@ -140,12 +170,6 @@ const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("A"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
     note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
-};
-const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-    note: "The sender's half of the list construct. The recipient's half (§5.6.1.2, ignore empty elements) is a different party's requirement and is why the shared list reader is not used here",
 };
 const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -192,11 +216,16 @@ severity = "warn"
             RFC_9110_6_6_2,
             RFC_9110_A,
             RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
             RFC_9110_5_2,
             RFC_9110_7_6_1,
             RFC_9110_6_5_1,
             RFC_9112_7_1_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -251,12 +280,12 @@ impl Rule for TrailerHeaderValid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
+            if let Some(v) = self.check_field_section(&tx.request.headers, ctx) {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
+                if let Some(v) = self.check_field_section(&resp.headers, ctx) {
                     return Some(v);
                 }
             }

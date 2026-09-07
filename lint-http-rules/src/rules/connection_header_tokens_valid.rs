@@ -6,8 +6,30 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::sender_list_members;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct ConnectionHeaderTokensValid;
+
+/// The two defects a `#connection-option` list can have that are not this
+/// field's: a member that is empty, and a member holding an octet no `tchar`
+/// admits. `Connection = #connection-option` and `connection-option = token`,
+/// so both belong to the constructs the field is written out of.
+///
+/// What stays is § 7.6.1's own sentence, and it is the whole reason this rule
+/// is not `allow_header_method_tokens_valid` with another name: a
+/// connection-option naming a field intended for all recipients of the content
+/// — `Cache-Control`, which the section names — is a well-formed token in a
+/// well-formed list that says something a sender MUST NOT say.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 impl ConnectionHeaderTokensValid {
     /// One field section's `Connection` value, measured against the production the
@@ -25,9 +47,11 @@ impl ConnectionHeaderTokensValid {
     fn check_field_section(
         &self,
         headers: &hyper::HeaderMap,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let violation = |message: String| Some(self.violation(severity, message));
+        // The list's and the token's defects report through the catalogue; the
+        // sentences this field owns still emit at the rule's severity.
+        let violation = |message: String| Some(self.violation(ctx.severity, message));
 
         let value = combined_field_value_as_written(headers, "connection")?;
 
@@ -79,10 +103,13 @@ impl ConnectionHeaderTokensValid {
                 // character that stopped the parse is by definition one the grammar
                 // did not admit — often a control octet, which written through would
                 // corrupt the finding rather than describe it.
-                return violation(format!(
-                    "Connection header holds invalid character '{}' in member '{}'; a member is a connection-option, which is a token",
-                    ch.escape_debug(),
-                    member.escape_debug()
+                return Some(ctx.report_with(
+                    token_character(ch),
+                    format!(
+                        "Connection header holds invalid character '{}' in member '{}'; a member is a connection-option, which is a token",
+                        ch.escape_debug(),
+                        member.escape_debug()
+                    ),
                 ));
             }
 
@@ -105,9 +132,12 @@ impl ConnectionHeaderTokensValid {
         }
 
         if saw_an_empty_element {
-            return violation(format!(
-                "Connection header holds an empty member: '{}'",
-                value.escape_debug()
+            return Some(ctx.report_with(
+                &LIST_MEMBER_EMPTY,
+                format!(
+                    "Connection header holds an empty member: '{}'",
+                    value.escape_debug()
+                ),
             ));
         }
 
@@ -129,19 +159,6 @@ const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("A"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
     note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
-};
-const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-    note: "The sender's half of the list construct. The recipient's half (§5.6.1.2, ignore empty elements) is a different party's requirement, which is why the shared list reader is not used here",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note:
-        "`token` and `tchar`: what a connection-option is made of, and the delimiters it excludes",
 };
 const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -173,6 +190,10 @@ severity = "warn"
             RFC_9110_5_6_2,
             RFC_9110_5_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -232,12 +253,12 @@ impl Rule for ConnectionHeaderTokensValid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            if let Some(v) = self.check_field_section(&tx.request.headers, ctx.severity) {
+            if let Some(v) = self.check_field_section(&tx.request.headers, ctx) {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = self.check_field_section(&resp.headers, ctx.severity) {
+                if let Some(v) = self.check_field_section(&resp.headers, ctx) {
                     return Some(v);
                 }
             }
@@ -258,6 +279,38 @@ mod tests {
 
     use hyper::header::HeaderValue;
     use rstest::rstest;
+
+    /// One sentence, four fields. `Allow`, `Vary`, `Connection` and `Trailer`
+    /// are `#`-lists of `token`s that differ only in what a member means, and a
+    /// stray comma in any of them is now RFC 9110 § 5.6.1.1's one defect rather
+    /// than four rules' four wordings. The token half is asserted beside it,
+    /// because the two ids travel together wherever this shape appears.
+    #[test]
+    fn four_token_lists_report_one_stray_comma() {
+        let found = connection(Section::Request, &[b"keep-alive,,close"]).expect("a finding");
+        assert_eq!(found.violation, "list_member_empty");
+
+        let bad_octet = connection(Section::Request, &[b"keep@alive"]).expect("a finding");
+        assert_eq!(bad_octet.violation, "token_character_forbidden");
+
+        // The three siblings declare the same two ids, which is what makes the
+        // sentence above one an operator can silence in one place.
+        for rule in [
+            "allow_header_method_tokens_valid",
+            "vary_header_valid",
+            "trailer_header_valid",
+        ] {
+            let declared: Vec<&str> = crate::rules::all_rules()
+                .filter(|r| r.id() == rule)
+                .flat_map(|r| r.violations().iter().map(|d| d.id))
+                .collect();
+            assert!(
+                declared.contains(&"list_member_empty")
+                    && declared.contains(&"token_character_forbidden"),
+                "{rule} declares {declared:?}",
+            );
+        }
+    }
 
     #[derive(Clone, Copy, Debug)]
     enum Section {
