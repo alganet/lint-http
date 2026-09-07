@@ -178,9 +178,17 @@ pub fn scheme_prefix(s: &str) -> Option<&str> {
     Some(&s[..colon])
 }
 
-/// Validate a potential scheme (the characters before a scheme-delimiting ':').
-/// Returns `Some(msg)` on invalid scheme, `None` if OK or no scheme present.
-pub fn validate_scheme_if_present(s: &str) -> Option<String> {
+/// The defect of the scheme a value carries, if it carries one at all.
+///
+/// **The `Some` is the defect and not a sentence**, for the reason
+/// [`percent_encoding_defect`] gives beside its own rendered twin: a caller
+/// reporting through the catalogue answers with the `uri_scheme_*` def the
+/// variant maps to, and one wording its own finding asks
+/// [`SchemeNameDefect::message`] for the fragment. There is no rendered twin
+/// here because all three callers name the field the scheme came from, and a
+/// sentence that begins "Invalid scheme in value" inside one that already says
+/// which value it is says it twice.
+pub fn scheme_if_present(s: &str) -> Option<SchemeNameDefect<'_>> {
     // The production itself is [`validate_scheme_name`]'s and finding the
     // candidate is [`scheme_prefix`]'s. This function is only the pairing of
     // the two; what a scheme name may be made of is one question with one
@@ -189,9 +197,7 @@ pub fn validate_scheme_if_present(s: &str) -> Option<String> {
     // An empty scheme (a value opening with ':') satisfies neither `scheme`, whose
     // `ALPHA` is not optional, nor `segment-nz-nc`, which excludes ':' and so
     // cannot start a relative-path reference either.
-    validate_scheme_name(scheme_prefix(s)?)
-        .err()
-        .map(|defect| format!("Invalid scheme in value: {}", defect.message()))
+    validate_scheme_name(scheme_prefix(s)?).err()
 }
 
 /// Split an authority into its `userinfo` subcomponent and the `host [ ":" port ]`
@@ -329,7 +335,7 @@ pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
     // this function's `None` says. The narrower `reg-name` alphabet is a
     // different question and not this function's: what an authority may hold is
     // asked where an authority is *validated*, and this one is reconstructing.
-    if validate_scheme_if_present(&origin).is_some() {
+    if scheme_if_present(&origin).is_some() {
         return None;
     }
     if find_non_uri_char(&origin).is_some() {
@@ -358,7 +364,7 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
         if s_trim[colon_pos + 3..].contains('/') {
             return Some("Origin must not include a path".into());
         }
-        if validate_scheme_if_present(s_trim).is_some() {
+        if scheme_if_present(s_trim).is_some() {
             return Some("Invalid scheme in Origin".into());
         }
         // The alphabet, before the authority question below it. This was
@@ -965,7 +971,7 @@ pub fn parse_query_string(s: &str) -> Vec<(String, String)> {
 
 /// Validate a bare scheme name — the production alone, with no ':' to find it by.
 ///
-/// [`validate_scheme_if_present`] locates a scheme inside a larger value and then
+/// [`scheme_if_present`] locates a scheme inside a larger value and then
 /// asks this question of what it found; a field whose whole value *is* a scheme
 /// name (`Forwarded`'s `proto`) asks it directly. The production was written out
 /// twice before this function existed, and the two copies are the shape three of
@@ -1660,10 +1666,10 @@ mod tests {
 
     #[test]
     fn scheme_validation() {
-        assert!(validate_scheme_if_present("1http://ex").is_some());
-        assert!(validate_scheme_if_present("ht!tp://ex").is_some());
-        assert!(validate_scheme_if_present("/relative").is_none());
-        assert!(validate_scheme_if_present("https://ex").is_none());
+        assert!(scheme_if_present("1http://ex").is_some());
+        assert!(scheme_if_present("ht!tp://ex").is_some());
+        assert!(scheme_if_present("/relative").is_none());
+        assert!(scheme_if_present("https://ex").is_none());
     }
 
     /// The production's two halves, and the split the variants make plain:
@@ -1825,15 +1831,15 @@ mod tests {
     fn colon_inside_a_path_or_query_is_not_a_scheme_delimiter() {
         // `pchar` admits ':' inside a segment, so these are all well-formed
         // absolute-path references with no scheme at all.
-        assert_eq!(validate_scheme_if_present("/foo:bar"), None);
-        assert_eq!(validate_scheme_if_present("/v1/entities/x:batchGet"), None);
-        assert_eq!(validate_scheme_if_present("/users/urn:uuid:1"), None);
-        assert_eq!(validate_scheme_if_present("/a?x=b:c"), None);
-        assert_eq!(validate_scheme_if_present("/a#f:g"), None);
+        assert_eq!(scheme_if_present("/foo:bar"), None);
+        assert_eq!(scheme_if_present("/v1/entities/x:batchGet"), None);
+        assert_eq!(scheme_if_present("/users/urn:uuid:1"), None);
+        assert_eq!(scheme_if_present("/a?x=b:c"), None);
+        assert_eq!(scheme_if_present("/a#f:g"), None);
         // A colon in the first segment of a relative-path reference *is* read
         // as a scheme, which is why RFC 3986 forbids it there.
-        assert!(validate_scheme_if_present("this:that").is_none());
-        assert!(validate_scheme_if_present("1this:that").is_some());
+        assert!(scheme_if_present("this:that").is_none());
+        assert!(scheme_if_present("1this:that").is_some());
     }
 
     #[test]
@@ -2180,8 +2186,9 @@ mod tests {
 
     #[test]
     fn empty_scheme_is_rejected() {
-        let m = validate_scheme_if_present(":foo").expect("empty scheme must be flagged");
-        assert!(m.contains("must not be empty"));
+        let defect = scheme_if_present(":foo").expect("empty scheme must be flagged");
+        assert_eq!(defect, SchemeNameDefect::Empty);
+        assert!(defect.message().contains("must not be empty"));
     }
 
     #[test]
