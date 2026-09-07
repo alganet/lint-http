@@ -30,7 +30,7 @@ Reports a request whose method token does not derive from `method = token` (RFC 
 
 - [RFC 9110 §9.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1): `method = token`, the token's case-sensitivity, the convention that standardized methods are defined in all-uppercase US-ASCII letters, and the 501 an origin server gives an unrecognized method
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The sentence that makes a value outside its ABNF a violation rather than an observation
-- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): `token = 1*tchar`. The character set is transcribed once, in `helpers::token::is_tchar`; the `1*` floor is what the empty-method branch here reads
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §16.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.1.1): The IANA method registry, which holds the names `registered_methods` is a deployment's copy of, and grows by IETF Review
 - [RFC 9112 §3.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.1): Where an HTTP/1.1 message carries the method. This reference said §5.1, which is Field Line Parsing
 - [RFC 9113 §8.3.1](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1): The `:method` pseudo-header field, which is where an HTTP/2 request carries the same value

@@ -4,8 +4,31 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct HeaderFieldNamesTokenValid;
+
+/// A field name is a `token` and nothing else, so this rule declares two defs
+/// and writes neither.
+///
+/// `field-name = token` is the whole of the grammar here — RFC 9110 § 5.1
+/// states it and adds no character of its own — and what this rule contributes
+/// is *where* to look: four field sections in wire order, trailers included,
+/// over three versions of the protocol. The defect an operator tunes is the
+/// same one `Vary`, `Allow`, a media type's subtype and every parameter name
+/// report.
+///
+/// The empty name is not among them: a `HeaderMap` cannot hold one, so
+/// `token_empty` is unreachable from here and is left to the readers that can
+/// see a name a sender wrote blank.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -15,12 +38,6 @@ const RFC_9110_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("5.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
     note: "Field Names (field-name = token)",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note: "Tokens (the tchar set the production expands to)",
 };
 const RFC_9110_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -64,6 +81,10 @@ severity = "warn"
             RFC_9113_8_2_1,
             RFC_9114_4_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -111,7 +132,7 @@ impl Rule for HeaderFieldNamesTokenValid {
             // at all is the framing's answer, not this rule's.
             // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
             for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-                if let Some(v) = check_section(section, headers, ctx.severity) {
+                if let Some(v) = check_section(section, headers, ctx) {
                     return Some(v);
                 }
             }
@@ -126,7 +147,7 @@ impl Rule for HeaderFieldNamesTokenValid {
 fn check_section(
     section: &str,
     fields: &hyper::HeaderMap,
-    severity: crate::lint::Severity,
+    ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     for (k, _v) in fields.iter() {
         // The one check a § 5.1 validator still owes -- that the name is not
@@ -135,7 +156,7 @@ fn check_section(
         // HTTP/2 and HTTP/3 decoders reject an uppercase name outright, so `as_str()`
         // has already been made lowercase by the time any rule reads it.
         // cite(RFC 9114 § 4.2): "A request or response containing uppercase characters in field names MUST be treated as malformed"
-        if let Some(v) = check_header_name(section, k.as_str(), severity) {
+        if let Some(v) = check_header_name(section, k.as_str(), ctx) {
             return Some(v);
         }
     }
@@ -153,7 +174,7 @@ fn check_section(
 fn check_header_name(
     section: &str,
     name: &str,
-    severity: crate::lint::Severity,
+    ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     // The production is defined in § 5.1; the quote is the collected grammar's copy,
     // where it sits beside a neighbour rather than alone between two paragraphs, so
@@ -161,8 +182,11 @@ fn check_header_name(
     // transcribed once, in the shared helper, and read from there.
     // cite(RFC 9110 § A): "field-name = token field-value = *field-content"
     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-        return Some(HeaderFieldNamesTokenValid.violation(
-            severity,
+        // Which of the two the octet is is `token`'s question and not this
+        // rule's: an octet nobody typed and one a sender chose are the same
+        // failure of `1*tchar` and two different things to go and fix.
+        return Some(ctx.report_with(
+            token_character(c),
             format!(
                 "Field name '{}' in the {} contains invalid character: '{}'",
                 name, section, c
@@ -282,8 +306,19 @@ mod tests {
         #[case] expect_violation: bool,
         #[case] expected_char: Option<char>,
     ) -> anyhow::Result<()> {
-        let res =
-            super::check_header_name("request header section", name, crate::lint::Severity::Warn);
+        // The context is assembled the way dispatch assembles one, so a
+        // declared defect resolves its configured severity here too — the same
+        // reason `content_type_valid` builds one for its direct reading.
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "header_field_names_token_valid",
+        ]);
+        let resolved = HeaderFieldNamesTokenValid
+            .prepare(&cfg)
+            .expect("a preparable config");
+        let severities = crate::rules::severities_for(&HeaderFieldNamesTokenValid, &cfg);
+        let ctx = crate::rules::RuleContext::new(&resolved)
+            .with_violations(&HeaderFieldNamesTokenValid, &severities);
+        let res = super::check_header_name("request header section", name, &ctx);
 
         if expect_violation {
             assert!(res.is_some(), "expected violation for '{}'", name);

@@ -4981,7 +4981,7 @@ sources:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 178
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 350
+      line: 377
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 246
     - file: lint-http-rules/src/rules/request_version_method_valid.rs
@@ -5205,9 +5205,9 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 344
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 272
+      line: 295
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 330
+      line: 353
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 270
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
@@ -5237,7 +5237,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 312
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 296
+      line: 319
   - label: alt_svc_header_syntax
     section: § 3.7
     snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
@@ -5837,7 +5837,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 26
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 26
+      line: 31
   - label: early_data_header_safe_method (4)
     section: § 16.1.1
     snippet: Values to be added to this namespace require IETF Review
@@ -5845,7 +5845,7 @@ sources:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 29
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 27
+      line: 32
   - label: early_data_header_safe_method (5)
     section: § 9.2.1
     snippet: Request methods are considered "safe" if their defined semantics are essentially read-only; i.e., the client does not request, and does not expect, any state change on the origin server as a result of applying a safe method to a target resource.
@@ -6075,7 +6075,7 @@ sources:
     snippet: field-name = token field-value = *field-content
     cited_by:
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
-      line: 162
+      line: 183
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 100
   - label: host_and_authority_consistent
@@ -6909,7 +6909,7 @@ sources:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 135
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
-      line: 95
+      line: 116
   - label: lint-http-rules/src/helpers/headers.rs (2)
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
@@ -7087,7 +7087,7 @@ sources:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 154
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
-      line: 112
+      line: 133
   - label: lint-http-rules/src/helpers/list.rs
     section: § 5.6.1.2
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
@@ -8397,19 +8397,19 @@ sources:
     snippet: All such methods ought to be registered within the "Hypertext Transfer Protocol (HTTP) Method Registry", as described in Section 16.1.
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 28
+      line: 33
   - label: request_method_token_valid (2)
     section: § 9.1
     snippet: An origin server that receives a request method that is unrecognized or not implemented SHOULD respond with the 501 (Not Implemented) status code.
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 358
+      line: 385
   - label: request_method_token_valid (3)
     section: § 9.1
     snippet: By convention, standardized methods are defined in all-uppercase US-ASCII letters.
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 351
+      line: 378
   - label: absolute-path
     section: § 4.1
     snippet: absolute-path = 1*( "/" segment )
@@ -10240,7 +10240,7 @@ sources:
     snippet: HTTP/2 implementations SHOULD validate field names and values according to their definitions in Sections 5.1 and 5.5 of [HTTP], respectively, and treat messages that contain prohibited characters as malformed
     cited_by:
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
-      line: 151
+      line: 172
   - label: host_and_authority_consistent
     section: § 8.3.1
     snippet: A request in asterisk form (for OPTIONS) includes the value '*' for the ":path" pseudo-header field.
@@ -10322,7 +10322,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 308
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 297
+      line: 320
   - label: http2_pseudo_headers_valid (7)
     section: § 8.3.1
     snippet: The ":scheme" pseudo-header field includes the scheme portion of the request target.
@@ -10485,13 +10485,13 @@ sources:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 191
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
-      line: 137
+      line: 158
   - label: header_field_names_token_valid
     section: § 4.2
     snippet: Properties of HTTP field names and values are discussed in more detail in Section 5.1 of [HTTP]
     cited_by:
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
-      line: 152
+      line: 173
   - label: host_and_authority_consistent
     section: § 4.3.1
     snippet: If both fields are present, they MUST contain the same value.
@@ -10765,7 +10765,7 @@ sources:
     snippet: '":method":  Contains the HTTP method (Section 9 of [HTTP])'
     cited_by:
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
-      line: 298
+      line: 321
   - label: request_target_form_valid
     section: § 4.3.1
     snippet: An OPTIONS request that does not include a path component includes the value * (ASCII 0x2a) for the :path pseudo-header field
