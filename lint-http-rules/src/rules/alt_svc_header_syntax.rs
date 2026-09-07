@@ -11,6 +11,118 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::word::{token_or_quoted_string, WordDefect};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::uri::{
+    percent_encoding, uri_host, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
+    RFC_3986_2_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
+    URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
+    URI_PORT_CHARACTER_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
+
+/// Sixteen defects over four subjects, and RFC 7838 defines not one of them.
+///
+/// § 1.1 says where the notation comes from and § 3 says where the productions
+/// do: the `#rule` extension is RFC 7230 § 7's, whose sender requirement is the
+/// one RFC 9110 § 5.6.1.1 now carries; `protocol-id` and a parameter's name are
+/// `token`; an `alt-authority` and a parameter's value may be a
+/// `quoted-string`; and the content inside those DQUOTEs is a `uri-host` and a
+/// `port` out of RFC 3986. So an `alt-authority` of `"a]b:443"` reports the
+/// same defect a `Forwarded` `for=` and a `Warning`'s `warn-agent` do.
+///
+/// **Fifteen findings stay this document's, which is more than are named.**
+/// Six are the two `=` delimiters RFC 7838 prints and the whitespace it does
+/// *not*; two are the ALPN name's percent-encoding spelling, which is this
+/// field's alone; two are `alt-authority`'s prose, which requires the colon and
+/// the port the ABNF leaves optional; one is a port outside the sixteen-bit
+/// namespace an ALPN name implies; one is `persist`'s single literal; one is
+/// § 8's A-labels; one is the case-sensitive spelling of `clear`; and one is
+/// `clear` beside an alternative, which is the alternation at the top of the
+/// field. Every one is a sentence about `Alt-Svc` and no other field.
+///
+/// **`parameter_equals_missing` and `parameter_equals_whitespace_forbidden` are
+/// refused, for the second commit running.** RFC 7838 § 3's `parameter` is not
+/// § 5.6.6's: its value is mandatory where § 5.6.6's is optional, and it prints
+/// no whitespace beside its `=` at all — so where § 5.6.6 tolerates the
+/// whitespace and records the leniency at `info`, this document admits none and
+/// the rule reports it at its own level. Two sentences, two verdicts, and the
+/// rule had already written the difference down for another reason.
+///
+/// **Three of the four `quoted_string_*` entries are declared and unreachable
+/// here, and the reason is a check two levels up.** The field value's quoting
+/// is measured for balance before any member is cut, so an unescaped DQUOTE and
+/// a trailing backslash are both reported there as the missing delimiter; a
+/// control octet cannot enter a `hyper::HeaderValue` at all. The mapping is
+/// exhaustive regardless — the grammar's reader is where the grammar's question
+/// is answered — and `uri_host_closing_bracket_missing` is nearly the same
+/// story from the other side: it needs a `]` that is not where the host ends,
+/// because a literal that never closes leaves the composition with no port to
+/// find and is reported as that instead.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &LIST_MEMBER_MISSING,
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
+];
+
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled: a judge that is half converted says
+/// so in its type. Here the halves are almost even — four subjects' ids against
+/// nine sentences this document writes about its own field.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed, reported at the rule's severity the way
+    /// every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+
+    /// The same defect with its message read from further out -- which
+    /// `protocol-id` the spelling belonged to, which member of the list.
+    fn in_context(self, context: impl FnOnce(String) -> String) -> Self {
+        Self {
+            def: self.def,
+            message: context(self.message),
+        }
+    }
+}
 
 /// The one alternative of the field's top production that is not a list.
 ///
@@ -57,15 +169,22 @@ fn whitespace_beside_delimiter(left: &str, right: &str) -> bool {
 // cite(RFC 7838 § 3): "When using percent-encoding, uppercase hex digits MUST be used."
 // cite(RFC 7838 § 3): "With these constraints, recipients can apply simple string comparison to match protocol identifiers."
 // cite(RFC 3986 § 2.1): "pct-encoded = "%" HEXDIG HEXDIG"
-fn protocol_id_encoding_defect(protocol_id: &str) -> Option<String> {
-    // The triplet's *shape* is `helpers::uri::check_percent_encoding`'s, and it
+fn protocol_id_encoding_defect(protocol_id: &str) -> Option<Defect> {
+    // The triplet's *shape* is `helpers::uri::percent_encoding_defect`'s, and it
     // is asked first so that everything below can take two hex digits for
     // granted. It also answers a case this rule would otherwise have to
     // re-derive: a '%' whose next bytes begin a multi-byte character, which it
     // reports by taking three *characters* rather than three bytes.
-    if let Some(msg) = crate::helpers::uri::check_percent_encoding(protocol_id) {
-        return Some(format!(
-            "{msg} -- and the octet representing '%' is itself required to be written `%25`"
+    //
+    // The shape is `pct-encoded`'s and reports as such; everything below is
+    // this field's own spelling rule for an ALPN name and reports as nothing.
+    if let Some(defect) = crate::helpers::uri::percent_encoding_defect(protocol_id) {
+        return Some(Defect::named(
+            percent_encoding(defect),
+            format!(
+                "{} -- and the octet representing '%' is itself required to be written `%25`",
+                defect.message()
+            ),
         ));
     }
 
@@ -79,19 +198,19 @@ fn protocol_id_encoding_defect(protocol_id: &str) -> Option<String> {
         // Both are `HEXDIG`; the scan above returned `None`.
         let (hi, lo) = (bytes[i + 1] as char, bytes[i + 2] as char);
         if hi.is_ascii_lowercase() || lo.is_ascii_lowercase() {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "the triplet '%{hi}{lo}' at offset {i} uses lowercase hex digits, and this field requires uppercase ones so that two spellings of one ALPN protocol name cannot exist"
-            ));
+            )));
         }
         // The escaping table's third row is why `%25` is exempt: `%` is a
         // `tchar`, and it is the one `tchar` this document requires to be
         // encoded rather than forbids.
         let octet = (hi.to_digit(16)? * 16 + lo.to_digit(16)?) as u8;
         if octet != b'%' && crate::helpers::token::is_tchar_byte(octet) {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "the triplet '%{hi}{lo}' at offset {i} encodes {}, which is a `tchar` and so must appear as itself -- this field admits exactly one spelling per ALPN protocol name",
                 describe_char(octet as char)
-            ));
+            )));
         }
         i += 3;
     }
@@ -115,11 +234,18 @@ pub struct AltSvcHeaderSyntax;
 // cite(RFC 7838 § 3): "The "alt-authority" component consists of an OPTIONAL uri-host ("host" in Section 3.2.2 of [RFC3986]), a colon (":"), and a port number."
 // cite(RFC 7838 § 3): "Note that the "quoted-string" syntax needs to be used because ":" is not an allowed character in "token"."
 // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
-fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
+fn check_alt_authority(shown: &str, authority: &str) -> Option<Defect> {
     if !authority.starts_with('"') {
-        return Some(format!(
+        // The production is its two DQUOTEs and what they enclose, so a value
+        // with neither is not a badly-written `alt-authority` but a
+        // `quoted-string` missing a delimiter -- which is the def's own
+        // sentence, and the reason this rule and six others report it alike.
+        return Some(Defect::named(
+            &QUOTED_STRING_DELIMITER_MISSING,
+            format!(
                 "Alt-Svc alternative '{shown}' carries an unquoted alt-authority. `alt-authority` is a `quoted-string`, and the DQUOTEs are what let it hold the colon at all -- ':' is in no `token`, so a recipient reading this against the grammar finds the alternative ends at the '='"
-            ));
+            ),
+        ));
     }
     // `unescape_quoted_string` opens with the validation, so asking for it
     // separately would run the same walk twice and leave a discarded `Err`
@@ -127,9 +253,12 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
     let inner = match unescape_quoted_string(authority) {
         Ok(inner) => inner,
         Err(defect) => {
-            let defect = defect.message(authority);
-            return Some(format!(
-                "Alt-Svc alternative '{shown}' carries an alt-authority that is not a well-formed `quoted-string`: {defect}"
+            let message = defect.message(authority);
+            return Some(Defect::named(
+                quoted_string_defect(defect),
+                format!(
+                    "Alt-Svc alternative '{shown}' carries an alt-authority that is not a well-formed `quoted-string`: {message}"
+                ),
             ));
         }
     };
@@ -140,11 +269,19 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
     // § 8 names the reason it is usually there and forbids it by name.
     // cite(RFC 7838 § 8): "An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1)."
     // cite(RFC 3986 § 3.2.2): "reg-name    = *( unreserved / pct-encoded / sub-delims )"
+    //
+    // Unnamed, and the sentence reported is why. `uri_host_character_forbidden`
+    // would answer for a high octet in the *host*, but this is asked of the
+    // whole `alt-authority` before it is split, and what it reports is § 8's
+    // MUST about how an internationalized name is written *instead* -- a
+    // requirement about the sender's spelling, not about which octets a
+    // `reg-name` admits. A value that gets past here and still holds one is the
+    // host subject's, below.
     if let Some(c) = inner.chars().find(|c| !c.is_ascii()) {
-        return Some(format!(
-                "Alt-Svc alternative '{shown}' has the octet {} inside its alt-authority. Every production the content derives from is US-ASCII, and an internationalized domain name here is written as A-labels",
-                crate::helpers::shown::describe_octet(c as u32 as u8)
-            ));
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc alternative '{shown}' has the octet {} inside its alt-authority. Every production the content derives from is US-ASCII, and an internationalized domain name here is written as A-labels",
+            crate::helpers::shown::describe_octet(c as u32 as u8)
+        )));
     }
 
     // `port = *DIGIT` is thirteen characters standing alone between two
@@ -154,29 +291,40 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
     // cite(RFC 3986 § 3.2.3): "The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character."
     let (host, port) = crate::helpers::uri::split_host_and_port(&inner);
     let Some(port) = port else {
-        return Some(format!(
-                "Alt-Svc alternative '{shown}' has an alt-authority with no ':' in it. The host is optional and the colon and the port number are not, so '{}' names no port for a client to open the alternative on",
-                shown_in_finding(&inner)
-            ));
+        // The prose beside the production, and it is this document's: the two
+        // halves are RFC 3986's and which of them is optional is § 3's.
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc alternative '{shown}' has an alt-authority with no ':' in it. The host is optional and the colon and the port number are not, so '{}' names no port for a client to open the alternative on",
+            shown_in_finding(&inner)
+        )));
     };
     if !host.is_empty() {
         if let Err(defect) = crate::helpers::uri::validate_uri_host(host) {
-            let e = defect.message();
-            return Some(format!(
-                    "Alt-Svc alternative '{shown}' has an alt-authority whose host is not a `uri-host`: {e}"
-                ));
+            let message = defect.message();
+            return Some(Defect::named(
+                uri_host(defect),
+                format!(
+                    "Alt-Svc alternative '{shown}' has an alt-authority whose host is not a `uri-host`: {message}"
+                ),
+            ));
         }
     }
     if port.is_empty() {
-        return Some(format!(
-                "Alt-Svc alternative '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and the sentence beside it asks for a port number -- a client reading this has a host and no number to reach it on"
-            ));
+        // Said in the finding itself: `port = *DIGIT` generates this, so no
+        // production is broken and there is no defect of one to report. What is
+        // wrong is § 3's prose asking for a port number.
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc alternative '{shown}' carries the port's delimiter and no port. `port` is `*DIGIT`, so the grammar admits this, and the sentence beside it asks for a port number -- a client reading this has a host and no number to reach it on"
+        )));
     }
     if let Some(c) = port.chars().find(|c| !c.is_ascii_digit()) {
-        return Some(format!(
+        return Some(Defect::named(
+            &URI_PORT_CHARACTER_FORBIDDEN,
+            format!(
                 "Alt-Svc alternative '{shown}' has {} in its port, which derives from no `port` -- the production is `*DIGIT`",
                 describe_char(c)
-            ));
+            ),
+        ));
     }
     // The bound is not the grammar's; `port = *DIGIT` has none. It is that
     // an ALPN protocol name identifies a protocol suite carried over a
@@ -187,9 +335,14 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
     // cite(RFC 6335 § 6): "TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries."
     // cite(RFC 6335 § 6): "Reserved port numbers include values at the edges of each range, e.g., 0, 1023, 1024, etc., which may be used to extend these ranges or the overall port number space in the future."
     if crate::helpers::uri::port_number(port).is_none() {
-        return Some(format!(
-                "Alt-Svc alternative '{shown}' names port {port}, which designates no port: the transports an ALPN protocol name is carried over register theirs in a sixteen-bit namespace"
-            ));
+        // A well-formed `port` naming a number no transport has. The def above
+        // is about the octets and says in its own doc that a port outside a
+        // transport's range is not its finding, because `port = *DIGIT` bounds
+        // nothing -- so the sentence answering this one is RFC 6335's, and the
+        // subject that would hold it does not exist.
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc alternative '{shown}' names port {port}, which designates no port: the transports an ALPN protocol name is carried over register theirs in a sixteen-bit namespace"
+        )));
     }
     None
 }
@@ -222,37 +375,54 @@ fn check_alt_authority(shown: &str, authority: &str) -> Option<String> {
 // cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
 // cite(RFC 7838 § 3): "Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value."
 // cite(RFC 7838 § 3): "Unknown parameters MUST be ignored."
-fn check_parameter(shown: &str, parameter: &str) -> Option<String> {
+fn check_parameter(shown: &str, parameter: &str) -> Option<Defect> {
     // `*( OWS ";" OWS parameter )` repeats a group holding one parameter,
     // so two adjacent semicolons produce a repetition with nothing in it.
     if parameter.is_empty() {
-        return Some(format!(
-                "Alt-Svc alt-value '{shown}' carries a semicolon with no parameter after it. Each repetition of `*( OWS \";\" OWS parameter )` holds one `parameter`, and a `parameter` is a name, an '=' and a value"
-            ));
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc alt-value '{shown}' carries a semicolon with no parameter after it. Each repetition of `*( OWS \";\" OWS parameter )` holds one `parameter`, and a `parameter` is a name, an '=' and a value"
+        )));
     }
+    //
+    // **Not `parameter_equals_missing`.** That def carries § 5.6.6's
+    // `parameter`, whose value the constructs reading it treat as optional --
+    // which is the very thing the paragraph above says this production is not.
+    // A def is a sentence, and this field's is its own.
     let Some((name, value)) = parameter.split_once('=') else {
-        return Some(format!(
-                "Alt-Svc parameter '{}' in '{shown}' has no '='. A `parameter` is `token \"=\" ( token / quoted-string )`, so the value and its delimiter are not optional",
-                shown_in_finding(parameter)
-            ));
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc parameter '{}' in '{shown}' has no '='. A `parameter` is `token \"=\" ( token / quoted-string )`, so the value and its delimiter are not optional",
+            shown_in_finding(parameter)
+        )));
     };
+    //
+    // **Not `parameter_equals_whitespace_forbidden` either**, and this is the
+    // sharper half of the same refusal: that def is `info`, because § 5.6.6's
+    // readers trim the whitespace and publish the leniency. This document
+    // prints no whitespace here to be lenient *about*, so the rule reports it
+    // at its own level rather than at one chosen for a different production.
     if whitespace_beside_delimiter(name, value) {
-        return Some(format!(
-                "Alt-Svc parameter '{}' in '{shown}' has whitespace beside its '='. `parameter` prints `token \"=\" ( token / quoted-string )` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon",
-                shown_in_finding(parameter)
-            ));
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc parameter '{}' in '{shown}' has whitespace beside its '='. `parameter` prints `token \"=\" ( token / quoted-string )` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon",
+            shown_in_finding(parameter)
+        )));
     }
     if name.is_empty() {
-        return Some(format!(
+        return Some(Defect::named(
+            &TOKEN_EMPTY,
+            format!(
                 "Alt-Svc parameter '{}' in '{shown}' has no name. `token` is `1*tchar`, so it derives no empty string",
                 shown_in_finding(parameter)
-            ));
+            ),
+        ));
     }
     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-        return Some(format!(
-            "Alt-Svc parameter name '{}' in '{shown}' holds {}, which is no `tchar`",
-            shown_in_finding(name),
-            describe_char(c)
+        return Some(Defect::named(
+            token_character(c),
+            format!(
+                "Alt-Svc parameter name '{}' in '{shown}' holds {}, which is no `tchar`",
+                shown_in_finding(name),
+                describe_char(c)
+            ),
         ));
     }
     // The value half is `( token / quoted-string )`, read by the shared reader
@@ -261,25 +431,34 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<String> {
     // other rules in this tree deliberately do not share.
     let unquoted = match token_or_quoted_string(value) {
         Ok(content) => content,
+        // The `None` `word_defect` answers, at the third of the six fields that
+        // reach it: what an empty value means is this field's verdict, and the
+        // comment above says so in its own words.
         Err(WordDefect::Empty) => {
-            return Some(format!(
-                    "Alt-Svc parameter '{}' in '{shown}' has an empty value. The value half is `token / quoted-string`, and the empty string derives from neither -- a `token` is `1*tchar` and a `quoted-string` is at least its two DQUOTEs",
-                    shown_in_finding(name)
-                ))
+            return Some(Defect::unnamed(format!(
+                "Alt-Svc parameter '{}' in '{shown}' has an empty value. The value half is `token / quoted-string`, and the empty string derives from neither -- a `token` is `1*tchar` and a `quoted-string` is at least its two DQUOTEs",
+                shown_in_finding(name)
+            )))
         }
         Err(WordDefect::NotToken(c)) => {
-            return Some(format!(
+            return Some(Defect::named(
+                token_character(c),
+                format!(
                     "Alt-Svc parameter '{}' in '{shown}' has {} in an unquoted value. The value half is `token / quoted-string`, so a character no `tchar` admits has to be written inside DQUOTEs",
                     shown_in_finding(name),
                     describe_char(c)
-                ))
+                ),
+            ))
         }
         Err(WordDefect::NotQuotedString(defect)) => {
-            let defect = defect.message(value);
-            return Some(format!(
-                    "Alt-Svc parameter '{}' in '{shown}' has a value that is not a well-formed `quoted-string`: {defect}",
+            let message = defect.message(value);
+            return Some(Defect::named(
+                quoted_string_defect(defect),
+                format!(
+                    "Alt-Svc parameter '{}' in '{shown}' has a value that is not a well-formed `quoted-string`: {message}",
                     shown_in_finding(name)
-                ))
+                ),
+            ))
         }
     };
 
@@ -291,16 +470,16 @@ fn check_parameter(shown: &str, parameter: &str) -> Option<String> {
     // cite(RFC 7838 § 3.1): "This specification only defines a single value for "persist"."
     // cite(RFC 7838 § 3.1): "Clients MUST ignore "persist" parameters with values other than "1"."
     if name == "persist" && unquoted != "1" {
-        return Some(format!(
-                "Alt-Svc alt-value '{shown}' sets persist to '{}'. The registered syntax for this parameter is the single literal \"1\", and a client is required to ignore every other value -- so this alternative carries no persistence hint at all",
-                shown_in_finding(&unquoted)
-            ));
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc alt-value '{shown}' sets persist to '{}'. The registered syntax for this parameter is the single literal \"1\", and a client is required to ignore every other value -- so this alternative carries no persistence hint at all",
+            shown_in_finding(&unquoted)
+        )));
     }
     None
 }
 
 /// One `alt-value = alternative *( OWS ";" OWS parameter )`.
-fn check_alt_value(member: &str) -> Option<String> {
+fn check_alt_value(member: &str) -> Option<Defect> {
     let shown = shown_in_finding(member);
     // The splitter always pushes a trailing segment, so there is always a
     // first one; `alt-value` is an `alternative` with the parameter group
@@ -325,37 +504,45 @@ fn check_alt_value(member: &str) -> Option<String> {
         // is more use to whoever wrote it than the generic verdict.
         // cite(RFC 7838 § 3): "clear         = %s"clear"; "clear", case-sensitive"
         if alternative.eq_ignore_ascii_case(CLEAR) {
-            return Some(format!(
-                    "Alt-Svc carries '{}' where the keyword is spelled `%s\"clear\"` -- a case-sensitive string, so this value is read as an `alt-value` instead, and an `alt-value` opens with `protocol-id \"=\" alt-authority`",
-                    shown_in_finding(alternative)
-                ));
+            return Some(Defect::unnamed(format!(
+                "Alt-Svc carries '{}' where the keyword is spelled `%s\"clear\"` -- a case-sensitive string, so this value is read as an `alt-value` instead, and an `alt-value` opens with `protocol-id \"=\" alt-authority`",
+                shown_in_finding(alternative)
+            )));
         }
-        return Some(format!(
-                "Alt-Svc alt-value '{shown}' has no '=' in its alternative. `alternative` is `protocol-id \"=\" alt-authority`, so a recipient reading this finds a protocol identifier and no alternative to reach it at"
-            ));
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc alt-value '{shown}' has no '=' in its alternative. `alternative` is `protocol-id \"=\" alt-authority`, so a recipient reading this finds a protocol identifier and no alternative to reach it at"
+        )));
     };
     if whitespace_beside_delimiter(protocol_id, authority) {
-        return Some(format!(
-                "Alt-Svc alt-value '{shown}' has whitespace beside the '=' of its alternative. `alternative` prints `protocol-id \"=\" alt-authority` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon before a parameter"
-            ));
+        return Some(Defect::unnamed(format!(
+            "Alt-Svc alt-value '{shown}' has whitespace beside the '=' of its alternative. `alternative` prints `protocol-id \"=\" alt-authority` with nothing between the halves and the delimiter, and the only `OWS` this grammar writes sits around the semicolon before a parameter"
+        )));
     }
     if protocol_id.is_empty() {
-        return Some(format!(
+        return Some(Defect::named(
+            &TOKEN_EMPTY,
+            format!(
                 "Alt-Svc alt-value '{shown}' has an empty protocol-id. `protocol-id` is a `token`, and `token` is `1*tchar`"
-            ));
+            ),
+        ));
     }
     if let Some(c) = crate::helpers::token::find_invalid_token_char(protocol_id) {
-        return Some(format!(
+        return Some(Defect::named(
+            token_character(c),
+            format!(
                 "Alt-Svc protocol-id '{}' holds {}, which is no `tchar`. An ALPN protocol name is an octet sequence with no constraints of its own, so anything a `token` will not carry is written percent-encoded",
                 shown_in_finding(protocol_id),
                 describe_char(c)
-            ));
+            ),
+        ));
     }
     if let Some(defect) = protocol_id_encoding_defect(protocol_id) {
-        return Some(format!(
-                "Alt-Svc protocol-id '{}' is not the one spelling this field allows for its ALPN protocol name: {defect}",
+        return Some(defect.in_context(|message| {
+            format!(
+                "Alt-Svc protocol-id '{}' is not the one spelling this field allows for its ALPN protocol name: {message}",
                 shown_in_finding(protocol_id)
-            ));
+            )
+        }));
     }
     if let Some(defect) = check_alt_authority(&shown, authority) {
         return Some(defect);
@@ -401,17 +588,11 @@ const RFC_7838_2: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-2",
     note: "Alternative Services Concepts: an alternative service is an ALPN protocol name, an RFC 3986 host and an RFC 3986 port, and the protocol name implies the transport the port is registered in",
 };
-const RFC_9110_5_6: crate::rules::SpecRef = crate::rules::SpecRef {
+const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
-    section: Some("5.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6",
-    note: "Common Rules for Defining Field Values: `token`, `quoted-string`, `OWS` and the `#rule` list construct this field's grammar is built from, and the sender's MUST NOT against empty list elements",
-};
-const RFC_3986_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2",
-    note: "Authority: `host` and `port`, the two productions the alt-authority's content is made of, and `pct-encoded` in §2.1",
+    section: Some("5.6.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
+    note: "Whitespace: `OWS`, which this field's grammar prints around its semicolon and around the list's commas — and, by printing it in exactly those two places, nowhere else. The four productions the grammar is otherwise built from are the subsections listed beside this one, each named by the defect it answers for",
 };
 const RFC_6335_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6335",
@@ -446,10 +627,20 @@ severity = "warn"
             RFC_7838_1_1,
             RFC_7838_8,
             RFC_7838_2,
-            RFC_9110_5_6,
-            RFC_3986_3_2,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_3,
+            RFC_9110_5_6_4,
+            RFC_3986_2_1,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
             RFC_6335_6,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -519,8 +710,8 @@ impl Rule for AltSvcHeaderSyntax {
             // separator after the stray DQUOTE stops being one, so the count of
             // members and the identity of each is a guess.
             if !quoting_is_balanced(value) {
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &QUOTED_STRING_DELIMITER_MISSING,
                     format!(
                         "Alt-Svc value '{}' has a DQUOTE that never closes. `alt-authority` is a `quoted-string` and a `parameter`'s value may be one, so an unterminated quote leaves every comma and semicolon after it inside a string that has no end",
                         shown_in_finding(value)
@@ -534,8 +725,8 @@ impl Rule for AltSvcHeaderSyntax {
             // was ruled out above -- so an empty value is neither.
             // cite(RFC 9110 § 5.6.1.2): "#element => [ element ] *( OWS "," OWS [ element ] )"
             if members.iter().all(|m| m.is_empty()) {
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &LIST_MEMBER_MISSING,
                     "Alt-Svc carries an empty field value. The field is either the keyword `clear` or `1#alt-value`, whose floor is one alternative -- so this value is neither, and it advertises nothing".into(),
                 ));
             }
@@ -559,16 +750,19 @@ impl Rule for AltSvcHeaderSyntax {
                     // now carries, and both put the requirement on the sender.
                     // cite(RFC 7838 § 1.1): "This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230]."
                     // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                    return Some(self.violation(
-                        severity,
+                    return Some(ctx.report_with(
+                        &LIST_MEMBER_EMPTY,
                         format!(
                             "Alt-Svc value '{}' holds an empty list element. A recipient counts the alternatives it can read and drops this one, so what the list advertises and what it looks like differ",
                             shown_in_finding(value)
                         ),
                     ));
                 }
-                if let Some(message) = check_alt_value(member) {
-                    return Some(self.violation(severity, message));
+                if let Some(defect) = check_alt_value(member) {
+                    return Some(match defect.def {
+                        Some(def) => ctx.report_with(def, defect.message),
+                        None => self.violation(severity, defect.message),
+                    });
                 }
             }
 
@@ -652,43 +846,119 @@ mod tests {
     /// Each branch's message is pinned, not merely its existence: a finding is
     /// written in two halves here (a verb phrase and the value it is about) and
     /// a test asserting `is_some` cannot see the two disagree.
+    ///
+    /// The third column is the defect the finding reports as, and the table
+    /// splits cleanly in two. A named row is a production RFC 7838 imports —
+    /// the list, the `token`, the `quoted-string`, the `uri-host`, the `port`,
+    /// the `pct-encoded` triplet — and the id is the one every other reader of
+    /// that production answers with. An empty row is a sentence RFC 7838 writes
+    /// about `Alt-Svc` and nothing else: which of its `=` delimiters are
+    /// mandatory, that it prints no whitespace beside them, how an ALPN name is
+    /// spelled, what `persist` means, and that `clear` is the whole value or
+    /// none of it.
     #[rstest]
-    #[case("h2=example.com:443", "unquoted alt-authority")]
-    #[case("h2=\"example.com\"", "no ':' in it")]
-    #[case("h2=\"example.com:\"", "carries the port's delimiter and no port")]
-    #[case("h2=\"example.com:notaport\"", "in its port")]
-    #[case("h2=\"example.com:65536\"", "sixteen-bit namespace")]
-    #[case("h2=\"exam ple.com:443\"", "is not a `uri-host`")]
-    #[case("h2example.com:443", "has no '=' in its alternative")]
-    #[case("h@=\":443\"", "which is no `tchar`")]
-    #[case("=\":443\"", "empty protocol-id")]
-    #[case("x%3dy=\":443\"", "lowercase hex digits")]
-    #[case("%68%32=\":443\"", "which is a `tchar` and so must appear as itself")]
-    #[case("x%zzy=\":443\"", "Invalid percent-encoding '%zz'")]
-    #[case("x%4=\":443\"", "Percent-encoding incomplete")]
-    #[case("h2 = \":443\"", "whitespace beside the '='")]
-    #[case("h2=\":443\"; persist=2", "sets persist to '2'")]
-    #[case("h2=\":443\"; persist=\"0\"", "sets persist to '0'")]
-    #[case("h2=\":443\"; ;", "semicolon with no parameter after it")]
-    #[case("h2=\":443\"; ma", "has no '='")]
-    #[case("h2=\":443\"; ma=", "has an empty value")]
-    #[case("h2=\":443\"; ma = 60", "whitespace beside its '='")]
-    #[case("h2=\":443\"; m@=60", "which is no `tchar`")]
-    #[case("h2=\":443\"; ma=6 0", "in an unquoted value")]
+    #[case(
+        "h2=example.com:443",
+        "unquoted alt-authority",
+        "quoted_string_delimiter_missing"
+    )]
+    #[case("h2=\"example.com\"", "no \':\' in it", "")]
+    #[case("h2=\"example.com:\"", "carries the port\'s delimiter and no port", "")]
+    #[case(
+        "h2=\"example.com:notaport\"",
+        "in its port",
+        "uri_port_character_forbidden"
+    )]
+    #[case("h2=\"example.com:65536\"", "sixteen-bit namespace", "")]
+    #[case(
+        "h2=\"exam ple.com:443\"",
+        "is not a `uri-host`",
+        "uri_host_character_forbidden"
+    )]
+    // The bracket has to close *somewhere* for the composition's split to find
+    // a port at all -- `[::1:443` with no `]` is a value with no colon after
+    // the literal, and the row above is what it draws. What reaches this defect
+    // is a `]` that is not where the host ends.
+    #[case(
+        "h2=\"[abc]x:443\"",
+        "is not a `uri-host`",
+        "uri_host_closing_bracket_missing"
+    )]
+    #[case(
+        "h2=\"[nope]:443\"",
+        "is not a `uri-host`",
+        "uri_host_ip_literal_malformed"
+    )]
+    #[case("h2=\"a]b:443\"", "is not a `uri-host`", "uri_host_bracket_forbidden")]
+    #[case("h2=\"a%zb:443\"", "is not a `uri-host`", "percent_encoding_malformed")]
+    #[case("h2example.com:443", "has no \'=\' in its alternative", "")]
+    #[case("h@=\":443\"", "which is no `tchar`", "token_character_forbidden")]
+    #[case("=\":443\"", "empty protocol-id", "token_empty")]
+    #[case("x%3dy=\":443\"", "lowercase hex digits", "")]
+    #[case(
+        "%68%32=\":443\"",
+        "which is a `tchar` and so must appear as itself",
+        ""
+    )]
+    #[case(
+        "x%zzy=\":443\"",
+        "Invalid percent-encoding \'%zz\'",
+        "percent_encoding_malformed"
+    )]
+    #[case(
+        "x%4=\":443\"",
+        "Percent-encoding incomplete",
+        "percent_encoding_digits_missing"
+    )]
+    #[case("h2 = \":443\"", "whitespace beside the \'=\'", "")]
+    #[case("h2=\":443\"; persist=2", "sets persist to \'2\'", "")]
+    #[case("h2=\":443\"; persist=\"0\"", "sets persist to \'0\'", "")]
+    #[case("h2=\":443\"; ;", "semicolon with no parameter after it", "")]
+    #[case("h2=\":443\"; ma", "has no \'=\'", "")]
+    #[case("h2=\":443\"; ma=", "has an empty value", "")]
+    #[case("h2=\":443\"; ma = 60", "whitespace beside its \'=\'", "")]
+    #[case(
+        "h2=\":443\"; m@=60",
+        "which is no `tchar`",
+        "token_character_forbidden"
+    )]
+    #[case("h2=\":443\"; =60", "has no name", "token_empty")]
+    #[case(
+        "h2=\":443\"; ma=6 0",
+        "in an unquoted value",
+        "token_whitespace_or_control_forbidden"
+    )]
+    #[case(
+        "h2=\":443\"; ma=6@0",
+        "in an unquoted value",
+        "token_character_forbidden"
+    )]
     #[case(
         "clear, h2=\":443\"",
-        "both the keyword `clear` and alternative services"
+        "both the keyword `clear` and alternative services",
+        ""
     )]
-    #[case("CLEAR", "case-sensitive string")]
-    #[case(",", "empty field value")]
-    #[case("h2=\":443\",", "empty list element")]
-    #[case("h2=\":443", "DQUOTE that never closes")]
-    fn each_branch_reports_what_it_is_about(#[case] header: &str, #[case] expected: &str) {
-        let m = message(header);
+    #[case("CLEAR", "case-sensitive string", "")]
+    #[case(",", "empty field value", "list_member_missing")]
+    #[case("h2=\":443\",", "empty list element", "list_member_empty")]
+    #[case(
+        "h2=\":443",
+        "DQUOTE that never closes",
+        "quoted_string_delimiter_missing"
+    )]
+    fn each_branch_reports_what_it_is_about(
+        #[case] header: &str,
+        #[case] expected: &str,
+        #[case] violation: &str,
+    ) {
+        let finding =
+            run(&[("alt-svc", header)]).unwrap_or_else(|| panic!("no finding for {header:?}"));
         assert!(
-            m.contains(expected),
-            "for {header:?} expected {expected:?} in {m:?}"
+            finding.message.contains(expected),
+            "for {header:?} expected {expected:?} in {:?}",
+            finding.message
         );
+        assert_eq!(finding.violation, violation, "for {header:?}");
     }
 
     /// `port = *DIGIT` has no bound, and the sixteen-bit one this rule applies

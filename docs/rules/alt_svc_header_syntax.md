@@ -41,8 +41,14 @@ parameter     = token "=" ( token / quoted-string )
 - [RFC 7838 §1.1](https://www.rfc-editor.org/rfc/rfc7838.html#section-1.1): Notational Conventions: the field's terminals — `OWS`, `port`, `quoted-string`, `token`, `uri-host` — and the `#rule` extension are imported from RFC 7230, whose §3.2.3, §2.7, §3.2.6 and §7 are carried unchanged by RFC 9110 §5.6.3, §4.1, §5.6.4, §5.6.2 and §5.6.1
 - [RFC 7838 §8](https://www.rfc-editor.org/rfc/rfc7838.html#section-8): Internationalization Considerations: an internationalized domain name in this field is written as A-labels
 - [RFC 7838 §2](https://www.rfc-editor.org/rfc/rfc7838.html#section-2): Alternative Services Concepts: an alternative service is an ALPN protocol name, an RFC 3986 host and an RFC 3986 port, and the protocol name implies the transport the port is registered in
-- [RFC 9110 §5.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6): Common Rules for Defining Field Values: `token`, `quoted-string`, `OWS` and the `#rule` list construct this field's grammar is built from, and the sender's MUST NOT against empty list elements
-- [RFC 3986 §3.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2): Authority: `host` and `port`, the two productions the alt-authority's content is made of, and `pct-encoded` in §2.1
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): The values a `1#element` production does not generate — the empty value among them — beside the recipient's instruction to ignore empty elements
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3): Whitespace: `OWS`, which this field's grammar prints around its semicolon and around the list's commas — and, by printing it in exactly those two places, nowhere else. The four productions the grammar is otherwise built from are the subsections listed beside this one, each named by the defect it answers for
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
+- [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2): Host — `host = IP-literal / IPv4address / reg-name`, where the square brackets of the IP literal are the only ones the URI syntax admits anywhere
+- [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string
 - [RFC 6335 §6](https://www.rfc-editor.org/rfc/rfc6335.html#section-6): Port Number Ranges: the sixteen-bit namespace that bounds the port, and the reserved edge values that are not thereby invalid
 
 ## Configuration
