@@ -28,8 +28,8 @@ Scope: this rule reads header sections — a request's and a response's — and 
 
 - [RFC 9110 §10.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.1): The field itself: its grammar, what the set of methods means, and the sentence that gives an empty field value a meaning rather than making it a defect
 - [RFC 9110 §A](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A): The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not, and where `method = token` is quotable
-- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The sender's half of the list construct — the empty-member finding. The recipient's half (§5.6.1.2, parse and ignore them) is a different party's requirement, which is why the lenient list reader is not used here
-- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): `token = 1*tchar`, transcribed once in `helpers::token::is_tchar`, and the delimiter set that makes splitting this field on every comma exact
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): A field value excludes the whitespace around it, so a value that is only whitespace is the empty value — and `obs-text` is an octet field content admits, which is why the value is read as octets rather than through a UTF-8 decode
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The sentence that makes a value outside its own grammar a violation, and the reason both halves of the exchange are measured: it addresses whoever generated the element
 

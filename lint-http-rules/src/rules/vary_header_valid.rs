@@ -4,6 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 /// Validate the `Vary` response header against RFC 9110 §12.5.5:
 /// `Vary = #( "*" / field-name )`. Each field-name must conform to the `token`
@@ -11,6 +17,22 @@ use crate::rules::{Rule, RuleMeta};
 /// zero-element list; `*` is an ordinary list member and may appear alongside
 /// field-names (RFC 7231's `"*" / 1#field-name` exclusivity was dropped).
 pub struct VaryHeaderValid;
+
+/// The same three `Allow` declares, for the same reason: `Vary = #( "*" /
+/// field-name )` is a list of `token`s and the field's own contribution is what
+/// the tokens *mean*, not what they may be. One rule reads methods and the
+/// other field names; a stray comma and an octet outside `tchar` are the same
+/// two defects in both.
+///
+/// The non-UTF-8 site is not converted, and the reason is at the site: the
+/// verdict names an encoding where the defect is an octet the field's grammar
+/// does not admit, and the right conversion is an octet-wise reader before a
+/// def. Four rules in this tree have already retired that claim.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -38,7 +60,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_12_5_5]
+        &[RFC_9110_12_5_5, RFC_9110_5_6_1_1, RFC_9110_5_6_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -111,11 +137,12 @@ impl Rule for VaryHeaderValid {
                 }
 
                 // An empty element within the list (trailing/leading/consecutive commas)
-                // is forbidden, unlike the empty whole value skipped above.
-                // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+                // is forbidden, unlike the empty whole value skipped above. The
+                // sentence that forbids it is on the def, where the twenty-odd
+                // other fields reporting a stray comma read the same one.
                 for raw in s.split(',') {
                     if raw.trim().is_empty() {
-                        return Some(self.violation(ctx.severity, "Vary header contains empty token (e.g., trailing or consecutive commas)".into()));
+                        return Some(ctx.report_with(&LIST_MEMBER_EMPTY, "Vary header contains empty token (e.g., trailing or consecutive commas)".into()));
                     }
                 }
 
@@ -139,8 +166,8 @@ impl Rule for VaryHeaderValid {
 
                     // Every other member is a field-name, i.e. a token.
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            token_character(c),
                             format!(
                                 "Vary header contains invalid field-name token character: '{}'",
                                 c
@@ -164,6 +191,50 @@ static REGISTRATION: &dyn crate::rules::Rule = &VaryHeaderValid;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// `Allow` and `Vary` are one grammar apart: `#method` against
+    /// `#( "*" / field-name )`, both lists of `token`s, and the field's own
+    /// contribution is what the tokens mean rather than what they may be. So a
+    /// stray comma and an octet outside `tchar` draw one id from each rule —
+    /// which is what a rule that owns none of its defects looks like from
+    /// outside.
+    #[test]
+    fn a_list_of_tokens_reports_the_same_two_defects_as_allow() {
+        let vary = |value: &str| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[("vary", value)]);
+            crate::test_helpers::run_rule(
+                &VaryHeaderValid,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_valid"]),
+            )
+            .expect("a finding")
+        };
+        let allow = |value: &str| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[("allow", value)]);
+            crate::test_helpers::run_rule(
+                &crate::rules::allow_header_method_tokens_valid::AllowHeaderMethodTokensValid,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "allow_header_method_tokens_valid",
+                ]),
+            )
+            .expect("a finding")
+        };
+
+        assert_eq!(
+            vary("accept-encoding,,user-agent").violation,
+            "list_member_empty"
+        );
+        assert_eq!(allow("GET,,POST").violation, "list_member_empty");
+        assert_eq!(vary("x@bad").violation, "token_character_forbidden");
+        assert_eq!(allow("PO@T").violation, "token_character_forbidden");
+    }
 
     #[rstest]
     #[case(None, false)]

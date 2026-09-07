@@ -7,8 +7,29 @@ use crate::helpers::list::sender_list_members;
 use crate::helpers::shown::{describe_octet, shown_in_finding};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct AllowHeaderMethodTokensValid;
+
+/// Both of this rule's findings, and neither is `Allow`'s. `Allow = #method`
+/// and `method = token`, so the field contributes the *meaning* — which methods
+/// a resource allows — and borrows the whole of its grammar: a stray comma is
+/// the list construct's defect and an octet no `tchar` admits is the token's.
+///
+/// A rule can be converted whole and own nothing, which is what a field defined
+/// as a list of one production looks like from the catalogue's side. The
+/// empty *value* is the third thing this rule reads and the one it does not
+/// report: § 10.2.1 gives it a meaning, so there is no defect to name.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 impl AllowHeaderMethodTokensValid {
     /// One field section's `Allow` value, measured against the production the
@@ -36,10 +57,8 @@ impl AllowHeaderMethodTokensValid {
         &self,
         value: &str,
         section: &str,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let violation = |message: String| Some(self.violation(severity, message));
-
         // The field's own production, in the form the collected grammar gives a
         // sender, and the two things it says about emptiness. The outer `[ ]` is why
         // an `Allow:` carrying nothing is not reported: the field is `#method` and
@@ -125,11 +144,14 @@ impl AllowHeaderMethodTokensValid {
                     (ch as u32) <= 0xFF,
                     "the value is one `char` per octet; a wider `char` would truncate into a different octet"
                 );
-                return violation(format!(
-                    "Allow in the {} header section: member '{}' contains {}, which is not a `tchar`, so it derives from no `token` and therefore from no `method`",
-                    section,
-                    shown_in_finding(member),
-                    describe_octet(ch as u8)
+                return Some(ctx.report_with(
+                    token_character(ch),
+                    format!(
+                        "Allow in the {} header section: member '{}' contains {}, which is not a `tchar`, so it derives from no `token` and therefore from no `method`",
+                        section,
+                        shown_in_finding(member),
+                        describe_octet(ch as u8)
+                    ),
                 ));
             }
         }
@@ -140,10 +162,13 @@ impl AllowHeaderMethodTokensValid {
             // string the sender wrote: an `Allow:` line beside an `Allow: GET` line
             // combines to `GET,`, whose comma is the join's. An operator grepping a
             // capture for the quoted text would otherwise find nothing.
-            return violation(format!(
-                "Allow in the {} header section holds an empty list element; the section's field lines combine to '{}'. A resource that allows no methods says so with an empty field value; a comma with nothing beside it says nothing",
-                section,
-                shown_in_finding(value)
+            return Some(ctx.report_with(
+                &LIST_MEMBER_EMPTY,
+                format!(
+                    "Allow in the {} header section holds an empty list element; the section's field lines combine to '{}'. A resource that allows no methods says so with an empty field value; a comma with nothing beside it says nothing",
+                    section,
+                    shown_in_finding(value)
+                ),
             ));
         }
 
@@ -165,18 +190,6 @@ const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("A"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
     note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not, and where `method = token` is quotable",
-};
-const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-    note: "The sender's half of the list construct — the empty-member finding. The recipient's half (§5.6.1.2, parse and ignore them) is a different party's requirement, which is why the lenient list reader is not used here",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note: "`token = 1*tchar`, transcribed once in `helpers::token::is_tchar`, and the delimiter set that makes splitting this field on every comma exact",
 };
 const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -219,6 +232,10 @@ severity = "error"
             RFC_9110_5_5,
             RFC_9110_2_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -328,13 +345,13 @@ impl Rule for AllowHeaderMethodTokensValid {
             }
 
             if let Some(value) = &request {
-                if let Some(v) = self.check_field_section(value, "request", ctx.severity) {
+                if let Some(v) = self.check_field_section(value, "request", ctx) {
                     return Some(v);
                 }
             }
 
             if let Some(value) = &response {
-                if let Some(v) = self.check_field_section(value, "response", ctx.severity) {
+                if let Some(v) = self.check_field_section(value, "response", ctx) {
                     return Some(v);
                 }
             }

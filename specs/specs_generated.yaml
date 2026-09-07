@@ -4903,7 +4903,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 229
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 32
+      line: 53
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 46
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
@@ -4929,7 +4929,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 132
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 86
+      line: 105
   - label: accept_patch_header_valid (5)
     section: § 5.6.1.2
     snippet: 'In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:'
@@ -5143,7 +5143,7 @@ sources:
     snippet: The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources.
     cited_by:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 34
+      line: 55
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 45
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
@@ -5157,7 +5157,7 @@ sources:
     snippet: An empty Allow field value indicates that the resource allows no methods, which might occur in a 405 response if the resource has been temporarily disabled by configuration.
     cited_by:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 60
+      line: 79
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 43
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
@@ -5167,13 +5167,13 @@ sources:
     snippet: The purpose of this field is strictly to inform the recipient of valid request methods associated with the resource.
     cited_by:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 33
+      line: 54
   - label: allow_header_method_tokens_valid (4)
     section: § 2.2
     snippet: A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules.
     cited_by:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 285
+      line: 302
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 292
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -5217,13 +5217,13 @@ sources:
     snippet: Allow = [ method *( OWS "," OWS method ) ]
     cited_by:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 59
+      line: 78
   - label: allow_header_method_tokens_valid (5)
     section: § A
     snippet: method = token minute = 2DIGIT
     cited_by:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 107
+      line: 126
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 312
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
@@ -6613,7 +6613,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 333
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 85
+      line: 104
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 561
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
@@ -6646,8 +6646,6 @@ sources:
       line: 68
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 151
-    - file: lint-http-rules/src/rules/vary_header_valid.rs
-      line: 115
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 274
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
@@ -7105,7 +7103,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 88
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 75
+      line: 94
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 133
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
@@ -7177,7 +7175,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 121
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
-      line: 61
+      line: 80
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 51
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
@@ -7517,7 +7515,7 @@ sources:
     - file: lint-http-rules/src/helpers/vary.rs
       line: 77
     - file: lint-http-rules/src/rules/vary_header_valid.rs
-      line: 96
+      line: 122
   - label: lint-http-rules/src/helpers/vary.rs
     section: § 5.3
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).
@@ -9119,7 +9117,7 @@ sources:
     snippet: The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.
     cited_by:
     - file: lint-http-rules/src/rules/vary_header_valid.rs
-      line: 91
+      line: 117
   - label: via_header_syntax
     section: § 4.1
     snippet: port = <port, see [URI], Section 3.2.3>
