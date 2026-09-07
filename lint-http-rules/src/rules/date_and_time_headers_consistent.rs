@@ -4,9 +4,26 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
+use crate::violations::ViolationDef;
 
 /// Validate Date, Last-Modified, If-Modified-Since and Sunset header consistency and formats.
 pub struct DateAndTimeHeadersConsistent;
+
+/// The one defect this rule reports about a timestamp itself; everything else
+/// it says is about two of them disagreeing.
+///
+/// This is the *recipient's* half of § 5.6.7 — `parse_http_date_to_datetime`
+/// accepts all three formats, so a failure here means no recipient could read
+/// the value at all, which is exactly what `http_date_malformed` names. The
+/// sender's half (an obsolete spelling, a padded one) belongs to the per-field
+/// format rules and is deliberately not asked here, so the two obsolete ids are
+/// not declared: this rule cannot reach them.
+///
+/// The non-UTF-8 lines stay on the older API: the verdict names an encoding
+/// where the defect is an octet the field's grammar does not admit, and the
+/// right conversion for such a site is an octet-wise reader before a def.
+static DECLARED: &[&ViolationDef] = &[&HTTP_DATE_MALFORMED];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -90,18 +107,17 @@ impl DateAndTimeHeadersConsistent {
     fn date_is_readable(
         &self,
         headers: &hyper::HeaderMap,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         match timestamp(headers, "date") {
             Timestamp::Absent | Timestamp::At(..) => None,
             Timestamp::Unreadable => Some(self.cited(
                 &RFC_9110_6_6_1,
-                severity,
+                ctx.severity,
                 "Date header contains non-UTF8 bytes and is invalid".into(),
             )),
-            Timestamp::Unparseable => Some(self.cited(
-                &RFC_9110_6_6_1,
-                severity,
+            Timestamp::Unparseable => Some(ctx.report_with(
+                &HTTP_DATE_MALFORMED,
                 "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
             )),
         }
@@ -152,22 +168,22 @@ impl DateAndTimeHeadersConsistent {
         date: chrono::DateTime<chrono::Utc>,
         date_text: &str,
         skew: chrono::Duration,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         headers
             .get_all("sunset")
             .iter()
             .find_map(|line| match Timestamp::of(line) {
                 Timestamp::Unreadable => Some(self.violation(
-                    severity,
+                    ctx.severity,
                     "Sunset header contains non-UTF8 bytes and is invalid".into(),
                 )),
-                Timestamp::Unparseable => Some(self.violation(
-                    severity,
+                Timestamp::Unparseable => Some(ctx.report_with(
+                    &HTTP_DATE_MALFORMED,
                     "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                 )),
                 Timestamp::At(sunset, text) if sunset <= date - skew => {
-                    Some(self.cited(&RFC_8594_3, severity, format!(
+                    Some(self.cited(&RFC_8594_3, ctx.severity, format!(
                         "Sunset header '{}' is before or equal to Date '{}'; Sunset should indicate a future shutdown date",
                         text, date_text
                     )))
@@ -232,7 +248,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_6_6_1, RFC_9110_8_8_2, RFC_9110_13_1_3, RFC_8594_3]
+        &[
+            RFC_9110_6_6_1,
+            RFC_9110_8_8_2,
+            RFC_9110_13_1_3,
+            RFC_8594_3,
+            RFC_9110_5_6_7,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -279,12 +305,12 @@ impl Rule for DateAndTimeHeadersConsistent {
             let skew = chrono::Duration::seconds(ALLOWED_SKEW_SECS);
             let severity = ctx.severity;
 
-            if let Some(v) = self.date_is_readable(&tx.request.headers, severity) {
+            if let Some(v) = self.date_is_readable(&tx.request.headers, ctx) {
                 return Some(v);
             }
 
             if let Some(resp) = &tx.response {
-                if let Some(v) = self.date_is_readable(&resp.headers, severity) {
+                if let Some(v) = self.date_is_readable(&resp.headers, ctx) {
                     return Some(v);
                 }
                 // The two comparisons below are against Date, so they are asked
@@ -301,7 +327,7 @@ impl Rule for DateAndTimeHeadersConsistent {
                         return Some(v);
                     }
                     if let Some(v) =
-                        self.sunset_is_after_date(&resp.headers, date, date_text, skew, severity)
+                        self.sunset_is_after_date(&resp.headers, date, date_text, skew, ctx)
                     {
                         return Some(v);
                     }
@@ -322,6 +348,74 @@ static REGISTRATION: &dyn crate::rules::Rule = &DateAndTimeHeadersConsistent;
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// Three fields, four sites, one id. `Date` and `Sunset` are read here,
+    /// `Sunset` again by `sunset_and_deprecation_consistent` out of a body that
+    /// shares no line with this one, and `Expires` by
+    /// `cookie_attribute_consistent` through a cookie attribute walk. All four
+    /// ask the *recipient's* question — can this value be read as a timestamp
+    /// at all — so all four answer `http_date_malformed`.
+    ///
+    /// The two `Sunset` readings are also one of S6's fourteen duplicate
+    /// templates: byte-identical prose from two rules, which until now was two
+    /// findings under two names and is now two findings under one.
+    #[test]
+    fn a_timestamp_no_recipient_can_read_is_one_defect_in_three_fields() {
+        let response = |pairs: &[(&str, &str)]| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(pairs);
+            tx
+        };
+        let here = |pairs: &[(&str, &str)]| {
+            crate::test_helpers::run_rule(
+                &DateAndTimeHeadersConsistent,
+                &response(pairs),
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "date_and_time_headers_consistent",
+                ]),
+            )
+            .expect("a finding")
+        };
+        let readable_date = ("date", "Wed, 21 Oct 2015 07:28:00 GMT");
+
+        assert_eq!(
+            here(&[("date", "not-a-date")]).violation,
+            "http_date_malformed"
+        );
+        let sunset_here = here(&[readable_date, ("sunset", "not-a-date")]);
+        assert_eq!(sunset_here.violation, "http_date_malformed");
+
+        let sunset = crate::test_helpers::run_rule(
+            &crate::rules::sunset_and_deprecation_consistent::SunsetAndDeprecationConsistent,
+            &response(&[("sunset", "not-a-date")]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "sunset_and_deprecation_consistent",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(sunset.violation, "http_date_malformed");
+
+        let expires = crate::test_helpers::run_rule(
+            &crate::rules::cookie_attribute_consistent::CookieAttributeConsistent,
+            &response(&[("set-cookie", "id=1; Expires=not-a-date")]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "cookie_attribute_consistent",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(expires.violation, "http_date_malformed");
+
+        // The duplicate template, still duplicated — the id is what makes the
+        // pair visible, and collapsing it is Phase 5's decision, not this
+        // commit's.
+        assert_eq!(sunset_here.message, sunset.message);
+        // And a rule that reads another field still names it.
+        assert_ne!(sunset.message, expires.message);
+    }
 
     #[rstest]
     #[case(Some(vec![("date", "not-a-date")] ), true)]

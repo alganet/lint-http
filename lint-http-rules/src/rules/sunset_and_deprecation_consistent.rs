@@ -4,9 +4,26 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
+use crate::violations::ViolationDef;
 use chrono::TimeZone;
 
 pub struct SunsetAndDeprecationConsistent;
+
+/// The one defect this rule reports about a value, rather than about two
+/// values disagreeing — and it is the same id
+/// `date_and_time_headers_consistent` reports for the same field, out of two
+/// code paths that share nothing but the helper they parse with.
+///
+/// `parse_http_date_to_datetime` is the recipient's parse, so a failure means
+/// no recipient could read the value at all. The sender's obligation — the
+/// IMF-fixdate a `Sunset` should be written in — is asked by neither rule, so
+/// neither declares the two ids that answer it.
+///
+/// The `Deprecation` half is a Structured Field `Date` and not an `HTTP-date`,
+/// so nothing here answers for it; its non-UTF-8 line stays on the older API
+/// for the reason every such site does.
+static DECLARED: &[&ViolationDef] = &[&HTTP_DATE_MALFORMED];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -56,7 +73,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_8594_3, RFC_9745_2_1, RFC_9745_4, RFC_9651_3_3_7]
+        &[
+            RFC_8594_3,
+            RFC_9745_2_1,
+            RFC_9745_4,
+            RFC_9651_3_3_7,
+            RFC_9110_5_6_7,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -103,9 +130,8 @@ impl Rule for SunsetAndDeprecationConsistent {
                 Some(s) => match crate::http_date::parse_http_date_to_datetime(s) {
                     Ok(dt) => Some((s.to_string(), dt)),
                     Err(_) => {
-                        return Some(self.cited(
-                            &RFC_8594_3,
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &HTTP_DATE_MALFORMED,
                             "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
                         ));
                     }

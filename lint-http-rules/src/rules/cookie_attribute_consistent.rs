@@ -4,8 +4,22 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
+use crate::violations::ViolationDef;
 
 pub struct CookieAttributeConsistent;
+
+/// The one attribute this rule reads through a production another field
+/// already owns. `sane-cookie-date` is RFC 6265's name for the timestamp RFC
+/// 9110 § 5.6.7 writes, so a `Expires` a recipient cannot read is the same
+/// defect a `Date` or a `Sunset` a recipient cannot read is — and the rule
+/// keeps every other finding of its own, because the rest of a `cookie-av` is
+/// the cookie's grammar and nothing else's.
+///
+/// The remaining sixteen sites are not converted: the cookie-pair, the
+/// `Max-Age` integer and the `SameSite` values are subjects nothing has
+/// written, and the non-UTF-8 line is the family open question 1 refuses.
+static DECLARED: &[&ViolationDef] = &[&HTTP_DATE_MALFORMED];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -35,12 +49,6 @@ const MDN_SET_COOKIE: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie",
     note: "SameSite cookies (SameSite=None should be Secure) — browser compatibility guidance on `SameSite` usage",
 };
-const RFC_9110_5_6_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.7"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.7",
-    note: "HTTP-date (IMF-fixdate) — used for the `Expires` attribute",
-};
 
 impl CookieAttributeConsistent {
     /// The first defect in one `Set-Cookie` field line, if it has one.
@@ -49,7 +57,14 @@ impl CookieAttributeConsistent {
     /// different grammars: the pair is judged here, each attribute by
     /// [`Self::attribute_defect`], and the one question that needs both — a
     /// `SameSite=None` cookie that is not `Secure` — after the walk.
-    fn set_cookie_defect(&self, line: &str, severity: crate::lint::Severity) -> Option<Violation> {
+    fn set_cookie_defect(
+        &self,
+        line: &str,
+        ctx: &crate::rules::RuleContext<'_>,
+    ) -> Option<Violation> {
+        // The unconverted branches read the rule's own severity, exactly as
+        // they did before the context was threaded through.
+        let severity = ctx.severity;
         let (pair, attributes) = crate::helpers::cookie::split_set_cookie(line);
         if pair.is_empty() {
             return Some(self.violation(severity, "Set-Cookie header missing cookie-pair".into()));
@@ -71,7 +86,7 @@ impl CookieAttributeConsistent {
         let mut secure_present = false;
         let mut same_site: Option<String> = None;
         for attribute in attributes {
-            if let Some(defect) = self.attribute_defect(&attribute, severity) {
+            if let Some(defect) = self.attribute_defect(&attribute, ctx) {
                 return Some(defect);
             }
             // Past the defect check the values are known good, so what is
@@ -104,8 +119,9 @@ impl CookieAttributeConsistent {
     fn attribute_defect(
         &self,
         attribute: &crate::helpers::cookie::Attribute<'_>,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
+        let severity = ctx.severity;
         // The two flag attributes: the grammar admits no "=", so the attribute
         // is its own presence and a value written after it is a defect.
         // cite(RFC 6265 § 4.1.1): "secure-av         = "Secure""
@@ -177,11 +193,15 @@ impl CookieAttributeConsistent {
                     "Set-Cookie attribute 'Expires' requires a HTTP-date value".into(),
                 ));
             };
+            // `sane-cookie-date` is the timestamp § 5.6.7 writes, under RFC
+            // 6265's name for it, so what is wrong with an unreadable `Expires`
+            // is not a fact about cookies. This is the recipient's parse — the
+            // one § 5.6.7 obliges every reader to perform — so a failure means
+            // the attribute names no instant at all.
             // cite(RFC 6265 § 4.1.1): "expires-av        = "Expires=" sane-cookie-date"
             return (!crate::http_date::is_valid_http_date(value)).then(|| {
-                self.cited(
-                    &RFC_6265_4_1_1,
-                    severity,
+                ctx.report_with(
+                    &HTTP_DATE_MALFORMED,
                     format!(
                         "Set-Cookie attribute 'Expires' is not a valid HTTP-date: '{}'",
                         value
@@ -261,6 +281,10 @@ severity = "warn"
         ]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -317,7 +341,7 @@ impl Rule for CookieAttributeConsistent {
                         ctx.severity,
                         "Set-Cookie header value is not valid UTF-8".into(),
                     )),
-                    Ok(line) => self.set_cookie_defect(line, ctx.severity),
+                    Ok(line) => self.set_cookie_defect(line, ctx),
                 })
         };
         Vec::from_iter(finding())
