@@ -5,15 +5,15 @@
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::uri::{
-    authority_component, check_percent_encoding, find_non_uri_char, scheme_authority_marker,
+    authority_component, find_non_uri_char, percent_encoding_defect, scheme_authority_marker,
     scheme_prefix, split_host_and_port, split_userinfo, validate_host_and_optional_port,
     validate_scheme_name,
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
-    RFC_3986_3_1, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
-    URI_SCHEME_LEADING_LETTER_MISSING,
+    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1, RFC_3986_3_1,
+    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -33,6 +33,8 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
 ];
 
 /// The value as a finding may print it: escaped, and with the password half of a
@@ -123,12 +125,6 @@ const RFC_3986_4_4: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.4"),
     url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-4.4",
     note: "Same-Document Reference — what an empty value is",
-};
-const RFC_3986_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
-    note: "Percent-Encoding — the triplet the `%` obliges",
 };
 
 impl RuleMeta for RefererUriValid {
@@ -350,11 +346,17 @@ impl Rule for RefererUriValid {
                 ));
             }
 
-            if let Some(msg) = check_percent_encoding(value) {
-                return violation(format!(
-                    "Referer value '{}' is not a well-formed URI reference: {}",
-                    shown_referer(value),
-                    msg
+            // The triplet is `pct-encoded`'s, which every URI component and
+            // every field carrying one reads the same way, so the id is the
+            // production's and the sentence naming the field stays here.
+            if let Some(defect) = percent_encoding_defect(value) {
+                return Some(ctx.report_with(
+                    crate::violations::uri::percent_encoding(defect),
+                    format!(
+                        "Referer value '{}' is not a well-formed URI reference: {}",
+                        shown_referer(value),
+                        defect.message()
+                    ),
                 ));
             }
 

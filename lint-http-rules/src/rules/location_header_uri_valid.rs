@@ -6,8 +6,24 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::shown::describe_octet;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
+};
+use crate::violations::ViolationDef;
 
 pub struct LocationHeaderUriValid;
+
+/// The triplet's two defects, which is what `Location = URI-reference` borrows
+/// before anything else.
+///
+/// § 10.2.2 defines the field as one production of another document and adds a
+/// Note about why it cannot be a list; it writes no grammar of its own, so every
+/// character question this rule asks belongs to RFC 3986. The percent triplet is
+/// the part of it that has a subject today.
+static DECLARED: &[&ViolationDef] = &[
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -76,7 +92,12 @@ severity = "warn"
             RFC_9110_5_5,
             RFC_3986_2,
             RFC_3986_4_1,
+            RFC_3986_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -250,8 +271,11 @@ impl Rule for LocationHeaderUriValid {
 
             // `%` passed the alphabet check because it opens a triplet; whether it
             // actually does is the triplet's own production, and the helper carries it.
-            if let Some(msg) = crate::helpers::uri::check_percent_encoding(value) {
-                return violation(msg);
+            if let Some(defect) = crate::helpers::uri::percent_encoding_defect(value) {
+                return Some(ctx.report_with(
+                    crate::violations::uri::percent_encoding(defect),
+                    defect.message(),
+                ));
             }
 
             // Only the `URI` alternative has a scheme; the helper is a no-op on a
