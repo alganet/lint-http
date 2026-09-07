@@ -11,8 +11,84 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct SecWebsocketExtensionsSyntax;
+
+/// Six defs over two subjects, and this field's own list construct is
+/// deliberately not among them.
+///
+/// `extension-token = registered-token = token` and `extension-param = token [
+/// "=" (token | quoted-string) ]`, so the name, the parameter name and an
+/// unquoted parameter value are all `token` — and § 9.1 goes further than most
+/// fields do, requiring the value *after* `quoted-string` unescaping to conform
+/// to `token` as well. That is the same id at five positions of one member.
+///
+/// **The `1#extension` floor and the null element are not the list subject's,
+/// and the reason is which document writes the construct.** This grammar's
+/// `#rule` is RFC 2616's, which *permits* null elements and requires one
+/// non-null; RFC 9110's forbids them outright. `list_member_empty` reports a
+/// sender's MUST NOT that does not apply here, so a field allowing what it
+/// forbids must not borrow it — and the floor, though it says the same thing,
+/// is stated by a different document for a different construct. Both findings
+/// stay in this rule's words.
+///
+/// The parameter that is nothing at all — a `;` with nothing after it — is this
+/// grammar's own repetition group and stays unnamed beside them.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
+
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled. The unnamed half here is everything
+/// RFC 2616's notation owns: the list construct, its null elements, and the
+/// repetition group a `;` opens.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed, reported at the rule's severity the way
+    /// every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+
+    /// The same defect with its message read from further out — the direction
+    /// and the field's name.
+    fn in_context(self, context: impl FnOnce(String) -> String) -> Self {
+        Self {
+            def: self.def,
+            message: context(self.message),
+        }
+    }
+}
 
 /// Why one `extension` derives from no production.
 ///
@@ -33,7 +109,7 @@ pub struct SecWebsocketExtensionsSyntax;
 ///
 /// cite(RFC 6455 § 9.1, label: Sec-WebSocket-Extensions grammar): "Sec-WebSocket-Extensions = extension-list extension-list = 1#extension extension = extension-token *( ";" extension-param ) extension-token = registered-token registered-token = token extension-param = token [ "=" (token | quoted-string) ]"
 /// cite(RFC 2616 § 2.1): "Except where noted otherwise, linear white space (LWS) can be included between any two adjacent words (token or quoted-string), and between adjacent words and separators, without changing the interpretation of a field."
-fn extension_defect(member: &str) -> Option<String> {
+fn extension_defect(member: &str) -> Option<Defect> {
     let mut parts = split_semicolons_respecting_quotes(member).into_iter();
     let token = parts.next().unwrap_or("");
 
@@ -44,17 +120,24 @@ fn extension_defect(member: &str) -> Option<String> {
     //
     // cite(RFC 6455 § 9.1): "Any extension-token used MUST be a registered token (see Section 11.4)."
     if token.is_empty() {
-        return Some(format!(
-            "member '{}' names no extension: an extension is an extension-token, which is a token \
-             of at least one character, optionally followed by \";\"-separated parameters",
-            shown_in_finding(member)
+        return Some(Defect::named(
+            &TOKEN_EMPTY,
+            format!(
+                "member '{}' names no extension: an extension is an extension-token, which is a \
+                 token of at least one character, optionally followed by \";\"-separated \
+                 parameters",
+                shown_in_finding(member)
+            ),
         ));
     }
     if let Some(c) = find_invalid_token_char(token) {
-        return Some(format!(
-            "member '{}' has an extension-token holding '{}'; an extension-token is a token",
-            shown_in_finding(member),
-            c.escape_debug()
+        return Some(Defect::named(
+            token_character(c),
+            format!(
+                "member '{}' has an extension-token holding '{}'; an extension-token is a token",
+                shown_in_finding(member),
+                c.escape_debug()
+            ),
         ));
     }
 
@@ -64,11 +147,11 @@ fn extension_defect(member: &str) -> Option<String> {
         // null-element permission is the `#rule`'s, and the `#rule` here is the
         // comma-separated list of extensions above.
         if param.is_empty() {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "member '{}' has an empty parameter: every \";\" in an extension is followed by an \
                  extension-param, which begins with a token",
                 shown_in_finding(member)
-            ));
+            )));
         }
 
         // The `=` is optional, and where it is absent the parameter is a bare
@@ -82,17 +165,23 @@ fn extension_defect(member: &str) -> Option<String> {
         };
 
         if name.is_empty() {
-            return Some(format!(
-                "member '{}' has a parameter with no name before its \"=\"; an extension-param \
-                 begins with a token",
-                shown_in_finding(member)
+            return Some(Defect::named(
+                &TOKEN_EMPTY,
+                format!(
+                    "member '{}' has a parameter with no name before its \"=\"; an extension-param \
+                     begins with a token",
+                    shown_in_finding(member)
+                ),
             ));
         }
         if let Some(c) = find_invalid_token_char(name) {
-            return Some(format!(
-                "member '{}' has a parameter name holding '{}'; a parameter name is a token",
-                shown_in_finding(member),
-                c.escape_debug()
+            return Some(Defect::named(
+                token_character(c),
+                format!(
+                    "member '{}' has a parameter name holding '{}'; a parameter name is a token",
+                    shown_in_finding(member),
+                    c.escape_debug()
+                ),
             ));
         }
 
@@ -120,52 +209,71 @@ fn extension_defect(member: &str) -> Option<String> {
             let unescaped = match unescape_quoted_string(value) {
                 Ok(unescaped) => unescaped,
                 Err(_) if quoted_string_interior(value).is_none() => {
-                    return Some(format!(
-                        "member '{}' has a parameter value opening with a quotation mark that \
-                         never closes",
-                        shown_in_finding(member)
+                    return Some(Defect::named(
+                        &QUOTED_STRING_DELIMITER_MISSING,
+                        format!(
+                            "member '{}' has a parameter value opening with a quotation mark that \
+                             never closes",
+                            shown_in_finding(member)
+                        ),
                     ))
                 }
                 Err(defect) => {
-                    let defect = defect.message(value);
-                    return Some(format!(
-                        "member '{}' has a parameter whose quoted-string value is malformed: {defect}",
-                        shown_in_finding(member)
+                    let rendered = defect.message(value);
+                    return Some(Defect::named(
+                        quoted_string_defect(defect),
+                        format!(
+                            "member '{}' has a parameter whose quoted-string value is malformed: \
+                             {rendered}",
+                            shown_in_finding(member)
+                        ),
                     ));
                 }
             };
             if unescaped.is_empty() {
-                return Some(format!(
-                    "member '{}' has a parameter whose quoted-string value unescapes to nothing, \
-                     and the value after unescaping must conform to the token ABNF, which is at \
-                     least one character",
-                    shown_in_finding(member)
+                return Some(Defect::named(
+                    &TOKEN_EMPTY,
+                    format!(
+                        "member '{}' has a parameter whose quoted-string value unescapes to \
+                         nothing, and the value after unescaping must conform to the token ABNF, \
+                         which is at least one character",
+                        shown_in_finding(member)
+                    ),
                 ));
             }
             if let Some(c) = find_invalid_token_char(&unescaped) {
-                return Some(format!(
-                    "member '{}' has a parameter whose quoted-string value unescapes to '{}', \
-                     holding '{}'; the value after unescaping must conform to the token ABNF",
-                    shown_in_finding(member),
-                    shown_in_finding(&unescaped),
-                    c.escape_debug()
+                return Some(Defect::named(
+                    token_character(c),
+                    format!(
+                        "member '{}' has a parameter whose quoted-string value unescapes to '{}', \
+                         holding '{}'; the value after unescaping must conform to the token ABNF",
+                        shown_in_finding(member),
+                        shown_in_finding(&unescaped),
+                        c.escape_debug()
+                    ),
                 ));
             }
             continue;
         }
 
         if value.is_empty() {
-            return Some(format!(
+            // The alternation's empty value, which the catalogue declines: six
+            // fields settled that verdict four different ways and two of them
+            // tolerate it outright.
+            return Some(Defect::unnamed(format!(
                 "member '{}' has a parameter whose \"=\" is followed by no value; the alternation \
                  is a token or a quoted-string, and neither derives the empty string",
                 shown_in_finding(member)
-            ));
+            )));
         }
         if let Some(c) = find_invalid_token_char(value) {
-            return Some(format!(
-                "member '{}' has a parameter value holding '{}'; an unquoted value is a token",
-                shown_in_finding(member),
-                c.escape_debug()
+            return Some(Defect::named(
+                token_character(c),
+                format!(
+                    "member '{}' has a parameter value holding '{}'; an unquoted value is a token",
+                    shown_in_finding(member),
+                    c.escape_debug()
+                ),
             ));
         }
     }
@@ -193,7 +301,7 @@ impl SecWebsocketExtensionsSyntax {
     /// cite(RFC 6455 § 9.1): "Note that this section is using ABNF syntax/rules from [RFC2616], including the "implied *LWS rule"."
     /// cite(RFC 2616 § 2.1): "Wherever this construct is used, null elements are allowed, but do not contribute to the count of elements present."
     /// cite(RFC 2616 § 2.1): "Therefore, where at least one element is required, at least one non-null element MUST be present."
-    fn defect(headers: &hyper::HeaderMap, direction: &str) -> Option<String> {
+    fn defect(headers: &hyper::HeaderMap, direction: &str) -> Option<Defect> {
         let value = combined_field_value_as_written(headers, "sec-websocket-extensions")?;
 
         // Asked before the split, because a quote that never closes makes every
@@ -201,10 +309,13 @@ impl SecWebsocketExtensionsSyntax {
         // the list the sender wrote, and a finding about a member it invented
         // would name the wrong octet.
         if !quoting_is_balanced(&value) {
-            return Some(format!(
-                "{direction} Sec-WebSocket-Extensions has a quotation mark that never closes: \
-                 '{}'",
-                shown_in_finding(&value)
+            return Some(Defect::named(
+                &QUOTED_STRING_DELIMITER_MISSING,
+                format!(
+                    "{direction} Sec-WebSocket-Extensions has a quotation mark that never closes: \
+                     '{}'",
+                    shown_in_finding(&value)
+                ),
             ));
         }
 
@@ -212,12 +323,16 @@ impl SecWebsocketExtensionsSyntax {
 
         // cite(RFC 6455 § 9.1): "If a value is received by either the client or the server during negotiation that does not conform to the ABNF below, the recipient of such malformed data MUST immediately _Fail the WebSocket Connection_."
         if members.iter().all(|m| m.is_empty()) {
-            return Some(format!(
+            // Not `list_member_missing`: that def carries RFC 9110 § 5.6.1.2's
+            // worked example, and the construct here is RFC 2616's, which
+            // permits the null elements RFC 9110 forbids. Same words, different
+            // document, different list.
+            return Some(Defect::unnamed(format!(
                 "{direction} Sec-WebSocket-Extensions names no extension: '{}'. The field is \
                  `1#extension`, and RFC 2616's list construct — the one this grammar uses — allows \
                  null elements but requires at least one that is not",
                 shown_in_finding(&value)
-            ));
+            )));
         }
 
         for member in members {
@@ -227,7 +342,9 @@ impl SecWebsocketExtensionsSyntax {
                 continue;
             }
             if let Some(defect) = extension_defect(member) {
-                return Some(format!("{direction} Sec-WebSocket-Extensions {defect}"));
+                return Some(defect.in_context(|message| {
+                    format!("{direction} Sec-WebSocket-Extensions {message}")
+                }));
             }
         }
 
@@ -279,7 +396,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6455_9_1, RFC_2616_2_1, RFC_6455_11_4]
+        &[
+            RFC_6455_9_1,
+            RFC_2616_2_1,
+            RFC_6455_11_4,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -339,12 +466,15 @@ impl Rule for SecWebsocketExtensionsSyntax {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
+            let defect = Self::defect(&tx.request.headers, "Request").or_else(|| {
                 let resp = tx.response.as_ref()?;
                 Self::defect(&resp.headers, "Response")
             })?;
 
-            Some(self.violation(ctx.severity, message))
+            Some(match defect.def {
+                Some(def) => ctx.report_with(def, defect.message),
+                None => self.violation(ctx.severity, defect.message),
+            })
         };
         Vec::from_iter(finding())
     }
@@ -371,6 +501,38 @@ mod tests {
     /// §9.1 prints its own example as two field lines that are one list, and a
     /// value carrying `obs-text` is not a string a Rust source file can stand
     /// in for.
+    /// One `token` at five positions of one member, and the list construct
+    /// that is not the list subject's.
+    ///
+    /// `extension-token`, a parameter name, an unquoted parameter value and —
+    /// uniquely in this tree — the value a `quoted-string` unescapes *to* are
+    /// all measured against the same production, because § 9.1 says the
+    /// unescaped value must conform to `token` in as many words. The
+    /// `quoted-string` itself reports the shared ids too.
+    ///
+    /// What does not convert is asserted here as well: this field's `#rule` is
+    /// RFC 2616's, which permits the null elements RFC 9110's forbids, so
+    /// neither list id may be borrowed however alike the sentences read.
+    #[test]
+    fn the_token_is_the_same_token_at_five_positions() {
+        let id = |line: &[u8]| {
+            extensions(Section::Request, &[line])
+                .expect("a finding")
+                .violation
+        };
+
+        assert_eq!(id(b"perm@essage-deflate"), "token_character_forbidden");
+        assert_eq!(id(b"x;na@me=1"), "token_character_forbidden");
+        assert_eq!(id(b"x;name=va@lue"), "token_character_forbidden");
+        // The one § 9.1 adds: the value *after* unescaping is a token too.
+        assert_eq!(id(br#"x;name="va@lue""#), "token_character_forbidden");
+        assert_eq!(id(b";name=1"), "token_empty");
+        assert_eq!(id(br#"x;name="a"#), "quoted_string_delimiter_missing");
+
+        // RFC 2616's list construct, which permits what RFC 9110's forbids.
+        assert_eq!(id(b","), "");
+    }
+
     fn extensions(section: Section, lines: &[&[u8]]) -> Option<Violation> {
         let rule = SecWebsocketExtensionsSyntax;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(101, &[]);
