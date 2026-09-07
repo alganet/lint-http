@@ -31,8 +31,8 @@ Scope: this rule reads header sections — a request's and a response's — and 
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade — the field's own section, where `protocol`, `protocol-name` and `protocol-version` are printed, both directions are licensed to carry the field, and the registry is named as advice
 - [RFC 9110 §A](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A): The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not
 - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): Field Values — that a value is in the format its field's grammar defines, which is what makes a malformed member a finding at all, and that the value's own ends carry no whitespace
-- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The sender's half of the list construct: the empty member is its MUST NOT, and the `#element` expansion is why an empty value is not
-- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): `token` and `tchar`: what both halves of a protocol are made of, and the delimiters they exclude
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 - [RFC 9110 §16.7](https://www.rfc-editor.org/rfc/rfc9110.html#section-16.7): The Upgrade Token Registry — First Come First Served, which is why no protocol name is compared against a list here
 - [RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2): Several `Upgrade` lines in one field section are one field value, so the members are counted after the lines are joined
 
