@@ -1059,8 +1059,20 @@ severity = "warn"
 # Authentication scheme holds a character outside token
 severity = "warn"
 
+[violations.base64_character_forbidden]
+# Value holds an octet outside the base64 alphabet
+severity = "warn"
+
 [violations.base64_malformed]
 # Value is not a base64 encoding
+severity = "warn"
+
+[violations.base64_pad_bits_invalid]
+# Final base64 symbol carries bits a conforming encoder zeroes
+severity = "info"
+
+[violations.base64_quantum_malformed]
+# Value is not a whole number of base64 groups
 severity = "warn"
 
 [violations.basic_credentials_control_character_forbidden]

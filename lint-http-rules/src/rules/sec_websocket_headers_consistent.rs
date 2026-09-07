@@ -9,8 +9,63 @@ use crate::helpers::shown::{describe_octet, shown_in_finding};
 use crate::helpers::websocket::{sec_websocket_key_defect, version_production_defect};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::base64::{
+    sec_websocket_key_defect as key_violation, BASE64_CHARACTER_FORBIDDEN, BASE64_PAD_BITS_INVALID,
+    BASE64_QUANTUM_MALFORMED, RFC_4648_3_3, RFC_4648_3_5, RFC_4648_4,
+};
+use crate::violations::ViolationDef;
 
 pub struct SecWebsocketHeadersConsistent;
+
+/// The three ways a `Sec-WebSocket-Key` can fail to be an encoding, none of
+/// which is a fact about WebSockets.
+///
+/// `Sec-WebSocket-Key = base64-value-non-empty`, and RFC 6455 hands the
+/// encoding to RFC 4648 without restating a character of it — so an octet
+/// outside the alphabet, a symbol count no group of twenty-four bits accounts
+/// for, and a final symbol whose discarded bits are not zero are the same three
+/// defects an `Authorization: Basic` value can have. What is left is the
+/// field's own sentence — the nonce is sixteen octets, and the field has to be
+/// there at all — and both of those stay in this rule's words: they belong to a
+/// `sec_websocket_key` subject nothing has written, and a subject with one
+/// reader is written when it is read twice.
+///
+/// The other three readings this rule makes — `Connection`, the version, the
+/// subprotocol list — are untouched here and say so through their type: an
+/// unnamed [`Defect`] is a finding no subject has claimed.
+static DECLARED: &[&ViolationDef] = &[
+    &BASE64_CHARACTER_FORBIDDEN,
+    &BASE64_QUANTUM_MALFORMED,
+    &BASE64_PAD_BITS_INVALID,
+];
+
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled and `warning_header_syntax` reused: a
+/// judge that is half converted says so in its type rather than being split in
+/// two. Here the unnamed half is everything this rule reads that is not an
+/// encoding.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed yet, reported at the rule's severity the
+    /// way every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+}
 
 impl SecWebsocketHeadersConsistent {
     /// The `Connection` half of the handshake: the field has to be there and it has
@@ -87,17 +142,29 @@ impl SecWebsocketHeadersConsistent {
     /// What is wrong with the value is asked of the production's owner, which is
     /// also what `Sec-WebSocket-Accept` is derived through -- so the handshake is
     /// judged from one reading of the key rather than two.
+    ///
+    /// Three of the four verdicts are the encoding's and carry its ids; the
+    /// fourth is a well-formed encoding of the wrong number of octets, which is
+    /// this field's own sentence and is left unnamed. The field being absent
+    /// altogether is the same field's sentence and is left unnamed beside it —
+    /// one commit will write both, or neither.
     // cite(RFC 6455 § 4.1): "The request MUST include a header field with the name |Sec-WebSocket-Key|."
-    fn key_defect(headers: &hyper::HeaderMap) -> Option<String> {
+    fn key_defect(headers: &hyper::HeaderMap) -> Option<Defect> {
         let Some(raw) = combined_field_value_as_written(headers, "sec-websocket-key") else {
-            return Some("the request carries no Sec-WebSocket-Key header field".into());
+            return Some(Defect::unnamed(
+                "the request carries no Sec-WebSocket-Key header field".into(),
+            ));
         };
         let defect = sec_websocket_key_defect(&raw)?;
-        Some(format!(
+        let message = format!(
             "its Sec-WebSocket-Key is `{}`, which is not the nonce the field is defined as: {}",
             shown_in_finding(trim_ows(&raw)),
             defect
-        ))
+        );
+        Some(match key_violation(&defect) {
+            Some(def) => Defect::named(def, message),
+            None => Defect::unnamed(message),
+        })
     }
 
     /// The optional `Sec-WebSocket-Protocol`, which is two MUSTs about its members
@@ -200,12 +267,6 @@ const RFC_9220_3: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9220.html#section-3",
     note: "Carries RFC 8441's mechanism to HTTP/3 with identical semantics",
 };
-const RFC_4648_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 4648",
-    section: Some("3.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3",
-    note: "The instruction to reject encoded data holding a character outside the base alphabet, which is what makes a malformed `Sec-WebSocket-Key` reportable rather than merely unusual",
-};
 
 impl RuleMeta for SecWebsocketHeadersConsistent {
     fn id(&self) -> &'static str {
@@ -231,7 +292,13 @@ severity = "warn"
             RFC_8441_5,
             RFC_9220_3,
             RFC_4648_3_3,
+            RFC_4648_4,
+            RFC_4648_3_5,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -317,18 +384,23 @@ impl Rule for SecWebsocketHeadersConsistent {
             // taking the document's order rather than a convenient one means the finding
             // an operator sees first is the one the list reaches first.
             let defect = [
-                Self::connection_defect(&req.headers),
+                Self::connection_defect(&req.headers).map(Defect::unnamed),
                 Self::key_defect(&req.headers),
-                Self::version_defect(&req.headers),
-                Self::subprotocol_defect(&req.headers),
+                Self::version_defect(&req.headers).map(Defect::unnamed),
+                Self::subprotocol_defect(&req.headers).map(Defect::unnamed),
             ]
             .into_iter()
             .flatten()
             .next()?;
 
-            violation(format!(
-                "This request asks to be upgraded to the WebSocket Protocol, but {defect}"
-            ))
+            let message = format!(
+                "This request asks to be upgraded to the WebSocket Protocol, but {}",
+                defect.message
+            );
+            match defect.def {
+                Some(def) => Some(ctx.report_with(def, message)),
+                None => violation(message),
+            }
         };
         Vec::from_iter(finding())
     }
