@@ -25,7 +25,7 @@
 //! is not measured against the other anywhere in this crate.
 
 use crate::helpers::media_type::MediaTypeDefect;
-use crate::helpers::word::WordDefect;
+use crate::helpers::word::{TokenBwsWordDefect, WordDefect};
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::parameter::{PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY};
@@ -132,6 +132,30 @@ pub fn word_defect(defect: WordDefect) -> Option<&'static ViolationDef> {
         WordDefect::Empty => None,
         WordDefect::NotToken(c) => Some(token_character(c)),
         WordDefect::NotQuotedString(defect) => Some(quoted_string_defect(defect)),
+    }
+}
+
+/// The defect a [`TokenBwsWordDefect`] reports as — `None` where the answer is
+/// the field's.
+///
+/// `token [ BWS "=" BWS word ]` is a pair of productions with a spelling
+/// decision between them, and it owns no defect: the name is a `token`, the
+/// value is a `word`, and the `BWS` is § 5.6.3's sentence about a *sender*
+/// rather than a shape a value can fail. So this fn is two lines of delegation
+/// and one `None`.
+///
+/// The `None` is [`WordDefect::Empty`] arriving through [`word_defect`], and
+/// the reasoning transfers unchanged: `foo=` is a member whose meaning is the
+/// field's to state, and two of the fields reading this production define it as
+/// meaning no value at all. The four rules reporting it keep their own words.
+///
+/// It lives here for the reason every mapping in this file does — the first
+/// thing the reader measures is the `token` before the `=`.
+pub fn token_bws_word_defect(defect: &TokenBwsWordDefect) -> Option<&'static ViolationDef> {
+    match defect {
+        TokenBwsWordDefect::NameEmpty => Some(&TOKEN_EMPTY),
+        TokenBwsWordDefect::NameCharacter(c) => Some(token_character(*c)),
+        TokenBwsWordDefect::Value(defect) => word_defect(*defect),
     }
 }
 

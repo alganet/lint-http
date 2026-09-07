@@ -133,6 +133,64 @@ pub struct TokenBwsWord<'a> {
     pub bws: bool,
 }
 
+/// Why a member does not derive from `token [ BWS "=" BWS word ]`.
+///
+/// The two halves of the production answer separately, because they are two
+/// productions: the name is a `token`, and what follows the `=` is a `word`,
+/// whose own defects [`WordDefect`] already names. Nothing here is a fact about
+/// the *pair* — which is why there is no fourth variant, and why the whole of
+/// this type is a delegation.
+///
+/// It used to answer in a rendered `String`, which is what kept four rules
+/// wording the same three verdicts about the same production. The messages are
+/// unchanged: [`TokenBwsWordDefect::message`] renders exactly what the `Err`
+/// arms rendered, at the site that has the member.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TokenBwsWordDefect {
+    /// Nothing before the `=`, where the production prints a `token`.
+    NameEmpty,
+    /// The name holds an octet no `tchar` admits.
+    NameCharacter(char),
+    /// The `word` after the `=`.
+    Value(WordDefect),
+}
+
+impl TokenBwsWordDefect {
+    /// The finding's words, given the member they were read from.
+    ///
+    /// The member rather than the value, because the caller has the member —
+    /// it is what it handed in — and the `quoted-string` half needs the text it
+    /// failed to unquote. Splitting it again here is cheaper than threading a
+    /// second argument through four rules, and it is the same split the parse
+    /// made.
+    pub fn message(&self, member: &str) -> String {
+        match self {
+            Self::NameEmpty => "no token before the \"=\"".to_string(),
+            Self::NameCharacter(c) => format!("token contains {}", describe_char(*c)),
+            Self::Value(WordDefect::Empty) => {
+                "nothing after the \"=\", where the grammar has a word".to_string()
+            }
+            Self::Value(WordDefect::NotToken(c)) => {
+                format!("value contains {}", describe_char(*c))
+            }
+            Self::Value(WordDefect::NotQuotedString(defect)) => {
+                defect.message(written_value(member).unwrap_or(""))
+            }
+        }
+    }
+}
+
+/// The text after the first `=`, `OWS`-trimmed — the half the `word`
+/// alternation is read from.
+///
+/// `token` admits neither `=` nor DQUOTE, so nothing can precede the `=` the
+/// production prints except the name: there is no quoted-string in front of it
+/// for one to hide in, and the first `=` is therefore the delimiter even when
+/// the `word` after it is a quoted-string containing more of them.
+fn written_value(member: &str) -> Option<&str> {
+    member.find('=').map(|i| trim_ows(&member[i + 1..]))
+}
+
 /// Parse `token [ BWS "=" BWS word ]` from one already-`OWS`-trimmed member.
 ///
 /// Callers reading a field through [`combined_field_value_as_written`](crate::helpers::headers::combined_field_value_as_written) hand this
@@ -147,11 +205,7 @@ pub struct TokenBwsWord<'a> {
 /// the part RFC 7240 owns, which is the optional group and the `BWS`.
 ///
 /// cite(RFC 9110 § 5.6.3): "The BWS rule is used where the grammar allows optional whitespace only for historical reasons."
-pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, String> {
-    // `token` admits neither `=` nor DQUOTE, so nothing can precede the `=` the
-    // production prints except the name -- there is no quoted-string in front of
-    // it for one to hide in, and the first `=` is therefore the delimiter even
-    // when the `word` after it is a quoted-string containing more of them.
+pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, TokenBwsWordDefect> {
     let (name_written, value_written) = match member.find('=') {
         Some(i) => (&member[..i], Some(&member[i + 1..])),
         None => (member, None),
@@ -161,10 +215,10 @@ pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, String> {
     let bws = name != name_written || value_written_trimmed != value_written;
 
     if name.is_empty() {
-        return Err("no token before the \"=\"".to_string());
+        return Err(TokenBwsWordDefect::NameEmpty);
     }
     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-        return Err(format!("token contains {}", describe_char(c)));
+        return Err(TokenBwsWordDefect::NameCharacter(c));
     }
 
     let value = match value_written_trimmed {
@@ -175,13 +229,7 @@ pub fn parse_token_bws_word(member: &str) -> Result<TokenBwsWord<'_>, String> {
             // optional group cannot close on an empty value: a field that means
             // to say "no value" writes no `=`, or writes `""`. RFC 7240 grants
             // no tolerance for the third spelling, so this is a defect here.
-            Err(WordDefect::Empty) => {
-                return Err("nothing after the \"=\", where the grammar has a word".to_string())
-            }
-            Err(WordDefect::NotToken(c)) => {
-                return Err(format!("value contains {}", describe_char(c)))
-            }
-            Err(WordDefect::NotQuotedString(defect)) => return Err(defect.message(v)),
+            Err(defect) => return Err(TokenBwsWordDefect::Value(defect)),
         },
     };
 
@@ -222,6 +270,49 @@ mod tests {
             token_or_quoted_string("\"abc\"x"),
             Err(WordDefect::NotQuotedString(_))
         ));
+    }
+
+    /// The four verdicts the pair can reach, and the words each of them keeps.
+    ///
+    /// Written against the parse rather than against the variants, because what
+    /// typing this changed is that a caller can now ask *which* defect it has
+    /// while rendering the same sentence it always rendered — and the sentences
+    /// are what four rules' message assertions are written on.
+    #[test]
+    fn the_pair_answers_with_the_half_that_failed_and_says_the_same_words() {
+        let defect = |member: &str| {
+            let Err(defect) = parse_token_bws_word(member) else {
+                panic!("{member} derives from the production")
+            };
+            let message = defect.message(member);
+            (defect, message)
+        };
+
+        let (d, m) = defect("=x");
+        assert_eq!(d, TokenBwsWordDefect::NameEmpty);
+        assert_eq!(m, "no token before the \"=\"");
+
+        let (d, m) = defect("a@b=x");
+        assert_eq!(d, TokenBwsWordDefect::NameCharacter('@'));
+        assert_eq!(m, "token contains '@'");
+
+        let (d, m) = defect("foo=");
+        assert_eq!(d, TokenBwsWordDefect::Value(WordDefect::Empty));
+        assert_eq!(m, "nothing after the \"=\", where the grammar has a word");
+
+        let (d, m) = defect("foo=a b");
+        assert_eq!(d, TokenBwsWordDefect::Value(WordDefect::NotToken(' ')));
+        assert_eq!(m, "value contains ' '");
+
+        // The quoted half needs the text it failed to unquote, and the message
+        // is the `quoted-string` subject's rather than this one's — which is
+        // the whole reason `message` takes the member back.
+        let (d, m) = defect("foo=\"abc");
+        assert!(matches!(
+            d,
+            TokenBwsWordDefect::Value(WordDefect::NotQuotedString(_))
+        ));
+        assert!(m.contains("abc"), "{m}");
     }
 
     /// The reader is handed one `char` per octet by every caller that reads a

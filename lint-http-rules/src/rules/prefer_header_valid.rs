@@ -11,6 +11,14 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
+use crate::violations::quoted_string::{
+    QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
+    QUOTED_STRING_QUOTED_PAIR_MALFORMED, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_bws_word_defect, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
 use crate::violations::ViolationDef;
 
 pub struct PreferHeaderValid;
@@ -24,12 +32,30 @@ pub struct PreferHeaderValid;
 /// and takes the `1#` from RFC 9110 unchanged, so the floor and the stray comma
 /// are the same defects `Accept-Patch`, `Accept-Ranges` and a `Warning` have.
 ///
-/// What stays is everything about a *preference* — the `token [ BWS "=" BWS
-/// word ]` shape, the whitespace the `BWS` admits and § 5.6.3 refuses a sender,
-/// the values § 4 defines for the four named preferences, and a name written
-/// twice. The first of those reaches this rule through a shared reader that
-/// still answers in prose, which is the commit that converts it.
-static DECLARED: &[&ViolationDef] = &[&LIST_MEMBER_MISSING, &LIST_MEMBER_EMPTY];
+/// The `token [ BWS "=" BWS word ]` shape is borrowed too, and borrowed whole:
+/// the name before the `=` is a `token` and what follows it is `token /
+/// quoted-string`, so nine of the ids here are declared and none written. Both
+/// halves of the production are read at two sites apiece — the preference
+/// itself and each of its parameters — which is why `Prefer: =x` and `Prefer:
+/// respond-async; =x` are one defect twice.
+///
+/// What stays this rule's own is what a preference *means*: the whitespace the
+/// `BWS` admits and § 5.6.3 refuses a sender, the values § 4 defines for the
+/// four named preferences, a name written twice, and a member whose `=` is
+/// followed by nothing — which the catalogue deliberately does not answer,
+/// because two of the fields reading this production define that spelling as
+/// meaning no value at all.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_MISSING,
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// What RFC 7240 § 4's own productions admit after a preference's `=`, for the
 /// four preferences this document defines — and nothing for any other name.
@@ -186,6 +212,8 @@ severity = "warn"
             RFC_9110_2_2,
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_1_2,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
             RFC_9110_5_6_3,
             RFC_9111_1_2_2,
             RFC_5234_2_3,
@@ -348,12 +376,21 @@ impl Rule for PreferHeaderValid {
 
                 let parsed = match parse_token_bws_word(first) {
                     Ok(parsed) => parsed,
-                    Err(e) => {
-                        return violation(format!(
+                    // The name is a `token` and what follows the `=` is a
+                    // `word`, so the ids are those two productions'. Where the
+                    // `word` half is *empty* the catalogue answers nothing —
+                    // six fields settled that verdict four different ways — and
+                    // the finding stays at the rule's severity.
+                    Err(defect) => {
+                        let message = format!(
                             "Prefer member '{}' does not match preference: {}",
                             shown_in_finding(member),
-                            e
-                        ))
+                            defect.message(first)
+                        );
+                        return Some(match token_bws_word_defect(&defect) {
+                            Some(def) => ctx.report_with(def, message),
+                            None => self.violation(ctx.severity, message),
+                        });
                     }
                 };
 
@@ -416,13 +453,17 @@ impl Rule for PreferHeaderValid {
                     }
                     let parsed_param = match parse_token_bws_word(param) {
                         Ok(parsed_param) => parsed_param,
-                        Err(e) => {
-                            return violation(format!(
+                        Err(defect) => {
+                            let message = format!(
                                 "Prefer parameter '{}' in member '{}' does not match parameter: {}",
                                 shown_in_finding(param),
                                 shown_in_finding(member),
-                                e
-                            ))
+                                defect.message(param)
+                            );
+                            return Some(match token_bws_word_defect(&defect) {
+                                Some(def) => ctx.report_with(def, message),
+                                None => self.violation(ctx.severity, message),
+                            });
                         }
                     };
                     // The same pair of sentences at the same construct: the trim is

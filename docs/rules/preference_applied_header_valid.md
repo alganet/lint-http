@@ -21,6 +21,8 @@ What it does not decide: whether a value is one the preference's own definition 
 - [RFC 7240 §1.1](https://www.rfc-editor.org/rfc/rfc7240.html#section-1.1): Where `token`, `word`, `OWS`, `BWS` and the `#rule` extension come from. The named source is RFC 7230, which RFC 9110 obsoletes; `word` is the one name RFC 9110 did not keep, though both halves of it survive as `token` and `quoted-string`
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
 - [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): The values a `1#element` production does not generate — the empty value among them — beside the recipient's instruction to ignore empty elements
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 - [RFC 9110 §5.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3): `BWS`: a recipient must remove it before interpreting the element, and a sender must not have written it — both directions are read at the `=` in `applied-pref`
 
 ## Configuration
