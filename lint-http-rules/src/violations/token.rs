@@ -101,8 +101,8 @@ defects! {
 /// The reader that found it — [`crate::helpers::token::find_invalid_token_char`]
 /// — answers with one `char` and no verdict, because the production draws no
 /// distinction inside "not a `tchar`". The catalogue does, so the sort happens
-/// here: this is the shape 2.10's bearer token settled, and the reason a coarse
-/// helper can feed a catalogue finer than itself.
+/// here: it is the shape `token68`'s bearer-token entries settled, and the
+/// reason a coarse helper can feed a catalogue finer than itself.
 pub fn token_character(c: char) -> &'static ViolationDef {
     match c.is_whitespace() || c.is_control() {
         true => &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
