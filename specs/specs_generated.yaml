@@ -4727,7 +4727,7 @@ sources:
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 250
+      line: 279
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 408
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
@@ -4737,7 +4737,7 @@ sources:
     snippet: weight = OWS ";" OWS "q=" qvalue
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 153
+      line: 182
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 139
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
@@ -4751,19 +4751,19 @@ sources:
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 152
+      line: 181
   - label: accept_encoding_parameter_valid (4)
     section: § 12.5.3
     snippet: An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 196
+      line: 225
   - label: accept_encoding_parameter_valid (5)
     section: § 12.5.3
     snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 174
+      line: 203
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 127
   - label: accept_encoding_parameter_valid (6)
@@ -4771,13 +4771,13 @@ sources:
     snippet: Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 229
+      line: 258
   - label: accept_encoding_parameter_valid (7)
     section: § 12.5.3
     snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 195
+      line: 224
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 160
   - label: accept_encoding_parameter_valid (8)
@@ -4785,13 +4785,13 @@ sources:
     snippet: The field value is evaluated the same way as in a request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 135
+      line: 164
   - label: accept_encoding_parameter_valid (9)
     section: § 12.5.3
     snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 133
+      line: 162
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 119
   - label: accept_encoding_parameter_valid (10)
@@ -4799,13 +4799,13 @@ sources:
     snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 134
+      line: 163
   - label: accept_encoding_parameter_valid (11)
     section: § 8.4.1
     snippet: content-coding   = token
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 194
+      line: 223
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 142
   - label: accept_encoding_present
@@ -5431,7 +5431,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 141
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 88
+      line: 118
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 145
   - label: compression_and_transfer_encoding_consistent (5)
@@ -5567,7 +5567,7 @@ sources:
     snippet: a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 154
+      line: 191
   - label: content_encoding_registered
     section: § 12.5.3
     snippet: codings = content-coding / "identity" / "*"
@@ -7107,7 +7107,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 84
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 175
+      line: 204
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 211
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
@@ -7431,7 +7431,7 @@ sources:
     - file: lint-http-rules/src/helpers/qvalue.rs
       line: 31
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 279
+      line: 308
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 213
   - label: 3xx redirection class
