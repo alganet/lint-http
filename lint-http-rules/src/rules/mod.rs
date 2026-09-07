@@ -1283,14 +1283,17 @@ severity = "warn"
     /// and defines neither, so the two sites had nowhere nearer to point. The
     /// sentence saying what a token is now sits on the def; the sentence saying
     /// that *this* field's directive name is one stays at the site, which is
-    /// what licensed the borrowing.
+    /// what licensed the borrowing. `content_disposition_token_valid` took two
+    /// more of the same shape, both citing RFC 6266 §4.1 for a
+    /// `disposition-type` that is not there — one sentence, two spellings, and
+    /// now one def.
     #[test]
     fn citation_coverage_does_not_regress() {
         /// Finding sites that name the specification sentence they enforce.
         /// The rest are the per-rule reading that has not happened yet — the
         /// denominator is computed below, because merges and conversions both
         /// move it.
-        const FLOOR: usize = 155;
+        const FLOOR: usize = 153;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
