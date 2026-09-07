@@ -6,8 +6,53 @@ use std::collections::HashSet;
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::parameter::{
+    PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
+};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct ContentDispositionParameterValid;
+
+/// The parameter's own defects, which are the same nine every other reader of
+/// `parameters` in this tree declares. `disposition-parm` is
+/// `filename-parm / disp-ext-parm`, and each of those is a name, an `=` and a
+/// value drawn from `token / quoted-string` — the production RFC 6266 borrows
+/// wholesale rather than restates, so a `filename` with an unterminated quote
+/// is the same defect as a `charset` with one.
+///
+/// **The reading is this rule's own and the names are not.** It cuts each
+/// segment at the first `=` by hand rather than through the shared walk, which
+/// is a difference in how the parameter is found and none at all in what is
+/// wrong with it. Two rules can agree on a defect without sharing the code that
+/// notices it, and that is exactly what a catalogue keyed by the production
+/// buys.
+///
+/// What stays on the older API is what RFC 6266 says and § 5.6.6 does not: a
+/// parameter written twice, a `filename*` or a `disp-ext-parm` whose value is
+/// no `ext-value`, and a `size` that is not a number. The first is a
+/// requirement about the *set* of parameters rather than about one of them, and
+/// `ext-value` is RFC 8187's production with no subject written — both are
+/// named here so the omission is a decision rather than an oversight.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_EMPTY,
+    &PARAMETER_EQUALS_MISSING,
+    &PARAMETER_VALUE_EMPTY,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -24,18 +69,6 @@ const RFC_8187_3_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("3.2.1"),
     url: "https://www.rfc-editor.org/rfc/rfc8187.html#section-3.2.1",
     note: "`ext-value` syntax used for `filename*` (obsoletes RFC 5987, which this reference named; the production is unchanged)",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note: "`token`, which an unquoted parameter value must match (this reference named RFC 2616, long obsolete — the production is alive and well here)",
-};
-const RFC_9110_5_6_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4",
-    note: "`quoted-string`, the other permitted parameter-value form",
 };
 
 impl RuleMeta for ContentDispositionParameterValid {
@@ -58,7 +91,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6266_4, RFC_8187_3_2_1, RFC_9110_5_6_2, RFC_9110_5_6_4]
+        &[
+            RFC_6266_4,
+            RFC_8187_3_2_1,
+            RFC_9110_5_6_6,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -121,8 +164,8 @@ impl Rule for ContentDispositionParameterValid {
                     }
                     let eq = p.find('=');
                     if eq.is_none() {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &PARAMETER_EQUALS_MISSING,
                             format!("{} has malformed parameter '{}': missing '='", hdr_name, p),
                         ));
                     }
@@ -141,14 +184,14 @@ impl Rule for ContentDispositionParameterValid {
                         name
                     };
                     if bare_name.is_empty() {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &TOKEN_EMPTY,
                             format!("{} contains empty parameter name", hdr_name),
                         ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(bare_name) {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            token_character(c),
                             format!(
                                 "{} parameter name contains invalid token character: '{}'",
                                 hdr_name, c
@@ -167,8 +210,8 @@ impl Rule for ContentDispositionParameterValid {
 
                     let val = value[1..].trim(); // skip '='
                     if val.is_empty() {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &PARAMETER_VALUE_EMPTY,
                             format!("{} parameter '{}' has empty value", hdr_name, name),
                         ));
                     }
@@ -177,21 +220,27 @@ impl Rule for ContentDispositionParameterValid {
                     if !is_ext && name.eq_ignore_ascii_case("filename") {
                         // filename can be token or quoted-string
                         if val.starts_with('"') {
-                            if let Err(e) =
-                                crate::helpers::quoted_string::validate_quoted_string(val)
+                            // The typed reader rather than the rendering one:
+                            // `validate_quoted_string` is this call plus
+                            // `QuotedStringDefect::message`, so the finding reads
+                            // byte for byte as it did and the defect now has a
+                            // name.
+                            if let Err(defect) =
+                                crate::helpers::quoted_string::check_quoted_string(val)
                             {
-                                return Some(self.violation(
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    quoted_string_defect(defect),
                                     format!(
                                         "{} filename parameter invalid quoted-string: {}",
-                                        hdr_name, e
+                                        hdr_name,
+                                        defect.message(val)
                                     ),
                                 ));
                             }
                         } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val)
                         {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                token_character(c),
                                 format!(
                                     "{} filename parameter contains invalid token character: '{}'",
                                     hdr_name, c
@@ -214,8 +263,8 @@ impl Rule for ContentDispositionParameterValid {
                             match crate::helpers::quoted_string::unescape_quoted_string(val) {
                                 Ok(u) => u.trim().to_string(),
                                 Err(defect) => {
-                                    return Some(self.violation(
-                                        ctx.severity,
+                                    return Some(ctx.report_with(
+                                        quoted_string_defect(defect),
                                         format!(
                                             "{} size parameter invalid quoted-string: {}",
                                             hdr_name,
@@ -251,21 +300,23 @@ impl Rule for ContentDispositionParameterValid {
                                 ));
                             }
                         } else if val.starts_with('"') {
-                            if let Err(e) =
-                                crate::helpers::quoted_string::validate_quoted_string(val)
+                            if let Err(defect) =
+                                crate::helpers::quoted_string::check_quoted_string(val)
                             {
-                                return Some(self.violation(
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    quoted_string_defect(defect),
                                     format!(
                                         "{} parameter '{}' invalid quoted-string: {}",
-                                        hdr_name, name, e
+                                        hdr_name,
+                                        name,
+                                        defect.message(val)
                                     ),
                                 ));
                             }
                         } else if let Some(c) = crate::helpers::token::find_invalid_token_char(val)
                         {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                token_character(c),
                                 format!(
                                     "{} parameter '{}' contains invalid token character: '{}'",
                                     hdr_name, name, c
@@ -316,6 +367,49 @@ static REGISTRATION: &dyn crate::rules::Rule = &ContentDispositionParameterValid
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    /// RFC 6266 borrows `token`, `quoted-string` and the `name=value` shape
+    /// rather than restating them, and the ids say so: each row here is the
+    /// defect a `Content-Type` parameter would draw for the same shape, out of
+    /// a rule that finds its parameters with its own hand-rolled cut.
+    ///
+    /// The last two rows are the ones that stay this rule's own — a parameter
+    /// written twice is a requirement about the set rather than about one
+    /// parameter, and `size` carries a number by RFC 6266's sentence and not by
+    /// any grammar § 5.6.6 writes.
+    #[rstest]
+    #[case("attachment; badparam", Some("parameter_equals_missing"))]
+    #[case("attachment; =value", Some("token_empty"))]
+    #[case("attachment; bad@name=foo", Some("token_character_forbidden"))]
+    #[case("attachment; filename=", Some("parameter_value_empty"))]
+    #[case(
+        "attachment; filename=\"unterminated",
+        Some("quoted_string_delimiter_missing")
+    )]
+    #[case("attachment; filename=bad@name", Some("token_character_forbidden"))]
+    #[case("attachment; filename=a; filename=b", None)]
+    #[case("attachment; size=12a", None)]
+    fn a_disposition_parameter_reports_the_productions_it_borrows(
+        #[case] value: &str,
+        #[case] id: Option<&str>,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-disposition", value)]);
+        let found = crate::test_helpers::run_rule(
+            &ContentDispositionParameterValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "content_disposition_parameter_valid",
+                "warn",
+            ),
+        )
+        .expect("a finding");
+        // `None` is a site this commit deliberately left unconverted, and an
+        // unconverted finding carries no defect id at all.
+        assert_eq!(found.violation, id.unwrap_or(""), "{value}");
+    }
 
     #[rstest]
     #[case(Some("attachment; filename=example.txt"), false)]
