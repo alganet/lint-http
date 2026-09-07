@@ -619,30 +619,84 @@ pub fn validate_bearer_token(token: &str) -> Result<(), BearerTokenDefect> {
     Ok(())
 }
 
+/// What one member of an `#auth-param` list fails to be.
+///
+/// Four variants and three of them belong to another subject: the list
+/// construct's empty element, and the `token` an `auth-param` name has to be.
+/// The fourth is `auth-param`'s own — that the `=` and the value after it are
+/// not optional — and no subject holds it, because § 5.6.6's `parameter` is a
+/// different production with `BWS` where this one has none.
+///
+/// The type exists so the rule reading these can name *which*; it used to
+/// receive one rendered sentence and could only pass it on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuthParamsDefect<'a> {
+    /// A member contributing nothing to the list: a stray or trailing comma.
+    Empty,
+    /// A member whose name is empty — the `=` with nothing before it.
+    NameEmpty,
+    /// A character in the name that no `tchar` admits.
+    NameCharacter(char),
+    /// A member with no `=` in it at all. Carries the name, because the
+    /// finding names the parameter that owes a value.
+    ValueMissing(&'a str),
+}
+
+impl AuthParamsDefect<'_> {
+    /// The finding, worded as every caller has always worded it.
+    pub fn message(self) -> String {
+        match self {
+            Self::Empty => "empty auth-param".into(),
+            Self::NameEmpty => "empty auth-param name".into(),
+            Self::NameCharacter(c) => {
+                format!("Invalid character '{}' in auth-param name", c)
+            }
+            Self::ValueMissing(name) => format!("auth-param '{}' missing value", name),
+        }
+    }
+}
+
 /// Parse an auth-param list (e.g., `username="Mufasa", realm="x", nonce=abc`) into a
 /// HashMap of (name -> value) pairs. Values preserve quotes when present (e.g., `"x"`).
-/// Returns Err(String) on parse error.
-pub fn parse_auth_params(s: &str) -> Result<std::collections::HashMap<String, String>, String> {
+///
+/// **The `Err` is the defect and not a sentence.** Rendering it is
+/// [`AuthParamsDefect::message`] at the call site — one method, and the string
+/// is byte-identical to what this returned before. What the change buys is that
+/// three of the four defects are *nameable* by a caller reporting through the
+/// catalogue: the empty member is the list's, and the two about the name are
+/// the `token`'s.
+///
+/// Four rules call this and one of them reports. The other three treat a
+/// failure as "there is nothing here to reason about" and move on, which is
+/// what makes the caller count an upper bound rather than a work list.
+///
+/// The name is measured here rather than left to the caller, which is why
+/// `digest_auth_valid`'s own name check answers nothing: this returns first.
+// cite(RFC 9110 § 11.2): "auth-param     = token BWS "=" BWS ( token / quoted-string )"
+// cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
+pub fn parse_auth_params(
+    s: &str,
+) -> Result<std::collections::HashMap<String, String>, AuthParamsDefect<'_>> {
     let mut out = std::collections::HashMap::new();
     // split comma-separated params respecting quoted-strings
     for part in split_commas_respecting_quotes(s) {
         let p = part;
         if p.is_empty() {
-            return Err("empty auth-param".into());
+            return Err(AuthParamsDefect::Empty);
         }
         let mut kv = p.splitn(2, '=');
         let name = kv
             .next()
             .map(|x| x.trim())
             .filter(|x| !x.is_empty())
-            .ok_or_else(|| "empty auth-param name".to_string())?;
+            .ok_or(AuthParamsDefect::NameEmpty)?;
         let val = kv
             .next()
             .map(|x| x.trim())
-            .ok_or_else(|| format!("auth-param '{}' missing value", name))?;
+            .ok_or(AuthParamsDefect::ValueMissing(name))?;
         // name must be a token
         if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
-            return Err(format!("Invalid character '{}' in auth-param name", inv));
+            return Err(AuthParamsDefect::NameCharacter(inv));
         }
         out.insert(name.to_ascii_lowercase(), val.to_string());
     }
@@ -838,15 +892,38 @@ mod tests {
     #[test]
     fn parse_auth_params_invalid_name_char() {
         let r = parse_auth_params("user@name=abc");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("Invalid character"));
+        assert_eq!(r.unwrap_err(), AuthParamsDefect::NameCharacter('@'));
     }
 
     #[test]
     fn parse_auth_params_empty_member_is_error() {
         let r = parse_auth_params("a=b, , c=d");
-        assert!(r.is_err());
-        assert!(r.unwrap_err().contains("empty"));
+        assert_eq!(r.unwrap_err(), AuthParamsDefect::Empty);
+    }
+
+    /// The four verdicts and the sentence each renders as, which is what every
+    /// caller embedded when this returned a `String` — byte for byte, so the
+    /// typing changed no message anywhere.
+    #[test]
+    fn each_auth_param_defect_renders_the_sentence_it_always_did() {
+        for (input, defect, message) in [
+            ("a=b, , c=d", AuthParamsDefect::Empty, "empty auth-param"),
+            ("=abc", AuthParamsDefect::NameEmpty, "empty auth-param name"),
+            (
+                "user@name=abc",
+                AuthParamsDefect::NameCharacter('@'),
+                "Invalid character '@' in auth-param name",
+            ),
+            (
+                "username",
+                AuthParamsDefect::ValueMissing("username"),
+                "auth-param 'username' missing value",
+            ),
+        ] {
+            let got = parse_auth_params(input).unwrap_err();
+            assert_eq!(got, defect, "{input}");
+            assert_eq!(got.message(), message, "{input}");
+        }
     }
 
     #[test]

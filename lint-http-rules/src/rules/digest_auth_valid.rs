@@ -4,23 +4,21 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{auth_param_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
     QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::token::{
-    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
 
 pub struct DigestAuthValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-/// The six defects an `auth-param` can have that are not RFC 7616's.
+/// The eight defects an `auth-param` can have that are not RFC 7616's.
 ///
 /// `auth-param = token BWS "=" BWS ( token / quoted-string )` is RFC 9110
 /// § 11.2's, imported by RFC 7616 unchanged, so a name holding a `@` and a
@@ -36,18 +34,16 @@ pub struct DigestAuthValid;
 /// quoting lists — which are requirements about *which spelling* a
 /// well-formed value uses, not about whether it is well formed.
 ///
-/// One site is left, and it is a whole commit of its own.
-/// [`crate::helpers::auth::parse_auth_params`] answers every caller in a
-/// rendered `String`, which is 2.15's tell exactly; three of its five verdicts
-/// are already named here (an empty member, an empty name, a name holding a
-/// character no `tchar` admits) and it has four callers. **It is also why
-/// `TOKEN_CHARACTER_FORBIDDEN` is declared and only reachable through the
-/// value half**: that helper measures the name first and hands back a sentence,
-/// so this rule's own name check answers nothing until the helper is typed. The
-/// declaration is kept because the mapping is exhaustive and the reachable half
-/// needs both ids anyway — the invisible octet cannot arrive through a
-/// `HeaderValue`, the visible one can.
+/// [`crate::helpers::auth::parse_auth_params`] is typed as well, so the list
+/// construct's empty member and the two `token` verdicts about a name arrive
+/// named from the reader — which is where they were always decided. Its fourth
+/// verdict stays this production's: § 11.2 writes `auth-param = token BWS "="
+/// BWS ( token / quoted-string )`, so a member with no `=` breaks *that*
+/// sentence, and `parameter_equals_missing` carries § 5.6.6's about a
+/// production with no `BWS` in it.
 static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
@@ -56,6 +52,9 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
 
+/// The specification references this rule declares, each named so a finding
+/// site can cite the one it enforces. `specifications()` below is built from
+/// exactly these, so the docs and the citations cannot name different text.
 const RFC_7616_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7616",
     section: Some("3.4"),
@@ -85,7 +84,13 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7616_3_4, RFC_2617_3_2_2, RFC_9110_5_6_2, RFC_9110_5_6_4]
+        &[
+            RFC_7616_3_4,
+            RFC_2617_3_2_2,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -229,18 +234,17 @@ impl Rule for DigestAuthValid {
                                     // so the two ids here are the ones every
                                     // other reader of it answers with.
                                     //
-                                    // **This branch cannot fire today**, and the
+                                    // **This branch still cannot fire**, and the
                                     // reason is two lines up rather than anywhere
                                     // in this document: `parse_auth_params`
                                     // measures the name against the same reader
                                     // and returns `Err` first, so a `user@name`
-                                    // reaches the rendered-string arm below
-                                    // instead. That is a sixth variety of
-                                    // unreachable -- not the transport, not the
-                                    // field's spelling, but a shared reader that
-                                    // already answered -- and it is what typing
-                                    // that helper will resolve, at which point
-                                    // the id here is the one it should hand back.
+                                    // is answered there. It is kept because the
+                                    // two answers now agree by construction --
+                                    // the helper's mapping hands back this same
+                                    // id -- and because a reader that stopped
+                                    // measuring the name would leave this the
+                                    // only check of it.
                                     if let Some(inv) =
                                         crate::helpers::token::find_invalid_token_char(k)
                                     {
@@ -307,11 +311,19 @@ impl Rule for DigestAuthValid {
                                     }
                                 }
                             }
-                            Err(msg) => {
-                                return Some(self.violation(
-                                    ctx.severity,
-                                    format!("Invalid Digest auth parameters: {}", msg),
-                                ))
+                            // The reader is typed now, so three of its four
+                            // verdicts arrive with a name: an empty member is
+                            // the list's, an empty name and a bad character are
+                            // the `token`'s. The fourth — a member with no `=`
+                            // — is § 11.2's own sentence about `auth-param`,
+                            // and § 5.6.6's `parameter` does not answer for it.
+                            Err(defect) => {
+                                let message =
+                                    format!("Invalid Digest auth parameters: {}", defect.message());
+                                return Some(match auth_param_member(defect) {
+                                    Some(def) => ctx.report_with(def, message),
+                                    None => self.violation(ctx.severity, message),
+                                });
                             }
                         }
                     }
@@ -428,13 +440,16 @@ mod tests {
     /// with the ids they now carry — and the four that stay RFC 7616's, at the
     /// rule's own severity.
     #[rstest]
-    // A bad *name* does not reach this rule's own check: `parse_auth_params`
-    // measures it with the same reader and returns a rendered string first,
-    // which is the unnamed arm below and the next commit's work.
+    // A bad *name* is answered by the reader rather than by this rule's own
+    // check -- `parse_auth_params` measures it two lines earlier -- and since
+    // that reader is typed, the same id arrives either way.
     #[case::name_character(
         "Digest user@name=abc, realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\"",
-        ""
+        "token_character_forbidden"
     )]
+    #[case::empty_member("Digest username=\"u\", , realm=\"r\"", "list_member_empty")]
+    #[case::empty_name("Digest =abc, realm=\"r\"", "token_empty")]
+    #[case::value_missing("Digest username, realm=\"r\"", "")]
     #[case::value_character("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", algorithm=M@D5", "token_character_forbidden")]
     #[case::unterminated_quote(
         "Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", opaque=\"abc",
