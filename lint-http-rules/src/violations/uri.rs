@@ -64,6 +64,17 @@ pub const RFC_3986_3_2_3: SpecRef = SpecRef {
     note: "Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string",
 };
 
+/// The alphabet, which is one set for the whole of a URI reference: a
+/// `Referer`, a `Location`, a `Content-Location`, a `Link` target and a request
+/// target all measure a character against it before any component rule sees
+/// one.
+pub const RFC_3986_2: SpecRef = SpecRef {
+    spec: "RFC 3986",
+    section: Some("2"),
+    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2",
+    note: "Characters — the limited set a URI is composed from, every other octet being percent-encoded before the reference is formed",
+};
+
 /// The triplet a `%` obliges, and the only sentence either percent defect here
 /// needs.
 pub const RFC_3986_2_1: SpecRef = SpecRef {
@@ -74,6 +85,32 @@ pub const RFC_3986_2_1: SpecRef = SpecRef {
 };
 
 defects! {
+    /// A character no `URI-reference` is written with, wherever in the value it
+    /// sits.
+    ///
+    /// The alphabet question is one question: every component rule of the
+    /// generic syntax lists a subset of `unreserved` / `gen-delims` /
+    /// `sub-delims` plus the `%` that opens a triplet, and nothing outside
+    /// them, so a character outside the union is refused by every component at
+    /// once and there is nothing for a per-component id to say. Whether a
+    /// character sits where *its* component allows it is the component's
+    /// question and a different defect.
+    ///
+    /// One entry, not a whitespace/control pair. The other subjects that split
+    /// that way have two sentences doing the refusing; here § 2 draws one line
+    /// and the fix is the same on either side of it — an octet whose character
+    /// is outside the set is percent-encoded before the URI is formed, whether
+    /// it was a SPACE, a `<` or a control octet.
+    ///
+    // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
+    URI_CHARACTER_FORBIDDEN = {
+        id: "uri_character_forbidden",
+        title: "Value holds a character no URI is written with",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_3986_2),
+    }
+
     /// A `%` with fewer than two characters after it, because the value ended.
     /// Kept apart from the malformed triplet because the fix differs: this one
     /// is a value that was cut, most often by something that truncated it.

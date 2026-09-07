@@ -1463,6 +1463,10 @@ severity = "warn"
 # Token holds whitespace or a control character
 severity = "error"
 
+[violations.uri_character_forbidden]
+# Value holds a character no URI is written with
+severity = "warn"
+
 [violations.uri_host_bracket_forbidden]
 # Host holds a square bracket outside an IP literal
 severity = "warn"

@@ -5,26 +5,28 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
-    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
+    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2, RFC_3986_2_1,
+    URI_CHARACTER_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
 
 pub struct RequestUriPercentEncodingValid;
 
-/// The two ways a `%` does not open a triplet, which is the whole of what this
+/// The alphabet and the triplet, which between them are the whole of what this
 /// rule reads out of the request target.
 ///
-/// The production is `pct-encoded = "%" HEXDIG HEXDIG` and every field carrying
-/// a URI reference measures it the same way, so the defects are the
-/// production's — a `Referer`, a `Location` and a `Content-Location` draw these
-/// same two — and what stays here is § 2.4's reading of *why* a malformed
+/// Both are RFC 3986's and every field carrying a URI reference measures them
+/// the same way — a `Referer`, a `Location` and a `Content-Location` draw these
+/// same three — so what stays here is § 2.4's reading of *why* a malformed
 /// triplet in a request target matters: the target is the one URI a server
 /// dereferences.
 ///
-/// The alphabet finding beside them is not one of these: an octet no URI is
-/// composed from is § 2's character set rather than the triplet's, and no
-/// subject holds it yet.
+/// The two are kept apart because they answer different questions of the same
+/// octet: `%` is a URI character, so it passes the alphabet and fails the
+/// triplet, and every other refused octet fails the alphabet before any
+/// component rule is reached.
 static DECLARED: &[&ViolationDef] = &[
+    &URI_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
 ];
@@ -32,12 +34,6 @@ static DECLARED: &[&ViolationDef] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_3986_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2",
-    note: "Characters: the limited set a URI is composed from, whose terminals the notation maps back through US-ASCII",
-};
 const RFC_3986_2_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 3986",
     section: Some("2.4"),
@@ -226,13 +222,11 @@ impl Rule for RequestUriPercentEncodingValid {
             // cite(RFC 3986 § 2): "The ABNF notation defines its terminal values to be non-negative integers (codepoints) based on the US-ASCII coded character set [ASCII]."
             // cite(RFC 3986 § 2): "the integer values used by the ABNF must be mapped back to their corresponding characters via US-ASCII in order to complete the syntax rules."
             if let Some(ch) = crate::helpers::uri::find_non_uri_char(target) {
-                let severity = ctx.severity;
-
                 let shown = crate::helpers::shown::shown_in_finding(target);
                 let shown_char = crate::helpers::shown::shown_in_finding(&ch.to_string());
 
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &URI_CHARACTER_FORBIDDEN,
                     format!(
                         "Request target '{shown}' contains '{shown_char}' (U+{:04X}), which is not one \
                          of the characters a URI is composed from -- digits, letters and a few graphic \
@@ -286,6 +280,10 @@ mod tests {
     #[rstest]
     #[case("/a%2", "percent_encoding_digits_missing")]
     #[case("/a%zz", "percent_encoding_malformed")]
+    // The alphabet is the same set for all four, and `<` is one of the
+    // characters that looks visible and is not a URI character.
+    #[case("/a<b", "uri_character_forbidden")]
+    #[case("/a b", "uri_character_forbidden")]
     fn four_fields_carrying_a_uri_report_one_id(#[case] value: &str, #[case] id: &str) {
         let mut request = crate::test_helpers::make_test_transaction();
         request.request.uri = format!("http://example.com{value}");

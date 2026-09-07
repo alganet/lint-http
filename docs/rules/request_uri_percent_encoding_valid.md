@@ -25,7 +25,7 @@ Reads the characters of the request target and asks whether it is properly perce
 ## Specifications
 
 - [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
-- [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters: the limited set a URI is composed from, whose terminals the notation maps back through US-ASCII
+- [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters — the limited set a URI is composed from, every other octet being percent-encoded before the reference is formed
 - [RFC 3986 §2.4](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.4): When to Encode or Decode: a URI on the wire is already in its percent-encoded form, a '%' meant as data is written %25, and octets decoded before their components are separated can be taken for delimiters
 - [RFC 9110 §4.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1): URI References: the generic syntax's productions are adopted by name for the HTTP elements that carry a URI
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The sender MUST NOT that a value matching no production breaks

@@ -12,8 +12,9 @@ use crate::helpers::uri::{
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
-    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1, RFC_3986_3_1,
-    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2, RFC_3986_2_1,
+    RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -30,6 +31,7 @@ pub struct RefererUriValid;
 /// absolute-URI / partial-URI` and convert with the subjects that own the
 /// components — the authority, the path, the fragment.
 static DECLARED: &[&ViolationDef] = &[
+    &URI_CHARACTER_FORBIDDEN,
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
@@ -158,6 +160,7 @@ severity = "warn"
             RFC_3986_4_2,
             RFC_3986_4_3,
             RFC_3986_4_4,
+            RFC_3986_2,
             RFC_3986_2_1,
             RFC_3986_3_1,
         ]
@@ -339,10 +342,13 @@ impl Rule for RefererUriValid {
             //
             // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
             if let Some(c) = find_non_uri_char(value) {
-                return violation(format!(
+                return Some(ctx.report_with(
+                    &URI_CHARACTER_FORBIDDEN,
+                    format!(
                     "Referer value '{}' holds {}, which no part of a URI is composed from (RFC 3986 §2): an octet outside that set is percent-encoded before the reference is formed, or the value is not a URI reference at all",
                     shown_referer(value),
                     describe_char(c)
+                    ),
                 ));
             }
 
