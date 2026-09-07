@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::qvalue::RFC_9110_12_4_2;
 
 pub struct AcceptAndContentTypeNegotiation;
 
@@ -21,12 +22,6 @@ const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("12.5.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
     note: "Accept: the `#( media-range [ weight ] )` list, the three shapes a `media-range` takes and what the asterisk ranges over, the instruction to find `q` wherever it sits, and the media-range parameters this rule does not compare",
-};
-const RFC_9110_12_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-    note: "Quality Values: `qvalue`, the meaning of a zero weight, and the default weight of 1 that a member with no readable `q` keeps",
 };
 const RFC_9110_12_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",

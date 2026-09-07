@@ -9,6 +9,7 @@ use crate::helpers::qvalue::valid_qvalue;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
+use crate::violations::qvalue::{QVALUE_MALFORMED, RFC_9110_12_4_2};
 use crate::violations::ViolationDef;
 
 /// The one defect this rule reports that is not about a transfer coding.
@@ -23,7 +24,7 @@ use crate::violations::ViolationDef;
 /// weight, a coding named twice, `chunked` asked for by a client that cannot
 /// receive it — and the rest are the `token`, `quoted-string` and `qvalue` this
 /// field is written out of, which are conversions of their own.
-static DECLARED: &[&ViolationDef] = &[&BWS_FORBIDDEN];
+static DECLARED: &[&ViolationDef] = &[&BWS_FORBIDDEN, &QVALUE_MALFORMED];
 
 #[derive(Debug, Clone)]
 pub struct TeHeaderValid;
@@ -299,10 +300,13 @@ impl TeHeaderValid {
             //
             // cite(RFC 9110 § 12.4.2): "A sender of qvalue MUST NOT generate more than three digits after the decimal point."
             if !valid_qvalue(value) {
-                return violation(format!(
+                return Some(ctx.report_with(
+                    &QVALUE_MALFORMED,
+                    format!(
                     "Invalid qvalue '{}' in TE member '{}'; a weight is 0 or 1 with at most three digits after the point",
                     value.escape_debug(),
                     member.escape_debug()
+                    ),
                 ));
             }
             return None;
@@ -378,12 +382,6 @@ const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("A"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
     note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
-};
-const RFC_9110_12_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2",
-    note: "`weight` and `qvalue`, and the MUST NOT on generating more than three digits after the point",
 };
 const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",

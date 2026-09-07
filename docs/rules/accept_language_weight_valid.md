@@ -25,7 +25,7 @@ Check that an `Accept-Language` header reads as `#( language-range [ weight ] )`
 ## Specifications
 
 - [RFC 9110 §12.5.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4): Accept-Language: `#( language-range [ weight ] )` — the production that says a range may carry a weight and nothing else. Note that, unlike Accept and Accept-Encoding, this section gives the field no meaning in a response
-- [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality Values: the `weight` production this field admits, the `qvalue` its value must be, and the case-insensitive parameter name
+- [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): Quality Values — `weight = OWS ";" OWS "q=" qvalue`, the `qvalue` production and its three-digit fraction, the case-insensitive `q` parameter name, and what a weight of zero means
 - [RFC 4647 §2.1](https://www.rfc-editor.org/rfc/rfc4647.html#section-2.1): Basic Language Range: where `language-range` is defined, by reference from RFC 9110. Its syntax is `language_tag_syntax`'s subject, not this rule's
 - [RFC 9110 §5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2): Sender Requirements for lists: the bracketing that makes an empty list element something a recipient may ignore
 
