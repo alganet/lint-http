@@ -20,6 +20,8 @@ Servers and clients relying on Digest authentication may behave incorrectly when
 
 - [RFC 7616 §3.4](https://www.rfc-editor.org/rfc/rfc7616.html#section-3.4): The Authorization Header Field — the Digest credentials, their parameters, the 4xx consequence for missing or improper ones, the "MUST be used by all implementations" on cnonce and nc, and the two historical-reasons quoting MUSTs enforced here in both directions
 - [RFC 2617 §3.2.2](https://www.rfc-editor.org/rfc/rfc2617.html#section-3.2.2): The obsolete document whose qop-less credential shape is why cnonce and nc are demanded only beside a qop: its own conditional ("MUST be specified if a qop directive is sent") is the observable line, and deployed servers still verify the older shape
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 
 ## Configuration
 

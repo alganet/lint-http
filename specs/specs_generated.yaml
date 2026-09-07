@@ -1098,7 +1098,7 @@ sources:
     snippet: This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 163
+      line: 213
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.html
   fragments:
@@ -3779,25 +3779,25 @@ sources:
     snippet: 'For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 198
+      line: 265
   - label: digest_auth_valid (2)
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 197
+      line: 264
   - label: digest_auth_valid (3)
     section: § 3.4
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 120
+      line: 170
   - label: cnonce
     section: § 3.4
     snippet: This parameter MUST be used by all implementations.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 162
+      line: 212
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 3.5
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
@@ -6541,7 +6541,7 @@ sources:
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
       line: 110
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 95
+      line: 145
     - file: lint-http-rules/src/violations/auth_scheme.rs
       line: 42
   - label: lint-http-rules/src/helpers/auth.rs (2)
