@@ -4,12 +4,58 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct DigestAuthValid;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
+/// The six defects an `auth-param` can have that are not RFC 7616's.
+///
+/// `auth-param = token BWS "=" BWS ( token / quoted-string )` is RFC 9110
+/// § 11.2's, imported by RFC 7616 unchanged, so a name holding a `@` and a
+/// value that does not close its DQUOTE are the same defects
+/// `www_authenticate_challenge_syntax` and `authorization_credentials_present`
+/// already report. **This closes the authentication cluster's grammar half**:
+/// every rule in it now answers with the shared ids, and what each still writes
+/// is what its own scheme means.
+///
+/// Everything RFC 7616 says about *Digest* stays here and stays at the rule's
+/// severity: which five parameters a credential cannot be verified without,
+/// that a `qop` obliges a `cnonce` and an `nc`, and § 3.4's two historical
+/// quoting lists — which are requirements about *which spelling* a
+/// well-formed value uses, not about whether it is well formed.
+///
+/// One site is left, and it is a whole commit of its own.
+/// [`crate::helpers::auth::parse_auth_params`] answers every caller in a
+/// rendered `String`, which is 2.15's tell exactly; three of its five verdicts
+/// are already named here (an empty member, an empty name, a name holding a
+/// character no `tchar` admits) and it has four callers. **It is also why
+/// `TOKEN_CHARACTER_FORBIDDEN` is declared and only reachable through the
+/// value half**: that helper measures the name first and hands back a sentence,
+/// so this rule's own name check answers nothing until the helper is typed. The
+/// declaration is kept because the mapping is exhaustive and the reachable half
+/// needs both ids anyway — the invisible octet cannot arrive through a
+/// `HeaderValue`, the visible one can.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
+
 const RFC_7616_3_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7616",
     section: Some("3.4"),
@@ -39,7 +85,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_7616_3_4, RFC_2617_3_2_2]
+        &[RFC_7616_3_4, RFC_2617_3_2_2, RFC_9110_5_6_2, RFC_9110_5_6_4]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -174,11 +224,28 @@ impl Rule for DigestAuthValid {
                                 // validate tokensexp and quoted values basic syntax
                                 for (k, v) in map.iter() {
                                     // param names must be tokens
+                                    // An `auth-param` name is a `token`, which is
+                                    // § 5.6.2's production imported unchanged --
+                                    // so the two ids here are the ones every
+                                    // other reader of it answers with.
+                                    //
+                                    // **This branch cannot fire today**, and the
+                                    // reason is two lines up rather than anywhere
+                                    // in this document: `parse_auth_params`
+                                    // measures the name against the same reader
+                                    // and returns `Err` first, so a `user@name`
+                                    // reaches the rendered-string arm below
+                                    // instead. That is a sixth variety of
+                                    // unreachable -- not the transport, not the
+                                    // field's spelling, but a shared reader that
+                                    // already answered -- and it is what typing
+                                    // that helper will resolve, at which point
+                                    // the id here is the one it should hand back.
                                     if let Some(inv) =
                                         crate::helpers::token::find_invalid_token_char(k)
                                     {
-                                        return Some(self.violation(
-                                            ctx.severity,
+                                        return Some(ctx.report_with(
+                                            token_character(inv),
                                             format!(
                                                 "Invalid character '{}' in Digest auth-param name",
                                                 inv
@@ -217,12 +284,12 @@ impl Rule for DigestAuthValid {
                                     // A value that opens with a quote is validated as a quoted-string
                                     // (grammar helper-owned, RFC 9110 §5.6.4).
                                     if quoted {
-                                        if let Err(msg) =
-                                            crate::helpers::quoted_string::validate_quoted_string(v)
+                                        if let Err(defect) =
+                                            crate::helpers::quoted_string::check_quoted_string(v)
                                         {
-                                            return Some(self.violation(ctx.severity, format!(
+                                            return Some(ctx.report_with(quoted_string_defect(defect), format!(
                                                     "Invalid quoted-string in Digest auth-param '{}': {}",
-                                                    k, msg
+                                                    k, defect.message(v)
                                                 )));
                                         }
                                     } else {
@@ -232,7 +299,7 @@ impl Rule for DigestAuthValid {
                                         if let Some(inv) =
                                             crate::helpers::token::find_invalid_token_char(v)
                                         {
-                                            return Some(self.violation(ctx.severity, format!(
+                                            return Some(ctx.report_with(token_character(inv), format!(
                                                     "Invalid character '{}' in Digest auth-param value for '{}'",
                                                     inv, k
                                                 )));
@@ -355,6 +422,44 @@ mod tests {
             assert!(v.is_none());
         }
         Ok(())
+    }
+
+    /// The three findings that are the `auth-param`'s grammar and not Digest's,
+    /// with the ids they now carry — and the four that stay RFC 7616's, at the
+    /// rule's own severity.
+    #[rstest]
+    // A bad *name* does not reach this rule's own check: `parse_auth_params`
+    // measures it with the same reader and returns a rendered string first,
+    // which is the unnamed arm below and the next commit's work.
+    #[case::name_character(
+        "Digest user@name=abc, realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\"",
+        ""
+    )]
+    #[case::value_character("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", algorithm=M@D5", "token_character_forbidden")]
+    #[case::unterminated_quote(
+        "Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", opaque=\"abc",
+        "quoted_string_delimiter_missing"
+    )]
+    #[case::missing_required("Digest realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\"", "")]
+    #[case::qop_without_cnonce("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", qop=auth, nc=00000001", "")]
+    #[case::must_quote(
+        "Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=/, response=\"d\"",
+        ""
+    )]
+    #[case::must_not_quote("Digest username=\"u\", realm=\"r\", nonce=\"n\", uri=\"/\", response=\"d\", qop=\"auth\", cnonce=\"c\", nc=00000001", "")]
+    fn the_auth_params_grammar_is_not_digests(#[case] header: &str, #[case] violation: &str) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request
+            .headers
+            .append("authorization", header.parse().expect("a field value"));
+        let finding = crate::test_helpers::run_rule(
+            &DigestAuthValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["digest_auth_valid"]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {header:?}"));
+        assert_eq!(finding.violation, violation, "for {header:?}");
     }
 
     #[test]
