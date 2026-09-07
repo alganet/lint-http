@@ -1210,7 +1210,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 154
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 59
+      line: 171
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 138
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
@@ -1380,7 +1380,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1050
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 142
+      line: 271
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 356
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
@@ -1400,7 +1400,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1243
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 154
+      line: 291
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 52
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -2383,7 +2383,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1219
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 188
+      line: 336
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 102
   - label: lint-http-rules/src/helpers/uri.rs (2)
@@ -2393,7 +2393,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1218
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 187
+      line: 335
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 101
 - label: RFC 6454
@@ -3845,7 +3845,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 24
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 20
+      line: 132
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 15
   - label: alt_svc_h3_advertisement_valid
@@ -3855,7 +3855,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 179
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 476
+      line: 667
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 328
   - label: alt_svc_h3_advertisement_valid (2)
@@ -3865,7 +3865,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 277
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 223
+      line: 376
   - label: alt_svc_h3_advertisement_valid (3)
     section: § 3
     snippet: Unknown parameters MUST be ignored.
@@ -3873,7 +3873,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 40
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 224
+      line: 377
   - label: alt_svc_h3_advertisement_valid (4)
     section: § 3
     snippet: clear         = %s"clear"; "clear", case-sensitive
@@ -3881,9 +3881,9 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 25
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 21
+      line: 133
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 326
+      line: 505
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 368
   - label: alt_svc_h3_advertisement_valid (5)
@@ -3895,7 +3895,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 276
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 222
+      line: 375
   - label: alt_svc_h3_advertisement_valid (6)
     section: § 3.1
     snippet: The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh.
@@ -3907,25 +3907,25 @@ sources:
     snippet: This document uses the Augmented BNF defined in [RFC5234] and updated by [RFC7405] along with the "#rule" extension defined in Section 7 of [RFC7230].
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 560
+      line: 751
   - label: alt_svc_header_syntax (2)
     section: § 2
     snippet: Note that for the purpose of this specification, an ALPN protocol name implicitly includes TLS in the suite of protocols it identifies, unless specified otherwise in its definition.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 186
+      line: 334
   - label: alt_svc_header_syntax (3)
     section: § 3
     snippet: A field value containing the special value "clear" indicates that the origin requests all alternatives for that origin to be invalidated (including those specified in the same response, in case of an invalid reply containing both "clear" and alternative services).
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 545
+      line: 736
   - label: alt_svc_header_syntax (4)
     section: § 3
     snippet: Alt-Svc MAY occur in any HTTP response message, regardless of the status code.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 493
+      line: 684
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 349
   - label: alt_svc_header_syntax (5)
@@ -3933,31 +3933,31 @@ sources:
     snippet: Consequently, the octet representing the percent character "%" (hex 25) MUST be percent-encoded as well.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 54
+      line: 166
   - label: alt_svc_header_syntax (6)
     section: § 3
     snippet: 'In order to have precisely one way to represent any ALPN protocol name, the following additional constraints apply:'
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 55
+      line: 167
   - label: alt_svc_header_syntax (7)
     section: § 3
     snippet: Note that the "quoted-string" syntax needs to be used because ":" is not an allowed character in "token".
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 116
+      line: 235
   - label: alt_svc_header_syntax (8)
     section: § 3
     snippet: Octets in the ALPN protocol name MUST NOT be percent-encoded if they are valid token characters except "%", and
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 56
+      line: 168
   - label: alt_svc_header_syntax (9)
     section: § 3
     snippet: Octets not allowed in tokens ([RFC7230], Section 3.2.6) MUST be percent-encoded as per Section 2.1 of [RFC3986].
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 53
+      line: 165
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 137
   - label: alt_svc_header_syntax (10)
@@ -3965,13 +3965,13 @@ sources:
     snippet: The "alt-authority" component consists of an OPTIONAL uri-host ("host" in Section 3.2.2 of [RFC3986]), a colon (":"), and a port number.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 115
+      line: 234
   - label: alt_svc_header_syntax (11)
     section: § 3
     snippet: The field value consists either of a list of values, each of which indicates one alternative service, or the keyword "clear".
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 22
+      line: 134
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 16
   - label: alt_svc_header_syntax (12)
@@ -3979,25 +3979,25 @@ sources:
     snippet: When using percent-encoding, uppercase hex digits MUST be used.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 57
+      line: 169
   - label: alt_svc_header_syntax (13)
     section: § 3
     snippet: With these constraints, recipients can apply simple string comparison to match protocol identifiers.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 58
+      line: 170
   - label: alt_svc_header_syntax (14)
     section: § 3
     snippet: alt-authority = quoted-string ; containing [ uri-host ] ":" port
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 114
+      line: 233
   - label: alt_svc_header_syntax (15)
     section: § 3
     snippet: alt-value     = alternative *( OWS ";" OWS parameter )
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 34
+      line: 146
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 389
   - label: alt_svc_header_syntax (16)
@@ -4005,7 +4005,7 @@ sources:
     snippet: alternative   = protocol-id "=" alt-authority
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 319
+      line: 498
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 400
   - label: alt_svc_header_syntax (17)
@@ -4013,7 +4013,7 @@ sources:
     snippet: protocol-id   = token ; percent-encoded ALPN protocol name
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 320
+      line: 499
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 135
   - label: alt_svc_header_syntax (18)
@@ -4021,25 +4021,25 @@ sources:
     snippet: Alternative services that are intended to be longer lived (such as those that are not specific to the client access network) can carry the "persist" parameter with a value "1" as a hint that the service is potentially useful beyond a network configuration change.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 290
+      line: 469
   - label: alt_svc_header_syntax (19)
     section: § 3.1
     snippet: Clients MUST ignore "persist" parameters with values other than "1".
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 292
+      line: 471
   - label: alt_svc_header_syntax (20)
     section: § 3.1
     snippet: This specification only defines a single value for "persist".
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 291
+      line: 470
   - label: alt_svc_header_syntax (21)
     section: § 8
     snippet: An internationalized domain name that appears in either the header field (Section 3) or the HTTP/2 frame (Section 4) MUST be expressed using A-labels ([RFC5890], Section 2.3.2.1).
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 141
+      line: 270
   - label: alt_svc_protocol_registered
     section: § 2
     snippet: An Application Layer Protocol Negotiation (ALPN) protocol name, as per [RFC7301]
@@ -5245,7 +5245,7 @@ sources:
     snippet: All HTTP requirements applicable to an origin server also apply to the outbound communication of a gateway.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 477
+      line: 668
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 329
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -6649,7 +6649,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 104
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 561
+      line: 752
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 105
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -7059,7 +7059,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 356
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 35
+      line: 147
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 160
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
@@ -7113,7 +7113,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 145
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 535
+      line: 726
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 515
   - label: lint-http-rules/src/helpers/list.rs (2)
@@ -7175,7 +7175,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 90
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 117
+      line: 236
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 429
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -7451,7 +7451,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 89
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 321
+      line: 500
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 407
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
@@ -7557,7 +7557,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 180
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
-      line: 510
+      line: 701
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 359
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
