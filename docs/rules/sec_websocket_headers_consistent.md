@@ -28,7 +28,9 @@ Only HTTP/1.x messages are measured. Over HTTP/2 and HTTP/3 the opening handshak
 - [RFC 6455 §4.4](https://www.rfc-editor.org/rfc/rfc6455.html#section-4.4): Supporting Multiple Versions — why a `Sec-WebSocket-Version` other than 13 is a version advertisement rather than a malformed value, and what a server owes it
 - [RFC 8441 §5](https://www.rfc-editor.org/rfc/rfc8441.html#section-5): Updates RFC 6455: over HTTP/2 the handshake is an extended CONNECT, `Connection` and `Upgrade` MUST NOT be included, and `Sec-WebSocket-Key` is not processed — the sentences behind this rule's version gate
 - [RFC 9220 §3](https://www.rfc-editor.org/rfc/rfc9220.html#section-3): Carries RFC 8441's mechanism to HTTP/3 with identical semantics
-- [RFC 4648 §3.3](https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3): The instruction to reject encoded data holding a character outside the base alphabet, which is what makes a malformed `Sec-WebSocket-Key` reportable rather than merely unusual
+- [RFC 4648 §3.3](https://www.rfc-editor.org/rfc/rfc4648.html#section-3.3): Interpretation of non-alphabet characters — a MUST to reject data outside the base alphabet, unless the referring specification says otherwise
+- [RFC 4648 §4](https://www.rfc-editor.org/rfc/rfc4648.html#section-4): Base 64 Encoding — the 24-bit group written as four characters, and the padding that completes a final group of fewer bits
+- [RFC 4648 §3.5](https://www.rfc-editor.org/rfc/rfc4648.html#section-3.5): Canonical encoding — the discarded bits of a final symbol MUST be zero in what an encoder writes, and a decoder MAY reject an encoding where they are not
 
 ## Configuration
 
