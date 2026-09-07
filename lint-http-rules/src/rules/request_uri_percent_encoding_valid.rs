@@ -4,18 +4,34 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
+};
+use crate::violations::ViolationDef;
 
 pub struct RequestUriPercentEncodingValid;
+
+/// The two ways a `%` does not open a triplet, which is the whole of what this
+/// rule reads out of the request target.
+///
+/// The production is `pct-encoded = "%" HEXDIG HEXDIG` and every field carrying
+/// a URI reference measures it the same way, so the defects are the
+/// production's — a `Referer`, a `Location` and a `Content-Location` draw these
+/// same two — and what stays here is § 2.4's reading of *why* a malformed
+/// triplet in a request target matters: the target is the one URI a server
+/// dereferences.
+///
+/// The alphabet finding beside them is not one of these: an octet no URI is
+/// composed from is § 2's character set rather than the triplet's, and no
+/// subject holds it yet.
+static DECLARED: &[&ViolationDef] = &[
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_3986_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1",
-    note: "Percent-Encoding: the triplet production, and percent-encoding as the mechanism for an octet whose character is outside the allowed set",
-};
 const RFC_3986_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 3986",
     section: Some("2"),
@@ -82,6 +98,10 @@ severity = "error"
             RFC_9110_7_1,
             RFC_5234_2_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -161,19 +181,15 @@ impl Rule for RequestUriPercentEncodingValid {
             // cite(RFC 3986 § 2.4): "Because the percent ("%") character serves as the indicator for percent-encoded octets, it must be percent-encoded as "%25" for that octet to be used as data within a URI."
             // cite(RFC 3986 § 2.4): "Once produced, a URI is always in its percent-encoded form."
             // cite(RFC 3986 § 2.4): "When a URI is dereferenced, the components and subcomponents significant to the scheme-specific dereferencing process (if any) must be parsed and separated before the percent-encoded octets within those components can be safely decoded, as otherwise the data may be mistaken for component delimiters."
-            if let Some(msg) = crate::helpers::uri::check_percent_encoding(target) {
-                // Read after the finding is certain: parsing the config is several
-                // map probes and a hash of the rule id, where the scan above walks a
-                // string the transaction already holds.
-                let severity = ctx.severity;
-
+            if let Some(defect) = crate::helpers::uri::percent_encoding_defect(target) {
                 // A target read back from a capture can hold characters that print
                 // as nothing or, worse, print as something else: an escape sequence
                 // in a finding is a finding nobody can read.
                 let shown = crate::helpers::shown::shown_in_finding(target);
+                let msg = defect.message();
 
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    crate::violations::uri::percent_encoding(defect),
                     format!(
                         "Request target '{shown}': {msg}. The percent character is the indicator for a \
                          percent-encoded octet and opens a triplet -- itself and two hexadecimal \
@@ -261,6 +277,69 @@ mod tests {
             assert_eq!(v.rule, "request_uri_percent_encoding_valid");
             v.message
         })
+    }
+
+    /// One production, four fields, two ids. The request target, a `Referer`,
+    /// a `Location` and a `Content-Location` each read `pct-encoded` through
+    /// the same helper and each words its own sentence around the answer; what
+    /// the catalogue makes the same is which defect it is.
+    #[rstest]
+    #[case("/a%2", "percent_encoding_digits_missing")]
+    #[case("/a%zz", "percent_encoding_malformed")]
+    fn four_fields_carrying_a_uri_report_one_id(#[case] value: &str, #[case] id: &str) {
+        let mut request = crate::test_helpers::make_test_transaction();
+        request.request.uri = format!("http://example.com{value}");
+        let found = crate::test_helpers::run_rule(
+            &RequestUriPercentEncodingValid,
+            &request,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "request_uri_percent_encoding_valid",
+                "warn",
+            ),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, id, "{value}");
+
+        let referer = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "referer",
+            &format!("http://example.com{value}"),
+        )]);
+        let found = crate::test_helpers::run_rule(
+            &super::super::referer_uri_valid::RefererUriValid,
+            &referer,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn"),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, id, "{value}");
+
+        for (rule, field) in [
+            (
+                &super::super::location_header_uri_valid::LocationHeaderUriValid
+                    as &dyn crate::rules::Rule,
+                "location",
+            ),
+            (
+                &super::super::content_location_and_uri_consistent::ContentLocationAndUriConsistent,
+                "content-location",
+            ),
+        ] {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(302, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[(
+                    field,
+                    &format!("http://example.com{value}"),
+                )]);
+            let found = crate::test_helpers::run_rule(
+                rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_severity(rule.id(), "warn"),
+            )
+            .expect("a finding");
+            assert_eq!(found.violation, id, "{field} {value}");
+        }
     }
 
     #[rstest]

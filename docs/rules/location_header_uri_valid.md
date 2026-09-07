@@ -30,6 +30,7 @@ A `%` must open a well-formed `pct-encoded` triplet, and a value that carries a 
 - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): Field Values: singleton fields, the care a comma needs in a field carrying a URI-reference, and the MUST to exclude leading and trailing whitespace before evaluating a field value
 - [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters: the limited set a URI is composed from — `unreserved`, `gen-delims`, `sub-delims` — and the `pct-encoded` triplet every other octet must be written as
 - [RFC 3986 §4.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-4.1): `URI-reference = URI / relative-ref`. §4.4 is why an empty value is one of them, and so why the empty-value finding here is advisory
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
 
 ## Configuration
 

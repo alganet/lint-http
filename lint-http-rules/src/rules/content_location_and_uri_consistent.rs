@@ -4,8 +4,26 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
+};
+use crate::violations::ViolationDef;
 
 pub struct ContentLocationAndUriConsistent;
+
+/// The triplet's two defects, borrowed like every other reader of a URI
+/// reference.
+///
+/// What this rule is named for — whether the value the response gave equals the
+/// target URI — is a comparison and not a grammar, and the rest of its reading
+/// is `Content-Location = absolute-URI / partial-URI` measured piece by piece.
+/// Only the percent triplet has a subject so far; the scheme's three ids are
+/// one wrapper away and the alphabet's is § 2's character set, which no subject
+/// holds.
+static DECLARED: &[&ViolationDef] = &[
+    &PERCENT_ENCODING_DIGITS_MISSING,
+    &PERCENT_ENCODING_MALFORMED,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -98,7 +116,12 @@ severity = "info"
             RFC_3986_6_2_2_1,
             RFC_3986_6_2_2_2,
             RFC_3986_6_2_2_3,
+            RFC_3986_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -259,8 +282,11 @@ impl Rule for ContentLocationAndUriConsistent {
 
                 // The `pct-encoded` production and the `scheme` production are the
                 // helpers' to state; both carry the grammar at their definitions.
-                if let Some(msg) = crate::helpers::uri::check_percent_encoding(s) {
-                    return Some(self.violation(ctx.severity, msg));
+                if let Some(defect) = crate::helpers::uri::percent_encoding_defect(s) {
+                    return Some(ctx.report_with(
+                        crate::violations::uri::percent_encoding(defect),
+                        defect.message(),
+                    ));
                 }
 
                 // Only the `absolute-URI` alternative has a scheme; the helper is a

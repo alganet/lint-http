@@ -44,7 +44,7 @@ Reads the `Referer` request header field against the production RFC 9110 §10.1.
 - [RFC 3986 §4.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-4.2): Relative Reference — `relative-part`, and why a first path segment holding a colon is not one
 - [RFC 3986 §4.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-4.3): Absolute URI — the form without a fragment identifier
 - [RFC 3986 §4.4](https://www.rfc-editor.org/rfc/rfc3986.html#section-4.4): Same-Document Reference — what an empty value is
-- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — the triplet the `%` obliges
+- [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
 - [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
 
 ## Configuration
