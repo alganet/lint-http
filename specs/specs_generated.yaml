@@ -1098,7 +1098,7 @@ sources:
     snippet: This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 213
+      line: 218
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.html
   fragments:
@@ -3779,31 +3779,31 @@ sources:
     snippet: 'For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 265
+      line: 269
   - label: digest_auth_valid (2)
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 264
+      line: 268
   - label: digest_auth_valid (3)
     section: § 3.4
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 170
+      line: 175
   - label: cnonce
     section: § 3.4
     snippet: This parameter MUST be used by all implementations.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 212
+      line: 217
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 3.5
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
     cited_by:
     - file: lint-http-rules/src/helpers/auth.rs
-      line: 664
+      line: 718
 - label: RFC 7617
   url: https://www.rfc-editor.org/rfc/rfc7617.html
   fragments:
@@ -4953,7 +4953,7 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 412
     - file: lint-http-rules/src/violations/list.rs
-      line: 98
+      line: 99
   - label: accept_patch_header_valid (6)
     section: § 9.1
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
@@ -5352,18 +5352,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 138
-  - label: challenge
-    section: § 11.2
-    snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
-    cited_by:
-    - file: lint-http-rules/src/violations/challenge.rs
-      line: 126
-    - file: lint-http-rules/src/violations/challenge.rs
-      line: 139
-    - file: lint-http-rules/src/violations/challenge.rs
-      line: 153
-    - file: lint-http-rules/src/violations/challenge.rs
-      line: 167
   - label: charset_present
     section: § 8.3.2
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
@@ -6541,10 +6529,24 @@ sources:
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
       line: 110
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 145
+      line: 150
     - file: lint-http-rules/src/violations/auth_scheme.rs
       line: 42
   - label: lint-http-rules/src/helpers/auth.rs (2)
+    section: § 11.2
+    snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )
+    cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 675
+    - file: lint-http-rules/src/violations/challenge.rs
+      line: 126
+    - file: lint-http-rules/src/violations/challenge.rs
+      line: 139
+    - file: lint-http-rules/src/violations/challenge.rs
+      line: 153
+    - file: lint-http-rules/src/violations/challenge.rs
+      line: 167
+  - label: lint-http-rules/src/helpers/auth.rs (3)
     section: § 11.3
     snippet: 'challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
@@ -6556,7 +6558,7 @@ sources:
       line: 88
     - file: lint-http-rules/src/violations/challenge.rs
       line: 114
-  - label: lint-http-rules/src/helpers/auth.rs (3)
+  - label: lint-http-rules/src/helpers/auth.rs (4)
     section: § 11.4
     snippet: 'credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]'
     cited_by:
@@ -6566,7 +6568,7 @@ sources:
       line: 52
     - file: lint-http-rules/src/violations/credentials.rs
       line: 82
-  - label: lint-http-rules/src/helpers/auth.rs (4)
+  - label: lint-http-rules/src/helpers/auth.rs (5)
     section: § 11.6.1
     snippet: 'WWW-Authenticate = #challenge'
     cited_by:
@@ -6596,44 +6598,12 @@ sources:
       line: 287
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 259
-  - label: lint-http-rules/src/helpers/cache_control.rs
-    section: § 5.2
-    snippet: When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma.
-    cited_by:
-    - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 110
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 121
-    - file: lint-http-rules/src/helpers/headers.rs
-      line: 389
-    - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 110
-    - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 110
-    - file: lint-http-rules/src/rules/max_forwards_numeric.rs
-      line: 153
-    - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 216
-    - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
-      line: 134
-    - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 184
-    - file: lint-http-rules/src/rules/status_code_semantics.rs
-      line: 21
-    - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 41
-  - label: lint-http-rules/src/helpers/cache_control.rs (2)
-    section: § 5.6.1
-    snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
-    cited_by:
-    - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 112
-    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 339
-  - label: lint-http-rules/src/helpers/cache_control.rs (3)
+  - label: lint-http-rules/src/helpers/auth.rs (6)
     section: § 5.6.1.1
     snippet: In any production that uses the list construct, a sender MUST NOT generate empty list elements.
     cited_by:
+    - file: lint-http-rules/src/helpers/auth.rs
+      line: 676
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 111
     - file: lint-http-rules/src/helpers/cache_control.rs
@@ -6683,7 +6653,41 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 274
     - file: lint-http-rules/src/violations/list.rs
-      line: 71
+      line: 72
+  - label: lint-http-rules/src/helpers/cache_control.rs
+    section: § 5.2
+    snippet: When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma.
+    cited_by:
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 110
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 121
+    - file: lint-http-rules/src/helpers/headers.rs
+      line: 389
+    - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
+      line: 110
+    - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
+      line: 110
+    - file: lint-http-rules/src/rules/max_forwards_numeric.rs
+      line: 153
+    - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
+      line: 216
+    - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
+      line: 134
+    - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
+      line: 184
+    - file: lint-http-rules/src/rules/status_code_semantics.rs
+      line: 21
+    - file: lint-http-rules/src/rules/te_header_valid.rs
+      line: 41
+  - label: lint-http-rules/src/helpers/cache_control.rs (2)
+    section: § 5.6.1
+    snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
+    cited_by:
+    - file: lint-http-rules/src/helpers/cache_control.rs
+      line: 112
+    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
+      line: 339
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
