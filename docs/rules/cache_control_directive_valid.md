@@ -19,6 +19,10 @@ This rule complements `cache_control_token_valid` which enforces general token/q
 ## Specifications
 
 - [RFC 9111 §5.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.2): Cache-Control directives and general directive syntax
+- [RFC 9111 §1.2.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.1): Imported Rules — `token`, `quoted-string` and `field-name` are RFC 9110's, taken by reference and not restated, which is why a directive's parts report the same defects as any other field written out of them
+- [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The list construct — `1#element => element *( OWS "," OWS element )`, and the sender's MUST NOT against an empty element
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 
 ## Configuration
 
