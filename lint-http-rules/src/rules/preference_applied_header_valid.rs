@@ -10,9 +10,23 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
+use crate::violations::ViolationDef;
 use std::collections::HashMap;
 
 pub struct PreferenceAppliedHeaderValid;
+
+/// The same two the `Prefer` rule declares, for the same reason: the two fields
+/// share a production and both spell it with a `1#`.
+///
+/// `Preference-Applied = "Preference-Applied" ":" 1#applied-pref`, so a
+/// response that applied nothing and a response with a stray comma report the
+/// list's ids. What stays is this field's own reading — a member carrying
+/// parameters its grammar does not include, and an applied preference the
+/// request never asked for.
+static DECLARED: &[&ViolationDef] = &[&LIST_MEMBER_MISSING, &LIST_MEMBER_EMPTY];
 
 /// The preferences a request asked for, keyed by the lowercased token.
 ///
@@ -122,12 +136,6 @@ const RFC_7240_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-1.1",
     note: "Where `token`, `word`, `OWS`, `BWS` and the `#rule` extension come from. The named source is RFC 7230, which RFC 9110 obsoletes; `word` is the one name RFC 9110 did not keep, though both halves of it survive as `token` and `quoted-string`",
 };
-const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
-    note: "The `#rule` extension: §5.6.1.1 forbids the sender an empty list element, §5.6.1.2 prints the values a `1#` production rejects for having no non-empty member",
-};
 const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.6.3"),
@@ -159,9 +167,14 @@ severity = "warn"
             RFC_7240_3,
             RFC_7240_2,
             RFC_7240_1_1,
-            RFC_9110_5_6_1,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
             RFC_9110_5_6_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -253,9 +266,10 @@ impl Rule for PreferenceAppliedHeaderValid {
             // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
             // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
             if members.iter().all(|m| m.is_empty()) {
-                return violation(
+                return Some(ctx.report_with(
+                    &LIST_MEMBER_MISSING,
                     "Preference-Applied header carries no applied preference; its value is 1#applied-pref, which requires at least one non-empty member".into(),
-                );
+                ));
             }
 
             // An empty element beside a real one is the other half of the same
@@ -265,9 +279,12 @@ impl Rule for PreferenceAppliedHeaderValid {
             //
             // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
             if members.iter().any(|m| m.is_empty()) {
-                return violation(format!(
-                    "Preference-Applied header contains an empty list element: '{}'",
-                    shown_in_finding(&applied)
+                return Some(ctx.report_with(
+                    &LIST_MEMBER_EMPTY,
+                    format!(
+                        "Preference-Applied header contains an empty list element: '{}'",
+                        shown_in_finding(&applied)
+                    ),
                 ));
             }
 
@@ -418,6 +435,46 @@ mod tests {
     fn scope_is_server() {
         let rule = PreferenceAppliedHeaderValid;
         assert_eq!(rule.scope(), crate::rules::RuleScope::Server);
+    }
+
+    /// The request field and the response field are the same list construct,
+    /// and after conversion they say so.
+    ///
+    /// The two rules read opposite halves of a transaction and share no line of
+    /// code; what makes `Prefer: ,` and `Preference-Applied: ,` one defect is
+    /// the `1#` both grammars are written with, and nothing else. Both rules
+    /// ask the floor before the members, so a value of only commas reaches the
+    /// floor's id from either side — which is the ordering three of the four
+    /// fields converted before this one also take.
+    #[rstest]
+    #[case("", "list_member_missing")]
+    #[case(",", "list_member_missing")]
+    #[case(",   ,", "list_member_missing")]
+    #[case("respond-async,", "list_member_empty")]
+    #[case(",respond-async", "list_member_empty")]
+    fn both_halves_of_the_exchange_report_one_list(#[case] value: &str, #[case] id: &str) {
+        let applied = check(&tx_with(&[b"respond-async"], &[value.as_bytes()]))
+            .expect("a list finding on the response");
+        assert_eq!(applied.violation, id, "{}", applied.message);
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut headers = hyper::HeaderMap::new();
+        headers.append(
+            "prefer",
+            hyper::header::HeaderValue::from_bytes(value.as_bytes()).expect("a field line"),
+        );
+        tx.request.headers = headers;
+        let prefer = crate::test_helpers::run_rule(
+            &crate::rules::prefer_header_valid::PreferHeaderValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["prefer_header_valid"]),
+        )
+        .expect("a list finding on the request");
+        assert_eq!(prefer.violation, id, "{}", prefer.message);
+
+        // One id, two sentences: each rule still names its own field.
+        assert_ne!(prefer.message, applied.message);
     }
 
     #[rstest]
