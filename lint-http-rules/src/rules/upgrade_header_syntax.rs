@@ -8,8 +8,36 @@ use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct UpgradeHeaderSyntax;
+
+/// `protocol-name` and `protocol-version` are both `token`, and the members
+/// between them are a `#` list, so this rule declares four defs and writes one
+/// of its own.
+///
+/// Four of the five readings are the borrowed productions': a member that
+/// contributes nothing to the list, a `protocol-version` written as nothing
+/// after its slash, and an octet outside `tchar` in either half. The `token`
+/// pair is reached from *both* halves of the same member, which is the clearest
+/// case yet of one id answering twice inside one value.
+///
+/// The fifth is this production's own and stays unnamed: a member opening with
+/// the slash of its optional group, which is `protocol = protocol-name ["/"
+/// protocol-version]` saying that the name is the half that is not optional. No
+/// subject holds a statement about which of two halves an optional group hangs
+/// from, and one rule reading it is not a subject.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
 
 /// Why one member of the list derives from no `protocol`.
 ///
@@ -27,7 +55,45 @@ pub struct UpgradeHeaderSyntax;
 /// import from § 5.6.2 unchanged and both take from `helpers::token`.
 ///
 /// cite(RFC 9110 § 7.8, label: protocol grammar): "protocol = protocol-name ["/" protocol-version] protocol-name = token protocol-version = token"
-fn protocol_defect(member: &str) -> Option<String> {
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled: a judge that is half converted says
+/// so in its type. Here the unnamed half is one branch — a member that opens
+/// with the slash of its optional group — which is `protocol`'s own statement
+/// that the *name* is the half that is not optional, and no subject holds it.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed yet, reported at the rule's severity the
+    /// way every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+
+    /// The same defect with its message read from further out — the direction,
+    /// the field's name — which is how this rule builds one sentence out of two
+    /// readings.
+    fn in_context(self, context: impl FnOnce(String) -> String) -> Self {
+        Self {
+            def: self.def,
+            message: context(self.message),
+        }
+    }
+}
+
+fn protocol_defect(member: &str) -> Option<Defect> {
     // A `protocol-name` is `token`, which is `1*tchar`, so a run of no `tchar`
     // is not a name however the member goes on. The slash is worth its own
     // sentence: a member beginning with one was written as if the name were
@@ -41,17 +107,23 @@ fn protocol_defect(member: &str) -> Option<String> {
         // answer would be rather than asserting it cannot happen.
         let first = member.chars().next()?;
         return Some(if first == '/' {
-            format!(
+            // `protocol = protocol-name ["/" protocol-version]` — the optional
+            // group written without the thing it is optional *on*. That is this
+            // production's own statement and no subject holds it.
+            Defect::unnamed(format!(
                 "member '{}' begins with the slash of a protocol version and names no protocol; \
                  a protocol is a protocol-name that a \"/\" and a protocol-version may follow, and \
                  the name is the half that is not optional",
                 shown_in_finding(member)
-            )
+            ))
         } else {
-            format!(
-                "member '{}' does not begin with a protocol name, but with {}",
-                shown_in_finding(member),
-                describe_char(first)
+            Defect::named(
+                token_character(first),
+                format!(
+                    "member '{}' does not begin with a protocol name, but with {}",
+                    shown_in_finding(member),
+                    describe_char(first)
+                ),
             )
         });
     }
@@ -66,20 +138,26 @@ fn protocol_defect(member: &str) -> Option<String> {
         Some('/') => {
             let version = rest_chars.as_str();
             if version.is_empty() {
-                return Some(format!(
-                    "member '{}' ends with the slash of its protocol; a protocol-version is a \
-                     token, which is at least one character",
-                    shown_in_finding(member)
+                return Some(Defect::named(
+                    &TOKEN_EMPTY,
+                    format!(
+                        "member '{}' ends with the slash of its protocol; a protocol-version is a \
+                         token, which is at least one character",
+                        shown_in_finding(member)
+                    ),
                 ));
             }
             // A second slash arrives here as a character no `token` admits,
             // which is what it is: the group the production writes is one
             // slash and one version, not a path of them.
             find_invalid_token_char(version).map(|c| {
-                format!(
-                    "member '{}' has a protocol version holding {}; a protocol-version is a token",
-                    shown_in_finding(member),
-                    describe_char(c)
+                Defect::named(
+                    token_character(c),
+                    format!(
+                        "member '{}' has a protocol version holding {}; a protocol-version is a token",
+                        shown_in_finding(member),
+                        describe_char(c)
+                    ),
                 )
             })
         }
@@ -87,10 +165,13 @@ fn protocol_defect(member: &str) -> Option<String> {
         // other than the slash, so whatever stopped the name is simply a
         // character the name may not hold -- `web socket` is one member and not
         // two, because only a comma separates members.
-        Some(c) => Some(format!(
-            "member '{}' has a protocol name holding {}; a protocol-name is a token",
-            shown_in_finding(member),
-            describe_char(c)
+        Some(c) => Some(Defect::named(
+            token_character(c),
+            format!(
+                "member '{}' has a protocol name holding {}; a protocol-name is a token",
+                shown_in_finding(member),
+                describe_char(c)
+            ),
         )),
     }
 }
@@ -117,7 +198,7 @@ impl UpgradeHeaderSyntax {
     ///
     /// cite(RFC 9110 § 5.5): "HTTP field values consist of a sequence of characters in a format defined by the field's grammar."
     /// cite(RFC 9110 § A, label: Upgrade grammar, sender-expanded): "Upgrade = [ protocol *( OWS "," OWS protocol ) ]"
-    fn defect(headers: &hyper::HeaderMap, direction: &str) -> Option<String> {
+    fn defect(headers: &hyper::HeaderMap, direction: &str) -> Option<Defect> {
         let value = combined_field_value_as_written(headers, "upgrade")?;
 
         // The two things the production says about emptiness, and they are not
@@ -154,14 +235,19 @@ impl UpgradeHeaderSyntax {
             }
 
             if let Some(defect) = protocol_defect(member) {
-                return Some(format!("{direction} Upgrade header {defect}"));
+                return Some(
+                    defect.in_context(|message| format!("{direction} Upgrade header {message}")),
+                );
             }
         }
 
         if saw_an_empty_member {
-            return Some(format!(
-                "{direction} Upgrade header holds an empty member: '{}'",
-                shown_in_finding(&value)
+            return Some(Defect::named(
+                &LIST_MEMBER_EMPTY,
+                format!(
+                    "{direction} Upgrade header holds an empty member: '{}'",
+                    shown_in_finding(&value)
+                ),
             ));
         }
 
@@ -195,20 +281,6 @@ const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Field Values — that a value is in the format its field's grammar defines, \
            which is what makes a malformed member a finding at all, and that the \
            value's own ends carry no whitespace",
-};
-const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-    note: "The sender's half of the list construct: the empty member is its MUST NOT, \
-           and the `#element` expansion is why an empty value is not",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note: "`token` and `tchar`: what both halves of a protocol are made of, and the \
-           delimiters they exclude",
 };
 const RFC_9110_16_7: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -250,6 +322,10 @@ severity = "warn"
             RFC_9110_16_7,
             RFC_9110_5_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -319,14 +395,17 @@ impl Rule for UpgradeHeaderSyntax {
             // rule, and declining the value there and here would leave the question
             // asked by nobody. `connection_header_tokens_valid` reads its own
             // connection-specific field the same way for the same reason.
-            let message = Self::defect(&tx.request.headers, "Request").or_else(|| {
+            let defect = Self::defect(&tx.request.headers, "Request").or_else(|| {
                 let resp = tx.response.as_ref()?;
                 Self::defect(&resp.headers, "Response")
             })?;
 
             // Read last: a message about to be reported is the only one that pays
             // for the map probes and the two lookups of the rule id.
-            Some(self.violation(ctx.severity, message))
+            Some(match defect.def {
+                Some(def) => ctx.report_with(def, defect.message),
+                None => self.violation(ctx.severity, defect.message),
+            })
         };
         Vec::from_iter(finding())
     }
@@ -375,6 +454,36 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         )
+    }
+
+    /// Both halves of a `protocol` are `token`s, and one id answers for either.
+    ///
+    /// This is the shape a shared production takes *inside* one value rather
+    /// than across two fields: the name and the version are the same
+    /// production, so `we@bsocket` and `websocket/1@0` are one defect written
+    /// twice — and the version written as nothing after its slash is the same
+    /// `1*tchar` floor a directive name and a method reach.
+    ///
+    /// The one branch that stays this rule's own is the member opening with a
+    /// slash: that is `protocol` saying which of its two halves is optional,
+    /// and it reports at the rule's severity because no subject holds it.
+    #[test]
+    fn both_halves_of_a_protocol_report_the_same_token_defects() {
+        let id = |line: &[u8]| {
+            upgrade(Section::Request, &[line])
+                .expect("a finding")
+                .violation
+        };
+
+        assert_eq!(id(b"we@bsocket"), "token_character_forbidden");
+        assert_eq!(id(b"websocket/1@0"), "token_character_forbidden");
+        assert_eq!(id(b"we bsocket"), "token_whitespace_or_control_forbidden");
+        assert_eq!(id(b"websocket/"), "token_empty");
+        assert_eq!(id(b"websocket,,h2c"), "list_member_empty");
+
+        // `protocol-name` is the half that is not optional, which is a
+        // statement about this production and about nothing else.
+        assert_eq!(id(b"/1.1"), "");
     }
 
     /// `protocol-name` alone and `protocol-name "/" protocol-version`, including

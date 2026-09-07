@@ -6671,7 +6671,7 @@ sources:
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 92
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 151
+      line: 232
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 274
     - file: lint-http-rules/src/violations/list.rs
@@ -7219,7 +7219,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 60
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 137
+      line: 218
   - label: lint-http-rules/src/helpers/media_type.rs (2)
     section: § 5.6.6
     snippet: Parameter names are case-insensitive.
@@ -8807,7 +8807,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 145
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 299
+      line: 375
   - label: status_426_upgrade_valid (4)
     section: § 7.8
     snippet: A server that sends a 426 (Upgrade Required) response MUST send an Upgrade header field to indicate the acceptable protocols, in order of descending preference.
@@ -9079,19 +9079,19 @@ sources:
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 44
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 119
+      line: 200
   - label: upgrade_header_syntax
     section: § 5.5
     snippet: HTTP field values consist of a sequence of characters in a format defined by the field's grammar.
     cited_by:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 118
+      line: 199
   - label: upgrade_header_syntax (2)
     section: § 5.6.1.1
     snippet: '#element => [ 1#element ]'
     cited_by:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 136
+      line: 217
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 263
   - label: upgrade_header_syntax (3)
@@ -9099,13 +9099,13 @@ sources:
     snippet: A client MAY send a list of protocol names in the Upgrade header field of a request to invite the server to switch to one or more of the named protocols, in order of descending preference, before sending the final response.
     cited_by:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 298
+      line: 374
   - label: protocol grammar
     section: § 7.8
     snippet: protocol = protocol-name ["/" protocol-version] protocol-name = token protocol-version = token
     cited_by:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
-      line: 29
+      line: 57
   - label: user_agent_present
     section: § 10.1.5
     snippet: A user agent SHOULD send a User-Agent header field in each request unless specifically configured not to do so.
