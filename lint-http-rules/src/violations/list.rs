@@ -11,11 +11,29 @@
 //! in a `Pragma` is one defect with one name, however differently each rule
 //! words the finding.
 //!
+//! **Two entries, and they are the pair the id convention warns about.**
+//! `list_member_empty` is a member a sender wrote and left blank;
+//! `list_member_missing` is a `1#` list with no non-empty member at all. Two
+//! sentences, two fixes — remove the comma, or name the thing.
+//!
+//! **A value of nothing but commas breaks both, and the catalogue records that
+//! rather than resolving it.** `Warning: ,` has two empty elements § 5.6.1.1
+//! forbids *and* no element the `1#` floor requires, and § 5.6.1.2 prints that
+//! very value among the ones the production does not generate. Which id a rule
+//! answers with is therefore its branch order, and the rules here differ:
+//! `warning_header_syntax` and `sec_websocket_headers_consistent` ask the floor
+//! first, `accept_ranges_values_valid` asks the members. Both statements are
+//! true of the value; picking one for the whole tree would mean changing what a
+//! rule *says*, which is a rule's decision and not a catalogue's.
+//!
 //! What is deliberately *not* here is the recipient's half. § 5.6.1.2 tells a
 //! recipient to ignore empty elements, and this catalogue reports the sender's
 //! requirement: a rule that drops the member rather than reporting it is doing
 //! the recipient's job, which is the correction several of those rules already
-//! carry in their own comments.
+//! carry in their own comments. **The floor's sentence nonetheless lives in that
+//! same recipient section**, printed as an example of what the production does
+//! not generate — so the section a sentence sits in is not what decides whose
+//! requirement it states.
 
 use crate::helpers::cache_control::MemberDefect as CacheControlMemberDefect;
 use crate::lint::Severity;
@@ -30,6 +48,15 @@ pub const RFC_9110_5_6_1_1: SpecRef = SpecRef {
     section: Some("5.6.1.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
     note: "The list construct — `1#element => element *( OWS \",\" OWS element )`, and the sender's MUST NOT against an empty element",
+};
+
+/// Where the `1#` floor is written down, in the worked examples rather than in
+/// a requirement of its own.
+pub const RFC_9110_5_6_1_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.6.1.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2",
+    note: "The values a `1#element` production does not generate — the empty value among them — beside the recipient's instruction to ignore empty elements",
 };
 
 defects! {
@@ -48,6 +75,33 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: Some(RFC_9110_5_6_1_1),
+    }
+
+    /// A list written with a floor under it and nothing above the floor: a
+    /// `1#element` field whose value is empty, or holds only whitespace. The
+    /// field line exists and states none of the thing it is defined to state.
+    ///
+    /// **The `#` half of the construct is not this defect and must not be
+    /// reported as one.** A plain `#element` generates the empty list, and
+    /// several fields here say so on the record — an empty `Vary` and an empty
+    /// `Allow` are legal values with meanings of their own. Only the `1#`
+    /// spelling has a floor, so a rule declaring this one is a rule that has
+    /// read which of the two its field uses.
+    ///
+    /// Level with [`LIST_MEMBER_EMPTY`] on purpose. Both are the sender failing
+    /// the same construct, no sentence ranks them, and manufacturing a split
+    /// between them would be the catalogue inventing a preference the
+    /// specification does not state. It also keeps the value that breaks both —
+    /// a field of nothing but commas — reporting at one level whichever branch
+    /// a rule happens to ask first.
+    ///
+    // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
+    LIST_MEMBER_MISSING = {
+        id: "list_member_missing",
+        title: "List with a one-element floor holds no element",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_5_6_1_2),
     }
 }
 

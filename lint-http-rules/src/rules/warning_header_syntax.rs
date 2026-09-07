@@ -15,7 +15,9 @@ use crate::rules::{Rule, RuleMeta};
 use crate::violations::http_date::{
     HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN, RFC_9110_5_6_7,
 };
-use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
@@ -50,6 +52,7 @@ pub struct WarningHeaderSyntax;
 /// only reader.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
+    &LIST_MEMBER_MISSING,
     &QUOTED_STRING_DELIMITER_MISSING,
     &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
@@ -249,6 +252,7 @@ severity = "warn"
             RFC_9111_5_5,
             RFC_9110_2_2,
             RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
             RFC_9110_5_6_4,
             RFC_9110_5_6_7,
             RFC_9110_7_6_3,
@@ -407,12 +411,15 @@ fn validate_warning(value: &str) -> Result<(), Defect> {
     // cite(RFC 7234 § 5.5): "Warning = 1#warning-value"
     // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
     if members.iter().all(|m| m.is_empty()) {
-        // The `1#` floor is the field's own cardinality rather than the list
-        // construct's empty-member rule, which is why this one is unnamed and
-        // the branch below is not.
-        return Err(Defect::unnamed(
+        // The `1#` floor, which is the list construct's and not this field's:
+        // `Warning = 1#warning-value` contributes the *name* of what has to be
+        // there, and the requirement that one of them be is written once, for
+        // every field spelled with that `1`.
+        return Err(Defect::named(
+            &LIST_MEMBER_MISSING,
             "the field value carries no warning-value, and `Warning = 1#warning-value` requires \
-             at least one",
+             at least one"
+                .into(),
         ));
     }
 

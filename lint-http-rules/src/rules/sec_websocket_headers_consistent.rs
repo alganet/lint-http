@@ -13,12 +13,22 @@ use crate::violations::base64::{
     sec_websocket_key_defect as key_violation, BASE64_CHARACTER_FORBIDDEN, BASE64_PAD_BITS_INVALID,
     BASE64_QUANTUM_MALFORMED, RFC_4648_3_3, RFC_4648_3_5, RFC_4648_4,
 };
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
 use crate::violations::ViolationDef;
 
 pub struct SecWebsocketHeadersConsistent;
 
-/// The three ways a `Sec-WebSocket-Key` can fail to be an encoding, none of
-/// which is a fact about WebSockets.
+/// Two of this rule's four readings, and between them seven defs it declares
+/// and none it writes.
+///
+/// **The key**: `Sec-WebSocket-Key = base64-value-non-empty`, and RFC 6455
+/// hands the encoding to RFC 4648 without restating a character of it.
 ///
 /// `Sec-WebSocket-Key = base64-value-non-empty`, and RFC 6455 hands the
 /// encoding to RFC 4648 without restating a character of it — so an octet
@@ -30,13 +40,23 @@ pub struct SecWebsocketHeadersConsistent;
 /// `sec_websocket_key` subject nothing has written, and a subject with one
 /// reader is written when it is read twice.
 ///
-/// The other three readings this rule makes — `Connection`, the version, the
-/// subprotocol list — are untouched here and say so through their type: an
+/// **The subprotocol list**: `Sec-WebSocket-Protocol-Client = 1#token`, so a
+/// value naming nothing, a stray comma and an octet no `tchar` admits are the
+/// list's and the token's — and the alphabet § 4.1 spells out in words (U+0021
+/// to U+007E less the separators) is `token`, which the ABNF beside it says in
+/// one word. What stays this rule's own is the uniqueness requirement, which is
+/// about the *set* and which § 5.6.1.1 writes nothing about.
+///
+/// `Connection` and the version are untouched and say so through their type: an
 /// unnamed [`Defect`] is a finding no subject has claimed.
 static DECLARED: &[&ViolationDef] = &[
     &BASE64_CHARACTER_FORBIDDEN,
     &BASE64_QUANTUM_MALFORMED,
     &BASE64_PAD_BITS_INVALID,
+    &LIST_MEMBER_MISSING,
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
 ];
 
 /// One finding from the reading, and the defect it reports as where the
@@ -183,7 +203,7 @@ impl SecWebsocketHeadersConsistent {
     // cite(RFC 6455 § 4.1): "The ABNF for the value of this header field is 1#token, where the definitions of constructs and rules are as given in [RFC2616]."
     // cite(RFC 6455 § 4.3, label: Sec-WebSocket-Protocol): "Sec-WebSocket-Protocol-Client = 1#token"
     // cite(RFC 9110 § 5.6.2): "token = 1*tchar tchar = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA"
-    fn subprotocol_defect(headers: &hyper::HeaderMap) -> Option<String> {
+    fn subprotocol_defect(headers: &hyper::HeaderMap) -> Option<Defect> {
         let raw = combined_field_value_as_written(headers, "sec-websocket-protocol")?;
         let members: Vec<&str> = sender_list_members(&raw).collect();
 
@@ -191,25 +211,38 @@ impl SecWebsocketHeadersConsistent {
         // empty: `1#token` needs one element and `,` supplies none.
         // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production"
         if members.iter().all(|m| m.is_empty()) {
-            return Some(format!(
-                "its Sec-WebSocket-Protocol is `{}`, and `1#token` needs one subprotocol name",
-                shown_in_finding(trim_ows(&raw))
+            return Some(Defect::named(
+                &LIST_MEMBER_MISSING,
+                format!(
+                    "its Sec-WebSocket-Protocol is `{}`, and `1#token` needs one subprotocol name",
+                    shown_in_finding(trim_ows(&raw))
+                ),
             ));
         }
         for member in &members {
             if member.is_empty() {
-                return Some(format!(
+                return Some(Defect::named(
+                    &LIST_MEMBER_EMPTY,
+                    format!(
                     "its Sec-WebSocket-Protocol is `{}`, which has an empty element, and every \
                      element of this list is required to be a non-empty string",
                     shown_in_finding(trim_ows(&raw))
+                ),
                 ));
             }
             if let Some(c) = crate::helpers::token::find_invalid_token_char(member) {
-                return Some(format!(
-                    "its Sec-WebSocket-Protocol names the subprotocol `{}`, which holds {} — \
+                // § 4.1 spells the alphabet out — U+0021 to U+007E less the
+                // separators — and the ABNF beside it says the same in one
+                // word, so the octet is refused by `token` and not by anything
+                // about subprotocols.
+                return Some(Defect::named(
+                    token_character(c),
+                    format!(
+                        "its Sec-WebSocket-Protocol names the subprotocol `{}`, which holds {} — \
                      outside the characters this field's elements are spelled from",
-                    shown_in_finding(member),
-                    describe_octet(c as u8)
+                        shown_in_finding(member),
+                        describe_octet(c as u8)
+                    ),
                 ));
             }
         }
@@ -217,11 +250,11 @@ impl SecWebsocketHeadersConsistent {
         // of one name are two strings, so the comparison is of what was written.
         for (i, member) in members.iter().enumerate() {
             if members[..i].contains(member) {
-                return Some(format!(
+                return Some(Defect::unnamed(format!(
                     "its Sec-WebSocket-Protocol names the subprotocol `{}` more than once, and \
                      the elements of this list are required to be unique",
                     shown_in_finding(member)
-                ));
+                )));
             }
         }
         None
@@ -294,6 +327,9 @@ severity = "warn"
             RFC_4648_3_3,
             RFC_4648_4,
             RFC_4648_3_5,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
+            RFC_9110_5_6_2,
         ]
     }
 
@@ -387,7 +423,7 @@ impl Rule for SecWebsocketHeadersConsistent {
                 Self::connection_defect(&req.headers).map(Defect::unnamed),
                 Self::key_defect(&req.headers),
                 Self::version_defect(&req.headers).map(Defect::unnamed),
-                Self::subprotocol_defect(&req.headers).map(Defect::unnamed),
+                Self::subprotocol_defect(&req.headers),
             ]
             .into_iter()
             .flatten()
