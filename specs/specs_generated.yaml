@@ -1714,6 +1714,8 @@ sources:
       line: 232
     - file: lint-http-rules/src/helpers/uri.rs
       line: 67
+    - file: lint-http-rules/src/helpers/validator.rs
+      line: 146
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 242
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -5507,25 +5509,25 @@ sources:
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 141
+      line: 136
   - label: conditional_request_handling (2)
     section: § 13.1.2
     snippet: the 304 (Not Modified) status code if the request method is GET or HEAD
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 98
+      line: 93
   - label: conditional_request_handling (3)
     section: § 13.1.3
     snippet: An origin server that evaluates an If-Modified-Since condition SHOULD NOT perform the requested method if the condition evaluates to false; instead, the origin server SHOULD generate a 304 (Not Modified) response
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 170
+      line: 165
   - label: conditional_request_handling (4)
     section: § 13.2.2
     snippet: When the method is GET or HEAD, If-None-Match is not present, and If-Modified-Since is present, evaluate the If-Modified-Since precondition
     cited_by:
     - file: lint-http-rules/src/rules/conditional_request_handling.rs
-      line: 171
+      line: 166
   - label: connection_header_tokens_valid
     section: § 7.6.1
     snippet: A sender MUST NOT send a connection option corresponding to a field that is intended for all recipients of the content.  For example, Cache-Control is never appropriate as a connection option (Section 5.2 of [CACHING]).
@@ -5864,6 +5866,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 287
+  - label: weak indicator
+    section: § 8.8.3
+    snippet: entity-tag = [ weak ] opaque-tag weak       = %s"W/"
+    cited_by:
+    - file: lint-http-rules/src/violations/etag.rs
+      line: 47
+  - label: opaque-tag
+    section: § 8.8.3
+    snippet: opaque-tag = DQUOTE *etagc DQUOTE
+    cited_by:
+    - file: lint-http-rules/src/violations/etag.rs
+      line: 63
   - label: etag_or_last_modified_present
     section: § 8.8.2.1
     snippet: An origin server SHOULD send Last-Modified for any selected representation for which a last modification date can be reasonably and consistently determined
@@ -5881,7 +5895,7 @@ sources:
     snippet: The "ETag" field in a response provides the current entity tag for the selected representation, as determined at the conclusion of handling the request.
     cited_by:
     - file: lint-http-rules/src/rules/etag_syntax.rs
-      line: 99
+      line: 116
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 34
   - label: expect_header_valid
@@ -6171,15 +6185,7 @@ sources:
     snippet: 'If-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 127
-  - label: if_match_etag_syntax (2)
-    section: § 8.8.3
-    snippet: etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text
-    cited_by:
-    - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 150
-    - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 151
+      line: 144
   - label: if_modified_since_date_syntax
     section: § 13.1.3
     snippet: If-Modified-Since = HTTP-date
@@ -6205,7 +6211,7 @@ sources:
     snippet: 'If-None-Match = "*" / #entity-tag'
     cited_by:
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 128
+      line: 145
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 155
   - label: if_unmodified_since_date_syntax
@@ -6643,9 +6649,9 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 341
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 155
+      line: 172
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 156
+      line: 173
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 523
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
@@ -6681,9 +6687,9 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 389
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 110
+      line: 127
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 110
+      line: 127
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 153
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
@@ -6977,7 +6983,7 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 96
     - file: lint-http-rules/src/rules/etag_syntax.rs
-      line: 138
+      line: 156
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 369
     - file: lint-http-rules/src/rules/host_header.rs
@@ -7537,31 +7543,43 @@ sources:
     snippet: A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 32
+      line: 31
   - label: lint-http-rules/src/helpers/validator.rs
     section: § 8.8.3
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 134
+      line: 133
     - file: lint-http-rules/src/rules/etag_syntax.rs
-      line: 121
+      line: 138
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
-      line: 128
+      line: 145
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
-      line: 129
+      line: 146
   - label: entity-tag grammar
     section: § 8.8.3
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 136
+      line: 135
   - label: lint-http-rules/src/helpers/validator.rs (2)
+    section: § 8.8.3
+    snippet: etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text
+    cited_by:
+    - file: lint-http-rules/src/helpers/validator.rs
+      line: 178
+    - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
+      line: 167
+    - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
+      line: 168
+    - file: lint-http-rules/src/violations/etag.rs
+      line: 82
+  - label: lint-http-rules/src/helpers/validator.rs (3)
     section: § 8.8.3.2
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 111
+      line: 110
   - label: Vary grammar
     section: § 12.5.5
     snippet: 'Vary = #( "*" / field-name )'

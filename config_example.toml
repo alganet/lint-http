@@ -1251,6 +1251,18 @@ severity = "warn"
 # Domain name holds whitespace or a control character
 severity = "warn"
 
+[violations.etag_character_forbidden]
+# Entity-tag holds a character etagc does not admit
+severity = "warn"
+
+[violations.etag_delimiter_missing]
+# Entity-tag is not quoted
+severity = "warn"
+
+[violations.etag_weak_indicator_invalid]
+# Weakness indicator is not written W/
+severity = "warn"
+
 [violations.http_date_malformed]
 # Timestamp derives from no HTTP-date format
 severity = "warn"

@@ -237,9 +237,9 @@ impl Rule for RangeRequestAndCaching {
             // A malformed stored tag is the server's defect and `etag_syntax`
             // reports it there. Asking the client to echo it would be this rule
             // charging one party for another's field. The `stored_etag == "*"` beside
-            // this was a workaround for `validate_entity_tag` admitting a `*`, which
+            // this was a workaround for `check_entity_tag` admitting a `*`, which
             // no `entity-tag` generates; the helper answers it now.
-            if crate::helpers::validator::validate_entity_tag(&stored_etag).is_err() {
+            if crate::helpers::validator::check_entity_tag(&stored_etag).is_err() {
                 return None;
             }
 
@@ -663,7 +663,7 @@ mod tests {
                 // date would make *both* halves false and fail the `!=` below
                 // with a message about the value not being either — so the fix
                 // is the example, not this line.
-                let tag_ok = crate::helpers::validator::validate_entity_tag(value).is_ok();
+                let tag_ok = crate::helpers::validator::check_entity_tag(value).is_ok();
                 let date_ok = crate::http_date::is_valid_imf_fixdate(value);
                 match name.to_ascii_lowercase().as_str() {
                     "etag" | "if-none-match" => {
