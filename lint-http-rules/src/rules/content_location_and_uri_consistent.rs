@@ -5,9 +5,9 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
-    scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
-    RFC_3986_3_1, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
-    URI_SCHEME_LEADING_LETTER_MISSING,
+    scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2,
+    RFC_3986_2_1, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
+    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -23,6 +23,7 @@ pub struct ContentLocationAndUriConsistent;
 /// one wrapper away and the alphabet's is § 2's character set, which no subject
 /// holds.
 static DECLARED: &[&ViolationDef] = &[
+    &URI_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
     &URI_SCHEME_EMPTY,
@@ -121,6 +122,7 @@ severity = "info"
             RFC_3986_6_2_2_1,
             RFC_3986_6_2_2_2,
             RFC_3986_6_2_2_3,
+            RFC_3986_2,
             RFC_3986_2_1,
             RFC_3986_3_1,
         ]
@@ -280,7 +282,7 @@ impl Rule for ContentLocationAndUriConsistent {
                 // cite(RFC 9110 § 8.7): "The field value is either an absolute-URI or a partial-URI."
                 // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
                 if let Some(c) = crate::helpers::uri::find_non_uri_char(s) {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&URI_CHARACTER_FORBIDDEN, format!(
                             "Content-Location value holds {}, which no part of a URI is composed from: an octet outside that set is percent-encoded before the reference is formed, or the value is not a URI reference at all",
                             crate::helpers::shown::describe_char(c)
                         )));

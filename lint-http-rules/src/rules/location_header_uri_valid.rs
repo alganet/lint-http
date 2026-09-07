@@ -7,9 +7,9 @@ use crate::helpers::shown::describe_octet;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
-    scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2_1,
-    RFC_3986_3_1, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
-    URI_SCHEME_LEADING_LETTER_MISSING,
+    scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2,
+    RFC_3986_2_1, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
+    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -23,6 +23,7 @@ pub struct LocationHeaderUriValid;
 /// character question this rule asks belongs to RFC 3986. The percent triplet is
 /// the part of it that has a subject today.
 static DECLARED: &[&ViolationDef] = &[
+    &URI_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
     &URI_SCHEME_EMPTY,
@@ -56,12 +57,6 @@ const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("5.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5",
     note: "Field Values: singleton fields, the care a comma needs in a field carrying a URI-reference, and the MUST to exclude leading and trailing whitespace before evaluating a field value",
-};
-const RFC_3986_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 3986",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc3986.html#section-2",
-    note: "Characters: the limited set a URI is composed from — `unreserved`, `gen-delims`, `sub-delims` — and the `pct-encoded` triplet every other octet must be written as",
 };
 const RFC_3986_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 3986",
@@ -269,9 +264,12 @@ impl Rule for LocationHeaderUriValid {
                 // `\`, `^`, `` ` ``, `{`, `|`, `}`, DEL, any CTL, or any octet above
                 // %x7F. Each `char` here came from one octet and goes back to it
                 // unchanged, so the finding names the octet that stopped the parse.
-                return violation(format!(
+                return Some(ctx.report_with(
+                    &URI_CHARACTER_FORBIDDEN,
+                    format!(
                     "Location value carries the octet {}, which no URI-reference admits; a URI is written from `unreserved`, `gen-delims` and `sub-delims` characters and `pct-encoded` triplets, and every other octet must be percent-encoded before the URI is formed (RFC 3986 §2.1)",
                     describe_octet(ch as u8)
+                    ),
                 ));
             }
 
