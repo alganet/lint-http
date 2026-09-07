@@ -8,6 +8,7 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
@@ -47,6 +48,7 @@ pub struct PreferHeaderValid;
 /// meaning no value at all.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_MISSING,
+    &BWS_FORBIDDEN,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -164,12 +166,6 @@ const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("2.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
     note: "The MUST NOT on generating a protocol element that does not match its ABNF — what makes a value outside a §4 production a finding, since RFC 7240 writes those productions and states no requirement about them",
-};
-const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-    note: "`BWS`: a recipient must remove it before interpreting the element, and a sender must not have written it — both directions are read at the `=` in `preference` and in `parameter`",
 };
 const RFC_9111_1_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9111",
@@ -402,10 +398,10 @@ impl Rule for PreferHeaderValid {
                 // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
                 // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
                 if parsed.bws {
-                    return violation(format!(
+                    return Some(ctx.report_with(&BWS_FORBIDDEN, format!(
                         "Prefer member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
                         shown_in_finding(member)
-                    ));
+                    )));
                 }
 
                 // `foo=""` is not a preference carrying the empty string, it is the
@@ -472,11 +468,11 @@ impl Rule for PreferHeaderValid {
                     // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
                     // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
                     if parsed_param.bws {
-                        return violation(format!(
+                        return Some(ctx.report_with(&BWS_FORBIDDEN, format!(
                             "Prefer parameter '{}' in member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
                             shown_in_finding(param),
                             shown_in_finding(member)
-                        ));
+                        )));
                     }
                 }
 

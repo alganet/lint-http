@@ -10,6 +10,7 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
 use crate::violations::list::{
     LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
 };
@@ -41,6 +42,7 @@ pub struct PreferenceAppliedHeaderValid;
 /// the request never asked for.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_MISSING,
+    &BWS_FORBIDDEN,
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -158,12 +160,6 @@ const RFC_7240_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("1.1"),
     url: "https://www.rfc-editor.org/rfc/rfc7240.html#section-1.1",
     note: "Where `token`, `word`, `OWS`, `BWS` and the `#rule` extension come from. The named source is RFC 7230, which RFC 9110 obsoletes; `word` is the one name RFC 9110 did not keep, though both halves of it survive as `token` and `quoted-string`",
-};
-const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-    note: "`BWS`: a recipient must remove it before interpreting the element, and a sender must not have written it — both directions are read at the `=` in `applied-pref`",
 };
 
 impl RuleMeta for PreferenceAppliedHeaderValid {
@@ -357,10 +353,10 @@ impl Rule for PreferenceAppliedHeaderValid {
                 // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
                 // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
                 if parsed.bws {
-                    return violation(format!(
+                    return Some(ctx.report_with(&BWS_FORBIDDEN, format!(
                         "Preference-Applied member '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
                         shown_in_finding(member)
-                    ));
+                    )));
                 }
 
                 // One sentence decides both comparisons this rule makes, and it

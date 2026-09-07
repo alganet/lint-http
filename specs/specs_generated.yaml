@@ -1701,7 +1701,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 242
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 116
+      line: 118
   - label: lint-http-rules/src/helpers/mailbox.rs
     section: § B.1
     snippet: WSP            =  SP / HTAB ; white space
@@ -3469,9 +3469,9 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 36
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 419
+      line: 415
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 369
+      line: 365
   - label: prefer_header_and_preference_applied (3)
     section: § 2
     snippet: If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request.
@@ -3485,7 +3485,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 276
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 281
+      line: 277
   - label: prefer_header_and_preference_applied (4)
     section: § 3
     snippet: The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request.
@@ -3493,9 +3493,9 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 227
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 253
+      line: 249
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 387
+      line: 383
   - label: prefer_header_and_preference_applied (5)
     section: § 3
     snippet: applied-pref = token [ BWS "=" BWS word ]
@@ -3503,7 +3503,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 288
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 333
+      line: 329
   - label: prefer_header_and_preference_applied (6)
     section: § 4.1
     snippet: the server can honor the "respond-async" preference by returning a 202 (Accepted) response.
@@ -3541,137 +3541,137 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 30
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 70
+      line: 72
   - label: prefer_header_valid
     section: § 2
     snippet: '*( OWS ";" [ OWS parameter ] )'
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 373
+      line: 369
   - label: prefer_header_valid (2)
     section: § 2
     snippet: A client MAY use multiple instances of the Prefer header field in a single message, or it MAY use a single Prefer header field with multiple comma-separated preference tokens.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 314
+      line: 310
   - label: prefer_header_valid (3)
     section: § 2
     snippet: A server that does not recognize or is unable to comply with particular preference tokens in the Prefer header field of a request MUST ignore those tokens and continue processing instead of signaling an error.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 71
+      line: 73
   - label: prefer_header_valid (4)
     section: § 2
     snippet: An optional set of parameters can be specified for any preference token.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 448
+      line: 444
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 112
+      line: 114
   - label: prefer_header_valid (5)
     section: § 2
     snippet: Empty or zero-length values on both the preference token and within parameters are equivalent to no value being specified at all.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 416
+      line: 412
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 61
+      line: 63
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 374
+      line: 370
   - label: prefer_header_valid (6)
     section: § 2
     snippet: If any preference is specified more than once, only the first instance is to be considered.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 490
+      line: 486
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 128
+      line: 130
   - label: prefer_header_valid (7)
     section: § 2
     snippet: If multiple Prefer header fields are used, it is equivalent to a single Prefer header field with the comma-separated concatenation of all of the tokens.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 315
+      line: 311
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 80
+      line: 82
   - label: prefer_header_valid (8)
     section: § 2
     snippet: Prefer     = "Prefer" ":" 1#preference
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 323
+      line: 319
   - label: prefer_header_valid (9)
     section: § 2
     snippet: The Prefer request header field is used to indicate that particular server behaviors are preferred by the client but are not required for successful completion of the request.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 289
+      line: 285
   - label: prefer_header_valid (10)
     section: § 2
     snippet: To avoid any possible ambiguity, individual preference tokens SHOULD NOT appear multiple times within a single request.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 489
+      line: 485
   - label: prefer_header_valid (11)
     section: § 2
     snippet: parameter  = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 447
+      line: 443
   - label: prefer_header_valid (12)
     section: § 2
     snippet: preference = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 372
+      line: 368
   - label: prefer_header_valid (13)
     section: § 4
     snippet: The following subsections define an initial set of preferences.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 69
+      line: 71
   - label: prefer_header_valid (14)
     section: § 4.1
     snippet: respond-async = "respond-async"
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 77
+      line: 79
   - label: prefer_header_valid (15)
     section: § 4.2
     snippet: The "return=minimal" and "return=representation" preferences are mutually exclusive directives.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 491
+      line: 487
   - label: prefer_header_valid (16)
     section: § 4.2
     snippet: return = "return" BWS "=" BWS ("representation" / "minimal")
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 84
+      line: 86
   - label: prefer_header_valid (17)
     section: § 4.3
     snippet: wait = "wait" BWS "=" BWS delta-seconds
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 88
+      line: 90
   - label: prefer_header_valid (18)
     section: § 4.4
     snippet: The "handling=strict" and "handling=lenient" preferences are mutually exclusive directives.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 492
+      line: 488
   - label: prefer_header_valid (19)
     section: § 4.4
     snippet: handling = "handling" BWS "=" BWS ("strict" / "lenient")
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 86
+      line: 88
   - label: preference_applied_header_valid
     section: § 3
     snippet: The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included.
     cited_by:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 325
+      line: 321
 - label: RFC 7301
   url: https://www.rfc-editor.org/rfc/rfc7301.html
   fragments:
@@ -4743,9 +4743,9 @@ sources:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 238
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 82
+      line: 99
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 269
+      line: 289
   - label: accept_encoding_parameter_valid (3)
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
@@ -4845,7 +4845,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 417
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 280
+      line: 300
   - label: accept_header_media_type_syntax (2)
     section: § 12.5.1
     snippet: Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2).
@@ -4947,9 +4947,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 200
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 333
+      line: 329
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 292
+      line: 288
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 412
     - file: lint-http-rules/src/violations/list.rs
@@ -5203,7 +5203,7 @@ sources:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 178
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 428
+      line: 424
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 344
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
@@ -5739,7 +5739,7 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 238
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 538
+      line: 557
   - label: context_fields_direction (2)
     section: § 10.1.1
     snippet: The "Expect" header field in a request indicates a certain set of behaviors (expectations) that need to be supported by the server in order to properly handle this request.
@@ -5773,9 +5773,9 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 191
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 504
+      line: 523
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 539
+      line: 558
   - label: context_fields_direction (6)
     section: § 10.1.5
     snippet: The "User-Agent" header field contains information about the user agent originating the request
@@ -6249,11 +6249,11 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 718
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 403
+      line: 399
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 473
+      line: 469
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 358
+      line: 354
   - label: link_header_valid (2)
     section: § 5.6.3
     snippet: A sender MUST NOT generate BWS in messages.
@@ -6261,11 +6261,13 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 717
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 402
+      line: 398
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 472
+      line: 468
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 357
+      line: 353
+    - file: lint-http-rules/src/violations/bws.rs
+      line: 61
   - label: lint-http-core/src/http_date.rs
     section: § 5.6.7
     snippet: A recipient that parses a timestamp value in an HTTP field MUST accept all three HTTP-date formats.
@@ -6583,9 +6585,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 355
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 332
+      line: 328
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 291
+      line: 287
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 259
   - label: lint-http-rules/src/helpers/cache_control.rs
@@ -6613,7 +6615,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 21
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 25
+      line: 41
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 5.6.1
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
@@ -6655,15 +6657,15 @@ sources:
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
       line: 196
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 346
+      line: 342
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 305
+      line: 301
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 268
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 375
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 67
+      line: 84
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
       line: 160
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
@@ -7169,7 +7171,7 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 340
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 304
+      line: 324
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 195
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -7215,7 +7217,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 233
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 43
+      line: 60
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 137
   - label: lint-http-rules/src/helpers/media_type.rs (2)
@@ -7451,7 +7453,7 @@ sources:
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 408
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 233
+      line: 253
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 258
     - file: lint-http-rules/src/rules/via_header_syntax.rs
@@ -7819,7 +7821,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 240
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 99
+      line: 116
   - label: no_connection_specific_fields (2)
     section: § A
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
@@ -7827,9 +7829,9 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 241
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 59
+      line: 76
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 195
+      line: 212
   - label: options_method_capabilities
     section: § 10.2.1
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
@@ -7981,7 +7983,7 @@ sources:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 120
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 153
+      line: 170
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 60
   - label: range_and_content_range_consistent
@@ -8933,13 +8935,13 @@ sources:
     snippet: A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 175
+      line: 192
   - label: te_header_valid (2)
     section: § 10.1.4
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 26
+      line: 42
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 451
   - label: te_header_valid (3)
@@ -8947,21 +8949,21 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 224
+      line: 244
   - label: te_header_valid (4)
     section: § A
     snippet: TE = [ t-codings *( OWS "," OWS t-codings ) ]
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 41
+      line: 58
   - label: te_header_valid (5)
     section: § A
     snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 81
+      line: 98
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 122
+      line: 139
   - label: timing_allow_origin_valid
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
@@ -9426,7 +9428,7 @@ sources:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 627
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 97
+      line: 99
   - label: lint-http-rules/src/helpers/cache_control.rs
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
@@ -10133,13 +10135,13 @@ sources:
     snippet: The TE header field (Section 10.1.4 of [HTTP]) uses a pseudo-parameter named "q" as the rank value when multiple transfer codings are acceptable.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 260
+      line: 280
   - label: te_header_valid (2)
     section: § 7.4
     snippet: If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 42
+      line: 59
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 450
   - label: te_header_valid (3)
@@ -10147,13 +10149,13 @@ sources:
     snippet: Since the TE header field only applies to the immediate connection, a sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1 of [HTTP]) in order to prevent the TE header field from being forwarded by intermediaries that do not support its semantics.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 176
+      line: 193
   - label: te_header_valid (4)
     section: § 7.4
     snippet: When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 261
+      line: 281
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 343
   - label: transfer_coding_registered
@@ -10422,7 +10424,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 168
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 154
+      line: 171
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 62
   - label: no_connection_specific_fields
@@ -10450,7 +10452,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 175
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 155
+      line: 172
   - label: request_target_form_valid
     section: § 8.3.1
     snippet: Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information
@@ -10721,7 +10723,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 152
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 156
+      line: 173
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 64
   - label: no_connection_specific_fields (2)

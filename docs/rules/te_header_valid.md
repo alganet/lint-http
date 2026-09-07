@@ -22,12 +22,13 @@ Scope: this rule reads a request's header section, and a response's only to repo
 
 ## Specifications
 
+- [RFC 9110 §5.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3): Whitespace — `BWS` is printed where a grammar allows optional whitespace for historical reasons only, with a MUST NOT on the sender and a matching MUST on the recipient to remove it before interpreting the element
 - [RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4): The field: what a member is, the grammar of its parameters, and the connection option a sender of TE must send beside it
 - [RFC 9110 §10.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1): The section the field is defined in — request context fields. It is the whole of the ground for reporting a TE in a response, and it carries no modal
 - [RFC 9110 §A](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A): The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not
 - [RFC 9110 §12.4.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.4.2): `weight` and `qvalue`, and the MUST NOT on generating more than three digits after the point
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): The sender's half of the list construct: no empty elements. The recipient's half (§5.6.1.2, ignore them) is a different party's requirement
-- [RFC 9110 §5.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3): `BWS`: the whitespace around a transfer-parameter's `=`, which a recipient MUST remove and a sender MUST NOT write
+- [RFC 9110 §5.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3): Whitespace — `BWS` is printed where a grammar allows optional whitespace for historical reasons only, with a MUST NOT on the sender and a matching MUST on the recipient to remove it before interpreting the element
 - [RFC 9110 §7.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.1): The `Connection` field the option is listed in, and the note that some versions of HTTP do not allow the field at all
 - [RFC 9112 §7.4](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4): HTTP/1.1's own account of the field: what an empty value means, the `q` rank, the `chunked` MUST NOT, and why the connection option is required
 - [RFC 9112 §7.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.3): `q` is a pseudo-parameter rather than a transfer-parameter, and its name is case-insensitive
