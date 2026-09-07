@@ -5177,7 +5177,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 292
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 325
+      line: 401
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 303
     - file: lint-http-rules/src/rules/http_version_syntax.rs
@@ -5721,7 +5721,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 14
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 129
+      line: 192
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 222
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
@@ -5735,7 +5735,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 15
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 145
+      line: 208
   - label: context_fields_direction (3)
     section: § 10.1.2
     snippet: The "From" header field contains an Internet email address for a human user who controls the requesting user agent.
@@ -5867,75 +5867,77 @@ sources:
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 220
+      line: 296
   - label: expect_header_valid (2)
     section: § 10.1.1
     snippet: A client MUST NOT generate a 100-continue expectation in a request that does not include content.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 219
+      line: 295
   - label: expect_header_valid (3)
     section: § 10.1.1
     snippet: A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server).
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 238
+      line: 314
   - label: expect_header_valid (4)
     section: § 10.1.1
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 261
+      line: 337
   - label: expect_header_valid (5)
     section: § 10.1.1
     snippet: The Expect field value is case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 21
+      line: 91
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 185
+      line: 259
   - label: expect_header_valid (6)
     section: § 10.1.1
     snippet: The only expectation defined by this specification is "100-continue" (with no defined parameters).
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 20
+      line: 90
   - label: expect_header_valid (7)
     section: § 10.1.1
     snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 324
+      line: 400
   - label: expect_header_valid (8)
     section: § 15.5.18
     snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 237
+      line: 313
   - label: expect_header_valid (9)
     section: § 5.6.6
     snippet: 'Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character.'
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 464
+      line: 569
+    - file: lint-http-rules/src/violations/parameter.rs
+      line: 119
   - label: expect_header_valid (10)
     section: § A
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 173
+      line: 244
   - label: expect_header_valid (11)
     section: § B.3
     snippet: List-based grammar for Expect has been restored for compatibility with RFC 2616.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 160
+      line: 223
   - label: expect_header_valid (12)
     section: § B.3
     snippet: Parameters in media type, media range, and expectation can be empty via one or more trailing semicolons.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 435
+      line: 537
   - label: extension_headers_registered
     section: § 16.3
     snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
@@ -6618,8 +6620,6 @@ sources:
       line: 105
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 65
-    - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 189
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 341
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
@@ -7223,7 +7223,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 387
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 401
+      line: 501
   - label: parameter-value grammar
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
@@ -7233,7 +7233,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 26
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 402
+      line: 502
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 89
     - file: lint-http-rules/src/violations/parameter.rs
@@ -7251,7 +7251,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 225
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 399
+      line: 499
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 264
   - label: lint-http-rules/src/helpers/media_type.rs (5)
@@ -7313,7 +7313,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 107
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 400
+      line: 500
     - file: lint-http-rules/src/violations/parameter.rs
       line: 69
   - label: lint-http-rules/src/helpers/product.rs

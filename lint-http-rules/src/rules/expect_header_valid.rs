@@ -7,13 +7,83 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::list::{
     list_members_as_written, quoting_is_balanced, split_semicolons_respecting_quotes,
 };
-use crate::helpers::quoted_string::{quoted_string_end, validate_quoted_string};
+use crate::helpers::quoted_string::{check_quoted_string, quoted_string_end};
 use crate::helpers::shown::describe_octet;
 use crate::helpers::token::{find_invalid_token_char, token_run_end};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::parameter::{
+    PARAMETER_EQUALS_MISSING, PARAMETER_EQUALS_WHITESPACE_FORBIDDEN, PARAMETER_VALUE_EMPTY,
+    RFC_9110_5_6_6,
+};
+use crate::violations::quoted_string::{
+    quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+};
+use crate::violations::ViolationDef;
 
 pub struct ExpectHeaderValid;
+
+/// The defects this rule borrows, which are every defect it reports about the
+/// *shape* of the value. `Expect = [ expectation *( OWS "," OWS expectation ) ]`
+/// is a list, an `expectation` ends in `parameters`, and a parameter value is
+/// `( token / quoted-string )` — so a stray comma, a parameter with no `=` and
+/// an unterminated quote are the same defects twenty-odd other fields report.
+///
+/// What stays on the older API is § 10.1.1's, and it is what the rule is for:
+/// a `100-continue` in a request with no content, a request repeating one a 417
+/// already refused, a `100-continue` written with an argument, and the two
+/// shapes an `expectation` itself can fail in — a member that does not begin
+/// with a token's `=`, and an `=` with no value after it. The last two belong
+/// to an `expectation` subject nothing has written.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &PARAMETER_EQUALS_MISSING,
+    &PARAMETER_VALUE_EMPTY,
+    &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+];
+
+/// One finding the reading produced: its wording, and the defect it reports as
+/// where the catalogue has a name for that defect.
+///
+/// The judge shape 2.13 settled returns `(&'static ViolationDef, String)`,
+/// because every arm of that judge had an entry. This rule's judges are half
+/// converted — an `expectation`'s own two failures are its field's and no
+/// subject holds them — so the def is an `Option`, and the site that reports
+/// picks the API from it. **A partially converted judge says which arms are
+/// converted in its type**, which is the smallest honest shape for it and
+/// cheaper than splitting the reading in two.
+pub(crate) struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed yet, reported at the rule's severity the
+    /// way every finding was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+}
 
 /// The one expectation the specification defines, matched without regard to case.
 ///
@@ -35,19 +105,6 @@ const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("A"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
     note: "Collected ABNF for senders: `Expect` with its list construct expanded, which is where the whole value being optional is written out",
-};
-const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-    note: "List sender requirements — the MUST NOT behind the empty-element finding",
-};
-const RFC_9110_5_6_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.6",
-    note:
-        "`parameters`, the production this rule's transcribed grammar used to end one term short of",
 };
 const RFC_9110_15_5_18: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -93,10 +150,16 @@ severity = "error"
             RFC_9110_A,
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_6,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
             RFC_9110_15_5_18,
             RFC_9110_2_2,
             RFC_9110_B_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -163,7 +226,15 @@ impl Rule for ExpectHeaderValid {
             // Read after the field, not before it: both this and a missing `Expect`
             // end the rule, and the header probe is one map lookup where the config
             // read is several.
-            let report = |message: String| Some(self.violation(ctx.severity, message));
+            // Two APIs behind one closure: a defect the catalogue names resolves
+            // the severity configured for it, and one it does not still emits at
+            // the rule's.
+            let report = |defect: Defect| {
+                Some(match defect.def {
+                    Some(def) => ctx.report_with(def, defect.message),
+                    None => self.violation(ctx.severity, defect.message),
+                })
+            };
 
             // A list of no members, which is not a list with an empty member in it —
             // the two look alike and only one of them is a defect. The sender-expanded
@@ -176,9 +247,12 @@ impl Rule for ExpectHeaderValid {
             }
 
             let Some(members) = members_of(&value) else {
-                return report(format!(
-                    "Expect has a quoted-string that is never terminated: '{}'",
-                    crate::helpers::shown::shown_in_finding(&value)
+                return report(Defect::named(
+                    &QUOTED_STRING_DELIMITER_MISSING,
+                    format!(
+                        "Expect has a quoted-string that is never terminated: '{}'",
+                        crate::helpers::shown::shown_in_finding(&value)
+                    ),
                 ));
             };
 
@@ -186,17 +260,19 @@ impl Rule for ExpectHeaderValid {
             let mut hundred_continue: Option<Expectation<'_>> = None;
             for (i, member) in members.iter().enumerate() {
                 if member.is_empty() {
-                    // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                    return report(format!(
-                        "Expect writes an empty list element (member {} of {}): '{}'",
-                        i + 1,
-                        members.len(),
-                        crate::helpers::shown::shown_in_finding(&value)
+                    return report(Defect::named(
+                        &LIST_MEMBER_EMPTY,
+                        format!(
+                            "Expect writes an empty list element (member {} of {}): '{}'",
+                            i + 1,
+                            members.len(),
+                            crate::helpers::shown::shown_in_finding(&value)
+                        ),
                     ));
                 }
                 let e = match parse_expectation(member) {
                     Ok(e) => e,
-                    Err(msg) => return report(msg),
+                    Err(defect) => return report(defect),
                 };
                 if hundred_continue.is_none() && e.name.eq_ignore_ascii_case(HUNDRED_CONTINUE) {
                     hundred_continue = Some(e);
@@ -219,11 +295,11 @@ impl Rule for ExpectHeaderValid {
                 // cite(RFC 9110 § 10.1.1): "A client MUST NOT generate a 100-continue expectation in a request that does not include content."
                 // cite(RFC 9110 § 10.1.1): "A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request"
                 if content_evidence(&tx.request.headers, tx.request.body_length).is_none() {
-                    return report(
+                    return report(Defect::unnamed(
                         "Request carries a 100-continue expectation but no content: the expectation \
                          asks the server to weigh in before content the message never had"
                             .to_string(),
-                    );
+                    ));
                 }
 
                 // A 417 says the response chain does not understand expectations, so
@@ -244,11 +320,11 @@ impl Rule for ExpectHeaderValid {
                             && carries_hundred_continue(&prev.request.headers)
                     })
                 {
-                    return report(
+                    return report(Defect::unnamed(
                         "Request repeats one the response chain answered with 417 (Expectation Failed) \
                          and still carries a 100-continue expectation"
                             .to_string(),
-                    );
+                    ));
                 }
 
                 // No MUST is broken by writing one: the grammar admits a value and
@@ -260,13 +336,13 @@ impl Rule for ExpectHeaderValid {
                 //
                 // cite(RFC 9110 § 10.1.1): "A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met."
                 if e.has_arguments() {
-                    return report(format!(
+                    return report(Defect::unnamed(format!(
                         "Expect writes the 100-continue expectation with an argument ('{}'); the \
                          specification defines no value or parameters for it, so a recipient matching \
                          the member against 100-continue sees a different expectation and may answer \
                          417 (Expectation Failed). This is advice: the grammar admits the argument",
                         crate::helpers::shown::shown_in_finding(e.member)
-                    ));
+                    )));
                 }
             }
 
@@ -323,16 +399,22 @@ fn members_of(value: &str) -> Option<Vec<&str>> {
 ///
 /// cite(RFC 9110 § 10.1.1): "expectation = token [ "=" ( token / quoted-string ) parameters ]"
 /// cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
-pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String> {
+pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect> {
     // The name is the leading run of `tchar`; what stops it is either the `=`
     // the production writes or an octet the member had no business carrying.
     let name_end = token_run_end(member);
     let name = &member[..name_end];
     if name.is_empty() {
-        return Err(format!(
-            "Expect member '{}' does not begin with a token: found {}",
-            crate::helpers::shown::shown_in_finding(member),
-            first_octet_of(member)
+        // `token = 1*tchar`, and a member opening with an octet that is not one
+        // has written the expectation's name as nothing at all — arithmetic on
+        // the production, which is the def rather than this field's verdict.
+        return Err(Defect::named(
+            &TOKEN_EMPTY,
+            format!(
+                "Expect member '{}' does not begin with a token: found {}",
+                crate::helpers::shown::shown_in_finding(member),
+                first_octet_of(member)
+            ),
         ));
     }
 
@@ -341,12 +423,16 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
         return Ok(Expectation { name, member });
     };
     if stopper != '=' {
-        return Err(format!(
+        // Left unnamed: what failed is `expectation = token [ "=" ( token /
+        // quoted-string ) parameters ]` — the shape of the member rather than
+        // the name, which is a well-formed token that simply ended here. The
+        // `expectation` subject that would hold it is unwritten.
+        return Err(Defect::unnamed(format!(
             "Invalid octet {} after the Expect expectation name '{}': the production admits only \
              '=' there, and `parameters` are inside the group the '=' opens",
             describe_octet(stopper as u8),
             crate::helpers::shown::shown_in_finding(name)
-        ));
+        )));
     }
     let rest = &tail[1..];
 
@@ -354,16 +440,26 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
     // starts at the very next octet.
     let after_value = if rest.starts_with('"') {
         let Some(end) = quoted_string_end(rest) else {
-            return Err(format!(
-                "Expect member '{}' has a quoted-string that is never terminated",
-                crate::helpers::shown::shown_in_finding(member)
+            return Err(Defect::named(
+                &QUOTED_STRING_DELIMITER_MISSING,
+                format!(
+                    "Expect member '{}' has a quoted-string that is never terminated",
+                    crate::helpers::shown::shown_in_finding(member)
+                ),
             ));
         };
-        validate_quoted_string(&rest[..=end]).map_err(|e| {
-            format!(
-                "Invalid quoted-string in Expect member '{}': {}",
-                crate::helpers::shown::shown_in_finding(member),
-                e
+        // `check_quoted_string` rather than `validate_quoted_string`: the same
+        // reading before it renders, so the message is unchanged and the defect
+        // arrives with a name.
+        let quoted = &rest[..=end];
+        check_quoted_string(quoted).map_err(|defect| {
+            Defect::named(
+                quoted_string_defect(defect),
+                format!(
+                    "Invalid quoted-string in Expect member '{}': {}",
+                    crate::helpers::shown::shown_in_finding(member),
+                    defect.message(quoted)
+                ),
             )
         })?;
         &rest[end + 1..]
@@ -372,11 +468,15 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, String>
         // follows has to be `parameters`.
         let end = token_run_end(rest);
         if end == 0 {
-            return Err(format!(
+            // Also unnamed, and for 2.17's reason: an *expectation's* value
+            // being empty is a per-field verdict, not the alternation's, and
+            // `parameter_value_empty` answers for a parameter rather than for
+            // whatever else `( token / quoted-string )` is read as.
+            return Err(Defect::unnamed(format!(
                 "Expect member '{}' has '=' with no token or quoted-string after it: found {}",
                 crate::helpers::shown::shown_in_finding(member),
                 first_octet_of(rest)
-            ));
+            )));
         }
         &rest[end..]
     };
@@ -400,7 +500,7 @@ fn first_octet_of(s: &str) -> String {
 /// cite(RFC 9110 § 5.6.6): "parameter       = parameter-name "=" parameter-value"
 /// cite(RFC 9110 § 5.6.6): "parameter-name  = token"
 /// cite(RFC 9110 § 5.6.6): "parameter-value = ( token / quoted-string )"
-fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
+fn validate_parameters(after_value: &str, member: &str) -> Result<(), Defect> {
     // `*( … )` — an expectation whose value ends the member has none, which is
     // the ordinary case and needs no splitting to establish.
     if after_value.is_empty() {
@@ -418,11 +518,13 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
     // allows before the semicolon. The splitter always yields that leading
     // segment, empty or not.
     if !segments[0].is_empty() {
-        return Err(format!(
+        // The expectation's own shape again: what is wrong is that the value
+        // ended and the member did not, which no parameter defect describes.
+        return Err(Defect::unnamed(format!(
             "Expect member '{}' has octets after its value that are not parameters: '{}'",
             crate::helpers::shown::shown_in_finding(member),
             crate::helpers::shown::shown_in_finding(segments[0])
-        ));
+        )));
     }
 
     for seg in &segments[1..] {
@@ -439,10 +541,13 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         let Ok(parameter) =
             crate::helpers::parameter::parameter_of(seg).expect("the empty segment returned above")
         else {
-            return Err(format!(
-                "Expect member '{}' has a parameter with no value: '{}'",
-                crate::helpers::shown::shown_in_finding(member),
-                crate::helpers::shown::shown_in_finding(seg)
+            return Err(Defect::named(
+                &PARAMETER_EQUALS_MISSING,
+                format!(
+                    "Expect member '{}' has a parameter with no value: '{}'",
+                    crate::helpers::shown::shown_in_finding(member),
+                    crate::helpers::shown::shown_in_finding(seg)
+                ),
             ));
         };
         let (pname, pvalue) = (parameter.name, parameter.value);
@@ -463,24 +568,33 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         //
         // cite(RFC 9110 § 5.6.6): "Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character."
         if parameter.whitespace_beside_equals {
-            return Err(format!(
-                "Expect member '{}' writes whitespace beside the '=' of parameter '{}'; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
-                crate::helpers::shown::shown_in_finding(member),
-                crate::helpers::shown::shown_in_finding(seg)
+            return Err(Defect::named(
+                &PARAMETER_EQUALS_WHITESPACE_FORBIDDEN,
+                format!(
+                    "Expect member '{}' writes whitespace beside the '=' of parameter '{}'; parameters do not allow whitespace around that character, not even \"bad\" whitespace",
+                    crate::helpers::shown::shown_in_finding(member),
+                    crate::helpers::shown::shown_in_finding(seg)
+                ),
             ));
         }
         if pname.is_empty() {
-            return Err(format!(
-                "Expect member '{}' has a parameter with no name: '{}'",
-                crate::helpers::shown::shown_in_finding(member),
-                crate::helpers::shown::shown_in_finding(seg)
+            return Err(Defect::named(
+                &TOKEN_EMPTY,
+                format!(
+                    "Expect member '{}' has a parameter with no name: '{}'",
+                    crate::helpers::shown::shown_in_finding(member),
+                    crate::helpers::shown::shown_in_finding(seg)
+                ),
             ));
         }
         if let Some(c) = find_invalid_token_char(pname) {
-            return Err(format!(
-                "Invalid octet {} in Expect parameter name '{}'",
-                describe_octet(c as u8),
-                crate::helpers::shown::shown_in_finding(pname)
+            return Err(Defect::named(
+                token_character(c),
+                format!(
+                    "Invalid octet {} in Expect parameter name '{}'",
+                    describe_octet(c as u8),
+                    crate::helpers::shown::shown_in_finding(pname)
+                ),
             ));
         }
         // `parameter-value = ( token / quoted-string )`, read by the function
@@ -492,24 +606,33 @@ fn validate_parameters(after_value: &str, member: &str) -> Result<(), String> {
         match crate::helpers::word::token_or_quoted_string(pvalue) {
             Ok(_) => {}
             Err(crate::helpers::word::WordDefect::Empty) => {
-                return Err(format!(
-                    "Expect member '{}' has a parameter with an empty value: '{}'",
-                    crate::helpers::shown::shown_in_finding(member),
-                    crate::helpers::shown::shown_in_finding(seg)
+                return Err(Defect::named(
+                    &PARAMETER_VALUE_EMPTY,
+                    format!(
+                        "Expect member '{}' has a parameter with an empty value: '{}'",
+                        crate::helpers::shown::shown_in_finding(member),
+                        crate::helpers::shown::shown_in_finding(seg)
+                    ),
                 ))
             }
             Err(crate::helpers::word::WordDefect::NotQuotedString(defect)) => {
-                return Err(format!(
-                    "Invalid quoted-string in Expect parameter '{}': {}",
-                    crate::helpers::shown::shown_in_finding(seg),
-                    defect.message(pvalue)
+                return Err(Defect::named(
+                    quoted_string_defect(defect),
+                    format!(
+                        "Invalid quoted-string in Expect parameter '{}': {}",
+                        crate::helpers::shown::shown_in_finding(seg),
+                        defect.message(pvalue)
+                    ),
                 ))
             }
             Err(crate::helpers::word::WordDefect::NotToken(c)) => {
-                return Err(format!(
-                    "Invalid octet {} in Expect parameter value '{}'",
-                    describe_octet(c as u8),
-                    crate::helpers::shown::shown_in_finding(pvalue)
+                return Err(Defect::named(
+                    token_character(c),
+                    format!(
+                        "Invalid octet {} in Expect parameter value '{}'",
+                        describe_octet(c as u8),
+                        crate::helpers::shown::shown_in_finding(pvalue)
+                    ),
                 ))
             }
         }
@@ -656,6 +779,50 @@ mod tests {
             "Expect member 'a=b; c = d' writes whitespace beside the '=' of parameter 'c = d'; \
              parameters do not allow whitespace around that character, not even \"bad\" whitespace"
         );
+        assert_eq!(v.violation, "parameter_equals_whitespace_forbidden");
+    }
+
+    /// This rule's own severity is `error`, chosen for the requirements it is
+    /// named after, and until the catalogue existed every grammar quibble it
+    /// noticed inherited that level. Three findings out of one rule now come out
+    /// three different ways: the spelling of a `=` at `info`, a stray comma at
+    /// `warn`, and the MUST NOT about content at the `error` the rule was
+    /// configured with.
+    #[test]
+    fn one_rule_now_reports_at_three_levels() {
+        let severity_of = |value: &str| {
+            let tx = tx_with_expect_lines(&[value.as_bytes()]);
+            let rule = ExpectHeaderValid;
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_severity(rule.id(), "error"),
+            )
+            .expect("a finding")
+        };
+
+        let spelling = severity_of("a=b; c = d");
+        assert_eq!(spelling.severity, crate::lint::Severity::Info);
+
+        let comma = severity_of("a,,b");
+        assert_eq!(comma.violation, "list_member_empty");
+        assert_eq!(comma.severity, crate::lint::Severity::Warn);
+
+        // The 100-continue expectation on a request with no content:
+        // unconverted, and still the rule's own severity. The fixture above
+        // gives every request content, so this one is built without it.
+        let mut tx = tx_with_expect_lines(&[b"100-continue"]);
+        tx.request.body_length = None;
+        let framing = crate::test_helpers::run_rule(
+            &ExpectHeaderValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(ExpectHeaderValid.id(), "error"),
+        )
+        .expect("the MUST NOT about content");
+        assert!(framing.violation.is_empty());
+        assert_eq!(framing.severity, crate::lint::Severity::Error);
     }
 
     #[test]
@@ -837,8 +1004,16 @@ mod tests {
         // `HeaderValue` refuses these octets outright, so a capture cannot carry
         // one to the rule. The production still forbids them, and the check that
         // owns it is shared with the rules whose values arrive by other routes.
-        let msg = parse_expectation(member).expect_err("control octet");
-        assert!(msg.contains("Control character"), "{msg}");
+        let defect = parse_expectation(member).expect_err("control octet");
+        assert!(
+            defect.message.contains("Control character"),
+            "{}",
+            defect.message
+        );
+        assert_eq!(
+            defect.def.map(|d| d.id),
+            Some("quoted_string_control_character_forbidden"),
+        );
     }
 
     #[test]
