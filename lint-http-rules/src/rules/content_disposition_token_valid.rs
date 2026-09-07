@@ -4,8 +4,39 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 pub struct ContentDispositionTokenValid;
+
+/// The `token` trio, and the field's own document defines none of it.
+///
+/// `disposition-type = "inline" | "attachment" | disp-ext-type` with
+/// `disp-ext-type = token`, and § 4.1 imports `token` from the obsolete RFC
+/// 2616 — whose character set is § 5.6.2's, which is the reading
+/// `Sec-WebSocket-Extensions` and `Strict-Transport-Security` each arrived at
+/// from their own grammars. The rule is *named* for a token check and now
+/// writes none of it.
+///
+/// **Two messages, one id, and that is the point of the pair.** An empty field
+/// value and a value opening on its first `;` are two spellings of the same
+/// missing `disposition-type`, and the operator's fix is the same word either
+/// way. The rule still says which it saw.
+///
+/// Two findings stay unnamed. A message carrying two field lines is § 5.3's
+/// MUST NOT about *field order*, which is about the message rather than about
+/// any production in it; and the octet outside visible US-ASCII is open
+/// question 1's shape — a verdict naming an encoding where the defect is an
+/// octet the grammar does not admit, whose right conversion is an octet-wise
+/// reader first.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -27,12 +58,6 @@ const RFC_6266_4: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4"),
     url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4",
     note: "Defines Content-Disposition as a *response* header field — the request half of this rule is a deliberate extension beyond the document, since upload APIs do send one",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note: "`token = 1*tchar` — where the production actually lives now. RFC 6266 §4.1 imports `token` from the obsolete RFC 2616; the character set is unchanged",
 };
 const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -68,6 +93,10 @@ severity = "warn"
             RFC_9110_5_6_2,
             RFC_9110_5_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -143,9 +172,8 @@ impl Rule for ContentDispositionTokenValid {
                 // cite(RFC 6266 § 4.1): "content-disposition = "Content-Disposition" ":" disposition-type *( ";" disposition-parm )"
                 let s = val.trim();
                 if s.is_empty() {
-                    return Some(self.cited(
-                        &RFC_6266_4_1,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &TOKEN_EMPTY,
                         format!("{} header value must not be empty", hdr_name),
                     ));
                 }
@@ -156,10 +184,13 @@ impl Rule for ContentDispositionTokenValid {
                 // cite(RFC 6266 § 4.1): "Note that due to the rules for implied linear whitespace (Section 2.1 of [RFC2616]), OPTIONAL whitespace can appear between words (token or quoted-string) and separator characters."
                 let dispo = s.split(';').next().unwrap().trim();
                 // cite(RFC 6266 § 4.1): "disposition-type = "inline" | "attachment" | disp-ext-type"
+                // The same id as the branch above, said differently: a value
+                // that is nothing and a value opening on its first `;` are two
+                // spellings of one missing `disposition-type`, and `token` is
+                // `1*tchar` for both.
                 if dispo.is_empty() {
-                    return Some(self.cited(
-                        &RFC_6266_4_1,
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &TOKEN_EMPTY,
                         format!("{} header disposition-type must not be empty", hdr_name),
                     ));
                 }
@@ -173,8 +204,8 @@ impl Rule for ContentDispositionTokenValid {
                 // cite(RFC 6266 § 4.1): "disp-ext-type       = token"
                 // cite(RFC 6266 § 4.2): "Unknown or unhandled disposition types SHOULD be handled by recipients the same way as "attachment" (see also [RFC2183], Section 2.8)."
                 if let Some(c) = crate::helpers::token::find_invalid_token_char(dispo) {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        token_character(c),
                         format!(
                             "{} disposition-type contains invalid token character: '{}'",
                             hdr_name, c
@@ -320,6 +351,65 @@ mod tests {
         } else {
             assert!(v.is_none(), "did not expect violation for '{:?}'", value);
         }
+    }
+
+    /// Every finding, with the defect it reports as. The two spellings of a
+    /// missing `disposition-type` share an id and keep their own sentences; the
+    /// two that stay unnamed are § 5.3's requirement about the *message* and
+    /// the octet reading open question 1 is about.
+    #[rstest]
+    #[case::empty_value("", "token_empty")]
+    #[case::no_type_before_semicolon("; filename=\"a\"", "token_empty")]
+    #[case::bad_octet("bad@type; filename=\"a\"", "token_character_forbidden")]
+    #[case::space_inside("bad type", "token_whitespace_or_control_forbidden")]
+    fn each_finding_reports_the_production_it_belongs_to(
+        #[case] value: &str,
+        #[case] violation: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-disposition", value)]);
+        let finding = crate::test_helpers::run_rule(
+            &ContentDispositionTokenValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "content_disposition_token_valid",
+                "warn",
+            ),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {value:?}"));
+        assert_eq!(finding.violation, violation, "for {value:?}");
+    }
+
+    /// A `disp-ext-type` is a `token` and so is a `Vary` member, and RFC 6266
+    /// importing the production from the obsolete RFC 2616 changes nothing
+    /// about the octet. Two rules, two documents, one id.
+    #[test]
+    fn a_disposition_type_is_a_token_like_any_other() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-disposition", "bad@type")]);
+        let here = crate::test_helpers::run_rule(
+            &ContentDispositionTokenValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity(
+                "content_disposition_token_valid",
+                "warn",
+            ),
+        )
+        .expect("a finding");
+        let elsewhere = crate::test_helpers::run_rule(
+            &crate::rules::vary_header_valid::VaryHeaderValid,
+            &crate::test_helpers::make_test_transaction_with_response(200, &[("vary", "b@d")]),
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["vary_header_valid"]),
+        )
+        .expect("a finding");
+
+        assert_eq!(here.violation, elsewhere.violation);
+        assert_ne!(here.message, elsewhere.message);
     }
 
     #[test]
