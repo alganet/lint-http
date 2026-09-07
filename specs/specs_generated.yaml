@@ -848,23 +848,35 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc2045.html
   fragments:
   - label: content_transfer_encoding_valid
+    section: § 5.1
+    snippet: x-token := <The two characters "X-" or "x-" followed, with no intervening white space, by any token>
+    cited_by:
+    - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
+      line: 134
+  - label: content_transfer_encoding_valid (2)
     section: § 6.1
     snippet: These values are not case sensitive
     cited_by:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
-      line: 131
-  - label: content_transfer_encoding_valid (2)
+      line: 146
+  - label: content_transfer_encoding_valid (3)
     section: § 6.1
     snippet: mechanism := "7bit" / "8bit" / "binary" / "quoted-printable" / "base64" / ietf-token / x-token
     cited_by:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
-      line: 103
-  - label: content_transfer_encoding_valid (3)
+      line: 109
+  - label: content_transfer_encoding_valid (4)
     section: § 6.3
     snippet: Implementors may, if necessary, define private Content-Transfer-Encoding values, but must use an x-token, which is a name prefixed by "X-", to indicate its non-standard status
     cited_by:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
-      line: 130
+      line: 145
+  - label: lint-http-rules/src/helpers/token.rs
+    section: § 5.1
+    snippet: token := 1*<any (US-ASCII) CHAR except SPACE, CTLs, or tspecials>
+    cited_by:
+    - file: lint-http-rules/src/helpers/token.rs
+      line: 83
 - label: RFC 2046
   url: https://www.rfc-editor.org/rfc/rfc2046.html
   fragments:
@@ -6497,7 +6509,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 333
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
-      line: 116
+      line: 122
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 358
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
@@ -9745,13 +9757,13 @@ sources:
     snippet: HTTP does not use the Content-Transfer-Encoding field of MIME.
     cited_by:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
-      line: 146
+      line: 161
   - label: content_transfer_encoding_valid (2)
     section: § B.5
     snippet: Proxies and gateways from MIME-compliant protocols to HTTP need to remove any Content-Transfer-Encoding prior to delivering the response message to an HTTP client.
     cited_by:
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
-      line: 147
+      line: 162
   - label: content_type_present
     section: § 6.3
     snippet: Any 2xx (Successful) response to a CONNECT request implies that the connection will become a tunnel immediately after the empty line that concludes the header fields.

@@ -16,6 +16,12 @@ const RFC_9112_B_5: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#appendix-B.5",
     note: "Why the field is reported at all: HTTP does not use Content-Transfer-Encoding, and gateways from MIME-compliant protocols must remove it",
 };
+const RFC_2045_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 2045",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc2045.html#section-5.1",
+    note: "The `token` an `x-token` is made of, and the fifteen `tspecials` it excludes — `(` `)` `<` `>` `@` `,` `;` `:` `\\` `\"` `/` `[` `]` `?` `=`. This is not HTTP's `token`: MIME subtracts those delimiters from the visible US-ASCII and keeps `{` and `}`, which `tchar` does not admit",
+};
 const RFC_2045_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 2045",
     section: Some("6.1"),
@@ -45,7 +51,7 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9112_B_5, RFC_2045_6_1, RFC_2045_6_3]
+        &[RFC_9112_B_5, RFC_2045_5_1, RFC_2045_6_1, RFC_2045_6_3]
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -117,7 +123,16 @@ impl Rule for ContentTransferEncodingValid {
                 let Some(tok) = parts.first().copied() else {
                     return Some("the value is empty".into());
                 };
-                if let Some(c) = crate::helpers::token::find_invalid_token_char(tok) {
+                // The `token` here is RFC 2045's and not HTTP's, which are two
+                // different character sets: `x-token` is "X-" followed by any
+                // token of *this* document, and § 5.1 builds one by subtracting
+                // fifteen `tspecials` from the visible US-ASCII rather than by
+                // listing what it keeps. `{` and `}` survive that subtraction
+                // and are not `tchar`, so reading the value with the HTTP
+                // helper reported `Content-Transfer-Encoding: x-my{new}encoding`
+                // for characters its own grammar admits.
+                // cite(RFC 2045 § 5.1): "x-token := <The two characters "X-" or "x-" followed, with no intervening white space, by any token>"
+                if let Some(c) = crate::helpers::token::find_invalid_mime_token_char(tok) {
                     return Some(format!("the value contains an invalid character: '{}'", c));
                 }
 
@@ -220,6 +235,40 @@ mod tests {
             assert!(violation.is_some());
         } else {
             assert!(violation.is_none());
+        }
+        Ok(())
+    }
+
+    /// The value is a MIME token, and MIME's alphabet is two characters wider
+    /// than HTTP's. A private mechanism spelled with braces derives from
+    /// § 5.1's `token` exactly, so the detail must say nothing about its
+    /// characters — while a SPACE, which neither document admits, still does.
+    /// The field is reported either way: presence is the finding.
+    #[rstest]
+    #[case("x-my{new}encoding", None)]
+    #[case("x-my new encoding", Some(' '))]
+    fn the_value_is_read_against_mimes_token(
+        #[case] value: &str,
+        #[case] bad: Option<char>,
+    ) -> anyhow::Result<()> {
+        let rule = ContentTransferEncodingValid;
+        let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
+            "content_transfer_encoding_valid",
+        ]);
+
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().unwrap().headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-transfer-encoding", value)]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        );
+        let v = v.expect("presence is reported whatever the value");
+        match bad {
+            Some(c) => assert!(v.message.contains(&format!("invalid character: '{c}'"))),
+            None => assert!(!v.message.contains("invalid character")),
         }
         Ok(())
     }
