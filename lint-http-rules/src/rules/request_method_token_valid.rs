@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 
 #[derive(Debug, Clone)]
 pub struct MethodTokenConfig {
@@ -89,6 +94,26 @@ fn parse_method_token_config(
 
 pub struct RequestMethodTokenValid;
 
+/// The two grammar questions this rule asks are `token`'s, and the third is its
+/// own.
+///
+/// `method = token`, with nothing added, so a method of no characters and a
+/// method holding an octet outside `tchar` are the same defects a field name, a
+/// directive name or a subtype has — and the same ids. What is left is the
+/// finding this rule exists for and no production states: a `token` that is a
+/// standardized method's name written in another case, which parses perfectly
+/// and asks for a method nobody defined.
+///
+/// That last one keeps its own severity, and the split is now visible: a method
+/// spelled `get` is a request that will draw a 501, while a method carrying a
+/// control octet is a request that derives from no grammar at all, and one
+/// `severity` in `[rules.request_method_token_valid]` said both.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_EMPTY,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_CHARACTER_FORBIDDEN,
+];
+
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
@@ -103,12 +128,6 @@ const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("2.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
     note: "The sentence that makes a value outside its ABNF a violation rather than an observation",
-};
-const RFC_9110_5_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2",
-    note: "`token = 1*tchar`. The character set is transcribed once, in `helpers::token::is_tchar`; the `1*` floor is what the empty-method branch here reads",
 };
 const RFC_9110_16_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -233,6 +252,10 @@ registered_methods = [
         ]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -318,8 +341,8 @@ impl Rule for RequestMethodTokenValid {
             // separate question and is asked here; three other readers of that helper say
             // the same thing in their own comments.
             if m.is_empty() {
-                return Some(self.violation(
-                    config.severity,
+                return Some(ctx.report_with(
+                    &TOKEN_EMPTY,
                     "Request carries an empty method token, and `method = token` has a one-character floor (`token = 1*tchar`), so the empty string derives from no production and names no method to apply to the target resource".into(),
                 ));
             }
@@ -332,8 +355,12 @@ impl Rule for RequestMethodTokenValid {
                 // Escaped, because the octet that fails a `tchar` test is very often one
                 // that prints as nothing: a raw DEL interpolated here produced a finding
                 // whose offending character was an empty pair of quotes.
-                return Some(self.violation(
-                    config.severity,
+                //
+                // Which of the two ids that octet draws is `token`'s question:
+                // a DEL in a method is something that happened to the request,
+                // an `@` is a client that meant it.
+                return Some(ctx.report_with(
+                    token_character(c),
                     format!(
                         "Method token contains {}, which is not a `tchar`, so the request's method derives from no `token` and therefore from no `method`",
                         crate::helpers::shown::shown_in_finding(&c.to_string())
@@ -479,6 +506,58 @@ mod tests {
     fn an_empty_method_token_is_reported() {
         let v = check("").expect("`method = token` has a one-character floor");
         assert!(v.message.contains("empty method token"));
+        assert_eq!(v.violation, "token_empty");
+    }
+
+    /// A method and a field name are both `token`, and the two most fundamental
+    /// readers of that production in HTTP now answer with the same ids.
+    ///
+    /// The two rules share no code and read different parts of the message --
+    /// the request line against a field section, one of them across three
+    /// versions of the protocol -- so nothing but the catalogue makes them
+    /// agree. The split inside the pair is `token`'s too: a DEL is an octet
+    /// that happened to the message, an `@` is a sender that meant it.
+    #[test]
+    fn a_method_and_a_field_name_report_the_same_two_defects() {
+        assert_eq!(
+            check("ge@t").expect("'@' is not a tchar").violation,
+            "token_character_forbidden"
+        );
+        assert_eq!(
+            check("GET\u{7f}").expect("DEL is not a tchar").violation,
+            "token_whitespace_or_control_forbidden"
+        );
+
+        let field_name = |name: &[u8]| {
+            let rule = crate::rules::header_field_names_token_valid::HeaderFieldNamesTokenValid;
+            let mut tx = crate::test_helpers::make_test_transaction();
+            let mut headers = hyper::HeaderMap::new();
+            headers.insert(
+                hyper::header::HeaderName::from_lowercase(name)
+                    .expect("the h2/h3 decoders convey this name"),
+                hyper::header::HeaderValue::from_static("v"),
+            );
+            tx.request.headers = headers;
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "header_field_names_token_valid",
+                ]),
+            )
+            .expect("a field name that is not a token")
+            .violation
+        };
+        assert_eq!(field_name(b"x\"bad"), "token_character_forbidden");
+
+        // Only one half of the pair is reachable through a field name, and the
+        // reason is the transport rather than the grammar: every decoder in the
+        // tree refuses a control octet in a name outright, so DQUOTE is the one
+        // non-`tchar` that arrives. The def is declared anyway, because
+        // `token_character` is total over the octets and the rule cannot know
+        // which one it will be handed.
+        assert!(hyper::header::HeaderName::from_lowercase(b"x\x7fbad").is_err());
     }
 
     /// A DEL interpolated raw names nothing: the finding said "contains ''".
