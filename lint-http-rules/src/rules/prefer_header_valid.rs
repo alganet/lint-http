@@ -8,8 +8,28 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
+use crate::violations::ViolationDef;
 
 pub struct PreferHeaderValid;
+
+/// The two halves of `1#preference` that are the *list's* rather than the
+/// preference's, and the mirror rule declares the same two for
+/// `1#applied-pref`.
+///
+/// A `Prefer` that states nothing and a `Prefer` with a hole in it are not
+/// facts about preferences: RFC 7240 writes `Prefer = "Prefer" ":" 1#preference`
+/// and takes the `1#` from RFC 9110 unchanged, so the floor and the stray comma
+/// are the same defects `Accept-Patch`, `Accept-Ranges` and a `Warning` have.
+///
+/// What stays is everything about a *preference* — the `token [ BWS "=" BWS
+/// word ]` shape, the whitespace the `BWS` admits and § 5.6.3 refuses a sender,
+/// the values § 4 defines for the four named preferences, and a name written
+/// twice. The first of those reaches this rule through a shared reader that
+/// still answers in prose, which is the commit that converts it.
+static DECLARED: &[&ViolationDef] = &[&LIST_MEMBER_MISSING, &LIST_MEMBER_EMPTY];
 
 /// What RFC 7240 § 4's own productions admit after a preference's `=`, for the
 /// four preferences this document defines — and nothing for any other name.
@@ -119,12 +139,6 @@ const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2",
     note: "The MUST NOT on generating a protocol element that does not match its ABNF — what makes a value outside a §4 production a finding, since RFC 7240 writes those productions and states no requirement about them",
 };
-const RFC_9110_5_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1",
-    note: "The `#rule` extension: §5.6.1.1 forbids the sender an empty list element, §5.6.1.2 prints the values a `1#` production rejects for having no non-empty member",
-};
 const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.6.3"),
@@ -170,11 +184,16 @@ severity = "warn"
             RFC_7240_5_1,
             RFC_7240_1_1,
             RFC_9110_2_2,
-            RFC_9110_5_6_1,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
             RFC_9110_5_6_3,
             RFC_9111_1_2_2,
             RFC_5234_2_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -285,9 +304,10 @@ impl Rule for PreferHeaderValid {
             // cite(RFC 9110 § 5.6.1.1): "1#element => element *( OWS "," OWS element )"
             // cite(RFC 9110 § 5.6.1.2): "In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:"
             if members.iter().all(|m| m.is_empty()) {
-                return violation(
+                return Some(ctx.report_with(
+                    &LIST_MEMBER_MISSING,
                     "Prefer header states no preference; its value is 1#preference, which requires at least one non-empty member".into(),
-                );
+                ));
             }
 
             // An empty element beside a real one is the other half of the same
@@ -297,9 +317,12 @@ impl Rule for PreferHeaderValid {
             //
             // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
             if members.iter().any(|m| m.is_empty()) {
-                return violation(format!(
-                    "Prefer header contains an empty list element: '{}'",
-                    shown_in_finding(&value)
+                return Some(ctx.report_with(
+                    &LIST_MEMBER_EMPTY,
+                    format!(
+                        "Prefer header contains an empty list element: '{}'",
+                        shown_in_finding(&value)
+                    ),
                 ));
             }
 
