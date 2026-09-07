@@ -4,9 +4,78 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
 use base64::Engine;
 
 pub struct DigestHeaderSyntax;
+
+/// Two defects, and both are the one production the *legacy* half of this rule
+/// borrows.
+///
+/// RFC 3230 § 4.1.1 writes `digest-algorithm = token` and takes `token` from
+/// RFC 2616, whose character set is § 5.6.2's — the fourth reading of that
+/// equivalence in this catalogue, and the answer has not changed. So a `Digest`
+/// or a `Want-Digest` naming an algorithm no `tchar` admits reports what a
+/// `Vary` member and a method do.
+///
+/// **The RFC 9530 half borrows nothing, and that is the interesting half.**
+/// `Content-Digest` and its three siblings are Structured Field Dictionaries,
+/// not `#rule` lists: an algorithm is a `key` — lowercase, and the helper that
+/// owns that grammar says so — and a value is a Byte Sequence or an Integer.
+/// None of those productions has a subject here, and a Dictionary key is
+/// emphatically not a `token`: the whole point of the finding is that carrying
+/// RFC 3230's `SHA-256` spelling across produces a field no structured-field
+/// parser will read.
+///
+/// **The empty member is refused on both halves, for two different reasons.**
+/// On the legacy side the list is RFC 2616's `#rule`, which *permits* null
+/// elements — the judgment `Sec-WebSocket-Extensions` settled — so
+/// `list_member_empty` would report a requirement the field does not carry. On
+/// the structured side there is no `#rule` at all. Both findings are this
+/// rule's own strictness and stay at its severity.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+];
+
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// Two of this rule's twenty-one findings are a borrowed production's; the rest
+/// are RFC 3230's list, RFC 9530's Dictionary, and four fields being obsolete.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed, reported at the rule's severity the way
+    /// every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+
+    /// The same defect with its message read from further out — which field it
+    /// was found in, and on which side.
+    fn in_context(self, context: impl FnOnce(String) -> String) -> Self {
+        Self {
+            def: self.def,
+            message: context(self.message),
+        }
+    }
+}
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -84,7 +153,7 @@ enum Syntax {
 
 impl Syntax {
     /// What is wrong with this field value, if anything.
-    fn defect(self, value: &str) -> Option<String> {
+    fn defect(self, value: &str) -> Option<Defect> {
         match self {
             Syntax::LegacyDigest => legacy_digest_defect(value),
             Syntax::LegacyWantDigest => token_list(
@@ -247,24 +316,30 @@ const FIELDS: &[Field] = &[
 /// in its alphabet either. A quote-aware split would find nothing extra.
 /// (Dictionary *parameters*, which could complicate this, are not defined for
 /// any of these fields.)
+/// **None of the three defects below is a subject's.** The legacy fields' list
+/// is RFC 2616's `#rule`, which permits the null element `list_member_empty`
+/// refuses, and the structured fields are Dictionaries with no list construct
+/// in them at all; the `=` and the algorithm in front of it are each document's
+/// own shape for a member. So this reader keeps its message templates and
+/// answers with an unnamed defect.
 fn key_value_members(
     value: &str,
     empty_member: &str,
     missing_eq: &str,
     empty_algorithm: &str,
-) -> Result<Vec<(String, String)>, String> {
+) -> Result<Vec<(String, String)>, Defect> {
     let mut members = Vec::new();
     for member in value.split(',') {
         let member = member.trim();
         if member.is_empty() {
-            return Err(empty_member.to_string());
+            return Err(Defect::unnamed(empty_member.to_string()));
         }
         let Some(eq) = member.find('=') else {
-            return Err(missing_eq.replace("{}", member));
+            return Err(Defect::unnamed(missing_eq.replace("{}", member)));
         };
         let algorithm = member[..eq].trim();
         if algorithm.is_empty() {
-            return Err(empty_algorithm.replace("{}", member));
+            return Err(Defect::unnamed(empty_algorithm.replace("{}", member)));
         }
         members.push((algorithm.to_string(), member[eq + 1..].trim().to_string()));
     }
@@ -272,15 +347,22 @@ fn key_value_members(
 }
 
 /// Split a comma-separated list of bare tokens.
-fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> Result<Vec<String>, String> {
+fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> Result<Vec<String>, Defect> {
     let mut members = Vec::new();
     for member in value.split(',') {
         let member = member.trim();
         if member.is_empty() {
-            return Err(empty_member.to_string());
+            return Err(Defect::unnamed(empty_member.to_string()));
         }
+        // `digest-algorithm = token`, and the caller supplies only the wording:
+        // which of the two `token` ids answers is decided by the character, the
+        // way it is at every other reader of this production.
+        // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
         if let Some(c) = crate::helpers::token::find_invalid_token_char(member) {
-            return Err(invalid_token.replace("{}", &c.to_string()));
+            return Err(Defect::named(
+                token_character(c),
+                invalid_token.replace("{}", &c.to_string()),
+            ));
         }
         members.push(member.to_string());
     }
@@ -289,7 +371,7 @@ fn token_list(value: &str, empty_member: &str, invalid_token: &str) -> Result<Ve
 
 /// The RFC 3230 shape: an ordinary token and bare base64, with no `:`
 /// delimiters and no structured field anywhere in it.
-fn legacy_digest_defect(value: &str) -> Option<String> {
+fn legacy_digest_defect(value: &str) -> Option<Defect> {
     let members = match key_value_members(
         value,
         "Digest header contains empty member",
@@ -302,7 +384,10 @@ fn legacy_digest_defect(value: &str) -> Option<String> {
 
     for (algorithm, encoded) in members {
         if encoded.is_empty() {
-            return Some(format!("Digest member '{}' has empty value", algorithm));
+            return Some(Defect::unnamed(format!(
+                "Digest member '{}' has empty value",
+                algorithm
+            )));
         }
 
         // The algorithm is a token. RFC 3230 also makes it case-insensitive,
@@ -311,9 +396,9 @@ fn legacy_digest_defect(value: &str) -> Option<String> {
         // cite(RFC 3230 § 4.1.1): "digest-algorithm = token"
         // cite(RFC 3230 § 4.1.1): "All digest-algorithm values are case-insensitive."
         if let Some(c) = crate::helpers::token::find_invalid_token_char(&algorithm) {
-            return Some(format!(
-                "Digest algorithm contains invalid character: '{}'",
-                c
+            return Some(Defect::named(
+                token_character(c),
+                format!("Digest algorithm contains invalid character: '{}'", c),
             ));
         }
 
@@ -321,17 +406,17 @@ fn legacy_digest_defect(value: &str) -> Option<String> {
             .decode(&encoded)
             .is_err()
         {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "Digest value for algorithm '{}' is not valid base64",
                 algorithm
-            ));
+            )));
         }
     }
     None
 }
 
 /// The RFC 9530 shape: a Dictionary key and a Byte Sequence.
-fn structured_digest_defect(value: &str) -> Option<String> {
+fn structured_digest_defect(value: &str) -> Option<Defect> {
     let members = match key_value_members(
         value,
         "Digest field contains empty member",
@@ -352,11 +437,11 @@ fn structured_digest_defect(value: &str) -> Option<String> {
         // itself is owned by the structured-fields helper.
         // cite(RFC 9530 § 2): "key conveys the hashing algorithm (see Section 5) used to compute the digest;"
         if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "Digest algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
                 algorithm,
                 algorithm.to_ascii_lowercase()
-            ));
+            )));
         }
 
         // The `:`-delimited base64 form, whose grammar the structured-fields
@@ -364,10 +449,10 @@ fn structured_digest_defect(value: &str) -> Option<String> {
         // same rule).
         // cite(RFC 9530 § 2): "value is a Byte Sequence (Section 3.3.5 of [STRUCTURED-FIELDS]) that conveys an encoded version of the byte output produced by the digest calculation."
         if !crate::helpers::structured_fields::is_byte_sequence(&encoded) {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "Digest member '{}={}' value must be a byte sequence like ':b64:'",
                 algorithm, encoded
-            ));
+            )));
         }
 
         // Two deliberate strictnesses beyond the grammar, neither of which the
@@ -379,26 +464,26 @@ fn structured_digest_defect(value: &str) -> Option<String> {
         // accepted there.
         let inner = &encoded[1..encoded.len() - 1];
         if inner.is_empty() {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "Digest member '{}' has empty byte sequence",
                 algorithm
-            ));
+            )));
         }
         if base64::engine::general_purpose::STANDARD
             .decode(inner)
             .is_err()
         {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "Digest value for algorithm '{}' is not valid base64",
                 algorithm
-            ));
+            )));
         }
     }
     None
 }
 
 /// The RFC 9530 preference shape: a Dictionary key and a weight.
-fn want_preference_defect(value: &str) -> Option<String> {
+fn want_preference_defect(value: &str) -> Option<Defect> {
     let members = match key_value_members(
         value,
         "Want-* header contains empty member",
@@ -412,21 +497,27 @@ fn want_preference_defect(value: &str) -> Option<String> {
     for (algorithm, weight) in members {
         // Same Dictionary-key rule as the digest fields above.
         if !crate::helpers::structured_fields::is_valid_sf_key(&algorithm) {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "Want-* algorithm key '{}' is not a valid structured-field key (keys are lowercase: try '{}')",
                 algorithm,
                 algorithm.to_ascii_lowercase()
-            ));
+            )));
         }
 
         // The bound is the spec's own, not a chosen tolerance, and the type is
         // Integer, so no decimal point.
         // cite(RFC 9530 § 4): "value is an Integer (Section 3.3.1 of [STRUCTURED-FIELDS]) that conveys an ascending, relative, weighted preference. It must be in the range 0 to 10 inclusive."
         let Ok(n) = weight.parse::<i64>() else {
-            return Some(format!("Want-* weight '{}' is not an integer", weight));
+            return Some(Defect::unnamed(format!(
+                "Want-* weight '{}' is not an integer",
+                weight
+            )));
         };
         if !(0..=10).contains(&n) {
-            return Some(format!("Want-* weight '{}' out of range 0..=10", weight));
+            return Some(Defect::unnamed(format!(
+                "Want-* weight '{}' out of range 0..=10",
+                weight
+            )));
         }
     }
     None
@@ -454,7 +545,12 @@ severity = "warn"
             RFC_9530_4,
             RFC_3230_4_1_1,
             RFC_7231_APPENDIX_B,
+            RFC_9110_5_6_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -517,13 +613,16 @@ impl Rule for DigestHeaderSyntax {
                     };
 
                     if let Some(defect) = field.syntax.defect(value) {
-                        return Some(self.violation(
-                            ctx.severity,
+                        let defect = defect.in_context(|message| {
                             format!(
                                 "Invalid {} header in {}: {} ({})",
-                                field.display, field.side, defect, field.reference
-                            ),
-                        ));
+                                field.display, field.side, message, field.reference
+                            )
+                        });
+                        return Some(match defect.def {
+                            Some(def) => ctx.report_with(def, defect.message),
+                            None => self.violation(ctx.severity, defect.message),
+                        });
                     }
 
                     // A well-formed obsolete field is still a finding: the field
@@ -564,6 +663,43 @@ mod tests {
         tx.request.headers =
             crate::test_helpers::make_headers_from_pairs(&[("want-digest", value)]);
         tx
+    }
+
+    /// The two findings that belong to a production this rule borrows, and a
+    /// sample of the nineteen that do not. The line the table draws is between
+    /// RFC 3230's legacy fields — whose algorithm is a `token` — and RFC 9530's,
+    /// which are Structured Field Dictionaries and share nothing with a `#rule`
+    /// list or a `token`.
+    #[rstest]
+    #[case::legacy_digest_algorithm("digest", "sha@1=YWJj", "token_character_forbidden")]
+    #[case::legacy_want_digest_algorithm("want-digest", "sha@1", "token_character_forbidden")]
+    #[case::legacy_empty_member("digest", "sha-256=YWJj,", "")]
+    #[case::legacy_no_equals("digest", "sha-256", "")]
+    #[case::structured_key_case("content-digest", "SHA-256=:YWJj:", "")]
+    #[case::structured_not_a_byte_sequence("content-digest", "sha-256=YWJj", "")]
+    #[case::structured_empty_member("content-digest", "sha-256=:YWJj:,", "")]
+    fn only_the_legacy_algorithm_is_a_borrowed_production(
+        #[case] field: &str,
+        #[case] value: &str,
+        #[case] violation: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[(field, value)]);
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: crate::test_helpers::make_headers_from_pairs(&[(field, value)]),
+            body_length: None,
+            trailers: None,
+        });
+        let finding = crate::test_helpers::run_rule(
+            &DigestHeaderSyntax,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["digest_header_syntax"]),
+        )
+        .unwrap_or_else(|| panic!("expected a finding for {field}: {value}"));
+        assert_eq!(finding.violation, violation, "{field}: {value}");
     }
 
     #[rstest]
