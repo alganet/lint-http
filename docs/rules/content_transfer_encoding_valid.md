@@ -17,6 +17,7 @@ The value is reported as detail: a single `token` naming one of `7bit`, `8bit`, 
 ## Specifications
 
 - [RFC 9112 §B.5](https://www.rfc-editor.org/rfc/rfc9112.html#appendix-B.5): Why the field is reported at all: HTTP does not use Content-Transfer-Encoding, and gateways from MIME-compliant protocols must remove it
+- [RFC 2045 §5.1](https://www.rfc-editor.org/rfc/rfc2045.html#section-5.1): The `token` an `x-token` is made of, and the fifteen `tspecials` it excludes — `(` `)` `<` `>` `@` `,` `;` `:` `\` `"` `/` `[` `]` `?` `=`. This is not HTTP's `token`: MIME subtracts those delimiters from the visible US-ASCII and keeps `{` and `}`, which `tchar` does not admit
 - [RFC 2045 §6.1](https://www.rfc-editor.org/rfc/rfc2045.html#section-6.1): The MIME `mechanism` grammar the value is described against — five named encodings plus `ietf-token` / `x-token`, all case-insensitive
 - [RFC 2045 §6.3](https://www.rfc-editor.org/rfc/rfc2045.html#section-6.3): Private mechanisms must be spelled with an `X-` prefix, which is why an `x-` value is well-formed MIME rather than an unrecognized one
 
