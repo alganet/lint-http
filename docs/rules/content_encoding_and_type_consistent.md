@@ -16,6 +16,8 @@ Repeating a coding is likewise a judgement call rather than a conformance failur
 
 **Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only.
 
+**The value is read as octets and over the whole field section.** Every character of a `token` is visible US-ASCII, so an `obs-text` octet in a coding name is reported for what it is — a character the production does not admit, named as the byte it is — rather than as a verdict about the field's encoding. It used to be the second: a value the string reader refused was reported as *not valid UTF-8*, which is a claim about the whole value where the defect is one character of one member. The lines of a section are joined first, because `#content-coding` makes them one list.
+
 ## Specifications
 
 - [RFC 9110 §8.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4): `Content-Encoding = #content-coding` — the list the member checks walk. Note it does not forbid repeating a coding, so the duplicate check is this rule's judgement

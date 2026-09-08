@@ -60,7 +60,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.\n\nResponses that carry no content (1xx, 204, 304) are flagged for sending `Content-Encoding` at all. For 304 this follows RFC 9110 §15.4.5, which tells a sender not to include representation metadata beyond a listed set; for 1xx and 204 it is this rule's inference that a coding describing absent content is a misconfiguration.\n\nRepeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.\n\n**Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only."
+        "Validate `Content-Encoding` header members for common correctness issues: members must be valid `token`s, a wildcard `*` is rejected (it belongs to `Accept-Encoding`), and a coding repeated within the field is flagged.\n\nResponses that carry no content (1xx, 204, 304) are flagged for sending `Content-Encoding` at all. For 304 this follows RFC 9110 §15.4.5, which tells a sender not to include representation metadata beyond a listed set; for 1xx and 204 it is this rule's inference that a coding describing absent content is a misconfiguration.\n\nRepeating a coding is likewise a judgement call rather than a conformance failure — `gzip, gzip` legitimately expresses gzip applied twice — but in practice it usually means two layers each added the header.\n\n**Note:** despite the rule's name, no `Content-Type` consistency check is performed; the rule inspects `Content-Encoding` only.\n\n**The value is read as octets and over the whole field section.** Every character of a `token` is visible US-ASCII, so an `obs-text` octet in a coding name is reported for what it is — a character the production does not admit, named as the byte it is — rather than as a verdict about the field's encoding. It used to be the second: a value the string reader refused was reported as *not valid UTF-8*, which is a claim about the whole value where the defect is one character of one member. The lines of a section are joined first, because `#content-coding` makes them one list."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -138,9 +138,18 @@ impl Rule for ContentEncodingAndTypeConsistent {
                         ));
                     }
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
+                        // Rendered rather than written through: the value is
+                        // read as octets, so what stopped the scan may be an
+                        // `obs-text` byte a recipient is told to treat as
+                        // opaque -- and `0xE9` is what that byte is, where `é`
+                        // is a reading of it.
                         return Some(ctx.report_with(
                             token_character(c),
-                            format!("Invalid token '{}' in {} header", c, hdr_name),
+                            format!(
+                                "Invalid token {} in {} header",
+                                crate::helpers::shown::describe_char(c),
+                                hdr_name
+                            ),
                         ));
                     }
                     // Repeating a coding is not forbidden anywhere: §8.4 has the sender list
@@ -160,17 +169,19 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 None
             };
 
-            // Check request Content-Encoding header(s) (track across multiple header fields)
+            // The lines of a section are one list, read as octets. `to_str`
+            // refuses everything outside visible US-ASCII, which folded an
+            // `obs-text` octet in a coding name into a verdict about the
+            // field's encoding -- a claim about the whole value where the
+            // defect is one character of one member, and one this rule already
+            // had an id for. Reading the octets is what lets that id answer.
             {
                 let mut seen = std::collections::HashSet::new();
-                for hv in tx.request.headers.get_all("content-encoding").iter() {
-                    let Ok(val) = hv.to_str() else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Content-Encoding header value is not valid UTF-8".into(),
-                        ));
-                    };
-                    if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
+                if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
+                    &tx.request.headers,
+                    "content-encoding",
+                ) {
+                    if let Some(v) = check_encoding_header("Content-Encoding", &val, &mut seen) {
                         return Some(v);
                     }
                 }
@@ -208,14 +219,11 @@ impl Rule for ContentEncodingAndTypeConsistent {
                 }
 
                 let mut seen = std::collections::HashSet::new();
-                for hv in resp.headers.get_all("content-encoding").iter() {
-                    let Ok(val) = hv.to_str() else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Content-Encoding header value is not valid UTF-8".into(),
-                        ));
-                    };
-                    if let Some(v) = check_encoding_header("Content-Encoding", val, &mut seen) {
+                if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
+                    &resp.headers,
+                    "content-encoding",
+                ) {
+                    if let Some(v) = check_encoding_header("Content-Encoding", &val, &mut seen) {
                         return Some(v);
                     }
                 }
@@ -389,7 +397,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_value_reports_violation() {
+    fn an_obs_text_octet_is_a_token_defect_not_an_encoding_verdict() {
         let rule = ContentEncodingAndTypeConsistent;
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.response = Some(crate::http_transaction::ResponseInfo {
@@ -411,12 +419,9 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(violation.is_some());
-        let v = violation.unwrap();
-        assert_eq!(
-            v.message,
-            "Content-Encoding header value is not valid UTF-8"
-        );
+        let v = violation.expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(v.message, "Invalid token 0xFF in Content-Encoding header");
     }
     #[test]
     fn request_trailing_comma_accepted() {
@@ -534,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    fn request_non_utf8_value_reports_violation() -> anyhow::Result<()> {
+    fn a_requests_obs_text_octet_is_the_same_token_defect() -> anyhow::Result<()> {
         let rule = ContentEncodingAndTypeConsistent;
         let mut tx = crate::test_helpers::make_test_transaction();
         use hyper::header::HeaderValue;
@@ -548,12 +553,9 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let v = v.unwrap();
-        assert_eq!(
-            v.message,
-            "Content-Encoding header value is not valid UTF-8"
-        );
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(v.message, "Invalid token 0xFF in Content-Encoding header");
         Ok(())
     }
 

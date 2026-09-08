@@ -14,6 +14,8 @@ Validate `Content-Encoding` and `Accept-Encoding` header values: each content-co
 
 The two headers do not share a vocabulary. `Accept-Encoding` additionally admits `*` (matching any coding not listed) and `identity` (meaning no encoding); both are preference vocabulary and neither is a content-coding, so in `Content-Encoding` they are flagged — `identity` explicitly so, since RFC 9110 §8.4 reserves it for its Accept-Encoding role and says it SHOULD NOT be included.
 
+**Both fields are read as octets and over the whole field section.** A coding name holding an octet outside visible US-ASCII is not a `token` and is reported as that; the reader this replaces refused such a value outright, so the field went unread and unreported. It also took only the first field line, where `#content-coding` makes every line of a section one list.
+
 ## Specifications
 
 - [RFC 9110 §8.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4): `Content-Encoding = #content-coding`, and the reservation of `identity` for Accept-Encoding — the reason it is flagged here
