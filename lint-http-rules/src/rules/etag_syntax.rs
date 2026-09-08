@@ -121,11 +121,14 @@ impl Rule for EtagSyntax {
             let mut count = 0usize;
             for hv in resp.headers.get_all("etag").iter() {
                 count += 1;
-                let Ok(s) = hv.to_str() else {
-                    return Some(
-                        self.violation(ctx.severity, "ETag header value is not valid UTF-8".into()),
-                    );
-                };
+                // Read as octets. `ETag = entity-tag` is one value rather than
+                // a list, so the field line is the value; and `etagc` stops at
+                // %x7E except for `obs-text`, so an octet outside visible
+                // US-ASCII is measured against the production like any other
+                // rather than folded into a verdict about the field's
+                // encoding. The two conditional fields that quote this value
+                // back have read it this way since their own conversion.
+                let s = crate::helpers::headers::field_line_as_written(hv);
 
                 let t = s.trim();
                 // The `*` kept its own branch, and the reason changed. It stood here
@@ -260,7 +263,11 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_is_violation() -> anyhow::Result<()> {
+    /// An octet outside visible US-ASCII is measured against `etagc`, which
+    /// admits `obs-text` and refuses the rest — not folded into a verdict
+    /// about the field's encoding, which is what the reader this replaces
+    /// reported.
+    fn an_obs_text_octet_is_measured_against_the_production() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
         let rule = EtagSyntax;
@@ -284,7 +291,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "etag_delimiter_missing");
         Ok(())
     }
 

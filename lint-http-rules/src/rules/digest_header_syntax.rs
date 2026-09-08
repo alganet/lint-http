@@ -605,12 +605,14 @@ impl Rule for DigestHeaderSyntax {
                 };
 
                 for line in headers.get_all(field.name).iter() {
-                    let Ok(value) = line.to_str() else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            format!("{} header value is not valid UTF-8", field.display),
-                        ));
-                    };
+                    // Read as octets. Two of these four fields are lists of
+                    // `token`s and two are Structured Fields; every one of the
+                    // productions stops inside visible US-ASCII, so an octet
+                    // outside it belongs to whichever of them was being read --
+                    // not to a verdict about the field's encoding, which is
+                    // what refusing the value outright reported.
+                    let value = crate::helpers::headers::field_line_as_written(line);
+                    let value = value.as_str();
 
                     if let Some(defect) = field.syntax.defect(value) {
                         let defect = defect.in_context(|message| {
