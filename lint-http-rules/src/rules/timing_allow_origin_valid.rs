@@ -4,9 +4,26 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
+use crate::violations::ViolationDef;
 
 pub struct TimingAllowOriginValid;
 
+/// The list construct's two defects, which is what this field borrows.
+///
+/// `Timing-Allow-Origin = 1#( origin-or-null / wildcard )` is written with
+/// RFC 9110's List Extension and the document says so where it prints the ABNF,
+/// so both halves of the construct answer here exactly as they answer for an
+/// `Accept-Patch` or a `Warning`: the floor the `1#` puts under the value, and
+/// the empty element a sender must not generate. A W3C document borrowing the
+/// construct borrows its defects with it.
+///
+/// What stays this rule's own is what a *member* is — a serialized origin, the
+/// case-sensitive `null`, the wildcard — which Fetch defines and this catalogue
+/// has no subject for.
+static DECLARED: &[&ViolationDef] = &[&LIST_MEMBER_MISSING, &LIST_MEMBER_EMPTY];
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
@@ -49,7 +66,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RESOURCE_TIMING_3_5_2, FETCH_3_2, RFC_6454_7_1]
+        &[
+            RESOURCE_TIMING_3_5_2,
+            FETCH_3_2,
+            RFC_6454_7_1,
+            RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -142,8 +169,8 @@ impl Rule for TimingAllowOriginValid {
                 // one member.
                 // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
                 if s.trim().is_empty() {
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &LIST_MEMBER_MISSING,
                         "Timing-Allow-Origin header value is empty".into(),
                     ));
                 }
@@ -159,8 +186,8 @@ impl Rule for TimingAllowOriginValid {
                         // empty list element.
                         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
                         if parts.iter().skip(i + 1).any(|p| !p.trim().is_empty()) {
-                            return Some(self.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                &LIST_MEMBER_EMPTY,
                                 "Timing-Allow-Origin header contains empty member".into(),
                             ));
                         }
@@ -202,6 +229,32 @@ static REGISTRATION: &dyn crate::rules::Rule = &TimingAllowOriginValid;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The two halves of the list construct, answering with the ids every
+    /// other `1#` field answers with — out of a rule whose own findings are a
+    /// W3C document's and whose members are Fetch's.
+    #[test]
+    fn the_list_construct_reports_the_ids_it_always_does() {
+        for (value, id) in [
+            ("  ", "list_member_missing"),
+            ("https://a, , https://b", "list_member_empty"),
+        ] {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+            tx.response.as_mut().expect("a response").headers =
+                crate::test_helpers::make_headers_from_pairs(&[("timing-allow-origin", value)]);
+            let found = crate::test_helpers::run_rule(
+                &TimingAllowOriginValid,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_severity(
+                    "timing_allow_origin_valid",
+                    "warn",
+                ),
+            )
+            .expect("a finding");
+            assert_eq!(found.violation, id, "{value}");
+        }
+    }
     use rstest::rstest;
 
     use crate::test_helpers::make_test_transaction;
