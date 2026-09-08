@@ -1123,6 +1123,14 @@ severity = "warn"
 # Authentication token68 is indistinguishable from a parameter
 severity = "info"
 
+[violations.comment_character_forbidden]
+# Comment holds a character ctext does not admit
+severity = "warn"
+
+[violations.comment_delimiter_missing]
+# Comment is never closed
+severity = "warn"
+
 [violations.content_length_conflicting]
 # Content-Length disagrees with the octets received
 severity = "error"
@@ -1431,6 +1439,10 @@ severity = "warn"
 # Percent-encoding is not two hexadecimal digits
 severity = "warn"
 
+[violations.quoted_pair_malformed]
+# Escape is not a quoted-pair
+severity = "warn"
+
 [violations.quoted_string_control_character_forbidden]
 # Quoted-string holds a control character
 severity = "error"
@@ -1441,10 +1453,6 @@ severity = "warn"
 
 [violations.quoted_string_quote_escape_missing]
 # Quoted-string holds an unescaped DQUOTE
-severity = "warn"
-
-[violations.quoted_string_quoted_pair_malformed]
-# Quoted-string holds an escape that is not a quoted-pair
 severity = "warn"
 
 [violations.qvalue_malformed]

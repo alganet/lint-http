@@ -4,10 +4,10 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
-    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
-    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
@@ -30,7 +30,7 @@ pub struct StrictTransportSecurityValid;
 /// **The `quoted-string` half genuinely differs, and the difference cannot
 /// arrive.** RFC 2616 writes `quoted-pair = "\" CHAR`, which admits an escaped
 /// control octet § 5.6.4 refuses and refuses the `obs-text` § 5.6.4 admits — so
-/// `quoted_string_quoted_pair_malformed` names a sentence this field's document
+/// `quoted_pair_malformed` names a sentence this field's document
 /// does not use, for those two octets. Neither reaches this rule: the value is
 /// read through `to_str`, whose alphabet is HTAB and visible US-ASCII, so an
 /// escaped CTL and an `obs-text` are both refused at the door and every escape
@@ -50,7 +50,7 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
-    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
@@ -420,7 +420,7 @@ mod tests {
     #[case::trailing_escape(
         "max-age=1; foo=\"ab\\\"",
         "Invalid quoted-string",
-        "quoted_string_quoted_pair_malformed"
+        "quoted_pair_malformed"
     )]
     #[case::repeated_max_age("max-age=1; max-age=2", "multiple 'max-age'", "")]
     #[case::missing_max_age("includeSubDomains", "missing required 'max-age'", "")]

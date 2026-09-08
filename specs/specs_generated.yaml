@@ -1420,7 +1420,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 52
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 408
+      line: 402
     - file: lint-http-rules/src/violations/uri.rs
       line: 235
   - label: lint-http-rules/src/helpers/uri.rs (24)
@@ -1719,7 +1719,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 242
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 118
+      line: 119
   - label: lint-http-rules/src/helpers/mailbox.rs
     section: § B.1
     snippet: WSP            =  SP / HTAB ; white space
@@ -2026,7 +2026,7 @@ sources:
     snippet: Can be specified using a 415 (Unsupported Media Type) response when the client sends a patch document format that the server does not support for the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 423
+      line: 424
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 296
     - file: lint-http-rules/src/rules/patch_partial_update.rs
@@ -2036,25 +2036,25 @@ sources:
     snippet: Such a response SHOULD include an Accept-Patch response header as described in Section 3.1 to notify the client what patch document media types are supported.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 424
+      line: 425
   - label: accept_patch_header_valid (3)
     section: § 3
     snippet: A server can advertise its support for the PATCH method by adding it to the listing of allowed methods in the "Allow" OPTIONS response header defined in HTTP/1.1.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 233
+      line: 234
   - label: accept_patch_header_valid (4)
     section: § 3
     snippet: The PATCH method MAY appear in the "Allow" header even if the Accept-Patch header is absent, in which case the list of allowed patch documents is not advertised.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 465
+      line: 466
   - label: Accept-Patch grammar
     section: § 3.1
     snippet: Accept-Patch = "Accept-Patch" ":" 1#media-type
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 94
+      line: 95
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 86
   - label: accept_patch_header_valid (5)
@@ -2062,7 +2062,7 @@ sources:
     snippet: Accept-Patch SHOULD appear in the OPTIONS response for any resource that supports the use of the PATCH method.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 464
+      line: 465
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 51
   - label: accept_patch_header_valid (6)
@@ -2070,7 +2070,7 @@ sources:
     snippet: The Accept-Patch header specifies a comma-separated listing of media-types (with optional parameters) as defined by [RFC2616], Section 3.7.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 95
+      line: 96
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 87
   - label: accept_patch_header_valid (7)
@@ -2078,7 +2078,7 @@ sources:
     snippet: The presence of the Accept-Patch header in response to any method is an implicit indication that PATCH is allowed on the resource identified by the Request-URI.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 403
+      line: 404
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 257
   - label: accept_patch_header_valid (8)
@@ -2086,7 +2086,7 @@ sources:
     snippet: This specification introduces a new response header Accept-Patch used to specify the patch document formats accepted by the server.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 376
+      line: 377
   - label: patch_method_content_type_match
     section: § 3.1
     snippet: The presence of a specific patch document format in this header indicates that that specific format is allowed on the resource identified by the Request-URI.
@@ -3487,9 +3487,9 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 36
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 415
+      line: 416
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 365
+      line: 366
   - label: prefer_header_and_preference_applied (3)
     section: § 2
     snippet: If a server supports the optional application of a preference that might result in a variance to a cache's handling of a response entity, a Vary header field MUST be included in the response listing the Prefer header field regardless of whether the client actually used Prefer in the request.
@@ -3503,7 +3503,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 276
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 277
+      line: 278
   - label: prefer_header_and_preference_applied (4)
     section: § 3
     snippet: The Preference-Applied response header MAY be included within a response message as an indication as to which Prefer tokens were honored by the server and applied to the processing of a request.
@@ -3511,9 +3511,9 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 227
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 249
+      line: 250
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 383
+      line: 384
   - label: prefer_header_and_preference_applied (5)
     section: § 3
     snippet: applied-pref = token [ BWS "=" BWS word ]
@@ -3521,7 +3521,7 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 288
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 329
+      line: 330
   - label: prefer_header_and_preference_applied (6)
     section: § 4.1
     snippet: the server can honor the "respond-async" preference by returning a 202 (Accepted) response.
@@ -3559,137 +3559,137 @@ sources:
     - file: lint-http-rules/src/rules/prefer_header_and_preference_applied.rs
       line: 30
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 72
+      line: 73
   - label: prefer_header_valid
     section: § 2
     snippet: '*( OWS ";" [ OWS parameter ] )'
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 369
+      line: 370
   - label: prefer_header_valid (2)
     section: § 2
     snippet: A client MAY use multiple instances of the Prefer header field in a single message, or it MAY use a single Prefer header field with multiple comma-separated preference tokens.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 310
+      line: 311
   - label: prefer_header_valid (3)
     section: § 2
     snippet: A server that does not recognize or is unable to comply with particular preference tokens in the Prefer header field of a request MUST ignore those tokens and continue processing instead of signaling an error.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 73
+      line: 74
   - label: prefer_header_valid (4)
     section: § 2
     snippet: An optional set of parameters can be specified for any preference token.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 444
+      line: 445
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 114
+      line: 115
   - label: prefer_header_valid (5)
     section: § 2
     snippet: Empty or zero-length values on both the preference token and within parameters are equivalent to no value being specified at all.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 412
+      line: 413
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 63
+      line: 64
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 370
+      line: 371
   - label: prefer_header_valid (6)
     section: § 2
     snippet: If any preference is specified more than once, only the first instance is to be considered.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 486
+      line: 487
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 130
+      line: 131
   - label: prefer_header_valid (7)
     section: § 2
     snippet: If multiple Prefer header fields are used, it is equivalent to a single Prefer header field with the comma-separated concatenation of all of the tokens.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 311
+      line: 312
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 82
+      line: 83
   - label: prefer_header_valid (8)
     section: § 2
     snippet: Prefer     = "Prefer" ":" 1#preference
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 319
+      line: 320
   - label: prefer_header_valid (9)
     section: § 2
     snippet: The Prefer request header field is used to indicate that particular server behaviors are preferred by the client but are not required for successful completion of the request.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 285
+      line: 286
   - label: prefer_header_valid (10)
     section: § 2
     snippet: To avoid any possible ambiguity, individual preference tokens SHOULD NOT appear multiple times within a single request.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 485
+      line: 486
   - label: prefer_header_valid (11)
     section: § 2
     snippet: parameter  = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 443
+      line: 444
   - label: prefer_header_valid (12)
     section: § 2
     snippet: preference = token [ BWS "=" BWS word ]
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 368
+      line: 369
   - label: prefer_header_valid (13)
     section: § 4
     snippet: The following subsections define an initial set of preferences.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 71
+      line: 72
   - label: prefer_header_valid (14)
     section: § 4.1
     snippet: respond-async = "respond-async"
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 79
+      line: 80
   - label: prefer_header_valid (15)
     section: § 4.2
     snippet: The "return=minimal" and "return=representation" preferences are mutually exclusive directives.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 487
+      line: 488
   - label: prefer_header_valid (16)
     section: § 4.2
     snippet: return = "return" BWS "=" BWS ("representation" / "minimal")
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 86
+      line: 87
   - label: prefer_header_valid (17)
     section: § 4.3
     snippet: wait = "wait" BWS "=" BWS delta-seconds
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 90
+      line: 91
   - label: prefer_header_valid (18)
     section: § 4.4
     snippet: The "handling=strict" and "handling=lenient" preferences are mutually exclusive directives.
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 488
+      line: 489
   - label: prefer_header_valid (19)
     section: § 4.4
     snippet: handling = "handling" BWS "=" BWS ("strict" / "lenient")
     cited_by:
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 88
+      line: 89
   - label: preference_applied_header_valid
     section: § 3
     snippet: The syntax of the Preference-Applied header differs from that of the Prefer header in that parameters are not included.
     cited_by:
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 321
+      line: 322
 - label: RFC 7301
   url: https://www.rfc-editor.org/rfc/rfc7301.html
   fragments:
@@ -4703,7 +4703,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 252
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 309
+      line: 310
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 277
   - label: accept_and_content_type_negotiation (11)
@@ -4733,7 +4733,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 161
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 221
+      line: 222
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 226
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
@@ -4929,7 +4929,7 @@ sources:
     snippet: The "Allow" header field lists the set of methods advertised as supported by the target resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 234
+      line: 235
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 53
     - file: lint-http-rules/src/rules/context_fields_direction.rs
@@ -4943,19 +4943,19 @@ sources:
     snippet: If the problem was caused by an unsupported content coding, the Accept-Encoding response header field (Section 12.5.3) ought to be used
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 426
+      line: 427
   - label: accept_patch_header_valid (3)
     section: § 15.5.16
     snippet: The format problem might be due to the request's indicated Content-Type or Content-Encoding, or as a result of inspecting the data directly.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 425
+      line: 426
   - label: accept_patch_header_valid (4)
     section: § 5.6.1.2
     snippet: 'Empty elements do not contribute to the count of elements present.  A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism.'
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 137
+      line: 138
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 105
   - label: accept_patch_header_valid (5)
@@ -4963,11 +4963,11 @@ sources:
     snippet: 'In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production:'
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 200
+      line: 201
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 329
+      line: 330
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 288
+      line: 289
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 412
     - file: lint-http-rules/src/violations/list.rs
@@ -4977,9 +4977,9 @@ sources:
     snippet: The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 235
+      line: 236
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 412
+      line: 413
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
       line: 74
     - file: lint-http-rules/src/rules/early_data_header_safe_method.rs
@@ -5019,7 +5019,7 @@ sources:
     snippet: An OPTIONS request with an asterisk ("*") as the request target (Section 7.1) applies to the server in general rather than to a specific resource.
     cited_by:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 466
+      line: 467
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 244
   - label: accept_ranges_and_206_consistent
@@ -5221,7 +5221,7 @@ sources:
     - file: lint-http-rules/src/rules/location_header_uri_valid.rs
       line: 200
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 424
+      line: 425
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 343
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
@@ -5383,7 +5383,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 150
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 180
+      line: 181
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 142
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -5695,7 +5695,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 179
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 219
+      line: 220
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 35
   - label: content_type_present (4)
@@ -5735,7 +5735,7 @@ sources:
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 220
+      line: 221
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 225
   - label: context_fields_direction
@@ -5797,7 +5797,7 @@ sources:
     - file: lint-http-rules/src/rules/user_agent_present.rs
       line: 85
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 129
+      line: 138
   - label: context_fields_direction (7)
     section: § 10.2.2
     snippet: The "Location" header field is used in some responses to refer to a specific resource in relation to the response.
@@ -6265,11 +6265,11 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 718
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 399
+      line: 400
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 469
+      line: 470
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 354
+      line: 355
   - label: link_header_valid (2)
     section: § 5.6.3
     snippet: A sender MUST NOT generate BWS in messages.
@@ -6277,11 +6277,11 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 717
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 398
+      line: 399
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 468
+      line: 469
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 353
+      line: 354
     - file: lint-http-rules/src/violations/bws.rs
       line: 62
   - label: lint-http-core/src/http_date.rs
@@ -6611,13 +6611,13 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 226
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 125
+      line: 126
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 355
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 328
+      line: 329
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 287
+      line: 288
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 259
   - label: lint-http-rules/src/helpers/auth.rs (6)
@@ -6635,7 +6635,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 123
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 136
+      line: 137
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 359
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
@@ -6655,11 +6655,11 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 523
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 196
+      line: 197
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 342
+      line: 343
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
-      line: 301
+      line: 302
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 268
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -6673,7 +6673,7 @@ sources:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 232
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 274
+      line: 268
     - file: lint-http-rules/src/violations/list.rs
       line: 72
   - label: lint-http-rules/src/helpers/cache_control.rs
@@ -6716,18 +6716,24 @@ sources:
     cited_by:
     - file: lint-http-rules/src/helpers/comment.rs
       line: 54
+    - file: lint-http-rules/src/violations/quoted_pair.rs
+      line: 39
   - label: lint-http-rules/src/helpers/comment.rs (2)
     section: § 5.6.5
     snippet: comment        = "(" *( ctext / quoted-pair / comment ) ")"
     cited_by:
     - file: lint-http-rules/src/helpers/comment.rs
       line: 46
+    - file: lint-http-rules/src/violations/comment.rs
+      line: 45
   - label: lint-http-rules/src/helpers/comment.rs (3)
     section: § 5.6.5
     snippet: ctext          = HTAB / SP / %x21-27 / %x2A-5B / %x5D-7E / obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/comment.rs
       line: 25
+    - file: lint-http-rules/src/violations/comment.rs
+      line: 66
   - label: lint-http-rules/src/helpers/comment.rs (4)
     section: § A
     snippet: quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -6875,7 +6881,7 @@ sources:
     - file: lint-http-rules/src/rules/trace_method_echo.rs
       line: 46
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 249
+      line: 243
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 400
   - label: lint-http-rules/src/helpers/field_placement.rs
@@ -6915,7 +6921,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 143
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
-      line: 155
+      line: 160
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 386
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
@@ -6931,7 +6937,7 @@ sources:
     - file: lint-http-rules/src/rules/user_agent_present.rs
       line: 111
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 164
+      line: 173
   - label: lint-http-rules/src/helpers/field_placement.rs (6)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -6979,7 +6985,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 257
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 222
+      line: 223
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 96
     - file: lint-http-rules/src/rules/etag_syntax.rs
@@ -7021,7 +7027,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 252
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 243
+      line: 244
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 260
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -7031,11 +7037,11 @@ sources:
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 242
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
-      line: 169
+      line: 174
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 397
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 178
+      line: 187
   - label: lint-http-rules/src/helpers/headers.rs (6)
     section: § 5.5
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
@@ -7167,7 +7173,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 48
     - file: lint-http-rules/src/violations/token.rs
-      line: 90
+      line: 91
   - label: lint-http-rules/src/helpers/list.rs (4)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -7182,8 +7188,8 @@ sources:
       line: 542
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 594
-    - file: lint-http-rules/src/violations/quoted_string.rs
-      line: 57
+    - file: lint-http-rules/src/violations/quoted_pair.rs
+      line: 38
   - label: lint-http-rules/src/helpers/list.rs (5)
     section: § 5.6.4
     snippet: quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE
@@ -7213,7 +7219,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
       line: 116
     - file: lint-http-rules/src/violations/quoted_string.rs
-      line: 42
+      line: 43
   - label: lint-http-rules/src/helpers/mailbox.rs
     section: § 10.1.2
     snippet: mailbox = <mailbox, see [RFC5322], Section 3.4>
@@ -7231,7 +7237,7 @@ sources:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 209
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 126
+      line: 127
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 80
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
@@ -7351,7 +7357,7 @@ sources:
     - file: lint-http-rules/src/helpers/media_type.rs
       line: 70
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
-      line: 149
+      line: 150
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 172
   - label: lint-http-rules/src/helpers/media_type.rs (7)
@@ -7381,7 +7387,7 @@ sources:
     - file: lint-http-rules/src/rules/user_agent_present.rs
       line: 118
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 146
+      line: 155
   - label: lint-http-rules/src/helpers/product.rs (2)
     section: § 10.2.4
     snippet: Each product identifier consists of a name and optional version, as defined in Section 10.1.5.
@@ -7401,7 +7407,7 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 192
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 355
+      line: 349
   - label: lint-http-rules/src/helpers/product.rs (5)
     section: § 5.6.3
     snippet: The RWS rule is used when at least one linear whitespace octet is required to separate field tokens.
@@ -7409,7 +7415,7 @@ sources:
     - file: lint-http-rules/src/helpers/product.rs
       line: 191
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 354
+      line: 348
   - label: lint-http-rules/src/helpers/product.rs (6)
     section: § A
     snippet: Server = product *( RWS ( product / comment ) )
@@ -7447,9 +7453,9 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 654
     - file: lint-http-rules/src/violations/quoted_string.rs
-      line: 72
+      line: 58
     - file: lint-http-rules/src/violations/quoted_string.rs
-      line: 88
+      line: 74
   - label: qvalue grammar
     section: § 12.4.2
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
@@ -7483,7 +7489,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 407
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 207
+      line: 208
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 205
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -7493,11 +7499,11 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 286
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 227
+      line: 221
     - file: lint-http-rules/src/violations/token.rs
-      line: 57
+      line: 58
     - file: lint-http-rules/src/violations/token.rs
-      line: 76
+      line: 77
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
@@ -8639,15 +8645,15 @@ sources:
     snippet: An origin server MAY generate a Server header field in its responses.
     cited_by:
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
-      line: 136
+      line: 141
   - label: server_header_product_valid (2)
     section: § 5.3
     snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers)
     cited_by:
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
-      line: 164
+      line: 169
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 173
+      line: 182
   - label: hash rule expansion
     section: § 5.6.1
     snippet: '#element => [ 1#element ]'
@@ -8893,7 +8899,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 175
     - file: lint-http-rules/src/rules/www_authenticate_challenge_syntax.rs
-      line: 134
+      line: 135
   - label: status_code_semantics (5)
     section: § 11.7.1
     snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.
@@ -9141,7 +9147,7 @@ sources:
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 217
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 263
+      line: 257
   - label: upgrade_header_syntax (3)
     section: § 7.8
     snippet: A client MAY send a list of protocol names in the Upgrade header field of a request to invite the server to switch to one or more of the named protocols, in order of descending preference, before sending the final response.
@@ -9171,19 +9177,19 @@ sources:
     snippet: A sender SHOULD NOT generate information in product-version that is not a version identifier
     cited_by:
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 157
+      line: 166
   - label: user_agent_token_valid (2)
     section: § 10.1.5
     snippet: A sender SHOULD limit generated product identifiers to what is necessary to identify the product; a sender MUST NOT generate advertising or other nonessential information within the product identifier.
     cited_by:
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 156
+      line: 165
   - label: user_agent_token_valid (3)
     section: § 10.1.5
     snippet: A user agent SHOULD NOT generate a User-Agent header field containing needlessly fine-grained detail and SHOULD limit the addition of subproducts by third parties.
     cited_by:
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 158
+      line: 167
   - label: vary_header_valid
     section: § 12.5.5
     snippet: The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.
@@ -9195,75 +9201,75 @@ sources:
     snippet: port = <port, see [URI], Section 3.2.3>
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 407
+      line: 401
   - label: via_header_syntax (2)
     section: § 5.6.3
     snippet: OWS = *( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 215
+      line: 209
   - label: via_header_syntax (3)
     section: § 7.6.3
     snippet: A proxy MUST send an appropriate Via header field, as described below, in each message that it forwards.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 184
+      line: 178
   - label: via_header_syntax (4)
     section: § 7.6.3
     snippet: A sender MAY generate comments to identify the software of each recipient, analogous to the User-Agent and Server header fields.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 435
+      line: 429
   - label: via_header_syntax (5)
     section: § 7.6.3
     snippet: An HTTP-to-HTTP gateway MUST send an appropriate Via header field in each inbound request message and MAY send a Via header field in forwarded response messages.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 189
+      line: 183
   - label: via_header_syntax (6)
     section: § 7.6.3
     snippet: For brevity, the protocol-name is omitted when the received protocol is HTTP.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 327
+      line: 321
   - label: via_header_syntax (7)
     section: § 7.6.3
     snippet: However, comments in Via are optional, and a recipient MAY remove them prior to forwarding the message.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 436
+      line: 430
   - label: via_header_syntax (8)
     section: § 7.6.3
     snippet: However, if the real host is considered to be sensitive information, a sender MAY replace it with a pseudonym.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 385
+      line: 379
   - label: via_header_syntax (9)
     section: § 7.6.3
     snippet: The "Via" header field indicates the presence of intermediate protocols and recipients between the user agent and the server (on requests) or between the origin server and the client (on responses)
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 170
+      line: 164
   - label: via_header_syntax (10)
     section: § 7.6.3
     snippet: The received-by portion is normally the host and optional port number of a recipient server or client that subsequently forwarded the message.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 384
+      line: 378
   - label: via_header_syntax (11)
     section: § 7.6.3
     snippet: 'Via = #( received-protocol RWS received-by [ RWS comment ] )'
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 262
+      line: 256
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 318
+      line: 312
   - label: via_header_syntax (12)
     section: § 7.6.3
     snippet: received-by = pseudonym [ ":" port ] pseudonym = token
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 382
+      line: 376
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 604
   - label: via_header_syntax (13)
@@ -9271,25 +9277,25 @@ sources:
     snippet: received-protocol = [ protocol-name "/" ] protocol-version
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 324
+      line: 318
   - label: via_header_syntax (14)
     section: § 7.8
     snippet: protocol-name = token
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 325
+      line: 319
   - label: via_header_syntax (15)
     section: § 7.8
     snippet: protocol-version = token
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 326
+      line: 320
   - label: via_header_syntax (16)
     section: § B.2
     snippet: For simplicity, we have removed uri-host from the received-by production because it can be encompassed by the existing grammar for pseudonym.
     cited_by:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
-      line: 383
+      line: 377
   - label: warning_header_syntax
     section: § 5.6.7
     snippet: Prior to 1995, there were three different formats commonly used by servers to communicate timestamps.
@@ -9360,7 +9366,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
       line: 84
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 134
+      line: 135
   - label: cache_control_directive_valid
     section: § 5.2
     snippet: The "Cache-Control" header field is used to list directives for caches along the request/response chain.
@@ -9482,7 +9488,7 @@ sources:
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 627
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
-      line: 99
+      line: 100
   - label: lint-http-rules/src/helpers/cache_control.rs
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
@@ -9632,7 +9638,7 @@ sources:
     snippet: As a result, this specification deprecates Pragma.
     cited_by:
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 159
+      line: 160
   - label: range_request_and_caching
     section: § 3.3
     snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.

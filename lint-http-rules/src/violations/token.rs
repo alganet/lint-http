@@ -29,6 +29,7 @@ use crate::helpers::product::{Part, ProductDefect};
 use crate::helpers::word::{TokenBwsWordDefect, WordDefect};
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::comment::comment_defect;
 use crate::violations::parameter::{PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY};
 use crate::violations::quoted_string::quoted_string_defect;
 use crate::violations::{defects, ViolationDef};
@@ -121,13 +122,10 @@ pub fn token_character(c: char) -> &'static ViolationDef {
 /// no `RWS` between them, a slash with nothing after it — and one reader
 /// answers all of it, so none of it is a subject yet.
 ///
-/// The `Comment` arm is the sharpest of the `None`s. Its four verdicts are
-/// § 5.6.5's construct and § 5.6.4's escape, and the escape is the one this
-/// catalogue already names — under an id spelled for the `quoted-string` that
-/// is the other construct sharing it. Borrowing that id here would name the
-/// wrong container; writing a second would say § 5.6.4's sentence twice. The
-/// promotion is what settles it, and until then the comment's verdicts report
-/// at the rule's severity.
+/// The `Comment` arm delegates, the way every nested mapping in this catalogue
+/// does: its four verdicts are § 5.6.5's construct and § 5.6.4's escape, and
+/// both are subjects — the escape being its own precisely because a
+/// `quoted-string` and a `comment` share it.
 ///
 /// This lives here rather than in a `violations/product.rs` for the reason the
 /// media type's mapping does: a file holding a mapping and no defs carries no
@@ -143,11 +141,14 @@ pub fn product_defect(defect: ProductDefect) -> Option<&'static ViolationDef> {
             Part::Comment => None,
             _ => Some(token_character(byte as char)),
         },
+        // The comment reader's verdicts are § 5.6.5's construct and § 5.6.4's
+        // escape, both of which have subjects: what a `Server` says about a
+        // comment that never closes is what a `Via` says about one.
+        ProductDefect::Comment(defect) => Some(comment_defect(defect)),
         ProductDefect::ValueEmpty
         | ProductDefect::DoesNotOpenWithProduct
         | ProductDefect::SeparatorMissingBeforeComment(_)
-        | ProductDefect::SeparatorMissingBeforeProduct(_)
-        | ProductDefect::Comment(_) => None,
+        | ProductDefect::SeparatorMissingBeforeProduct(_) => None,
     }
 }
 

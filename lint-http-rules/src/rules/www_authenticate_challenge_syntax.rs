@@ -11,9 +11,10 @@ use crate::violations::challenge::{
     CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN, CHALLENGE_PARAMETER_VALUE_MISSING,
     CHALLENGE_SCHEME_MISSING, CHALLENGE_TOKEN68_INVALID, RFC_9110_11_3, RFC_9110_11_6_1,
 };
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
-    QUOTED_STRING_QUOTED_PAIR_MALFORMED, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::token68::TOKEN68_WHITESPACE_OR_CONTROL_FORBIDDEN;
 use crate::violations::ViolationDef;
@@ -40,7 +41,7 @@ static DECLARED: &[&ViolationDef] = &[
     &CHALLENGE_PARAMETER_NAME_CHARACTER_FORBIDDEN,
     &CHALLENGE_PARAMETER_VALUE_CHARACTER_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
-    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
@@ -248,7 +249,7 @@ mod tests {
     )]
     #[case(
         "Basic realm=\"a\\\"",
-        "quoted_string_quoted_pair_malformed",
+        "quoted_pair_malformed",
         crate::lint::Severity::Warn
     )]
     fn each_finding_names_the_defect_and_carries_its_severity(

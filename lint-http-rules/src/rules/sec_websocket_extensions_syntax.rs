@@ -11,10 +11,10 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::token::find_invalid_token_char;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
-    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
-    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
@@ -49,7 +49,7 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &QUOTED_STRING_DELIMITER_MISSING,
-    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
