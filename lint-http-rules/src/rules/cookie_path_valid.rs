@@ -139,12 +139,14 @@ impl Rule for CookiePathValid {
             let resp = tx.response.as_ref()?;
 
             for hv in resp.headers.get_all("set-cookie").iter() {
-                let Ok(s) = hv.to_str() else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Set-Cookie header value is not valid UTF-8".into(),
-                    ));
-                };
+                // Read as octets, one field line at a time. `Set-Cookie` is
+                // not a list -- § 5.3's recombination does not apply to it, so
+                // the lines are never joined -- and § 4.1.1's grammar stops at
+                // `CHAR`, %x01-7F, so an octet above that is a character the
+                // production does not admit rather than a verdict about the
+                // field's encoding. The readers below have an entry for it.
+                let s = crate::helpers::headers::field_line_as_written(hv);
+                let s = s.as_str();
 
                 // Split into cookie-pair and attribute segments. The `;` and
                 // the trim are § 5.2's own parsing algorithm, which is what
@@ -372,32 +374,39 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_set_cookie_value_reports() -> anyhow::Result<()> {
+    fn an_obs_text_octet_in_a_path_is_the_paths_defect() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hm = HeaderMap::new();
-        let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");
-        hm.insert("set-cookie", bad);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hm,
+        let judge = |value: &[u8]| {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            let mut hm = HeaderMap::new();
+            hm.insert(
+                "set-cookie",
+                HeaderValue::from_bytes(value).expect("a header value"),
+            );
+            tx.response = Some(crate::http_transaction::ResponseInfo {
+                status: 200,
+                version: "HTTP/1.1".into(),
+                headers: hm,
+                body_length: None,
+                trailers: None,
+            });
+            crate::test_helpers::run_rule(
+                &CookiePathValid,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&["cookie_path_valid"]),
+            )
+        };
 
-            body_length: None,
-            trailers: None,
-        });
-
-        let rule = CookiePathValid;
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("not valid UTF-8"));
+        // Inside the attribute this rule reads, the octet is one `path-value`
+        // does not admit -- `CHAR` stops at %x7F. Outside it, this rule has
+        // nothing to say: a cookie-name's octet is the attribute walk's
+        // finding next door, and the verdict this replaces reported the field
+        // for an encoding from either position.
+        let v = judge(b"SID=1; Path=/a\xffb").expect("a finding");
+        assert_eq!(v.violation, "cookie_path_non_ascii_character_forbidden");
+        assert!(judge(b"\xff").is_none());
         Ok(())
     }
 

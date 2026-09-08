@@ -2207,15 +2207,15 @@ sources:
     snippet: Consume the characters of the unparsed-attributes up to, but not including, the first %x3B (";") character.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_valid.rs
-      line: 132
+      line: 134
     - file: lint-http-rules/src/rules/cookie_path_valid.rs
-      line: 154
+      line: 156
   - label: cookie_domain_valid (2)
     section: § 5.2.3
     snippet: If the attribute-name case-insensitively matches the string "Domain", the user agent MUST process the cookie-av as follows.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_domain_valid.rs
-      line: 141
+      line: 143
   - label: cookie_lifecycle
     section: § 4.1.2.5
     snippet: The Secure attribute limits the scope of the cookie to "secure" channels
@@ -2245,7 +2245,7 @@ sources:
     snippet: If the attribute-name case-insensitively matches the string "Path", the user agent MUST process the cookie-av as follows.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_path_valid.rs
-      line: 169
+      line: 171
   - label: lint-http-rules/src/helpers/cookie.rs
     section: § 4.1.1
     snippet: 'Servers SHOULD NOT send Set-Cookie headers that fail to conform to the following grammar:'
