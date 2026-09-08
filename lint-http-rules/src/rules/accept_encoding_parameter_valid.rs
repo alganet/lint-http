@@ -25,8 +25,9 @@ pub struct AcceptEncodingParameterValid;
 /// `codings [ weight ]` owns all of it: a separator introducing a weight that
 /// is not there, two of something there may be at most one of, a member whose
 /// non-optional half is missing, and a `name=value` pair no derivation of the
-/// field produces. That is 2.38's residue — what a construct says about its own
-/// assembly — and it is the whole of what this rule is named for.
+/// field produces. That is the residue every borrowed construct leaves — what
+/// a construct says about its own assembly — and it is the whole of what this
+/// rule is named for.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
