@@ -153,8 +153,8 @@ pub struct ServerTimingHeaderSyntax;
 ///
 /// **What the document adds is its own and stays unnamed** — four sentences and
 /// one absence. A `;` with no parameter behind it and a parameter with no `=`
-/// are `server-timing-param`'s assembly, which is 2.38's residue for the fourth
-/// and fifth time; a parameter named twice is § 2's SHOULD NOT, the only
+/// are `server-timing-param`'s assembly, which is the residue a borrowed
+/// construct leaves, for the fourth and fifth time; a parameter named twice is § 2's SHOULD NOT, the only
 /// sentence in the document measuring a server; a `dur` that is not a valid
 /// floating-point number and a `desc` spelled in another case are what the two
 /// getters do with what they are given. None of them is a shape a borrowed
@@ -164,8 +164,8 @@ pub struct ServerTimingHeaderSyntax;
 /// reason is written at the site: this parameter is not § 5.6.6's. Its value is
 /// mandatory where § 5.6.6's is optional and its production *prints* the `OWS`
 /// § 5.6.6's Note forbids, so the def's sentence answers a different question
-/// from the one this field asks. 2.39's judgment, at a document that is not even
-/// an RFC.
+/// from the one this field asks — a sentence in another document is not the
+/// same sentence, read here at a document that is not even an RFC.
 ///
 /// Three of the four `quoted_string_*` defs are declared and unreachable
 /// through this rule, and the fourth is reached before any metric is read: a
@@ -575,7 +575,7 @@ fn check_param<'a>(metric: &str, param: &'a str, seen: &mut Vec<&'a str>) -> Opt
     // *"per lenient parsing"*, which is the user agent's job description and
     // not a sentence about what a server may write.
     //
-    // A statement about a repetition's own shape, which is what 2.38's
+    // A statement about a repetition's own shape, which is what `Upgrade`'s
     // `protocol` residue was: no subject holds "this construct generates no such
     // separator", and one rule reading it is not a subject.
     if param.is_empty() {

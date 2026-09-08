@@ -113,7 +113,8 @@ defects! {
     /// value decodes, and to exactly the octets it meant; what is wrong is that
     /// the same octets have a canonical spelling and this is not it.
     ///
-    /// **`info`, and the ranking is 2.28's read through the recipient again.**
+    /// **`info`, and the ranking is the `http_date` subject's read through the
+    /// recipient again.**
     /// The other three entries name values a decoder is instructed to reject;
     /// § 3.5 leaves a decoder a choice in the same breath it states the
     /// requirement — *"MAY chose to reject an encoding if the pad bits have not
@@ -146,8 +147,9 @@ defects! {
 /// subject nothing has written, and the rule reporting it keeps its own words
 /// until something does.
 ///
-/// The mapping lives here rather than in a file named after the helper for
-/// 2.19's reason — the first thing this reader measures is the encoding, and a
+/// The mapping lives here rather than in a file named after the helper for the
+/// reason every mapping in this catalogue is shelved that way — the first thing
+/// this reader measures is the encoding, and a
 /// subject file holding nothing but a mapping fn would carry no `// cite` and
 /// fail the citation ratchet on the spot.
 pub fn sec_websocket_key_defect(defect: &SecWebSocketKeyDefect) -> Option<&'static ViolationDef> {

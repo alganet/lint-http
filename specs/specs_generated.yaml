@@ -1696,7 +1696,7 @@ sources:
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 211
     - file: lint-http-rules/src/violations/base64.rs
-      line: 129
+      line: 130
 - label: RFC 5234
   url: https://www.rfc-editor.org/rfc/rfc5234.html
   fragments:
@@ -4745,7 +4745,7 @@ sources:
     snippet: The content negotiation fields defined by this specification use a common parameter, named "q" (case-insensitive), to assign a relative "weight" to the preference for that associated kind of content.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 275
+      line: 276
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 404
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
@@ -4755,7 +4755,7 @@ sources:
     snippet: weight = OWS ";" OWS "q=" qvalue
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 178
+      line: 179
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 149
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
@@ -4769,19 +4769,19 @@ sources:
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 177
+      line: 178
   - label: accept_encoding_parameter_valid (4)
     section: § 12.5.3
     snippet: An "identity" token is used as a synonym for "no encoding" in order to communicate when no encoding is preferred.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 221
+      line: 222
   - label: accept_encoding_parameter_valid (5)
     section: § 12.5.3
     snippet: An Accept-Encoding header field with a field value that is empty implies that the user agent does not want any content coding in response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 199
+      line: 200
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 127
   - label: accept_encoding_parameter_valid (6)
@@ -4789,13 +4789,13 @@ sources:
     snippet: Each codings value MAY be given an associated quality value (weight) representing the preference for that encoding, as defined in Section 12.4.2.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 254
+      line: 255
   - label: accept_encoding_parameter_valid (7)
     section: § 12.5.3
     snippet: The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 220
+      line: 221
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 160
   - label: accept_encoding_parameter_valid (8)
@@ -4803,13 +4803,13 @@ sources:
     snippet: The field value is evaluated the same way as in a request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 160
+      line: 161
   - label: accept_encoding_parameter_valid (9)
     section: § 12.5.3
     snippet: When sent by a user agent in a request, Accept-Encoding indicates the content codings acceptable in a response.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 158
+      line: 159
     - file: lint-http-rules/src/rules/accept_encoding_present.rs
       line: 119
   - label: accept_encoding_parameter_valid (10)
@@ -4817,13 +4817,13 @@ sources:
     snippet: When the Accept-Encoding header field is present in a response, it indicates what content codings the resource was willing to accept in the associated request.
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 159
+      line: 160
   - label: accept_encoding_parameter_valid (11)
     section: § 8.4.1
     snippet: content-coding   = token
     cited_by:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 219
+      line: 220
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 142
   - label: accept_encoding_present
@@ -5207,7 +5207,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 332
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 401
+      line: 402
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 303
     - file: lint-http-rules/src/rules/http_version_syntax.rs
@@ -5437,7 +5437,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 141
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 118
+      line: 117
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 145
   - label: compression_and_transfer_encoding_consistent (5)
@@ -5573,7 +5573,7 @@ sources:
     snippet: a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 191
+      line: 190
   - label: content_encoding_registered
     section: § 12.5.3
     snippet: codings = content-coding / "identity" / "*"
@@ -5745,7 +5745,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 14
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 192
+      line: 193
     - file: lint-http-rules/src/rules/from_header_email_syntax.rs
       line: 222
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
@@ -5759,7 +5759,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 15
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 208
+      line: 209
   - label: context_fields_direction (3)
     section: § 10.1.2
     snippet: The "From" header field contains an Internet email address for a human user who controls the requesting user agent.
@@ -5903,57 +5903,57 @@ sources:
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 296
+      line: 297
   - label: expect_header_valid (2)
     section: § 10.1.1
     snippet: A client MUST NOT generate a 100-continue expectation in a request that does not include content.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 295
+      line: 296
   - label: expect_header_valid (3)
     section: § 10.1.1
     snippet: A client that receives a 417 (Expectation Failed) status code in response to a request containing a 100-continue expectation SHOULD repeat that request without a 100-continue expectation, since the 417 response merely indicates that the response chain does not support expectations (e.g., it passes through an HTTP/1.0 server).
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 314
+      line: 315
   - label: expect_header_valid (4)
     section: § 10.1.1
     snippet: A server that receives an Expect field value containing a member other than 100-continue MAY respond with a 417 (Expectation Failed) status code to indicate that the unexpected expectation cannot be met.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 337
+      line: 338
   - label: expect_header_valid (5)
     section: § 10.1.1
     snippet: The Expect field value is case-insensitive.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 91
+      line: 92
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 259
+      line: 260
   - label: expect_header_valid (6)
     section: § 10.1.1
     snippet: The only expectation defined by this specification is "100-continue" (with no defined parameters).
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 90
+      line: 91
   - label: expect_header_valid (7)
     section: § 10.1.1
     snippet: expectation = token [ "=" ( token / quoted-string ) parameters ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 400
+      line: 401
   - label: expect_header_valid (8)
     section: § 15.5.18
     snippet: The 417 (Expectation Failed) status code indicates that the expectation given in the request's Expect header field (Section 10.1.1) could not be met by at least one of the inbound servers.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 313
+      line: 314
   - label: expect_header_valid (9)
     section: § 5.6.6
     snippet: 'Note: Parameters do not allow whitespace (not even "bad" whitespace) around the "=" character.'
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 569
+      line: 570
     - file: lint-http-rules/src/violations/parameter.rs
       line: 119
   - label: expect_header_valid (10)
@@ -5961,19 +5961,19 @@ sources:
     snippet: Expect = [ expectation *( OWS "," OWS expectation ) ]
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 244
+      line: 245
   - label: expect_header_valid (11)
     section: § B.3
     snippet: List-based grammar for Expect has been restored for compatibility with RFC 2616.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 223
+      line: 224
   - label: expect_header_valid (12)
     section: § B.3
     snippet: Parameters in media type, media range, and expectation can be empty via one or more trailing semicolons.
     cited_by:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 537
+      line: 538
   - label: extension_headers_registered
     section: § 16.3
     snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
@@ -7139,7 +7139,7 @@ sources:
     - file: lint-http-rules/src/helpers/list.rs
       line: 84
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 200
+      line: 201
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 207
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
@@ -7285,7 +7285,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 383
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 501
+      line: 502
   - label: parameter-value grammar
     section: § 5.6.6
     snippet: parameter-value = ( token / quoted-string )
@@ -7295,7 +7295,7 @@ sources:
     - file: lint-http-rules/src/helpers/word.rs
       line: 26
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 502
+      line: 503
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 89
     - file: lint-http-rules/src/violations/parameter.rs
@@ -7313,7 +7313,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 221
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 499
+      line: 500
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 264
   - label: lint-http-rules/src/helpers/media_type.rs (5)
@@ -7375,7 +7375,7 @@ sources:
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 107
     - file: lint-http-rules/src/rules/expect_header_valid.rs
-      line: 500
+      line: 501
     - file: lint-http-rules/src/violations/parameter.rs
       line: 69
   - label: lint-http-rules/src/helpers/product.rs
@@ -7463,7 +7463,7 @@ sources:
     - file: lint-http-rules/src/helpers/qvalue.rs
       line: 31
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
-      line: 304
+      line: 305
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
       line: 223
     - file: lint-http-rules/src/violations/qvalue.rs

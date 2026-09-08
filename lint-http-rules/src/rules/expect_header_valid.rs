@@ -57,8 +57,9 @@ static DECLARED: &[&ViolationDef] = &[
 /// One finding the reading produced: its wording, and the defect it reports as
 /// where the catalogue has a name for that defect.
 ///
-/// The judge shape 2.13 settled returns `(&'static ViolationDef, String)`,
-/// because every arm of that judge had an entry. This rule's judges are half
+/// The first judge converted in this tree — `x_forwarded_consistent`'s —
+/// returns `(&'static ViolationDef, String)`, because every arm of it had an
+/// entry. This rule's judges are half
 /// converted — an `expectation`'s own two failures are its field's and no
 /// subject holds them — so the def is an `Option`, and the site that reports
 /// picks the API from it. **A partially converted judge says which arms are
@@ -468,7 +469,7 @@ pub(crate) fn parse_expectation(member: &str) -> Result<Expectation<'_>, Defect>
         // follows has to be `parameters`.
         let end = token_run_end(rest);
         if end == 0 {
-            // Also unnamed, and for 2.17's reason: an *expectation's* value
+            // Also unnamed, and for the alternation's reason: an *expectation's* value
             // being empty is a per-field verdict, not the alternation's, and
             // `parameter_value_empty` answers for a parameter rather than for
             // whatever else `( token / quoted-string )` is read as.

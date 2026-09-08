@@ -356,7 +356,7 @@ mod tests {
     /// ask the *recipient's* question — can this value be read as a timestamp
     /// at all — so all four answer `http_date_malformed`.
     ///
-    /// The two `Sunset` readings are also one of S6's fourteen duplicate
+    /// The two `Sunset` readings are also one of the tree's duplicate message
     /// templates: byte-identical prose from two rules, which until now was two
     /// findings under two names and is now two findings under one.
     #[test]

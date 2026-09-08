@@ -12,16 +12,15 @@ use crate::violations::ViolationDef;
 
 pub struct ContentEncodingAndTypeConsistent;
 
-/// The `token` pair, and it is the same field 2.37 converted read by a second
-/// rule asking a different question.
+/// The `token` pair, and it is the same field
+/// [`content_encoding_registered`](crate::rules::content_encoding_registered)
+/// reads, asked a different question.
 ///
-/// 2.37 took `Content-Encoding` and `Accept-Encoding` for the rule that asks
-/// which coding *names* exist; this takes them for the rule that asks which
-/// were applied twice, and the octet no `tchar` admits comes out with the same
-/// id from both. The two even say it in the same words — one of S6's duplicate
-/// templates, written in two files that share no code — so here the id retires
-/// a duplication the prose still carries, which is the state Phase 5's dedup
-/// was deferred to act on.
+/// That rule takes `Content-Encoding` and `Accept-Encoding` for which coding
+/// *names* exist; this takes them for which were applied twice, and the octet
+/// no `tchar` admits comes out with the same id from both. The two even say it
+/// in the same words — one message written twice in two files that share no
+/// code — so here the id retires a duplication the prose still carries.
 ///
 /// **Nothing this rule is named for changed.** A coding repeated, a `*` where
 /// none is defined, a member whose coding half is missing, and the field on a
@@ -240,8 +239,9 @@ mod tests {
 
     /// The six fields spelling `content-coding = token` now answer for it with
     /// one pair of ids, and the last two arrive from the rules that ask the
-    /// fields a *different* question. Asserted against 2.37's rule, which reads
-    /// the same field for which names exist and shares no code with this one.
+    /// fields a *different* question. Asserted against the registry rule, which
+    /// reads the same field for which names exist and shares no code with this
+    /// one.
     #[test]
     fn a_coding_name_is_a_token_whatever_the_rule_is_asking() {
         let judge = |rule: &dyn crate::rules::Rule,
@@ -292,8 +292,8 @@ mod tests {
         assert_eq!(here.violation, "token_character_forbidden");
         assert_eq!(registered.violation, "token_character_forbidden");
         // And the sentence is *the same one*, written twice in two files that
-        // share no code -- one of the duplicate templates S6 counted, retired
-        // by the id and left as two strings for Phase 5's dedup to collapse.
+        // share no code -- retired by the id and left as two strings for a
+        // later dedup pass to collapse.
         assert_eq!(here.message, registered.message);
     }
 
