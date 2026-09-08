@@ -88,7 +88,7 @@ allowed = ["aes128gcm", "br", "compress", "dcb", "dcz", "deflate", "exi", "gzip"
     }
 
     fn description(&self) -> &'static str {
-        "Validate `Content-Encoding` and `Accept-Encoding` header values: each content-coding must be a valid `token` and must appear in the `allowed` array you configure.\n\n**It does not consult the IANA registry**, despite the rule's name. RFC 9110 says content codings *ought to* be registered, which is the motivation, but a coding is recognised here exactly when your `allowed` array covers it. Comparisons are case-insensitive.\n\nThe two headers do not share a vocabulary. `Accept-Encoding` additionally admits `*` (matching any coding not listed) and `identity` (meaning no encoding); both are preference vocabulary and neither is a content-coding, so in `Content-Encoding` they are flagged — `identity` explicitly so, since RFC 9110 §8.4 reserves it for its Accept-Encoding role and says it SHOULD NOT be included."
+        "Validate `Content-Encoding` and `Accept-Encoding` header values: each content-coding must be a valid `token` and must appear in the `allowed` array you configure.\n\n**It does not consult the IANA registry**, despite the rule's name. RFC 9110 says content codings *ought to* be registered, which is the motivation, but a coding is recognised here exactly when your `allowed` array covers it. Comparisons are case-insensitive.\n\nThe two headers do not share a vocabulary. `Accept-Encoding` additionally admits `*` (matching any coding not listed) and `identity` (meaning no encoding); both are preference vocabulary and neither is a content-coding, so in `Content-Encoding` they are flagged — `identity` explicitly so, since RFC 9110 §8.4 reserves it for its Accept-Encoding role and says it SHOULD NOT be included.\n\n**Both fields are read as octets and over the whole field section.** A coding name holding an octet outside visible US-ASCII is not a `token` and is reported as that; the reader this replaces refused such a value outright, so the field went unread and unreported. It also took only the first field line, where `#content-coding` makes every line of a section one list."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -180,10 +180,16 @@ impl Rule for ContentEncodingRegistered {
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(token) {
                         // `content-coding = token` adds nothing to the
                         // production, so which of the two ids the octet draws is
-                        // `token`'s question and not this field's.
+                        // `token`'s question and not this field's. Rendered for
+                        // the reason its neighbour renders it: the value is read
+                        // as octets and an `obs-text` byte is named, not shown.
                         return Some(ctx.report_with(
                             token_character(c),
-                            format!("Invalid token '{}' in {} header", c, hdr_name),
+                            format!(
+                                "Invalid token {} in {} header",
+                                crate::helpers::shown::describe_char(c),
+                                hdr_name
+                            ),
                         ));
                     }
                     // Folded to lowercase because the codings are case-insensitive. As
@@ -204,22 +210,30 @@ impl Rule for ContentEncodingRegistered {
                 None
             };
 
-            // Check response Content-Encoding
+            // Both fields are read as octets and over the whole section. The
+            // reader this replaces took the first field line and refused every
+            // value outside visible US-ASCII, so a coding name holding an
+            // `obs-text` byte was not reported at all -- the field simply
+            // stopped existing for this rule -- and a second field line was
+            // never looked at, though `#content-coding` makes the lines one
+            // list.
             if let Some(resp) = &tx.response {
-                if let Some(val) =
-                    crate::helpers::headers::get_header_str(&resp.headers, "content-encoding")
-                {
-                    if let Some(v) = check_value("Content-Encoding", val, &config.allowed, false) {
+                if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
+                    &resp.headers,
+                    "content-encoding",
+                ) {
+                    if let Some(v) = check_value("Content-Encoding", &val, &config.allowed, false) {
                         return Some(v);
                     }
                 }
             }
 
             // Check request Accept-Encoding
-            if let Some(val) =
-                crate::helpers::headers::get_header_str(&tx.request.headers, "accept-encoding")
-            {
-                if let Some(v) = check_value("Accept-Encoding", val, &config.allowed, true) {
+            if let Some(val) = crate::helpers::headers::combined_field_value_as_written(
+                &tx.request.headers,
+                "accept-encoding",
+            ) {
+                if let Some(v) = check_value("Accept-Encoding", &val, &config.allowed, true) {
                     return Some(v);
                 }
             }
@@ -604,12 +618,17 @@ mod tests {
         Ok(())
     }
 
+    /// This used to assert the opposite -- that a value outside visible
+    /// US-ASCII is *ignored* -- which was the reader's behaviour rather than a
+    /// reading of the field: `content-coding = token`, and no `tchar` is above
+    /// %x7E, so an `obs-text` octet in a coding name is a defect of the name
+    /// and not a property of the field. Both directions now say so, with the
+    /// id every other reader of the production uses.
     #[test]
-    fn non_utf8_header_values_are_ignored() {
+    fn an_obs_text_octet_in_a_coding_name_is_a_token_defect() {
         let rule = ContentEncodingRegistered;
         let cfg = make_cfg();
 
-        // Non-utf8 response header value should be ignored and produce no violation
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = hyper::HeaderMap::new();
         hm.insert(
@@ -622,10 +641,11 @@ mod tests {
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-        );
-        assert!(v.is_none());
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(v.message, "Invalid token 0xFF in Content-Encoding header");
 
-        // Non-utf8 request header value should be ignored
         let mut tx2 = crate::test_helpers::make_test_transaction();
         let mut hm2 = hyper::HeaderMap::new();
         hm2.insert("accept-encoding", HeaderValue::from_bytes(b"\xff").unwrap());
@@ -635,8 +655,10 @@ mod tests {
             &tx2,
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
-        );
-        assert!(v2.is_none());
+        )
+        .expect("a finding");
+        assert_eq!(v2.violation, "token_character_forbidden");
+        assert_eq!(v2.message, "Invalid token 0xFF in Accept-Encoding header");
     }
     #[test]
     fn request_custom_allowed_is_accepted() -> anyhow::Result<()> {
