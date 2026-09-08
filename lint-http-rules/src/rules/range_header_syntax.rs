@@ -4,8 +4,61 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::list::{
+    LIST_MEMBER_EMPTY, LIST_MEMBER_MISSING, RFC_9110_5_6_1_1, RFC_9110_5_6_1_2,
+};
+use crate::violations::ViolationDef;
 
 pub struct RangeHeaderSyntax;
+
+/// The one production this field borrows, read at both of its floors.
+///
+/// `range-set = 1#range-spec` is RFC 9110's list construct, so a range-set with
+/// no element in it and a range-set holding an empty one are the two things
+/// that construct says about any field written with it — and this rule reports
+/// them with the ids an `Accept-Ranges`, a `Warning` or an `Accept-Patch`
+/// reports them with.
+///
+/// **Everything else here is § 14.1.1's, including the arithmetic that looks
+/// shared.** `last-pos` below `first-pos` is stated twice in this document, once
+/// for this field and once for `Content-Range`, and the catalogue holds the
+/// other one as `content_range_positions_conflicting`: two sections, two
+/// sentences, two fields, and one of the ids is spelled for the field it was
+/// written at. The numerals, the two `bytes` forms, the `other-range` octets and
+/// the `range-unit` this rule does not model are all the same — a specifier
+/// grammar the section says in as many words is generic, whose meaning each unit
+/// supplies for itself.
+static DECLARED: &[&ViolationDef] = &[&LIST_MEMBER_MISSING, &LIST_MEMBER_EMPTY];
+
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled, at its smallest: two of this rule's
+/// eight verdicts are the list construct's and the other six are the range
+/// specifier's own, so the `None` is the common case rather than the exception.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed: what this section says about a
+    /// specifier rather than about the list carrying it.
+    fn unnamed(message: impl Into<String>) -> Self {
+        Self {
+            def: None,
+            message: message.into(),
+        }
+    }
+}
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -34,12 +87,6 @@ const RFC_9110_14_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1",
     note: "Range Units: `range-unit = token`, case-insensitive, an open registry, \"intended to be extensible\" — which is why a unit other than `bytes` is not a finding",
 };
-const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-    note: "Sender Requirements for the list construct: OWS on either side of each comma, and a sender MUST NOT generate empty list elements. Recipients are told the opposite in §5.6.1.2 — parse and ignore them — so the shared list reader, which drops them, cannot answer this rule's question",
-};
 
 impl RuleMeta for RangeHeaderSyntax {
     fn id(&self) -> &'static str {
@@ -63,7 +110,12 @@ severity = "error"
             RFC_9110_14_2,
             RFC_9110_14_1,
             RFC_9110_5_6_1_1,
+            RFC_9110_5_6_1_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -181,12 +233,12 @@ impl Rule for RangeHeaderSyntax {
             // rule knows one range-unit.
             //
             // cite(RFC 9110 § 14.1.1): "A ranges-specifier is invalid if it contains any range-spec that is invalid or undefined for the indicated range-unit."
-            if let Err(e) = validate_range_set(&unit, range_set) {
-                return Some(self.cited(
-                    &RFC_9110_14_1_1,
-                    ctx.severity,
-                    format!("Invalid Range header '{}': {}", value, e),
-                ));
+            if let Err(defect) = validate_range_set(&unit, range_set) {
+                let message = format!("Invalid Range header '{}': {}", value, defect.message);
+                return Some(match defect.def {
+                    Some(def) => ctx.report_with(def, message),
+                    None => self.cited(&RFC_9110_14_1_1, ctx.severity, message),
+                });
             }
 
             // Three things a well-formed ranges-specifier can still be, none of them
@@ -243,11 +295,17 @@ impl Rule for RangeHeaderSyntax {
 // cite(RFC 9110 § 14.1.1): "The range unit name determines what kinds of range-spec are applicable to its own specifiers.  Hence, the following grammar is generic: each range unit is expected to specify requirements on when int-range, suffix-range, and other-range are allowed."
 // cite(RFC 9110 § 14.2): "An origin server MUST ignore a Range header field that contains a range unit it does not understand.  A proxy MAY discard a Range header field that contains a range unit it does not understand."
 // cite(RFC 9110 § 14.1.2, label: a bytes range-set the section prints with a leading space): "bytes= 0-999, 4500-5499, -1000"
-fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
-    // The `1` in `1#` -- a range-set with no element in it is not a range-set.
+fn validate_range_set(unit: &str, range_set: &str) -> Result<(), Defect> {
+    // The `1` in `1#` -- a range-set with no element in it is not a range-set,
+    // and the floor is the list construct's rather than this field's: what
+    // `1#range-spec` says here is what `1#entity-tag` says at `If-Match` and
+    // what `1#media-type` says at `Accept-Patch`.
     // cite(RFC 9110 § 14.1.1, label: range-set grammar): "range-set        = 1#range-spec"
     if range_set.is_empty() {
-        return Err("no range-spec found".into());
+        return Err(Defect::named(
+            &LIST_MEMBER_MISSING,
+            "no range-spec found".into(),
+        ));
     }
 
     for spec in range_set.split(',') {
@@ -267,7 +325,7 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
         //
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if spec.is_empty() {
-            return Err("empty range-spec".into());
+            return Err(Defect::named(&LIST_MEMBER_EMPTY, "empty range-spec".into()));
         }
 
         // What is left to say about a unit this rule does not model. Every
@@ -283,10 +341,10 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
         //
         // cite(RFC 9110 § 14.1.1, label: other-range grammar): "other-range   = 1*( %x21-2B / %x2D-7E )"
         if let Some(c) = spec.chars().find(|c| !c.is_ascii_graphic()) {
-            return Err(format!(
+            return Err(Defect::unnamed(format!(
                 "range-spec '{}' holds {:?}, which no range-spec admits",
                 spec, c
-            ));
+            )));
         }
 
         // The one unit whose specifiers this rule can go on to read. The name is
@@ -316,7 +374,7 @@ fn validate_range_set(unit: &str, range_set: &str) -> Result<(), String> {
 /// this unit and no other, the specification withdraws that alternative outright.
 ///
 // cite(RFC 9110 § 14.1.2): "Each byte range is expressed as an integer range at some offset, relative to either the beginning (int-range) or end (suffix-range) of the representation data.  Byte ranges do not use the other-range specifier."
-fn validate_bytes_range_spec(spec: &str) -> Result<(), String> {
+fn validate_bytes_range_spec(spec: &str) -> Result<(), Defect> {
     // `1*DIGIT` is digits and nothing else, and at least one of them. Every
     // position in both forms is this production.
     //
@@ -333,22 +391,25 @@ fn validate_bytes_range_spec(spec: &str) -> Result<(), String> {
         return if is_digits(suffix_length) {
             Ok(())
         } else {
-            Err(format!(
+            Err(Defect::unnamed(format!(
                 "suffix-range '{}' is not '-' followed by 1*DIGIT",
                 spec
-            ))
+            )))
         };
     }
 
     // cite(RFC 9110 § 14.1.1, label: int-range grammar): "int-range     = first-pos "-" [ last-pos ]"
     let Some((first, last)) = spec.split_once('-') else {
-        return Err(format!(
+        return Err(Defect::unnamed(format!(
             "byte range-spec '{}' is neither an int-range nor a suffix-range",
             spec
-        ));
+        )));
     };
     if !is_digits(first) {
-        return Err(format!("first-pos '{}' is not 1*DIGIT", first));
+        return Err(Defect::unnamed(format!(
+            "first-pos '{}' is not 1*DIGIT",
+            first
+        )));
     }
 
     // The square brackets. A `first-pos` with no `last-pos` after it is the whole
@@ -361,15 +422,18 @@ fn validate_bytes_range_spec(spec: &str) -> Result<(), String> {
         return Ok(());
     }
     if !is_digits(last) {
-        return Err(format!("last-pos '{}' is not 1*DIGIT", last));
+        return Err(Defect::unnamed(format!(
+            "last-pos '{}' is not 1*DIGIT",
+            last
+        )));
     }
 
     // cite(RFC 9110 § 14.1.1): "An int-range is invalid if the last-pos value is present and less than the first-pos."
     if is_less_than(last, first) {
-        return Err(format!(
+        return Err(Defect::unnamed(format!(
             "last-pos {} is less than first-pos {}",
             last, first
-        ));
+        )));
     }
     Ok(())
 }
@@ -488,6 +552,34 @@ mod tests {
                 v
             );
         }
+        Ok(())
+    }
+
+    /// The two floors of `1#range-spec`, answering with the ids every other
+    /// list-valued field answers with, and the verdicts that stay this
+    /// section's. The last row is the one worth reading twice: the arithmetic
+    /// is `Content-Range`'s too and the sentence is not, so the id the
+    /// catalogue already holds for that field is not borrowed here.
+    #[rstest]
+    #[case("bytes=", "list_member_missing")]
+    #[case("items=", "list_member_missing")]
+    #[case("bytes=1-2,,3-4", "list_member_empty")]
+    #[case("bytes=1-2,", "list_member_empty")]
+    #[case("items=0 1", "")]
+    #[case("bytes=abc", "")]
+    #[case("bytes=-", "")]
+    #[case("bytes=a-5", "")]
+    #[case("bytes=5-a", "")]
+    #[case("bytes=5-3", "")]
+    fn the_list_construct_is_borrowed_and_the_specifier_is_not(
+        #[case] value: &str,
+        #[case] id: &str,
+    ) -> anyhow::Result<()> {
+        let mut tx = make_test_transaction();
+        tx.request.headers.insert("range", value.parse()?);
+
+        let v = judge(&tx).expect("a finding");
+        assert_eq!(v.violation, id, "{value}");
         Ok(())
     }
 
