@@ -336,12 +336,15 @@ impl Rule for CookieAttributeConsistent {
             resp.headers
                 .get_all("set-cookie")
                 .iter()
-                .find_map(|line| match line.to_str() {
-                    Err(_) => Some(self.violation(
-                        ctx.severity,
-                        "Set-Cookie header value is not valid UTF-8".into(),
-                    )),
-                    Ok(line) => self.set_cookie_defect(line, ctx),
+                // Read as octets, one field line at a time: `Set-Cookie` is
+                // not a list, and § 4.1.1's grammar stops at `CHAR`, so an
+                // octet above %x7F is the attribute reader's finding rather
+                // than a verdict about the field's encoding.
+                .find_map(|line| {
+                    self.set_cookie_defect(
+                        &crate::helpers::headers::field_line_as_written(line),
+                        ctx,
+                    )
                 })
         };
         Vec::from_iter(finding())
@@ -417,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_set_cookie_is_reported() -> anyhow::Result<()> {
+    fn an_obs_text_octet_is_read_where_it_lands() -> anyhow::Result<()> {
         use crate::http_transaction::ResponseInfo;
         use crate::test_helpers::make_test_transaction;
         use hyper::header::HeaderValue;
@@ -432,7 +435,7 @@ mod tests {
             trailers: None,
         });
 
-        // Append a non-UTF8 header value
+        // A field line holding an octet above %x7F
         tx.response
             .as_mut()
             .unwrap()
@@ -446,9 +449,15 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("not valid UTF-8"));
+        // The octet is in the cookie-name, and that is what the finding says
+        // now: § 4.1.1 writes the name as a `token`, so an octet above %x7F is
+        // a character it does not admit. The verdict this replaces named the
+        // field's encoding and stopped before the name was read.
+        let v = v.expect("a finding");
+        assert_eq!(
+            v.message,
+            "Set-Cookie cookie-name contains invalid character: '\u{ff}'"
+        );
         Ok(())
     }
 

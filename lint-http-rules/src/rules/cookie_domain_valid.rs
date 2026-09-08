@@ -118,12 +118,14 @@ impl Rule for CookieDomainValid {
             let resp = tx.response.as_ref()?;
 
             for hv in resp.headers.get_all("set-cookie").iter() {
-                let Ok(s) = hv.to_str() else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Set-Cookie header value is not valid UTF-8".into(),
-                    ));
-                };
+                // Read as octets, one field line at a time. `Set-Cookie` is
+                // not a list -- § 5.3's recombination does not apply to it, so
+                // the lines are never joined -- and § 4.1.1's grammar stops at
+                // `CHAR`, %x01-7F, so an octet above that is a character the
+                // production does not admit rather than a verdict about the
+                // field's encoding. The readers below have an entry for it.
+                let s = crate::helpers::headers::field_line_as_written(hv);
+                let s = s.as_str();
 
                 // Split into cookie-pair and attributes — § 5.2's own parsing
                 // algorithm, which is the reading this rule does before any
@@ -309,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_set_cookie_is_reported() -> anyhow::Result<()> {
+    fn an_obs_text_octet_in_a_domain_is_the_names_defect() -> anyhow::Result<()> {
         use crate::http_transaction::ResponseInfo;
         use crate::test_helpers::make_test_transaction;
         use hyper::header::HeaderValue;
@@ -324,23 +326,25 @@ mod tests {
             trailers: None,
         });
 
-        // Append a non-UTF8 header value
-        tx.response
-            .as_mut()
-            .unwrap()
-            .headers
-            .append("set-cookie", HeaderValue::from_bytes(&[0xff])?);
+        tx.response.as_mut().unwrap().headers.append(
+            "set-cookie",
+            HeaderValue::from_bytes(b"SID=1; Domain=ex\xffample.com")?,
+        );
 
+        // Inside the attribute this rule reads, the octet is one the preferred
+        // name syntax does not admit, and it answers with the shared `domain`
+        // subject's id -- the same one a `From` address or a `Forwarded` node
+        // answers with. The verdict this replaces named the field's encoding
+        // and never reached the name.
         let rule = CookieDomainValid;
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("not valid UTF-8"));
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "domain_label_character_forbidden");
         Ok(())
     }
 
