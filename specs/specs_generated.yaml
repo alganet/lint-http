@@ -1110,7 +1110,7 @@ sources:
     snippet: This MUST be specified if a qop directive is sent (see above), and MUST NOT be specified if the server did not send a qop directive in the WWW-Authenticate header field.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 218
+      line: 222
 - label: RFC 3230
   url: https://www.rfc-editor.org/rfc/rfc3230.html
   fragments:
@@ -3082,7 +3082,7 @@ sources:
     snippet: credentials = "Bearer" 1*SP b64token
     cited_by:
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
-      line: 117
+      line: 116
   - label: bearer b64token grammar
     section: § 2.1
     snippet: b64token    = 1*( ALPHA / DIGIT / "-" / "." / "_" / "~" / "+" / "/" ) *"="
@@ -3797,25 +3797,25 @@ sources:
     snippet: 'For historical reasons, a sender MUST NOT generate the quoted string syntax for the following parameters: algorithm, qop, and nc.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 269
+      line: 271
   - label: digest_auth_valid (2)
     section: § 3.4
     snippet: 'For historical reasons, a sender MUST only generate the quoted string syntax for the following parameters: username, realm, nonce, uri, response, cnonce, and opaque.'
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 268
+      line: 270
   - label: digest_auth_valid (3)
     section: § 3.4
     snippet: If a parameter or its value is improper, or required parameters are missing, the proper response is a 4xx error code.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 175
+      line: 179
   - label: cnonce
     section: § 3.4
     snippet: This parameter MUST be used by all implementations.
     cited_by:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 217
+      line: 221
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 3.5
     snippet: For historical reasons, the nc value MUST be exactly 8 hexadecimal digits.
@@ -3830,7 +3830,7 @@ sources:
     snippet: The value is computed based on user-id and password as defined below.
     cited_by:
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
-      line: 123
+      line: 127
   - label: lint-http-rules/src/helpers/auth.rs
     section: § 2
     snippet: The user-id and password MUST NOT contain any control characters
@@ -5275,13 +5275,13 @@ sources:
     snippet: New and existing authentication schemes are specified independently and ought to be registered
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 142
+      line: 173
   - label: auth_scheme_registered (2)
     section: § 16.4.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 143
+      line: 174
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -5319,7 +5319,7 @@ sources:
     snippet: Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested
     cited_by:
     - file: lint-http-rules/src/rules/authorization_credentials_present.rs
-      line: 128
+      line: 132
     - file: lint-http-rules/src/violations/credentials.rs
       line: 67
   - label: cache_coherence
@@ -6545,13 +6545,13 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 411
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 129
+      line: 153
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
-      line: 104
+      line: 108
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
-      line: 110
+      line: 109
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
-      line: 150
+      line: 154
     - file: lint-http-rules/src/violations/auth_scheme.rs
       line: 42
   - label: lint-http-rules/src/helpers/auth.rs (2)
@@ -8899,7 +8899,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 175
     - file: lint-http-rules/src/rules/www_authenticate_challenge_syntax.rs
-      line: 135
+      line: 145
   - label: status_code_semantics (5)
     section: § 11.7.1
     snippet: A proxy MUST send at least one Proxy-Authenticate header field in each 407 (Proxy Authentication Required) response that it generates.

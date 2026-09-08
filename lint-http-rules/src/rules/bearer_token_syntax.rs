@@ -98,13 +98,12 @@ impl Rule for BearerTokenSyntax {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
+            // Read as octets: `b64token`'s alphabet is where an octet outside
+            // visible US-ASCII belongs, and the reader that refused the value
+            // outright reported it as the field's encoding instead.
             for hv in tx.request.headers.get_all("authorization").iter() {
-                let Ok(s) = hv.to_str() else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Authorization header contains non-UTF8 value".into(),
-                    ));
-                };
+                let s = crate::helpers::headers::field_line_as_written(hv);
+                let s = s.as_str();
 
                 // Split scheme and credentials. Auth-scheme names match case-insensitively.
                 // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
@@ -238,7 +237,10 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_header_reports_violation() -> anyhow::Result<()> {
+    /// An octet outside visible US-ASCII is outside `b64token`'s alphabet,
+    /// which is the production this rule reads — not a verdict about the
+    /// field's encoding, which is what the reader this replaces reported.
+    fn an_obs_text_octet_is_outside_the_b64token_alphabet() -> anyhow::Result<()> {
         let rule = BearerTokenSyntax;
         use crate::test_helpers::make_test_transaction;
         use hyper::header::HeaderValue;
@@ -255,13 +257,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(
-            msg.contains("non-UTF8")
-                || msg.contains("Invalid Bearer token")
-                || msg.contains("missing token")
-        );
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "token68_character_forbidden");
         Ok(())
     }
 

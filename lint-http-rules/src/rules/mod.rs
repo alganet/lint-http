@@ -1293,7 +1293,13 @@ severity = "warn"
         /// The rest are the per-rule reading that has not happened yet — the
         /// denominator is computed below, because merges and conversions both
         /// move it.
-        const FLOOR: usize = 147;
+        ///
+        /// It also falls when a finding *stops being made*: the
+        /// `Authorization` rules' "contains non-UTF8 value" arms went when
+        /// those fields began to be read as octets, and one of them was cited.
+        /// The sentence it named is still declared by the rule and carried by
+        /// the defs; what left is the site.
+        const FLOOR: usize = 146;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
