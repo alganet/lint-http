@@ -8,6 +8,7 @@ use crate::helpers::shown::describe_octet;
 use crate::helpers::token::is_tchar_byte;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::comment::RFC_9110_5_6_5;
 
 pub struct ViaHeaderSyntax;
 
@@ -36,13 +37,6 @@ const RFC_9110_B_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "Why a `received-by` is a token: RFC 9110 removed `uri-host` from the \
            production, which is what makes a bracketed IPv6 literal a finding here and \
            not under RFC 7230",
-};
-const RFC_9110_5_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
-    note: "The `comment` a member may end with, and the `ctext` that admits `obs-text` \
-           inside it",
 };
 const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",

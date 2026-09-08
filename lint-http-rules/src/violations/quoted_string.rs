@@ -21,6 +21,7 @@
 use crate::helpers::quoted_string::QuotedStringDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::{defects, ViolationDef};
 
 /// The production, its interior class and its escape — one section behind all
@@ -43,21 +44,6 @@ defects! {
     QUOTED_STRING_DELIMITER_MISSING = {
         id: "quoted_string_delimiter_missing",
         title: "Quoted-string is missing one of its DQUOTEs",
-        message: "",
-        default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_4),
-    }
-
-    /// An escape that is not a `quoted-pair`: a backslash before an octet the
-    /// pair does not admit, or a backslash with nothing after it at all. One
-    /// def for both, because the operator's fix is the escape either way — the
-    /// same judgment `mailbox_quoted_pair_malformed` makes about RFC 5322's
-    /// spelling of the same production.
-    ///
-    // cite(RFC 9110 § 5.6.4): "quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )"
-    QUOTED_STRING_QUOTED_PAIR_MALFORMED = {
-        id: "quoted_string_quoted_pair_malformed",
-        title: "Quoted-string holds an escape that is not a quoted-pair",
         message: "",
         default_severity: Severity::Warn,
         spec: Some(RFC_9110_5_6_4),
@@ -100,7 +86,7 @@ pub fn quoted_string_defect(defect: QuotedStringDefect) -> &'static ViolationDef
     match defect {
         QuotedStringDefect::NotQuoted => &QUOTED_STRING_DELIMITER_MISSING,
         QuotedStringDefect::BadQuotedPair | QuotedStringDefect::TrailingEscape => {
-            &QUOTED_STRING_QUOTED_PAIR_MALFORMED
+            &QUOTED_PAIR_MALFORMED
         }
         QuotedStringDefect::UnescapedQuote => &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
         QuotedStringDefect::ControlCharacter => &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
@@ -120,14 +106,8 @@ mod tests {
                 QuotedStringDefect::NotQuoted,
                 "quoted_string_delimiter_missing",
             ),
-            (
-                QuotedStringDefect::BadQuotedPair,
-                "quoted_string_quoted_pair_malformed",
-            ),
-            (
-                QuotedStringDefect::TrailingEscape,
-                "quoted_string_quoted_pair_malformed",
-            ),
+            (QuotedStringDefect::BadQuotedPair, "quoted_pair_malformed"),
+            (QuotedStringDefect::TrailingEscape, "quoted_pair_malformed"),
             (
                 QuotedStringDefect::UnescapedQuote,
                 "quoted_string_quote_escape_missing",

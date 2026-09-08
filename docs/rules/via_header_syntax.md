@@ -21,7 +21,7 @@ What the rule does not judge: whether a proxy sent a `Via` at all. §7.6.3's MUS
 - [RFC 9110 §7.6.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.6.3): The `Via` grammar this rule parses, the sentence that puts the field in both directions, and the requirements about forwarding and combining that a single captured message cannot answer
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): `received-protocol` points here for its two halves: `protocol-name = token` and `protocol-version = token`
 - [RFC 9110 §B.2](https://www.rfc-editor.org/rfc/rfc9110.html#appendix-B.2): Why a `received-by` is a token: RFC 9110 removed `uri-host` from the production, which is what makes a bracketed IPv6 literal a finding here and not under RFC 7230
-- [RFC 9110 §5.6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5): The `comment` a member may end with, and the `ctext` that admits `obs-text` inside it
+- [RFC 9110 §5.6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5): Comments — `comment = "(" *( ctext / quoted-pair / comment ) ")"`, the `ctext` class, and the self-reference that makes a comment nestable
 - [RFC 9110 §5.6.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1): `Via` is a `#` list, so an empty member is the sender's defect and an empty value is not
 - [RFC 9110 §5.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.2): Several `Via` lines in one section are one field value, which is why the members are counted after they are joined
 - [RFC 3986 §3.2.3](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.3): `port = *DIGIT` — the production `received-by` reaches through RFC 9110 §4.1, with no range and no minimum digit count

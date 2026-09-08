@@ -13,8 +13,9 @@ Validate a `User-Agent` request header against `User-Agent = product *( RWS ( pr
 ## Specifications
 
 - [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): `User-Agent = product *( RWS ( product / comment ) )`, a request context field; `product = token ["/" product-version]` is defined here once and `Server` shares it. The section's further requirements — no advertising or nonessential information in a product identifier, no needlessly fine-grained detail — are about intent and are not decidable from a field value
-- [RFC 9110 §5.6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5): `comment = "(" *( ctext / quoted-pair / comment ) ")"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash
+- [RFC 9110 §5.6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5): Comments — `comment = "(" *( ctext / quoted-pair / comment ) ")"`, the `ctext` class, and the self-reference that makes a comment nestable
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 
 ## Configuration
 

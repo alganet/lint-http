@@ -22,10 +22,10 @@ use crate::violations::node::{
     NODE_IPV6_REPRESENTATION_INVALID, NODE_MALFORMED, NODE_PORT_MALFORMED, RFC_7239_6,
     RFC_7239_6_1,
 };
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
-    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
-    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
@@ -80,7 +80,7 @@ static DECLARED: &[&ViolationDef] = &[
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
     &QUOTED_STRING_DELIMITER_MISSING,
-    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -660,7 +660,7 @@ mod tests {
         for (value, id) in [
             ("foo=\"abc", "quoted_string_delimiter_missing"),
             ("foo=\"a\"b\"", "quoted_string_quote_escape_missing"),
-            ("foo=\"ab\\\"", "quoted_string_quoted_pair_malformed"),
+            ("foo=\"ab\\\"", "quoted_pair_malformed"),
         ] {
             let (violation, severity) = judge_defect(value).unwrap_or_else(|| panic!("{value:?}"));
             assert_eq!(violation, id, "{value:?}");

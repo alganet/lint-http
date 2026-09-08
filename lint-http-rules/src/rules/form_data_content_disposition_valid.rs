@@ -5,10 +5,10 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::parameter::{PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6};
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
-    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTED_PAIR_MALFORMED,
-    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+    QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::ViolationDef;
 
@@ -38,7 +38,7 @@ pub struct FormDataContentDispositionValid;
 static DECLARED: &[&ViolationDef] = &[
     &PARAMETER_VALUE_EMPTY,
     &QUOTED_STRING_DELIMITER_MISSING,
-    &QUOTED_STRING_QUOTED_PAIR_MALFORMED,
+    &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];

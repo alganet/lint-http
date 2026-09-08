@@ -4,6 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::comment::{
+    COMMENT_CHARACTER_FORBIDDEN, COMMENT_DELIMITER_MISSING, RFC_9110_5_6_5,
+};
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
+use crate::violations::quoted_string::RFC_9110_5_6_4;
 use crate::violations::token::{
     product_defect, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -17,16 +22,21 @@ use crate::violations::ViolationDef;
 /// `Upgrade`'s `protocol-name` and `protocol-version` have — and the mirror
 /// rule on the other field answers with the same ids.
 ///
+/// The comment the repetition admits is § 5.6.5's construct, borrowed the same
+/// way: an unterminated one and an octet `ctext` refuses are the comment's, and
+/// the escape inside it is `quoted-pair`'s, which a `quoted-string` reads too.
+///
 /// What stays unnamed is the assembly: a value that opens with a comment, two
 /// elements with no `RWS` between them, an empty value. One reader measures all
 /// of it, and a statement a construct makes about its own parts is not a
-/// borrowed production's defect. The comment's four verdicts stay with it —
-/// two of them are `quoted-pair`'s, whose id is spelled for the other construct
-/// that shares the escape.
+/// borrowed production's defect.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &COMMENT_DELIMITER_MISSING,
+    &COMMENT_CHARACTER_FORBIDDEN,
+    &QUOTED_PAIR_MALFORMED,
 ];
 
 pub struct UserAgentTokenValid;
@@ -39,12 +49,6 @@ const RFC_9110_10_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("10.1.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5",
     note: "`User-Agent = product *( RWS ( product / comment ) )`, a request context field; `product = token [\"/\" product-version]` is defined here once and `Server` shares it. The section's further requirements — no advertising or nonessential information in a product identifier, no needlessly fine-grained detail — are about intent and are not decidable from a field value",
-};
-const RFC_9110_5_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5",
-    note: "`comment = \"(\" *( ctext / quoted-pair / comment ) \")\"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash",
 };
 
 impl RuleMeta for UserAgentTokenValid {
@@ -63,7 +67,12 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_10_1_5, RFC_9110_5_6_5, RFC_9110_5_6_2]
+        &[
+            RFC_9110_10_1_5,
+            RFC_9110_5_6_5,
+            RFC_9110_5_6_2,
+            RFC_9110_5_6_4,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
