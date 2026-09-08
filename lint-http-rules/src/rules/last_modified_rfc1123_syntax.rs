@@ -90,8 +90,13 @@ impl Rule for LastModifiedRfc1123Syntax {
                 return None;
             };
 
-            if let Some(s) = crate::helpers::headers::get_header_str(&resp.headers, "last-modified")
-            {
+            // Read as octets rather than through the string reader. Every
+            // octet an `IMF-fixdate` prints is visible US-ASCII, so the
+            // reader's refusal and the format's are the same refusal said
+            // twice -- and only the format's can name the character.
+            if let Some(hv) = resp.headers.get("last-modified") {
+                let s = crate::helpers::headers::field_line_as_written(hv);
+                let s = s.as_str();
                 // A response is a sender, so HTTP-date is not the bar here: the field is
                 // *defined* as HTTP-date, and a sender is still confined to IMF-fixdate.
                 // Checking `is_valid_http_date` accepted the two obsolete formats and so
@@ -117,12 +122,6 @@ impl Rule for LastModifiedRfc1123Syntax {
                         "Last-Modified header is not a valid IMF-fixdate (RFC 9110)".into(),
                     ));
                 }
-            } else if resp.headers.contains_key("last-modified") {
-                // Non-UTF8 header values are considered invalid for date parsing
-                return Some(self.violation(
-                    ctx.severity,
-                    "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
-                ));
             }
             None
         };
@@ -262,11 +261,13 @@ mod tests {
     }
 
     #[test]
-    fn invalid_non_utf8_last_modified_is_violation() -> anyhow::Result<()> {
+    /// An octet outside visible US-ASCII is a character `IMF-fixdate` does
+    /// not print, which is what the format reader reports it as — the value is
+    /// no longer refused before the format is consulted.
+    fn an_obs_text_octet_is_a_timestamp_defect() -> anyhow::Result<()> {
         let rule = LastModifiedRfc1123Syntax;
         let mut tx = crate::test_helpers::make_test_transaction();
 
-        // Construct a response with non-UTF8 Last-Modified header
         use hyper::header::HeaderValue;
         let mut hm = crate::test_helpers::make_headers_from_pairs(&[]);
         let bad = HeaderValue::from_bytes(&[0xff])?;
@@ -286,7 +287,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "http_date_malformed");
         Ok(())
     }
 

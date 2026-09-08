@@ -142,9 +142,15 @@ impl Rule for SunsetAndDeprecationConsistent {
             // Get Deprecation header (structured '@<seconds>' form) if present and parseable
             // We intentionally only consider the structured '@' form here; legacy forms are
             // validated by `deprecation_header_syntax` and we avoid duplicate errors.
+            // Read as octets, like the `Sunset` half above: every octet a
+            // Structured Field Date prints is visible US-ASCII, so a line the
+            // string reader refuses is a line this form refuses -- and the
+            // finding for it is `deprecation_header_syntax`'s, which is where
+            // every other malformed spelling of this field is already left.
             let deprecation_opt = match resp.headers.get_all("deprecation").iter().next() {
-                Some(hv) => match hv.to_str() {
-                    Ok(s_raw) => {
+                Some(hv) => {
+                    let s_raw = crate::helpers::headers::field_line_as_written(hv);
+                    {
                         let s = s_raw.trim();
                         // Deprecation is a Structured Field Date (`@` + integer epoch
                         // seconds); this recognises exactly that form and defers the
@@ -176,13 +182,7 @@ impl Rule for SunsetAndDeprecationConsistent {
                             None
                         }
                     }
-                    Err(_) => {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Deprecation header contains non-UTF8 value".into(),
-                        ))
-                    }
-                },
+                }
                 None => None,
             };
 
@@ -312,7 +312,7 @@ mod tests {
     }
 
     #[rstest]
-    fn non_utf8_deprecation_reports_violation() {
+    fn an_unreadable_deprecation_is_the_syntax_rules_finding() {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
@@ -337,9 +337,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8"));
+        // Left to `deprecation_header_syntax`, where every other malformed
+        // spelling of this field is already left: this rule compares two
+        // timestamps, and a value that is not one is not its finding.
+        assert!(v.is_none());
     }
 
     #[test]

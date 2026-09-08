@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-The `If-Unmodified-Since` request header is defined as an HTTP-date, and a sender MUST generate it in the IMF-fixdate format. This rule flags values that are not a valid IMF-fixdate — including the two obsolete formats, which a recipient must still accept but no sender may emit — or that contain non-UTF8 bytes.
+The `If-Unmodified-Since` request header is defined as an HTTP-date, and a sender MUST generate it in the IMF-fixdate format. This rule flags values that are not a valid IMF-fixdate — including the two obsolete formats, which a recipient must still accept but no sender may emit — and reads the value as octets, so an octet outside visible US-ASCII is reported as a character the format does not print rather than as a verdict about the field's encoding.
 
 ## Specifications
 

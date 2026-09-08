@@ -1294,14 +1294,16 @@ severity = "warn"
         /// denominator is computed below, because merges and conversions both
         /// move it.
         ///
-        /// It also falls when a finding *stops being made*: the
-        /// `Authorization` rules' "contains non-UTF8 value" arms went when
-        /// those fields began to be read as octets, and two of the family's
-        /// sites were cited — the other being `Accept-Ranges`, whose sentence
-        /// about `token` moved onto the id the member walk reports under. The
-        /// sentences are still declared by their rules and carried by the
-        /// defs; what left is the site.
-        const FLOOR: usize = 145;
+        /// It also falls when a finding *stops being made*: the "contains
+        /// non-UTF8 value" arms went as their fields began to be read as
+        /// octets, and three of them were cited — an `Authorization`, an
+        /// `Accept-Ranges` whose sentence about `token` moved onto the id the
+        /// member walk reports under, and a `Date` whose octet is now the
+        /// timestamp's own defect. The sentences are still declared by their
+        /// rules and carried by the defs; what left is the site. `Retry-After`
+        /// is the fourth: its octet is a value deriving from neither
+        /// alternative, which the rule says at a site of its own.
+        const FLOOR: usize = 143;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

@@ -54,7 +54,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "The `If-Modified-Since` request header is defined as an HTTP-date, and a sender MUST generate it in the IMF-fixdate format. This rule flags values that are not a valid IMF-fixdate — including the two obsolete formats, which a recipient must still accept but no sender may emit — or that contain non-UTF8 bytes."
+        "The `If-Modified-Since` request header is defined as an HTTP-date, and a sender MUST generate it in the IMF-fixdate format. This rule flags values that are not a valid IMF-fixdate — including the two obsolete formats, which a recipient must still accept but no sender may emit — and reads the value as octets, so an octet outside visible US-ASCII is reported as a character the format does not print rather than as a verdict about the field's encoding."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -104,12 +104,14 @@ impl Rule for IfModifiedSinceDateSyntax {
             || -> Option<Violation> {
                 // Only applies to requests
                 for hv in tx.request.headers.get_all("if-modified-since").iter() {
-                    let Ok(s) = hv.to_str() else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "If-Modified-Since header contains non-UTF8 value".into(),
-                        ));
-                    };
+                    // Read as octets. Every octet an `IMF-fixdate` prints is
+                    // visible US-ASCII — three letters, a comma, digits and
+                    // `SP` — so the string reader's refusal and the format's
+                    // are the same refusal, and only one of them can name the
+                    // character. The value goes to the reader that owns the
+                    // production.
+                    let s = crate::helpers::headers::field_line_as_written(hv);
+                    let s = s.as_str();
 
                     // `OWS` here too, so this branch and the one below agree about what
                     // whitespace is. `str::trim` would call an `obs-text` octet whitespace

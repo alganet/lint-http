@@ -8,7 +8,7 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. Values that are not a parseable HTTP-date, or that contain non-UTF8 bytes, are flagged.
+Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. A value that is not a parseable HTTP-date is flagged for the field this rule owns the reading of — `Date` and `Sunset` — and left to the per-field format rule otherwise. The value is read as octets: every octet an HTTP-date prints is visible US-ASCII in all three formats, so a field line no string reader accepts is one no format accepts, and it is reported as the timestamp defect it is.
 
 ## Specifications
 

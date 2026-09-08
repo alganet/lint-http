@@ -4502,7 +4502,7 @@ sources:
     snippet: The Sunset value is an HTTP-date timestamp, as defined in Section 7.1.1.1 of [RFC7231], and SHOULD be a timestamp in the future.
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 164
+      line: 159
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
       line: 127
 - label: RFC 8615
@@ -5327,7 +5327,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 144
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 106
+      line: 110
   - label: cache_coherence (3)
     section: § 8.8.2
     snippet: The "Last-Modified" header field in a response provides a timestamp indicating the date and time at which the origin server believes the selected representation was last modified
@@ -5823,7 +5823,7 @@ sources:
     snippet: An origin server with a clock (as defined in Section 5.6.7) MUST NOT generate a Last-Modified date that is later than the server's time of message origination (Date, Section 6.6.1).
     cited_by:
     - file: lint-http-rules/src/rules/date_and_time_headers_consistent.rs
-      line: 131
+      line: 130
   - label: early_data_header_safe_method
     section: § 16.1.1
     snippet: 'HTTP method registrations MUST include the following fields:'
@@ -6183,7 +6183,7 @@ sources:
     snippet: If-Modified-Since = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 136
+      line: 138
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 39
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
@@ -6193,11 +6193,11 @@ sources:
     snippet: A field value does not include leading or trailing whitespace
     cited_by:
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 137
+      line: 139
     - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 135
+      line: 137
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 109
+      line: 114
   - label: if_none_match_etag_syntax
     section: § 13.1.2
     snippet: 'If-None-Match = "*" / #entity-tag'
@@ -6211,7 +6211,7 @@ sources:
     snippet: If-Unmodified-Since = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 134
+      line: 136
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 40
   - label: keep_alive_header_valid
@@ -6249,7 +6249,7 @@ sources:
     snippet: Last-Modified = HTTP-date
     cited_by:
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 108
+      line: 113
   - label: link_header_valid
     section: § 5.6.3
     snippet: A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
@@ -6315,11 +6315,11 @@ sources:
     - file: lint-http-core/src/http_date.rs
       line: 145
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 139
+      line: 141
     - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 137
+      line: 139
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 111
+      line: 116
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 681
     - file: lint-http-rules/src/violations/http_date.rs
@@ -7091,9 +7091,9 @@ sources:
     - file: lint-http-rules/src/rules/host_header.rs
       line: 228
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 117
+      line: 119
     - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 116
+      line: 118
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 239
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -8581,7 +8581,7 @@ sources:
     snippet: A delay-seconds value is a non-negative decimal integer, representing time in seconds.
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
-      line: 105
+      line: 101
   - label: retry_after_date_or_delay (2)
     section: § 10.2.3
     snippet: Retry-After = HTTP-date / delay-seconds
@@ -9885,11 +9885,11 @@ sources:
     snippet: field-line   = field-name ":" OWS field-value OWS
     cited_by:
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
-      line: 138
+      line: 140
     - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
-      line: 136
+      line: 138
     - file: lint-http-rules/src/rules/last_modified_rfc1123_syntax.rs
-      line: 110
+      line: 115
   - label: HTTP-version
     section: § 2.3
     snippet: HTTP-version  = HTTP-name "/" DIGIT "." DIGIT
@@ -11051,9 +11051,9 @@ sources:
     snippet: their serialization in textual HTTP fields is similar to that of Integers, distinguished from them with a leading "@".
     cited_by:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 118
+      line: 116
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 155
+      line: 161
   - label: lint-http-rules/src/helpers/structured_fields.rs
     section: § 3.1.2
     snippet: Note that parameters are ordered, and parameter keys cannot contain uppercase letters.
@@ -11521,9 +11521,9 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 95
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
-      line: 117
+      line: 115
     - file: lint-http-rules/src/rules/sunset_and_deprecation_consistent.rs
-      line: 154
+      line: 160
   - label: sunset_and_deprecation_consistent
     section: § 4
     snippet: The timestamp given in the Sunset HTTP header field MUST NOT be earlier than the one given in the Deprecation header field.
