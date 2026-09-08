@@ -5797,7 +5797,7 @@ sources:
     - file: lint-http-rules/src/rules/user_agent_present.rs
       line: 85
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 101
+      line: 129
   - label: context_fields_direction (7)
     section: § 10.2.2
     snippet: The "Location" header field is used in some responses to refer to a specific resource in relation to the response.
@@ -6861,7 +6861,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 237
     - file: lint-http-rules/src/helpers/product.rs
-      line: 69
+      line: 158
     - file: lint-http-rules/src/rules/host_header.rs
       line: 229
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
@@ -6915,7 +6915,7 @@ sources:
     - file: lint-http-rules/src/rules/post_creates_resource.rs
       line: 143
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
-      line: 122
+      line: 155
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 386
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
@@ -6931,7 +6931,7 @@ sources:
     - file: lint-http-rules/src/rules/user_agent_present.rs
       line: 111
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 136
+      line: 164
   - label: lint-http-rules/src/helpers/field_placement.rs (6)
     section: § 6.5.1
     snippet: Many fields cannot be processed outside the header section because their evaluation is necessary prior to receiving the content, such as those that describe message framing, routing, authentication, request modifiers, response controls, or content format.
@@ -7031,11 +7031,11 @@ sources:
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 242
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
-      line: 136
+      line: 169
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 397
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 150
+      line: 178
   - label: lint-http-rules/src/helpers/headers.rs (6)
     section: § 5.5
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
@@ -7167,7 +7167,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 48
     - file: lint-http-rules/src/violations/token.rs
-      line: 89
+      line: 90
   - label: lint-http-rules/src/helpers/list.rs (4)
     section: § 5.6.4
     snippet: quoted-pair    = "\" ( HTAB / SP / VCHAR / obs-text )
@@ -7377,11 +7377,11 @@ sources:
     snippet: The User-Agent field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the user agent software and its significant subproducts.
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
-      line: 87
+      line: 176
     - file: lint-http-rules/src/rules/user_agent_present.rs
       line: 118
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 118
+      line: 146
   - label: lint-http-rules/src/helpers/product.rs (2)
     section: § 10.2.4
     snippet: Each product identifier consists of a name and optional version, as defined in Section 10.1.5.
@@ -7393,13 +7393,13 @@ sources:
     snippet: The Server header field value consists of one or more product identifiers, each followed by zero or more comments (Section 5.6.5), which together identify the origin server software and its significant subproducts.
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
-      line: 86
+      line: 175
   - label: lint-http-rules/src/helpers/product.rs (4)
     section: § 5.6.3
     snippet: RWS = 1*( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
-      line: 103
+      line: 192
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 355
   - label: lint-http-rules/src/helpers/product.rs (5)
@@ -7407,7 +7407,7 @@ sources:
     snippet: The RWS rule is used when at least one linear whitespace octet is required to separate field tokens.
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
-      line: 102
+      line: 191
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 354
   - label: lint-http-rules/src/helpers/product.rs (6)
@@ -7427,7 +7427,7 @@ sources:
     snippet: product = token [ "/" product-version ] product-version = token
     cited_by:
     - file: lint-http-rules/src/helpers/product.rs
-      line: 27
+      line: 119
   - label: lint-http-rules/src/helpers/quoted_string.rs
     section: § 5.6.4
     snippet: Recipients that process the value of a quoted-string MUST handle a quoted-pair as if it were replaced by the octet following the backslash.
@@ -7495,9 +7495,9 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 227
     - file: lint-http-rules/src/violations/token.rs
-      line: 56
+      line: 57
     - file: lint-http-rules/src/violations/token.rs
-      line: 75
+      line: 76
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 7.1
     snippet: A URI reference is resolved to its absolute form in order to obtain the "target URI".
@@ -8639,15 +8639,15 @@ sources:
     snippet: An origin server MAY generate a Server header field in its responses.
     cited_by:
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
-      line: 103
+      line: 136
   - label: server_header_product_valid (2)
     section: § 5.3
     snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers)
     cited_by:
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
-      line: 131
+      line: 164
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 145
+      line: 173
   - label: hash rule expansion
     section: § 5.6.1
     snippet: '#element => [ 1#element ]'
@@ -9171,19 +9171,19 @@ sources:
     snippet: A sender SHOULD NOT generate information in product-version that is not a version identifier
     cited_by:
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 129
+      line: 157
   - label: user_agent_token_valid (2)
     section: § 10.1.5
     snippet: A sender SHOULD limit generated product identifiers to what is necessary to identify the product; a sender MUST NOT generate advertising or other nonessential information within the product identifier.
     cited_by:
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 128
+      line: 156
   - label: user_agent_token_valid (3)
     section: § 10.1.5
     snippet: A user agent SHOULD NOT generate a User-Agent header field containing needlessly fine-grained detail and SHOULD limit the addition of subproducts by third parties.
     cited_by:
     - file: lint-http-rules/src/rules/user_agent_token_valid.rs
-      line: 130
+      line: 158
   - label: vary_header_valid
     section: § 12.5.5
     snippet: The "Vary" header field in a response describes what parts of a request message, aside from the method and target URI, might have influenced the origin server's process for selecting the content of this response.

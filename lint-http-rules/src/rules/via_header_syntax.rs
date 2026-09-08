@@ -437,7 +437,7 @@ fn validate_member(v: &[u8], start: usize, n: usize) -> Result<(usize, bool), St
     let after_ws = skip_ws(v, i);
     if after_ws > i && v.get(after_ws) == Some(&b'(') {
         return Ok((
-            scan_comment(v, after_ws).map_err(|e| format!("member {n}: {e}"))?,
+            scan_comment(v, after_ws).map_err(|e| format!("member {n}: {}", e.message()))?,
             true,
         ));
     }

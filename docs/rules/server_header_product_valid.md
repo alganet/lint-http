@@ -15,6 +15,7 @@ Validate a `Server` response header against `Server = product *( RWS ( product /
 - [RFC 9110 §10.2.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.4): `Server = product *( RWS ( product / comment ) )`; the section defines the field and defers the product syntax itself to Section 10.1.5
 - [RFC 9110 §10.1.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.5): `product = token ["/" product-version]` and `product-version = token`, defined once under `User-Agent` and shared by `Server`
 - [RFC 9110 §5.6.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.5): `comment = "(" *( ctext / quoted-pair / comment ) ")"` — comments nest, and `ctext` admits `obs-text` but not the parentheses or the backslash
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 
 ## Configuration
 
