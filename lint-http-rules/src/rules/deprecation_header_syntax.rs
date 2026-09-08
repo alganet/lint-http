@@ -100,15 +100,13 @@ impl Rule for DeprecationHeaderSyntax {
 
             let hv = vals.into_iter().next()?;
 
-            let s = match hv.to_str() {
-                Ok(s) => s.trim(),
-                Err(_) => {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Deprecation header contains non-UTF8 value".into(),
-                    ))
-                }
-            };
+            // Read as octets. A Structured Field Date is `@` and digits and a
+            // legacy value is an HTTP-date, and every octet either of them
+            // prints is visible US-ASCII -- so the string reader's refusal and
+            // this rule's own verdict are the same refusal, and only the
+            // second one names the form the sender should have written.
+            let s = crate::helpers::headers::field_line_as_written(hv);
+            let s = s.trim();
 
             // The valid form is a Structured Field Date: `@` followed by an integer epoch.
             // (Digits-only, so a *negative* SF Date `@-N` — a legal pre-1970 delta per §3.3.7 —
@@ -133,7 +131,10 @@ impl Rule for DeprecationHeaderSyntax {
             }
 
             // Otherwise it's invalid
-            Some(self.violation(ctx.severity, format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", s)))
+            // Escaped on the way in: the value is read as octets, so an
+            // `obs-text` byte would otherwise be printed into the finding as
+            // the character it is a reading of.
+            Some(self.violation(ctx.severity, format!("Deprecation value '{}' is invalid: must be a structured Date item (e.g., '@1688169599') per RFC 9745", crate::helpers::shown::shown_in_finding(s))))
         };
         Vec::from_iter(finding())
     }
@@ -208,8 +209,16 @@ mod tests {
         Ok(())
     }
 
+    /// The octet is not a claim about the field's encoding: every octet
+    /// either the Structured Field Date or the legacy HTTP-date prints is
+    /// visible US-ASCII, so a value holding one is a value in neither form —
+    /// which is this rule's own finding, and the one it reports now.
     #[test]
-    fn non_utf8_is_reported() -> anyhow::Result<()> {
+    /// The octet is not a claim about the field's encoding: every octet
+    /// either the Structured Field Date or the legacy HTTP-date prints is
+    /// visible US-ASCII, so a value holding one is in neither form — which is
+    /// this rule's own finding, and the one it makes now.
+    fn an_obs_text_octet_is_a_value_in_neither_form() -> anyhow::Result<()> {
         let rule = DeprecationHeaderSyntax;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
         let mut hm = HeaderMap::new();
@@ -230,9 +239,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8"));
+        let v = v.expect("a finding");
+        assert_eq!(
+            v.message,
+            "Deprecation value '\u{ff}' is invalid: must be a structured Date item \
+             (e.g., '@1688169599') per RFC 9745"
+        );
         Ok(())
     }
 

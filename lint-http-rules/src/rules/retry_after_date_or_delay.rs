@@ -87,16 +87,12 @@ impl Rule for RetryAfterDateOrDelay {
             // Each value is either a delay-seconds count or an HTTP-date.
             // cite(RFC 9110 § 10.2.3): "Retry-After = HTTP-date / delay-seconds"
             for val in resp.headers.get_all("retry-after").iter() {
-                let s = match val.to_str() {
-                    Ok(s) => s.trim(),
-                    Err(_) => {
-                        return Some(self.cited(
-                            &RFC_9110_10_2_3,
-                            ctx.severity,
-                            "Retry-After header contains non-UTF8 value".into(),
-                        ))
-                    }
-                };
+                // Read as octets. Both alternatives are visible US-ASCII —
+                // `1*DIGIT` and an `HTTP-date` — so a line the string reader
+                // refuses is a line deriving from neither, which is the
+                // finding this rule already makes about such a value.
+                let s = crate::helpers::headers::field_line_as_written(val);
+                let s = s.trim();
 
                 // The delay-seconds alternative is `1*DIGIT` — a non-negative decimal integer.
                 // Check digits-only directly rather than via `u64::parse`, which diverges from the
@@ -116,7 +112,7 @@ impl Rule for RetryAfterDateOrDelay {
 
                 return Some(self.violation(ctx.severity, format!(
                         "Retry-After value '{}' is invalid: must be a non-negative delay-seconds integer or an HTTP-date",
-                        s
+                        crate::helpers::shown::shown_in_finding(s)
                     )));
             }
 
@@ -244,8 +240,14 @@ mod tests {
         Ok(())
     }
 
+    /// `Retry-After = HTTP-date / delay-seconds`, and both alternatives are
+    /// visible US-ASCII, so an octet outside it is a value deriving from
+    /// neither — which is the finding this rule already makes.
     #[test]
-    fn non_utf8_header_value_is_violation() -> anyhow::Result<()> {
+    /// `Retry-After = HTTP-date / delay-seconds`, and both alternatives are
+    /// visible US-ASCII, so an octet outside it is a value deriving from
+    /// neither — the finding this rule already makes.
+    fn an_obs_text_octet_derives_from_neither_alternative() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
         let rule = RetryAfterDateOrDelay;
@@ -269,9 +271,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8"));
+        let v = v.expect("a finding");
+        assert_eq!(
+            v.message,
+            "Retry-After value '\u{ff}' is invalid: must be a non-negative delay-seconds \
+             integer or an HTTP-date"
+        );
         Ok(())
     }
 

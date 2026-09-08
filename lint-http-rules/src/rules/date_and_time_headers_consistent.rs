@@ -60,17 +60,22 @@ const RFC_8594_3: crate::rules::SpecRef = crate::rules::SpecRef {
 /// date — and reading them off a chain of `if let`s is what made one rule spell
 /// the same three readings four times, twice with different wording for the
 /// same defect.
-enum Timestamp<'a> {
+enum Timestamp {
     /// No field line by that name.
     Absent,
-    /// A field line whose octets are not text, so no value can be read from it.
-    Unreadable,
-    /// Text, but not a timestamp a recipient can parse. The text itself is not
-    /// carried: every reader of this variant either reports the field by name
-    /// or leaves the value to the rule that owns its format.
+    /// Not a timestamp a recipient can parse. The text itself is not carried:
+    /// every reader of this variant either reports the field by name or leaves
+    /// the value to the rule that owns its format.
+    ///
+    /// **There is no `Unreadable` beside this one, and that is a reading.**
+    /// Every octet an `HTTP-date` prints is visible US-ASCII in all three of
+    /// its formats, so a field line the string reader refuses is a field line
+    /// the *format* refuses — one defect, and the format's reader is the one
+    /// that can name it. The variant that stood here reported four fields for
+    /// an encoding instead.
     Unparseable,
     /// A timestamp, and the text it was written as.
-    At(chrono::DateTime<chrono::Utc>, &'a str),
+    At(chrono::DateTime<chrono::Utc>, String),
 }
 
 /// Read the first `name` field line as a timestamp.
@@ -84,17 +89,16 @@ enum Timestamp<'a> {
 /// Only the first line is read: every field asked here but `Sunset` is a
 /// singleton, and `Sunset` is read line by line below through
 /// [`Timestamp::of`], because no other rule owns its repetition.
-fn timestamp<'a>(headers: &'a hyper::HeaderMap, name: &str) -> Timestamp<'a> {
+fn timestamp(headers: &hyper::HeaderMap, name: &str) -> Timestamp {
     headers.get(name).map_or(Timestamp::Absent, Timestamp::of)
 }
 
-impl<'a> Timestamp<'a> {
-    /// Read one field line. Never [`Timestamp::Absent`] — the line exists.
-    fn of(value: &'a hyper::header::HeaderValue) -> Self {
-        let Ok(text) = value.to_str() else {
-            return Timestamp::Unreadable;
-        };
-        match crate::http_date::parse_http_date_to_datetime(text) {
+impl Timestamp {
+    /// Read one field line, as octets. Never [`Timestamp::Absent`] — the line
+    /// exists.
+    fn of(value: &hyper::header::HeaderValue) -> Self {
+        let text = crate::helpers::headers::field_line_as_written(value);
+        match crate::http_date::parse_http_date_to_datetime(&text) {
             Ok(at) => Timestamp::At(at, text),
             Err(_) => Timestamp::Unparseable,
         }
@@ -111,11 +115,6 @@ impl DateAndTimeHeadersConsistent {
     ) -> Option<Violation> {
         match timestamp(headers, "date") {
             Timestamp::Absent | Timestamp::At(..) => None,
-            Timestamp::Unreadable => Some(self.cited(
-                &RFC_9110_6_6_1,
-                ctx.severity,
-                "Date header contains non-UTF8 bytes and is invalid".into(),
-            )),
             Timestamp::Unparseable => Some(ctx.report_with(
                 &HTTP_DATE_MALFORMED,
                 "Date header is not a valid HTTP-date (RFC 9110 §5.6.7)".into(),
@@ -139,10 +138,6 @@ impl DateAndTimeHeadersConsistent {
     ) -> Option<Violation> {
         match timestamp(headers, "last-modified") {
             Timestamp::Absent | Timestamp::Unparseable => None,
-            Timestamp::Unreadable => Some(self.violation(
-                severity,
-                "Last-Modified header contains non-UTF8 bytes and is invalid".into(),
-            )),
             Timestamp::At(last_modified, text) if last_modified > date + skew => {
                 Some(self.violation(severity, format!(
                     "Last-Modified '{}' is later than Date '{}'; Last-Modified must not be in the future relative to Date",
@@ -174,10 +169,6 @@ impl DateAndTimeHeadersConsistent {
             .get_all("sunset")
             .iter()
             .find_map(|line| match Timestamp::of(line) {
-                Timestamp::Unreadable => Some(self.violation(
-                    ctx.severity,
-                    "Sunset header contains non-UTF8 bytes and is invalid".into(),
-                )),
                 Timestamp::Unparseable => Some(ctx.report_with(
                     &HTTP_DATE_MALFORMED,
                     "Sunset header is not a valid HTTP-date (RFC 8594 §3)".into(),
@@ -207,12 +198,6 @@ impl DateAndTimeHeadersConsistent {
     ) -> Option<Violation> {
         let since = match timestamp(headers, "if-modified-since") {
             Timestamp::Absent | Timestamp::Unparseable => return None,
-            Timestamp::Unreadable => {
-                return Some(self.violation(
-                    severity,
-                    "If-Modified-Since header contains non-UTF8 bytes and is invalid".into(),
-                ))
-            }
             Timestamp::At(since, text) => (since, text),
         };
         let Timestamp::At(date, date_text) = timestamp(headers, "date") else {
@@ -244,7 +229,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. Values that are not a parseable HTTP-date, or that contain non-UTF8 bytes, are flagged."
+        "Validate that date/time related headers are well-formed and mutually consistent. Each header is parsed as an HTTP-date (a recipient accepts all three formats; the sender-only IMF-fixdate obligation is checked by the per-header format rules), then compared: `Last-Modified` MUST NOT be later than `Date` (RFC 9110 §8.8.2.1), `Sunset` SHOULD indicate a future time relative to `Date` (RFC 8594 §3), and — as a reasonableness check with no direct spec basis — a conditional-request `If-Modified-Since` should not be later than the request's own `Date`. A small clock-skew tolerance is allowed. A value that is not a parseable HTTP-date is flagged for the field this rule owns the reading of — `Date` and `Sunset` — and left to the per-field format rule otherwise. The value is read as octets: every octet an HTTP-date prints is visible US-ASCII in all three formats, so a field line no string reader accepts is one no format accepts, and it is reported as the timestamp defect it is."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -320,14 +305,14 @@ impl Rule for DateAndTimeHeadersConsistent {
                     if let Some(v) = self.last_modified_not_after_date(
                         &resp.headers,
                         date,
-                        date_text,
+                        &date_text,
                         skew,
                         severity,
                     ) {
                         return Some(v);
                     }
                     if let Some(v) =
-                        self.sunset_is_after_date(&resp.headers, date, date_text, skew, ctx)
+                        self.sunset_is_after_date(&resp.headers, date, &date_text, skew, ctx)
                     {
                         return Some(v);
                     }
@@ -441,7 +426,7 @@ mod tests {
         if expect_violation {
             assert!(v.is_some());
             let m = v.unwrap().message;
-            assert!(m.contains("Date header is not a valid HTTP-date") || m.contains("non-UTF8"));
+            assert!(m.contains("Date header is not a valid HTTP-date"), "{m}");
         } else {
             assert!(v.is_none());
         }
@@ -554,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    fn last_modified_non_utf8_is_violation() -> anyhow::Result<()> {
+    fn an_unreadable_last_modified_is_its_own_rules_finding() -> anyhow::Result<()> {
         let rule = DateAndTimeHeadersConsistent;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
 
@@ -573,14 +558,15 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let m = v.unwrap().message;
-        assert!(m.contains("Last-Modified header contains non-UTF8"));
+        // Left to the rule that owns this field's format, exactly as an
+        // unparseable value is: the octet is a defect of the timestamp, not of
+        // the pair being compared.
+        assert!(v.is_none());
         Ok(())
     }
 
     #[test]
-    fn if_modified_since_non_utf8_is_violation() -> anyhow::Result<()> {
+    fn an_unreadable_if_modified_since_is_its_own_rules_finding() -> anyhow::Result<()> {
         let rule = DateAndTimeHeadersConsistent;
         let mut tx = crate::test_helpers::make_test_transaction();
 
@@ -596,9 +582,9 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let m = v.unwrap().message;
-        assert!(m.contains("If-Modified-Since header contains non-UTF8"));
+        // Left to the rule that owns this field's format, as an unparseable
+        // value is.
+        assert!(v.is_none());
         Ok(())
     }
 
@@ -641,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn response_date_non_utf8_is_violation() -> anyhow::Result<()> {
+    fn an_unreadable_date_is_a_timestamp_defect() -> anyhow::Result<()> {
         let rule = DateAndTimeHeadersConsistent;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
 
@@ -657,9 +643,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let m = v.unwrap().message;
-        assert!(m.contains("Date header contains non-UTF8"));
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "http_date_malformed");
         Ok(())
     }
 
@@ -724,7 +709,7 @@ mod tests {
     }
 
     #[test]
-    fn sunset_non_utf8_is_violation() -> anyhow::Result<()> {
+    fn an_unreadable_sunset_is_a_timestamp_defect() -> anyhow::Result<()> {
         let rule = DateAndTimeHeadersConsistent;
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
 
@@ -743,9 +728,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let m = v.unwrap().message;
-        assert!(m.contains("Sunset header contains non-UTF8"));
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "http_date_malformed");
         Ok(())
     }
 
