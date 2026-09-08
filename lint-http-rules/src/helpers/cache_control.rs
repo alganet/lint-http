@@ -189,8 +189,16 @@ impl MemberDefect<'_> {
             Self::NameEmpty(member) => {
                 format!("Empty directive name in Cache-Control member: '{}'", member)
             }
+            // Named rather than written through: the callers read the field
+            // as octets, so this may be an `obs-text` byte a recipient is told
+            // to treat as opaque -- `0xE9` is what it is, `é` a reading of it.
+            // Every octet the old string reader could deliver renders exactly
+            // as it did, because the quotes are the helper's.
             Self::NameCharacter(c) => {
-                format!("Directive name contains invalid character: '{}'", c)
+                format!(
+                    "Directive name contains invalid character: {}",
+                    crate::helpers::shown::describe_char(c)
+                )
             }
         }
     }

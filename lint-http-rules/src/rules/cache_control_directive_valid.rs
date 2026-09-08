@@ -28,10 +28,6 @@ pub struct CacheControlDirectiveValid;
 /// measures is one another field already reports through. What stays unnamed is
 /// the part its neighbour does not read — what each *named* directive means by
 /// its argument — which is the only thing left here that no production says.
-///
-/// The non-UTF-8 site stays on the old API, with open question 1's reasoning:
-/// the verdict names an encoding where the defect is an octet the grammar does
-/// not admit, and the right conversion is an octet-wise reader first.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -94,35 +90,31 @@ impl Defect {
 impl CacheControlDirectiveValid {
     /// The first defect in one message's `Cache-Control` field, if it has one.
     ///
-    /// Read line by line rather than over the whole section, because an
-    /// unreadable line is one of the findings and the field line is what that
-    /// finding is about. Where the members come from, and which of them the
-    /// grammar's `#element` even admits, is
-    /// [`crate::helpers::cache_control`]'s answer.
+    /// Read over the whole section and as octets. `Cache-Control =
+    /// #cache-directive` makes the field lines of a section one list, and a
+    /// directive name holding an octet outside visible US-ASCII is a `token`
+    /// defect rather than a fact about the field's encoding — which is what
+    /// reading line by line through the string reader made it. Where the
+    /// members come from, and which of them the grammar's `#element` even
+    /// admits, is [`crate::helpers::cache_control`]'s answer.
     fn defect(
         &self,
         headers: &hyper::HeaderMap,
         side: &str,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        for line in headers.get_all("cache-control").iter() {
-            let Ok(line) = line.to_str() else {
-                return Some(self.violation(
-                    ctx.severity,
-                    "Cache-Control header contains non-UTF8 value".into(),
-                ));
-            };
-            for member in crate::helpers::cache_control::members_of(line) {
-                if let Some(defect) = member_defect(member) {
-                    let message = format!(
-                        "Invalid Cache-Control header in {}: {}",
-                        side, defect.message
-                    );
-                    return Some(match defect.def {
-                        Some(def) => ctx.report_with(def, message),
-                        None => self.violation(ctx.severity, message),
-                    });
-                }
+        let value =
+            crate::helpers::headers::combined_field_value_as_written(headers, "cache-control")?;
+        for member in crate::helpers::cache_control::members_of(&value) {
+            if let Some(defect) = member_defect(member) {
+                let message = format!(
+                    "Invalid Cache-Control header in {}: {}",
+                    side, defect.message
+                );
+                return Some(match defect.def {
+                    Some(def) => ctx.report_with(def, message),
+                    None => self.violation(ctx.severity, message),
+                });
             }
         }
         None
@@ -464,7 +456,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_value_is_violation() -> anyhow::Result<()> {
+    fn an_obs_text_octet_in_a_directive_name_is_a_token_defect() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = CacheControlDirectiveValid;
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -478,7 +470,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(
+            v.message,
+            "Invalid Cache-Control header in request: Directive name contains invalid character: 0xFF"
+        );
         Ok(())
     }
 
@@ -709,7 +706,7 @@ mod tests {
     }
 
     #[test]
-    fn response_non_utf8_value_is_violation() -> anyhow::Result<()> {
+    fn a_responses_obs_text_octet_is_the_same_token_defect() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = CacheControlDirectiveValid;
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -730,7 +727,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(
+            v.message,
+            "Invalid Cache-Control header in response: Directive name contains invalid character: 0xFF"
+        );
         Ok(())
     }
 

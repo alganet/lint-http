@@ -29,11 +29,6 @@ use crate::violations::ViolationDef;
 /// words, which is one of the fourteen duplicate templates the campaign's
 /// measurement found; when it converts, the two rules will report one id apiece
 /// rather than two identical sentences under two rule names.
-///
-/// The non-UTF-8 site stays on the old API. Its verdict is the wrong claim —
-/// `to_str` refuses every octet outside visible US-ASCII, so the finding names
-/// an encoding where the defect is an octet the grammar does not admit — and
-/// the right conversion is an octet-wise reader first, not a def for the claim.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -47,7 +42,7 @@ static DECLARED: &[&ViolationDef] = &[
 
 /// `Pragma` header directives must follow `directive = token ["=" ( token / quoted-string )]`
 /// and be syntactically valid. This rule flags invalid tokens, malformed quoted-strings,
-/// non-UTF8 header values, and empty list members.
+/// empty list members, and directive names holding an octet no `tchar` admits.
 ///
 /// RFC 9111 §5.4 defines `Pragma` (an HTTP/1.0 request field) but *deprecates* it and no
 /// longer specifies a grammar for it; the `token ["=" (token / quoted-string)]` directive
@@ -78,7 +73,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "The `Pragma` header directives must follow directive syntax: a `token` optionally followed by `=token` or `=\"quoted-string\"`.\nThis rule flags malformed directives, invalid token characters, empty members, and non-UTF8 header values.\n`Pragma` is deprecated by RFC 9111 §5.4, which no longer specifies its grammar; this validates the historical HTTP/1.0 directive syntax (originally RFC 7234 §5.4)."
+        "The `Pragma` header directives must follow directive syntax: a `token` optionally followed by `=token` or `=\"quoted-string\"`.\nThis rule flags malformed directives, invalid token characters and empty members. The value is read as octets over the whole field section, so an octet outside visible US-ASCII in a directive name is reported as the character the production does not admit — not as a verdict about the field's encoding, which is what the reader this replaces made of it.\n`Pragma` is deprecated by RFC 9111 §5.4, which no longer specifies its grammar; this validates the historical HTTP/1.0 directive syntax (originally RFC 7234 §5.4)."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -129,60 +124,54 @@ impl Rule for PragmaTokenValid {
     ) -> Vec<Violation> {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
-        let finding =
-            || -> Option<Violation> {
-                // Validate request headers
-                // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
-                for header_val in tx.request.headers.get_all("pragma").iter() {
-                    if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
-                        // An entirely empty Pragma value is a legal zero-element list, distinct from
-                        // an empty element *within* a list (flagged in check_pragma_value). Skip it.
-                        if v.is_empty() {
-                            continue;
-                        }
-                        if let Some((def, msg)) = check_pragma_value(v) {
-                            return Some(ctx.report_with(
-                                def,
-                                format!("Invalid Pragma header in request: {}", msg),
-                            ));
-                        }
-                    } else {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Pragma header contains non-UTF8 value".into(),
+        let finding = || -> Option<Violation> {
+            // Validate request headers
+            // cite(RFC 9111 § 5.4): "The "Pragma" request header field was defined for HTTP/1.0 caches, so that clients could specify a "no-cache" request"
+            // Read as octets, and over the section: the historical
+            // production is a `#`-list, so the field lines of one section
+            // are one list, and an octet outside visible US-ASCII in a
+            // directive name is the `token`'s defect rather than a verdict
+            // about the field's encoding.
+            if let Some(v) = crate::helpers::headers::combined_field_value_as_written(
+                &tx.request.headers,
+                "pragma",
+            ) {
+                // An entirely empty Pragma value is a legal zero-element list, distinct from
+                // an empty element *within* a list (flagged in check_pragma_value). Skip it.
+                let v = v.trim();
+                if !v.is_empty() {
+                    if let Some((def, msg)) = check_pragma_value(v) {
+                        return Some(ctx.report_with(
+                            def,
+                            format!("Invalid Pragma header in request: {}", msg),
                         ));
                     }
                 }
+            }
 
-                // Validate response headers too. Pragma is a deprecated request field whose meaning in
-                // responses was never specified (§5.4 Note), so this is a pure well-formedness check for
-                // a field that should not appear here at all.
-                // cite(RFC 9111 § 5.4): "As a result, this specification deprecates Pragma."
-                if let Some(resp) = &tx.response {
-                    for header_val in resp.headers.get_all("pragma").iter() {
-                        if let Some(v) = header_val.to_str().ok().map(|s| s.trim()) {
-                            // An entirely empty Pragma value is a legal zero-element list, distinct from
-                            // an empty element *within* a list (flagged in check_pragma_value). Skip it.
-                            if v.is_empty() {
-                                continue;
-                            }
-                            if let Some((def, msg)) = check_pragma_value(v) {
-                                return Some(ctx.report_with(
-                                    def,
-                                    format!("Invalid Pragma header in response: {}", msg),
-                                ));
-                            }
-                        } else {
-                            return Some(self.violation(
-                                ctx.severity,
-                                "Pragma header contains non-UTF8 value".into(),
+            // Validate response headers too. Pragma is a deprecated request field whose meaning in
+            // responses was never specified (§5.4 Note), so this is a pure well-formedness check for
+            // a field that should not appear here at all.
+            // cite(RFC 9111 § 5.4): "As a result, this specification deprecates Pragma."
+            if let Some(resp) = &tx.response {
+                if let Some(v) = crate::helpers::headers::combined_field_value_as_written(
+                    &resp.headers,
+                    "pragma",
+                ) {
+                    let v = v.trim();
+                    if !v.is_empty() {
+                        if let Some((def, msg)) = check_pragma_value(v) {
+                            return Some(ctx.report_with(
+                                def,
+                                format!("Invalid Pragma header in response: {}", msg),
                             ));
                         }
                     }
                 }
+            }
 
-                None
-            };
+            None
+        };
         Vec::from_iter(finding())
     }
 }
@@ -218,7 +207,10 @@ fn check_pragma_value(s: &str) -> Option<(&'static ViolationDef, String)> {
         if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
             return Some((
                 token_character(c),
-                format!("Directive name contains invalid character: '{}'", c),
+                format!(
+                    "Directive name contains invalid character: {}",
+                    crate::helpers::shown::describe_char(c)
+                ),
             ));
         }
 
@@ -478,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_value_is_violation() -> anyhow::Result<()> {
+    fn an_obs_text_octet_in_a_directive_name_is_a_token_defect() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = PragmaTokenValid;
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -492,7 +484,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(
+            v.message,
+            "Invalid Pragma header in request: Directive name contains invalid character: 0xFF"
+        );
         Ok(())
     }
 
@@ -510,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn response_non_utf8_value_is_violation() -> anyhow::Result<()> {
+    fn a_responses_obs_text_octet_is_the_same_token_defect() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = PragmaTokenValid;
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -530,7 +527,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(
+            v.message,
+            "Invalid Pragma header in response: Directive name contains invalid character: 0xFF"
+        );
         Ok(())
     }
 
