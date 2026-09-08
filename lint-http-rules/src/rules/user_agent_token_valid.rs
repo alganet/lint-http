@@ -4,6 +4,30 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::token::{
+    product_defect, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::ViolationDef;
+
+/// Both halves of a `product` are a `token`, and that is all this rule borrows.
+///
+/// `product = token [ "/" product-version ]` with `product-version = token`, so
+/// a name and a version are one production at two positions — the same shape
+/// `Upgrade`'s `protocol-name` and `protocol-version` have — and the mirror
+/// rule on the other field answers with the same ids.
+///
+/// What stays unnamed is the assembly: a value that opens with a comment, two
+/// elements with no `RWS` between them, an empty value. One reader measures all
+/// of it, and a statement a construct makes about its own parts is not a
+/// borrowed production's defect. The comment's four verdicts stay with it —
+/// two of them are `quoted-pair`'s, whose id is spelled for the other construct
+/// that shares the escape.
+static DECLARED: &[&ViolationDef] = &[
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+];
 
 pub struct UserAgentTokenValid;
 
@@ -39,7 +63,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_10_1_5, RFC_9110_5_6_5]
+        &[RFC_9110_10_1_5, RFC_9110_5_6_5, RFC_9110_5_6_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -148,10 +176,12 @@ impl Rule for UserAgentTokenValid {
                 // conforming value need not be visible US-ASCII and the decode would
                 // reject the field before the grammar could accept it.
                 // cite(RFC 9110 § 5.5): "A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data."
-                if let Err(e) = crate::helpers::product::validate_product_list(hv.as_bytes()) {
-                    return Some(
-                        self.violation(ctx.severity, format!("Invalid User-Agent header: {}", e)),
-                    );
+                if let Err(defect) = crate::helpers::product::check_product_list(hv.as_bytes()) {
+                    let message = format!("Invalid User-Agent header: {}", defect.message());
+                    return Some(match product_defect(defect) {
+                        Some(def) => ctx.report_with(def, message),
+                        None => self.violation(ctx.severity, message),
+                    });
                 }
             }
 

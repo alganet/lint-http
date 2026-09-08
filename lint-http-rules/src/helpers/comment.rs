@@ -42,7 +42,7 @@ fn is_ctext(b: u8) -> bool {
 ///
 /// Takes octets rather than a `&str` because `ctext` admits `obs-text`
 /// (%x80-FF): a conforming comment need not be visible US-ASCII.
-pub fn scan_comment(v: &[u8], start: usize) -> Result<usize, String> {
+pub fn scan_comment(v: &[u8], start: usize) -> Result<usize, CommentDefect> {
     // cite(RFC 9110 § 5.6.5): "comment        = "(" *( ctext / quoted-pair / comment ) ")""
     let mut i = start + 1;
     let mut depth = 1usize;
@@ -54,13 +54,10 @@ pub fn scan_comment(v: &[u8], start: usize) -> Result<usize, String> {
             // cite(RFC 9110 § 5.6.4): "The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs."
             // cite(RFC 9110 § A): "quoted-pair = "\" ( HTAB / SP / VCHAR / obs-text )"
             let Some(&next) = v.get(i + 1) else {
-                return Err("comment ends with a dangling backslash".into());
+                return Err(CommentDefect::TrailingEscape);
             };
             if !(next == b'\t' || (0x20..=0x7e).contains(&next) || next >= 0x80) {
-                return Err(format!(
-                    "comment contains an invalid quoted-pair: {}",
-                    describe_octet(next)
-                ));
+                return Err(CommentDefect::BadQuotedPair(next));
             }
             i += 2;
             continue;
@@ -74,16 +71,50 @@ pub fn scan_comment(v: &[u8], start: usize) -> Result<usize, String> {
                 return Ok(i + 1);
             }
         } else if !is_ctext(b) {
-            return Err(format!(
-                "comment contains invalid character: {}",
-                describe_octet(b)
-            ));
+            return Err(CommentDefect::BadCharacter(b));
         }
 
         i += 1;
     }
 
-    Err("unterminated parenthesized comment".into())
+    Err(CommentDefect::Unterminated)
+}
+
+/// Why a value is not a `comment`.
+///
+/// Two of the four are the production's own — a comment that never closes, an
+/// octet `ctext` does not admit — and two are `quoted-pair`'s, which § 5.6.4
+/// defines for `quoted-string` **and** for this construct. That split is why
+/// this type is not simply the quoted-string's: the escape is shared and the
+/// container is not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommentDefect {
+    /// A backslash with nothing after it.
+    TrailingEscape,
+    /// A backslash before an octet `quoted-pair` does not admit.
+    BadQuotedPair(u8),
+    /// An octet outside `ctext`, the parentheses and the backslash aside.
+    BadCharacter(u8),
+    /// The value ended with the comment still open.
+    Unterminated,
+}
+
+impl CommentDefect {
+    /// The finding fragment. Callers name the field and the member the comment
+    /// sat in, and put this after it.
+    pub fn message(self) -> String {
+        match self {
+            Self::TrailingEscape => "comment ends with a dangling backslash".to_string(),
+            Self::BadQuotedPair(b) => format!(
+                "comment contains an invalid quoted-pair: {}",
+                describe_octet(b)
+            ),
+            Self::BadCharacter(b) => {
+                format!("comment contains invalid character: {}", describe_octet(b))
+            }
+            Self::Unterminated => "unterminated parenthesized comment".to_string(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -107,8 +138,29 @@ mod tests {
 
     #[test]
     fn an_unterminated_comment_is_an_error() {
-        assert!(scan_comment(b"(a b", 0)
-            .expect_err("no closing paren")
+        assert_eq!(
+            scan_comment(b"(a b", 0),
+            Err(CommentDefect::Unterminated),
+            "no closing paren"
+        );
+        assert!(CommentDefect::Unterminated
+            .message()
             .contains("unterminated"));
+    }
+
+    /// The four verdicts, as verdicts. Two of them are `quoted-pair`'s rather
+    /// than the comment's, which is what the type keeps apart and a rendered
+    /// sentence did not.
+    #[test]
+    fn each_way_a_comment_fails_is_its_own_verdict() {
+        assert_eq!(scan_comment(b"(a\\", 0), Err(CommentDefect::TrailingEscape));
+        assert_eq!(
+            scan_comment(b"(a\\\x01b)", 0),
+            Err(CommentDefect::BadQuotedPair(0x01))
+        );
+        assert_eq!(
+            scan_comment(b"(a\x00b)", 0),
+            Err(CommentDefect::BadCharacter(0x00))
+        );
     }
 }
