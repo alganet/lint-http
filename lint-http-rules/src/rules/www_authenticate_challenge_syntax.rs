@@ -127,9 +127,19 @@ impl Rule for WwwAuthenticateChallengeSyntax {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
-            // Only check response headers; ignore non-UTF8 header values
+            // Read as octets and over the section. The reader this replaces
+            // skipped a field line it could not read as text, which made an
+            // octet outside visible US-ASCII invisible to the only rule that
+            // measures this field's grammar -- where it belongs to whichever
+            // production it landed in, and every one of them is declared here.
+            // `WWW-Authenticate = #challenge` is also why the lines are joined:
+            // they are one list.
             if let Some(resp) = &tx.response {
-                for s in crate::helpers::headers::field_lines(&resp.headers, "www-authenticate") {
+                if let Some(s) = crate::helpers::headers::combined_field_value_as_written(
+                    &resp.headers,
+                    "www-authenticate",
+                ) {
+                    let s = s.as_str();
                     // Group members into assembled challenges using the helper so we can
                     // test the grouping logic independently and exercise more branches.
                     // cite(RFC 9110 § 11.6.1): "The "WWW-Authenticate" response header field indicates the authentication scheme(s) and parameters applicable to the target resource."
@@ -272,28 +282,56 @@ mod tests {
         assert_eq!(v.severity, severity, "{}", v.message);
     }
 
+    /// This used to assert that a value the string reader refuses is
+    /// *ignored*, which was the reader's behaviour dressed as a reading: the
+    /// field's own grammar has a place for every octet — the scheme's `token`,
+    /// a `token68`, an `auth-param`'s two halves — and an octet outside
+    /// visible US-ASCII is outside all of them.
     #[test]
-    fn non_utf8_header_values_are_ignored() {
+    fn an_obs_text_octet_is_the_productions_defect() {
         let rule = WwwAuthenticateChallengeSyntax;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "www_authenticate_challenge_syntax",
         ]);
 
-        let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
-        let mut hm = hyper::HeaderMap::new();
-        hm.insert(
-            "www-authenticate",
-            hyper::header::HeaderValue::from_bytes(b"\xff").unwrap(),
-        );
-        tx.response.as_mut().unwrap().headers = hm;
+        let judge = |value: &[u8]| {
+            let mut tx = crate::test_helpers::make_test_transaction_with_response(401, &[]);
+            let mut hm = hyper::HeaderMap::new();
+            hm.insert(
+                "www-authenticate",
+                hyper::header::HeaderValue::from_bytes(value).unwrap(),
+            );
+            tx.response.as_mut().unwrap().headers = hm;
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+        };
 
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+        // Where the octet lands decides what is said about it. In the position
+        // a scheme would have started, the member is not a `token` and so
+        // begins no challenge — which is what the list says when a continuation
+        // arrives with nothing before it. In the `token68`, it is outside that
+        // production's alphabet. Inside a `quoted-string` it is `qdtext` and
+        // conforming, which the reader that refused the whole value could not
+        // say.
+        assert_eq!(
+            judge(b"B\xffasic realm=\"x\"")
+                .expect("a finding")
+                .violation,
+            "challenge_scheme_missing"
         );
-        assert!(v.is_none());
+        assert_eq!(
+            judge(b"\xff").expect("a finding").violation,
+            "challenge_scheme_missing"
+        );
+        assert_eq!(
+            judge(b"Basic ab\xffcd").expect("a finding").violation,
+            "challenge_token68_invalid"
+        );
+        assert!(judge(b"Basic realm=\"a\xffb\"").is_none());
     }
 
     #[test]

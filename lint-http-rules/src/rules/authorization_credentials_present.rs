@@ -20,10 +20,10 @@ pub struct AuthorizationCredentialsPresent;
 /// server's `WWW-Authenticate`, because `auth-scheme = token` is written once
 /// and used from both directions.
 ///
-/// The non-UTF-8 finding below is not here on purpose: the verdict it reports
-/// names an encoding where the defect is an octet the field's grammar does not
-/// admit, and the conversion it needs is an octet-wise reader rather than a
-/// name for the claim as it stands.
+/// **There is no non-UTF-8 finding any more.** The verdict it reported named an
+/// encoding where the defect is an octet the field's grammar does not admit; the
+/// value is read as octets now, and each octet reaches the production that
+/// refuses it — or, in the credentials, the scheme's own document next door.
 static DECLARED: &[&ViolationDef] = &[
     &CREDENTIALS_EMPTY,
     &CREDENTIALS_MISSING,
@@ -117,30 +117,24 @@ impl Rule for AuthorizationCredentialsPresent {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
+            // Read as octets. `to_str` refuses everything outside visible
+            // US-ASCII, which made an octet in the credentials a verdict about
+            // the field's encoding; the productions here own that octet -- the
+            // scheme's `token`, and each scheme's own credential grammar next
+            // door.
             for hv in tx.request.headers.get_all("authorization").iter() {
-                match hv.to_str() {
-                    Ok(s) => {
-                        // The Authorization value is credentials — an auth-scheme with its
-                        // authentication information — which is the structure validated here.
-                        // The "credentials must actually be present" half is scheme-derived
-                        // (the framework grammar permits a bare scheme); the helper owns that
-                        // reasoning and the §11.4 structure cite.
-                        // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
-                        if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(s)
-                        {
-                            return Some(ctx.report_with(
-                                credentials_defect(defect),
-                                format!("Invalid Authorization header: {}", defect.message()),
-                            ));
-                        }
-                    }
-                    Err(_) => {
-                        return Some(self.cited(
-                            &RFC_9110_11_6_2,
-                            ctx.severity,
-                            "Authorization header contains non-UTF8 value".into(),
-                        ))
-                    }
+                let s = crate::helpers::headers::field_line_as_written(hv);
+                // The Authorization value is credentials — an auth-scheme with its
+                // authentication information — which is the structure validated here.
+                // The "credentials must actually be present" half is scheme-derived
+                // (the framework grammar permits a bare scheme); the helper owns that
+                // reasoning and the §11.4 structure cite.
+                // cite(RFC 9110 § 11.6.2): "Its value consists of credentials containing the authentication information of the user agent for the realm of the resource being requested"
+                if let Err(defect) = crate::helpers::auth::validate_authorization_syntax(&s) {
+                    return Some(ctx.report_with(
+                        credentials_defect(defect),
+                        format!("Invalid Authorization header: {}", defect.message()),
+                    ));
                 }
             }
             None
@@ -251,27 +245,36 @@ mod tests {
         );
     }
 
+    /// An octet outside visible US-ASCII is read rather than refused, and
+    /// where it lands decides whether this rule has anything to say. In the
+    /// scheme it is the `token`'s defect and reports here; in the credentials
+    /// it is the scheme's own grammar's — `b64token`, a Base64 alphabet, a set
+    /// of `auth-param`s — and this rule is silent, because the framework
+    /// production it enforces is satisfied. The value used to be reported as
+    /// *non-UTF8* either way, which named the reader rather than the field.
     #[test]
-    fn non_utf8_header_reports_violation() -> anyhow::Result<()> {
+    fn an_obs_text_octet_is_read_where_it_lands() -> anyhow::Result<()> {
         let rule = AuthorizationCredentialsPresent;
         use crate::test_helpers::make_test_transaction;
         use hyper::header::HeaderValue;
 
-        let mut tx = make_test_transaction();
-        tx.request.headers.append(
-            "authorization",
-            HeaderValue::from_bytes(b"Bearer \xff").unwrap(),
-        );
+        let judge = |value: &[u8]| {
+            let mut tx = make_test_transaction();
+            tx.request
+                .headers
+                .append("authorization", HeaderValue::from_bytes(value).unwrap());
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+        };
 
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8") || msg.contains("Invalid Authorization"));
+        assert!(judge(b"Bearer \xff").is_none());
+
+        let v = judge(b"B\xffarer abc").expect("a finding");
+        assert_eq!(v.violation, "auth_scheme_character_forbidden");
         Ok(())
     }
 

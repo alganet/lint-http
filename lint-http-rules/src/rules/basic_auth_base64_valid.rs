@@ -97,51 +97,43 @@ impl Rule for BasicAuthBase64Valid {
         // Single-finding body behind an Option: `?` ends it early, and the
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
+            // Read as octets: the credential is Base64, whose alphabet is
+            // where an octet outside visible US-ASCII belongs, and the reader
+            // that refused the value outright reported it as the field's
+            // encoding instead.
             for hv in tx.request.headers.get_all("authorization").iter() {
-                match hv.to_str() {
-                    Ok(s) => {
-                        // Scheme names match case-insensitively.
-                        // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
-                        let mut parts = s.splitn(2, char::is_whitespace);
-                        let scheme = parts.next().unwrap_or("").trim();
-                        if scheme.eq_ignore_ascii_case("Basic") {
-                            let creds = parts.next().unwrap_or("").trim();
-                            if creds.is_empty() {
-                                // The framework's defect rather than this
-                                // scheme's: a scheme with nothing after it is
-                                // what `credentials` says must not happen,
-                                // whichever scheme was named.
-                                return Some(ctx.report_with(
-                                    &CREDENTIALS_MISSING,
-                                    "Basic Authorization missing credentials".into(),
-                                ));
-                            }
-                            // The rule's own claim: the credential the client sends encodes a
-                            // user-id and password. How that value is built and checked — the
-                            // Base64 alphabet, the ":" separator, control characters — is owned
-                            // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
-                            // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
-                            if let Err(defect) =
-                                crate::helpers::auth::validate_basic_credentials(creds)
-                            {
-                                return Some(ctx.report_with(
-                                    basic_credentials_defect(&defect),
-                                    format!(
-                                        "Invalid Basic credentials: {} (RFC 7617)",
-                                        defect.message()
-                                    ),
-                                ));
-                            }
-                        }
+                let s = crate::helpers::headers::field_line_as_written(hv);
+                let s = s.as_str();
+                // Scheme names match case-insensitively.
+                // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
+                let mut parts = s.splitn(2, char::is_whitespace);
+                let scheme = parts.next().unwrap_or("").trim();
+                if scheme.eq_ignore_ascii_case("Basic") {
+                    let creds = parts.next().unwrap_or("").trim();
+                    if creds.is_empty() {
+                        // The framework's defect rather than this
+                        // scheme's: a scheme with nothing after it is
+                        // what `credentials` says must not happen,
+                        // whichever scheme was named.
+                        return Some(ctx.report_with(
+                            &CREDENTIALS_MISSING,
+                            "Basic Authorization missing credentials".into(),
+                        ));
                     }
-                    Err(_) => {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Authorization header contains non-UTF8 value".into(),
-                        ))
+                    // The rule's own claim: the credential the client sends encodes a
+                    // user-id and password. How that value is built and checked — the
+                    // Base64 alphabet, the ":" separator, control characters — is owned
+                    // by validate_basic_credentials (RFC 7617 §2 / RFC 4648).
+                    // cite(RFC 7617 § 2): "The value is computed based on user-id and password as defined below."
+                    if let Err(defect) = crate::helpers::auth::validate_basic_credentials(creds) {
+                        return Some(ctx.report_with(
+                            basic_credentials_defect(&defect),
+                            format!("Invalid Basic credentials: {} (RFC 7617)", defect.message()),
+                        ));
                     }
                 }
             }
+
             None
         };
         Vec::from_iter(finding())
@@ -307,8 +299,12 @@ mod tests {
         assert!(v2.unwrap().message.contains("missing credentials"));
     }
 
+    /// An octet outside visible US-ASCII is an octet the Base64 alphabet does
+    /// not hold, which is what the credential is measured against — not a
+    /// verdict about the field's encoding, which is what the reader this
+    /// replaces reported.
     #[test]
-    fn non_utf8_authorization_reports_violation() {
+    fn an_obs_text_octet_is_outside_the_base64_alphabet() {
         let mut tx = crate::test_helpers::make_test_transaction();
         tx.request.headers.append(
             "authorization",
@@ -320,9 +316,9 @@ mod tests {
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-UTF8"));
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "base64_malformed");
     }
 
     #[test]
