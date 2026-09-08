@@ -43,6 +43,8 @@ Reading it from that document rather than from RFC 9110 changes three answers.
 - [RFC 9110 §2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-2.2): The sender MUST NOT behind every grammar finding here: a value that derives from none of the productions is a protocol element matching no ABNF rule
 - [RFC 2616 §19.6.2](https://www.rfc-editor.org/rfc/rfc2616.html#section-19.6.2): Where the grammar stopped being restated: RFC 2616 kept the compatibility discussion and sent the reader back to RFC 2068 for the field itself. The same shape as RFC 9111 §5.5 and `Warning`
 - [IANA HTTP Field Name Registry](https://www.iana.org/assignments/http-fields/http-fields.xhtml): `Keep-Alive` is registered `permanent`, with RFC 2068 as its only reference — not `obsoleted`, unlike `Warning`. Corroboration for reading an obsoleted document, not an authority this rule enforces
+- [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 
 ## Configuration
 
