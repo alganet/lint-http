@@ -9,8 +9,108 @@ use crate::helpers::uri::{find_non_uri_char, validate_scheme_name};
 use crate::helpers::word::parse_token_bws_word;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
+use crate::violations::language::{
+    tag_defect, LANGUAGE_TAG_CHARACTER_FORBIDDEN, LANGUAGE_TAG_EDGE_HYPHEN_FORBIDDEN,
+    LANGUAGE_TAG_EMPTY, LANGUAGE_TAG_LEADING_LETTER_MISSING, LANGUAGE_TAG_SUBTAG_EMPTY,
+    LANGUAGE_TAG_SUBTAG_LENGTH_INVALID, LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_5646_2_1,
+};
+use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
+use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
+use crate::violations::quoted_string::{
+    QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN, QUOTED_STRING_DELIMITER_MISSING,
+    QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::token::{
+    token_bws_word_defect, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
+    TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::uri::{
+    scheme_name, RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
+    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+};
+use crate::violations::ViolationDef;
 
 pub struct LinkHeaderValid;
+
+/// Every production this field is assembled from, and none of its assembly.
+///
+/// `Link = #link-value` with `link-value = "<" URI-Reference ">" *( OWS ";"
+/// OWS link-param )` and `link-param = token BWS [ "=" BWS ( token /
+/// quoted-string ) ]`: § 1.1's import list says in as many words that the
+/// `#rule`, the `token`, the `quoted-string` and the `BWS` are RFC 9110's and
+/// the `URI-Reference` is RFC 3986's, so an octet a parameter name may not
+/// hold answers here with the id an `Upgrade`, a `Via` or a `Content-Type`
+/// parameter answers with. The two per-attribute value grammars § 3.4.1 prints
+/// are imported the same way: an `hreflang` is RFC 5646's `Language-Tag`, the
+/// same production `Content-Language` carries.
+///
+/// What stays this rule's own is everything the *serialisation* says about how
+/// those parts go together — a target with no brackets around it, content
+/// after the one that closed, a `;` owing a parameter, `rel` missing or
+/// written twice, a relation type deriving from neither of § 3.3's
+/// alternatives — and the two findings HTML states about a `preload`, which no
+/// RFC asks for at all.
+static DECLARED: &[&ViolationDef] = &[
+    &LIST_MEMBER_EMPTY,
+    &TOKEN_EMPTY,
+    &TOKEN_CHARACTER_FORBIDDEN,
+    &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
+    &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &QUOTED_PAIR_MALFORMED,
+    &BWS_FORBIDDEN,
+    &URI_CHARACTER_FORBIDDEN,
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &LANGUAGE_TAG_EMPTY,
+    &LANGUAGE_TAG_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &LANGUAGE_TAG_CHARACTER_FORBIDDEN,
+    &LANGUAGE_TAG_EDGE_HYPHEN_FORBIDDEN,
+    &LANGUAGE_TAG_LEADING_LETTER_MISSING,
+    &LANGUAGE_TAG_SUBTAG_EMPTY,
+    &LANGUAGE_TAG_SUBTAG_LENGTH_INVALID,
+];
+
+/// One finding from the reading, and the defect it reports as where the
+/// catalogue names that defect.
+///
+/// The shape `expect_header_valid` settled. Here the named half is every
+/// character question the field asks and the unnamed half is the
+/// serialisation's own — which is what a field defined as an assembly of five
+/// other documents' productions looks like from the inside.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed: this serialisation's own statement
+    /// about how a `link-value` is put together, or HTML's about what it does
+    /// with one.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+
+    /// The same defect with its message read from further out — the member it
+    /// was in, the direction the field travelled in.
+    fn in_context(self, context: impl FnOnce(String) -> String) -> Self {
+        Self {
+            def: self.def,
+            message: context(self.message),
+        }
+    }
+}
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -110,22 +210,6 @@ const RFC_9110_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "The sender MUST NOT behind every grammar finding here: a member deriving \
            from none of §3's productions is a protocol element matching no ABNF rule",
 };
-const RFC_9110_5_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.1",
-    note: "The list construct: `#` sets no minimum, so an empty `Link:` declares no \
-           link rather than declaring one badly — and a sender MUST NOT write an \
-           empty element between two real ones",
-};
-const RFC_9110_5_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.6.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.3",
-    note: "`BWS` is admitted beside the `=` for historical reasons and a sender MUST \
-           NOT generate it — the half of the production that makes the recipient's \
-           trim required and the sender's whitespace a finding",
-};
 const RFC_9110_5_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.2"),
@@ -141,15 +225,6 @@ const RFC_3986_3: crate::rules::SpecRef = crate::rules::SpecRef {
     note: "`URI` — the production `ext-rel-type` is, and the reason a relation type \
            with a scheme is read as one instead of being measured against `tchar`. \
            `URI-Reference` (§4.1) is the target's",
-};
-const RFC_5646_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 5646",
-    section: Some("2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
-    note: "Syntax: `Language-Tag`, the whole of §3.4.1's ABNF for an `hreflang` \
-           value. What is enforced is the catalogue's shared conservative floor — \
-           subtag shape, from this section's prose — not the full grammar and not \
-           the registry",
 };
 const RFC_6838_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6838",
@@ -321,9 +396,13 @@ severity = "warn"
             RFC_8288_1_2,
             RFC_9110_2_2,
             RFC_9110_5_6_1_1,
+            RFC_9110_5_6_2,
             RFC_9110_5_6_3,
+            RFC_9110_5_6_4,
             RFC_9110_5_2,
+            RFC_3986_2,
             RFC_3986_3,
+            RFC_3986_3_1,
             RFC_5646_2_1,
             RFC_6838_4_2,
             HTML_SEMANTICS_4_2_4_4,
@@ -331,6 +410,10 @@ severity = "warn"
             HTML_LINKS_4_6_8_20_2,
             RFC_8297_2,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -460,13 +543,16 @@ impl Rule for LinkHeaderValid {
                 return None;
             }
 
-            let message = judge(&tx.request.headers, "Request", false).or_else(|| {
+            let defect = judge(&tx.request.headers, "Request", false).or_else(|| {
                 tx.response
                     .as_ref()
                     .and_then(|resp| judge(&resp.headers, "Response", true))
             })?;
 
-            Some(self.violation(ctx.severity, message))
+            Some(match defect.def {
+                Some(def) => ctx.report_with(def, defect.message),
+                None => self.violation(ctx.severity, defect.message),
+            })
         };
         Vec::from_iter(finding())
     }
@@ -485,12 +571,12 @@ static REGISTRATION: &dyn crate::rules::Rule = &LinkHeaderValid;
 /// the angle brackets, and it is ordinary `qdtext` inside a `quoted-string`,
 /// which `title="caf\u{e9}"` is. Neither of those is *"the header contains a
 /// non-UTF8 value"*, and one of them is not a finding at all.
-fn judge(headers: &hyper::HeaderMap, side: &str, is_response: bool) -> Option<String> {
+fn judge(headers: &hyper::HeaderMap, side: &str, is_response: bool) -> Option<Defect> {
     let value = combined_field_value_as_written(headers, "link")?;
 
     validate_link(&value, is_response)
         .err()
-        .map(|e| format!("{side} Link header: {e}"))
+        .map(|defect| defect.in_context(|message| format!("{side} Link header: {message}")))
 }
 
 /// Validate a whole `Link` field value.
@@ -503,7 +589,7 @@ fn judge(headers: &hyper::HeaderMap, side: &str, is_response: bool) -> Option<St
 // cite(RFC 8288 § 1.2): "The requirements regarding conformance and error handling highlighted in [RFC7230], Section 2.5 apply to this document."
 // cite(RFC 9110 § 2.2): "A sender MUST NOT generate protocol elements that do not match the grammar defined by the corresponding ABNF rules."
 // cite(RFC 8288 § 3): "Link       = #link-value link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
-fn validate_link(value: &str, is_response: bool) -> Result<(), String> {
+fn validate_link(value: &str, is_response: bool) -> Result<(), Defect> {
     // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
     let v = trim_ows(value);
 
@@ -522,12 +608,14 @@ fn validate_link(value: &str, is_response: bool) -> Result<(), String> {
 
         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
         if member.is_empty() {
-            return Err(format!(
-                "member {n} is empty, and the list construct admits no empty element"
+            return Err(Defect::named(
+                &LIST_MEMBER_EMPTY,
+                format!("member {n} is empty, and the list construct admits no empty element"),
             ));
         }
 
-        validate_link_value(member, is_response).map_err(|e| format!("member {n} {e}"))?;
+        validate_link_value(member, is_response)
+            .map_err(|defect| defect.in_context(|message| format!("member {n} {message}")))?;
     }
 
     Ok(())
@@ -632,22 +720,22 @@ const AT_MOST_ONCE: &[&str] = &["rel", "media", "title", "title*", "type"];
 
 /// Validate one `link-value`.
 // cite(RFC 8288 § 3): "link-value = "<" URI-Reference ">" *( OWS ";" OWS link-param )"
-fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
+fn validate_link_value(member: &str, is_response: bool) -> Result<(), Defect> {
     let Some(rest) = member.strip_prefix('<') else {
-        return Err(format!(
+        return Err(Defect::unnamed(format!(
             "'{}' does not open with the '<' the production prints before its URI-Reference",
             shown_in_finding(member)
-        ));
+        )));
     };
 
     // `<` and `>` are neither of them URI characters, so the first `>` is the
     // one that closes the target -- there is no component of a `URI-Reference`
     // it could be sitting inside.
     let Some(close) = rest.find('>') else {
-        return Err(format!(
+        return Err(Defect::unnamed(format!(
             "'{}' has no '>' closing its URI-Reference",
             shown_in_finding(member)
-        ));
+        )));
     };
     let (target, after) = rest.split_at(close);
 
@@ -661,10 +749,13 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
     // the message's own context.
     // cite(RFC 8288 § 3.1): "Each link-value conveys one target IRI as a URI-Reference (after conversion to one, if necessary; see [RFC3987], Section 3.1) inside angle brackets ("<>")."
     if let Some(c) = find_non_uri_char(target) {
-        return Err(format!(
-            "target '{}' holds {}, which no URI-Reference admits",
-            shown_in_finding(target),
-            describe_char(c)
+        return Err(Defect::named(
+            &URI_CHARACTER_FORBIDDEN,
+            format!(
+                "target '{}' holds {}, which no URI-Reference admits",
+                shown_in_finding(target),
+                describe_char(c)
+            ),
         ));
     }
 
@@ -678,11 +769,11 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
         return missing_rel(member);
     }
     let Some(params_src) = after.strip_prefix(';') else {
-        return Err(format!(
+        return Err(Defect::unnamed(format!(
             "'{}' has '{}' after its '>', where the production admits only ';'-delimited parameters",
             shown_in_finding(member),
             shown_in_finding(after)
-        ));
+        )));
     };
 
     let mut seen: Vec<String> = Vec::new();
@@ -690,23 +781,40 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
     let mut as_value: Option<String> = None;
 
     for segment in split_semicolons_respecting_quotes(params_src) {
+        // Not the list's empty member: § 5.6.1.1's sentence is about the `#`
+        // construct and its commas, and this is `*( OWS ";" OWS link-param )`
+        // — a repetition RFC 8288 writes itself, with no bracket around the
+        // `link-param` inside it and no sentence anywhere about a `;` that
+        // carries nothing. So the missing parameter is this serialisation's
+        // finding and the missing member above is the shared one.
         if segment.is_empty() {
-            return Err(format!(
+            return Err(Defect::unnamed(format!(
                 "'{}' has a ';' with no link-param after it",
                 shown_in_finding(member)
-            ));
+            )));
         }
 
         // cite(RFC 8288 § 3): "link-param = token BWS [ "=" BWS ( token / quoted-string ) ]"
         // cite(RFC 8288 § 3): "Note that any link-param can be generated with values using either the token or the quoted-string syntax; therefore, recipients MUST be able to parse both forms."
         // cite(RFC 8288 § 3): "Individual link-params specify their syntax in terms of the value after any necessary unquoting"
         // cite(RFC 8288 § 1.1): "This document uses the Augmented Backus-Naur Form (ABNF) [RFC5234] notation of [RFC7230], including the #rule, and explicitly includes the following rules from it"
+        //
+        // The value's empty spelling is the one verdict the catalogue declines
+        // — `rel=` names no `word`, and what a field means by that is the
+        // field's own answer, which is why the shared mapping returns `None`
+        // for it. Here it is a finding, and it is RFC 8288's: the optional
+        // group makes the `=` itself optional, so a member writing one owes a
+        // `word` after it.
         let parsed = parse_token_bws_word(segment).map_err(|defect| {
-            format!(
+            let message = format!(
                 "parameter '{}' does not match link-param: {}",
                 shown_in_finding(segment),
                 defect.message(segment)
-            )
+            );
+            match token_bws_word_defect(&defect) {
+                Some(def) => Defect::named(def, message),
+                None => Defect::unnamed(message),
+            }
         })?;
 
         // The `BWS` is printed in this production, so the trim above is what a
@@ -717,9 +825,12 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
         // cite(RFC 9110 § 5.6.3): "A sender MUST NOT generate BWS in messages."
         // cite(RFC 9110 § 5.6.3): "A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element."
         if parsed.bws {
-            return Err(format!(
-                "parameter '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
-                shown_in_finding(segment)
+            return Err(Defect::named(
+                &BWS_FORBIDDEN,
+                format!(
+                    "parameter '{}' has whitespace around its '='; the grammar admits BWS there only for historical reasons",
+                    shown_in_finding(segment)
+                ),
             ));
         }
 
@@ -727,10 +838,10 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
         let name = parsed.name.to_ascii_lowercase();
 
         if AT_MOST_ONCE.contains(&name.as_str()) && seen.contains(&name) {
-            return Err(format!(
+            return Err(Defect::unnamed(format!(
                 "writes '{}' more than once, and this serialisation admits it at most once in a link-value",
                 parsed.name
-            ));
+            )));
         }
         match name.as_str() {
             "rel" => {
@@ -765,7 +876,12 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
             //
             // A valueless `hreflang` and an `hreflang=""` both arrive as the
             // empty string and fail the way `rel=` does: the production is
-            // the value's whole grammar, and there is no value. Every
+            // the value's whole grammar, and there is no value. The two
+            // answer to different documents once the ids are on them, and
+            // that is the split rather than an inconsistency — `rel`'s
+            // absence is §3.3 asking that parameter for a relation type,
+            // where this one is the imported production's own reader saying
+            // a tag of nothing is not a tag. Every
             // occurrence is judged, because repeating this attribute is
             // §3.4.1's own way of saying several languages are available, and
             // each repetition still owes the production.
@@ -773,10 +889,13 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
             "hreflang" => {
                 let value = parsed.value.as_deref().unwrap_or_default();
                 if let Err(why) = crate::helpers::language::validate_language_tag(value) {
-                    return Err(format!(
-                        "writes hreflang='{}', which does not derive from Language-Tag: {}",
-                        shown_in_finding(value),
-                        why.message()
+                    return Err(Defect::named(
+                        tag_defect(why),
+                        format!(
+                            "writes hreflang='{}', which does not derive from Language-Tag: {}",
+                            shown_in_finding(value),
+                            why.message()
+                        ),
                     ));
                 }
             }
@@ -784,11 +903,11 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
             "type" => {
                 let value = parsed.value.as_deref().unwrap_or_default();
                 if let Err(why) = type_value_defect(value) {
-                    return Err(format!(
+                    return Err(Defect::unnamed(format!(
                         "writes type='{}', which does not derive from type-name \"/\" subtype-name: {}",
                         shown_in_finding(value),
                         why
-                    ));
+                    )));
                 }
             }
             // `media` is the one §3.4.1 value grammar this catalogue does not
@@ -841,10 +960,10 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
     // cite(HTML Semantics § 4.2.4.4): "If attribs["as"] does not exist, then return false."
     if is_response && preloads {
         let Some(as_value) = as_value else {
-            return Err(format!(
+            return Err(Defect::unnamed(format!(
                 "'{}' asks for a preload with no 'as' parameter, so the HTML processing model for a response's Link headers stops before fetching anything",
                 shown_in_finding(member)
-            ));
+            )));
         };
 
         // The value takes the same early return the absent parameter does,
@@ -860,11 +979,11 @@ fn validate_link_value(member: &str, is_response: bool) -> Result<(), String> {
         // cite(HTML Semantics § 4.2.4.4): "If destination is null, then return false."
         // cite(HTML Semantics § 4.2.4.4): "If attribs["crossorigin"] exists and is an ASCII case-insensitive match for one of the CORS settings attribute keywords"
         if !PRELOAD_DESTINATIONS.contains(&as_value.as_str()) {
-            return Err(format!(
+            return Err(Defect::unnamed(format!(
                 "'{}' asks for a preload whose as='{}' names no preload destination (fetch, font, image, script, style, track, matched case-sensitively), so the HTML processing model for a response's Link headers stops before fetching anything",
                 shown_in_finding(member),
                 shown_in_finding(&as_value)
-            ));
+            )));
         }
     }
 
@@ -891,11 +1010,11 @@ const PRELOAD_DESTINATIONS: &[&str] = &["fetch", "font", "image", "script", "sty
 /// [`AT_MOST_ONCE`]'s.
 // cite(RFC 8288 § 3.3): "The relation type of a link conveyed in the Link header field is conveyed in the "rel" parameter's value."
 // cite(RFC 8288 § 3.3): "The rel parameter MUST be present but MUST NOT appear more than once in a given link-value; occurrences after the first MUST be ignored by parsers."
-fn missing_rel(member: &str) -> Result<(), String> {
-    Err(format!(
+fn missing_rel(member: &str) -> Result<(), Defect> {
+    Err(Defect::unnamed(format!(
         "'{}' carries no 'rel' parameter, and a link-value must have one",
         shown_in_finding(member)
-    ))
+    )))
 }
 
 /// Split a `rel` value into its relation types and judge each one.
@@ -907,17 +1026,17 @@ fn missing_rel(member: &str) -> Result<(), String> {
 /// all, because the production opens and closes on a `relation-type`.
 // cite(RFC 8288 § 3.3): "relation-type *( 1*SP relation-type )"
 // cite(RFC 8288 § 3.3): "The rel parameter can, however, contain multiple link relation types."
-fn validate_rel_value(value: &str) -> Result<Vec<&str>, String> {
+fn validate_rel_value(value: &str) -> Result<Vec<&str>, Defect> {
     if value.is_empty() {
-        return Err(
+        return Err(Defect::unnamed(
             "writes 'rel' with no value, where §3.3 asks it for one or more relation types".into(),
-        );
+        ));
     }
     if value.starts_with(' ') || value.ends_with(' ') {
-        return Err(format!(
+        return Err(Defect::unnamed(format!(
             "writes rel='{}', which opens or closes on a space the production does not admit",
             shown_in_finding(value)
-        ));
+        )));
     }
 
     let types: Vec<&str> = value.split(' ').filter(|t| !t.is_empty()).collect();
@@ -946,7 +1065,7 @@ fn validate_rel_value(value: &str) -> Result<Vec<&str>, String> {
 // cite(RFC 8288 § 3.3): "ext-rel-type   = URI ; Section 3 of [RFC3986]"
 // cite(RFC 8288 § 3.3): "Note that extension relation types are REQUIRED to be absolute URIs in Link header fields and MUST be quoted when they contain characters not allowed in tokens"
 // cite(RFC 8288 § 2.1.2): "When extension relation types are compared, they MUST be compared as strings (after converting to URIs if serialised in a different format) in a case-insensitive fashion, character by character."
-fn relation_type_defect(t: &str) -> Result<(), String> {
+fn relation_type_defect(t: &str) -> Result<(), Defect> {
     if is_reg_rel_type(t) {
         return Ok(());
     }
@@ -957,26 +1076,40 @@ fn relation_type_defect(t: &str) -> Result<(), String> {
     // neither alternative.
     // cite(RFC 3986 § 3.1): "scheme      = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )"
     let first_component = &t[..t.find(['/', '?', '#']).unwrap_or(t.len())];
+
+    // **The `:` is what commits the value to one half of the alternation, and
+    // that is what decides whether a borrowed id is true of it.** With no
+    // colon there is nothing to say the sender meant a URI at all — `Next` is
+    // a value deriving from neither production, which is `relation-type`'s own
+    // verdict and no component's — so that arm names nothing. Once a colon is
+    // written the value can only have been meant as an `ext-rel-type`, and
+    // every octet of it is RFC 3986's to judge: the scheme's spelling here,
+    // the URI's alphabet below.
     let scheme_defect = match first_component.find(':') {
         Some(colon) => validate_scheme_name(&t[..colon])
             .err()
-            .map(|defect| defect.message()),
-        None => Some("it has no scheme".to_string()),
+            .map(|defect| Defect::named(scheme_name(defect), defect.message())),
+        None => Some(Defect::unnamed("it has no scheme".to_string())),
     };
 
-    if let Some(why) = scheme_defect {
-        return Err(format!(
-            "names the relation type '{}', which is not a reg-rel-type (a lowercase letter, then lowercase letters, digits, '.' and '-') and is not an absolute URI either: {}",
-            shown_in_finding(t),
-            why
-        ));
+    if let Some(defect) = scheme_defect {
+        return Err(defect.in_context(|why| {
+            format!(
+                "names the relation type '{}', which is not a reg-rel-type (a lowercase letter, then lowercase letters, digits, '.' and '-') and is not an absolute URI either: {}",
+                shown_in_finding(t),
+                why
+            )
+        }));
     }
 
     if let Some(c) = find_non_uri_char(t) {
-        return Err(format!(
-            "names the extension relation type '{}', which holds {} and so is not a URI",
-            shown_in_finding(t),
-            describe_char(c)
+        return Err(Defect::named(
+            &URI_CHARACTER_FORBIDDEN,
+            format!(
+                "names the extension relation type '{}', which holds {} and so is not a URI",
+                shown_in_finding(t),
+                describe_char(c)
+            ),
         ));
     }
 
@@ -1314,6 +1447,97 @@ mod tests {
         assert!(
             msg.contains("does not match link-param:") && msg.ends_with(reason),
             "{msg}"
+        );
+    }
+
+    /// Every production a `link-value` is assembled from, answering with the
+    /// id it answers with everywhere else: the list's empty member, the
+    /// `token` a parameter name is and the `word` after its `=`, the `BWS`
+    /// between them, RFC 3986's alphabet and scheme, and RFC 5646's tag inside
+    /// an `hreflang`. The rows ending in `None` are the serialisation's own
+    /// statements about how the parts go together, and HTML's about what it
+    /// does with the result.
+    ///
+    /// `quoted_string_control_character_forbidden` is declared and absent
+    /// here, because a `HeaderValue` carries no control octet but HTAB and
+    /// HTAB is `qdtext`: the transport refuses the value before this rule
+    /// reads it, and the id is declared so that a day when the transport does
+    /// not — a capture replayed from octets, a version that admits them — the
+    /// finding is already named.
+    #[rstest]
+    #[case(b"</a>; rel=next, ,</b>; rel=prev", Some("list_member_empty"))]
+    #[case(b"</a>; =1; rel=next", Some("token_empty"))]
+    #[case(b"</a>; bad@=1; rel=next", Some("token_character_forbidden"))]
+    #[case(
+        b"</a>; ba d=1; rel=next",
+        Some("token_whitespace_or_control_forbidden")
+    )]
+    #[case(b"</a>; rel=n\xe9xt", Some("token_character_forbidden"))]
+    #[case(
+        b"</a>; rel=next; title=\"unterminated",
+        Some("quoted_string_delimiter_missing")
+    )]
+    #[case(
+        b"</a>; rel=next; title=\"a\"b\"",
+        Some("quoted_string_quote_escape_missing")
+    )]
+    #[case(b"</a>; rel=next; title=\"a\\\"", Some("quoted_pair_malformed"))]
+    #[case(b"</a>; rel = next", Some("bws_forbidden"))]
+    #[case(b"</a\xe9>; rel=next", Some("uri_character_forbidden"))]
+    #[case(b"</a>; rel=\"http://a\xe9/b\"", Some("uri_character_forbidden"))]
+    #[case(b"</a>; rel=\":/b\"", Some("uri_scheme_empty"))]
+    #[case(b"</a>; rel=\"9x:/b\"", Some("uri_scheme_leading_letter_missing"))]
+    #[case(b"</a>; rel=\"h*p:/b\"", Some("uri_scheme_character_forbidden"))]
+    #[case(b"</a>; rel=alternate; hreflang", Some("language_tag_empty"))]
+    #[case(
+        b"</a>; rel=alternate; hreflang=\"en US\"",
+        Some("language_tag_whitespace_or_control_forbidden")
+    )]
+    #[case(
+        b"</a>; rel=alternate; hreflang=en_US",
+        Some("language_tag_character_forbidden")
+    )]
+    #[case(
+        b"</a>; rel=alternate; hreflang=en-",
+        Some("language_tag_edge_hyphen_forbidden")
+    )]
+    #[case(
+        b"</a>; rel=alternate; hreflang=1en",
+        Some("language_tag_leading_letter_missing")
+    )]
+    #[case(
+        b"</a>; rel=alternate; hreflang=en--US",
+        Some("language_tag_subtag_empty")
+    )]
+    #[case(
+        b"</a>; rel=alternate; hreflang=englishlanguage",
+        Some("language_tag_subtag_length_invalid")
+    )]
+    // The serialisation's own half: a target with no brackets, content after
+    // the one that closed, a `;` owing a parameter, `rel` absent, empty,
+    // repeated, or naming a value neither of §3.3's alternatives generates —
+    // and the two findings HTML states about a preload.
+    #[case(b"https://example/; rel=next", None)]
+    #[case(b"</a> junk; rel=next", None)]
+    #[case(b"</a>; rel=next;", None)]
+    #[case(b"</a>; title=\"Home\"", None)]
+    #[case(b"</a>; rel=", None)]
+    #[case(b"</a>; rel=next; rel=prev", None)]
+    #[case(b"</a>; rel=Next", None)]
+    #[case(b"</a>; rel=alternate; type=text", None)]
+    #[case(b"</a>; rel=preload", None)]
+    #[case(b"</a>; rel=preload; as=document", None)]
+    fn a_link_value_borrows_every_production_it_is_made_of(
+        #[case] value: &[u8],
+        #[case] id: Option<&str>,
+    ) {
+        let headers = crate::test_helpers::make_headers_from_octet_pairs(&[("Link", value)]);
+        let defect = judge(&headers, "Response", true).expect("a finding");
+        assert_eq!(
+            defect.def.map(|def| def.id),
+            id,
+            "value: {}",
+            String::from_utf8_lossy(value)
         );
     }
 

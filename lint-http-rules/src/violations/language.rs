@@ -12,6 +12,12 @@
 //! two productions has does not belong here, which is why there is no
 //! subtag-ordering entry.
 //!
+//! A third reader is a *parameter* rather than a field: RFC 8288 § 3.4.1
+//! prints `Language-Tag` as the whole ABNF of a `Link` member's `hreflang`,
+//! importing it by name the way it imports `token` and `quoted-string`. So the
+//! sentence on the reference below is worded for the production and not for
+//! any of the three values that carry it.
+//!
 //! The severities differ for one reason worth stating: the invisible defects
 //! default higher than the visible ones. A control character in a tag is a
 //! thing nobody typed and something upstream mangled; a subtag that ran to
@@ -29,12 +35,14 @@ pub const RFC_5646_2_1: SpecRef = SpecRef {
     spec: "RFC 5646",
     section: Some("2.1"),
     url: "https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1",
-    note: "Syntax: the `Language-Tag` production Content-Language carries. Its prose properties are enforced; its subtag ordering and length classes are not",
+    note: "Syntax: the `Language-Tag` production, wherever a field or a parameter carries one. Its prose properties are enforced; its subtag ordering and length classes are not",
 };
 
 defects! {
-    /// A member with nothing in it: `Accept-Language: en,,fr` or a field whose
-    /// whole value is a comma. Nothing is trimmed first, so a member of
+    /// A tag with nothing in it: `Accept-Language: en,,fr`, a field whose
+    /// whole value is a comma, or a `Link` member's `hreflang` written with no
+    /// value at all — the production is the whole grammar of each of them, and
+    /// it generates no empty string. Nothing is trimmed first, so a tag of
     /// spaces reports as a character defect rather than as this one.
     ///
     // cite(RFC 5646 § 2.1): "Language-Tag  = langtag             ; normal language tags"

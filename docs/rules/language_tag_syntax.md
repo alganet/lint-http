@@ -25,7 +25,7 @@ Check the language tags in `Content-Language` and the language ranges in `Accept
 ## Specifications
 
 - [RFC 9110 §8.5.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5.1): Language Tags: the sentence that assigns a different production to each of the two fields — `language-range` for Accept-Language, `language-tag` for Content-Language
-- [RFC 5646 §2.1](https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1): Syntax: the `Language-Tag` production Content-Language carries. Its prose properties are enforced; its subtag ordering and length classes are not
+- [RFC 5646 §2.1](https://www.rfc-editor.org/rfc/rfc5646.html#section-2.1): Syntax: the `Language-Tag` production, wherever a field or a parameter carries one. Its prose properties are enforced; its subtag ordering and length classes are not
 - [RFC 4647 §2.1](https://www.rfc-editor.org/rfc/rfc4647.html#section-2.1): Basic Language Range: the production Accept-Language carries, including the `*` alternative and the statement that a range needs no well-formedness at all
 - [RFC 9110 §8.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.5): Content-Language: `#language-tag` — a list of tags, with no wildcard and no weight in it
 - [RFC 9110 §12.5.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.4): Accept-Language: where the `language-range` production is pulled in by reference. The weight beside it is `accept_language_weight_valid`'s subject
