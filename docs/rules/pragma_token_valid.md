@@ -9,7 +9,7 @@ SPDX-License-Identifier: ISC
 ## Description
 
 The `Pragma` header directives must follow directive syntax: a `token` optionally followed by `=token` or `="quoted-string"`.
-This rule flags malformed directives, invalid token characters, empty members, and non-UTF8 header values.
+This rule flags malformed directives, invalid token characters and empty members. The value is read as octets over the whole field section, so an octet outside visible US-ASCII in a directive name is reported as the character the production does not admit — not as a verdict about the field's encoding, which is what the reader this replaces made of it.
 `Pragma` is deprecated by RFC 9111 §5.4, which no longer specifies its grammar; this validates the historical HTTP/1.0 directive syntax (originally RFC 7234 §5.4).
 
 ## Specifications

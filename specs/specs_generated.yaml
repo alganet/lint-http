@@ -5349,7 +5349,7 @@ sources:
     snippet: A field name labels the corresponding field value as having the semantics defined by that name.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 312
+      line: 304
   - label: cache_validation_chain
     section: § 13.1.2
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
@@ -6655,7 +6655,7 @@ sources:
     - file: lint-http-rules/src/rules/link_header_valid.rs
       line: 609
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 197
+      line: 186
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 343
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -6709,7 +6709,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 112
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 339
+      line: 331
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
@@ -7489,7 +7489,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
       line: 407
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 208
+      line: 197
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 205
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
@@ -9314,7 +9314,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 315
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 261
+      line: 253
   - label: age_header_numeric (2)
     section: § 1.2.2
     snippet: or the greatest positive integer it can conveniently represent.
@@ -9324,7 +9324,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 316
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 262
+      line: 254
   - label: age_header_numeric (3)
     section: § 5.1
     snippet: Although it is defined as a singleton header field, a cache encountering a message with a list-based Age field value SHOULD use the first member of the field value, discarding subsequent ones.
@@ -9346,7 +9346,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 304
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 235
+      line: 227
   - label: cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -9366,27 +9366,27 @@ sources:
     - file: lint-http-rules/src/rules/cache_control_and_pragma_consistent.rs
       line: 84
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 135
+      line: 129
   - label: cache_control_directive_valid
     section: § 5.2
     snippet: The "Cache-Control" header field is used to list directives for caches along the request/response chain.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 194
+      line: 186
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
-      line: 153
+      line: 145
   - label: cache_control_directive_valid (2)
     section: § 5.2.2.7
     snippet: If a qualified private response directive is present, with an argument that lists one or more field names
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 269
+      line: 261
   - label: private argument syntax
     section: § 5.2.2.7
     snippet: This directive uses the quoted-string form of the argument syntax.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 311
+      line: 303
   - label: cache_control_present
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
@@ -9494,25 +9494,25 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 351
+      line: 359
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 361
+      line: 369
   - label: lint-http-rules/src/helpers/cache_control.rs (3)
     section: § 4.2.3
     snippet: corrected_initial_age = max(apparent_age, corrected_age_value)
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 316
+      line: 324
   - label: lint-http-rules/src/helpers/cache_control.rs (4)
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 315
+      line: 323
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 68
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
@@ -9538,15 +9538,15 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 151
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 211
+      line: 203
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
-      line: 170
+      line: 162
   - label: lint-http-rules/src/helpers/cache_control.rs (8)
     section: § 5.2.2.4
     snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 238
+      line: 246
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 134
   - label: lint-http-rules/src/helpers/cache_control.rs (9)
@@ -9556,7 +9556,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 72
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 239
+      line: 247
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 150
   - label: lint-http-rules/src/helpers/cache_control.rs (10)
@@ -9564,7 +9564,7 @@ sources:
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 237
+      line: 245
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
       line: 150
     - file: lint-http-rules/src/rules/no_store_enforced.rs
@@ -9638,7 +9638,7 @@ sources:
     snippet: As a result, this specification deprecates Pragma.
     cited_by:
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
-      line: 160
+      line: 155
   - label: range_request_and_caching
     section: § 3.3
     snippet: A cache MAY complete a stored incomplete response by making a subsequent range request (Section 14.2 of [HTTP]) and combining the successful response with the stored response, as defined in Section 3.4.
