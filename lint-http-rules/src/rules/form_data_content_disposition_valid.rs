@@ -245,39 +245,28 @@ impl Rule for FormDataContentDispositionValid {
                 None
             };
 
-            // Check response headers
+            // A value holding an octet outside visible US-ASCII is skipped
+            // rather than reported, and the reason is that another rule owns
+            // that finding: `content_disposition_token_valid` reports it as
+            // what RFC 6266 § 4.3 makes it -- a filename that should have been
+            // written as a `filename*` parameter -- where the verdict here
+            // named an encoding. `content_disposition_parameter_valid` has
+            // deferred to the same neighbour since it was written, with the
+            // same comment; this rule was the one saying it twice.
             if let Some(resp) = &tx.response {
                 for hv in resp.headers.get_all("content-disposition").iter() {
-                    match hv.to_str() {
-                        Ok(s) => {
-                            if let Some(v) = check_value("Content-Disposition", s) {
-                                return Some(v);
-                            }
-                        }
-                        Err(_) => {
-                            return Some(self.violation(
-                                ctx.severity,
-                                "Content-Disposition header value is not valid UTF-8".into(),
-                            ))
-                        }
+                    let Ok(s) = hv.to_str() else { continue };
+                    if let Some(v) = check_value("Content-Disposition", s) {
+                        return Some(v);
                     }
                 }
             }
 
             // Check request headers (multipart/form-data parts may present Content-Disposition in requests)
             for hv in tx.request.headers.get_all("content-disposition").iter() {
-                match hv.to_str() {
-                    Ok(s) => {
-                        if let Some(v) = check_value("Content-Disposition", s) {
-                            return Some(v);
-                        }
-                    }
-                    Err(_) => {
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Content-Disposition header value is not valid UTF-8".into(),
-                        ))
-                    }
+                let Ok(s) = hv.to_str() else { continue };
+                if let Some(v) = check_value("Content-Disposition", s) {
+                    return Some(v);
                 }
             }
 
@@ -444,7 +433,11 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_header_is_reported() -> anyhow::Result<()> {
+    /// The octet is another rule's finding, and this one used to report it
+    /// too: `content_disposition_token_valid` names it as RFC 6266 § 4.3's
+    /// `filename*` question, which is what it is, where the verdict here named
+    /// an encoding.
+    fn an_octet_outside_us_ascii_is_the_neighbours_finding() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = FormDataContentDispositionValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -462,7 +455,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
+        assert!(v.is_none());
         Ok(())
     }
 
@@ -530,7 +523,8 @@ mod tests {
     }
 
     #[test]
-    fn request_non_utf8_header_is_reported() -> anyhow::Result<()> {
+    /// The same deferral on the request side.
+    fn a_requests_octet_outside_us_ascii_is_the_neighbours_finding() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = FormDataContentDispositionValid;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
@@ -548,7 +542,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
+        assert!(v.is_none());
         Ok(())
     }
 
