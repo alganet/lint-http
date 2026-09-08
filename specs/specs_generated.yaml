@@ -4894,8 +4894,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 240
-    - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 201
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 100
   - label: accept_header_media_type_syntax (7)
@@ -5031,7 +5029,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 182
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 176
+      line: 175
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 169
   - label: accept_ranges_and_206_consistent (2)
@@ -5057,7 +5055,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 191
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 259
+      line: 243
   - label: accept_ranges_and_206_consistent (5)
     section: § 14.3
     snippet: The "Accept-Ranges" field in a response indicates whether an upstream server supports range requests for the target resource.
@@ -5067,7 +5065,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 168
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 139
+      line: 138
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 48
   - label: accept_ranges_and_206_consistent (6)
@@ -5079,7 +5077,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 165
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 260
+      line: 244
   - label: accept_ranges_and_206_consistent (7)
     section: § 14.3
     snippet: to indicate that it supports byte range requests for that target resource, thereby encouraging its use by the client for future partial requests on the same request path.
@@ -5129,7 +5127,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 228
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 297
+      line: 281
   - label: accept_ranges_on_partial_content (5)
     section: § 15.3.7
     snippet: A client MUST inspect a 206 response's Content-Type and Content-Range field(s) to determine what parts are enclosed and whether additional requests are needed.
@@ -5149,25 +5147,19 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 37
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 372
+      line: 356
   - label: acceptable-ranges grammar
     section: § 14.3
     snippet: acceptable-ranges = 1#range-unit
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 222
+      line: 206
   - label: accept_ranges_values_valid
     section: § 16.5.1
     snippet: The "HTTP Range Unit Registry" defines the namespace for the range unit names and refers to their corresponding specifications.
     cited_by:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 295
-  - label: tchar grammar
-    section: § 5.6.2
-    snippet: tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA ; any VCHAR, except delimiters
-    cited_by:
-    - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 202
+      line: 279
   - label: allow_header_method_tokens_valid
     section: § 10.2
     snippet: The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources.
@@ -6465,9 +6457,9 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 47
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 294
+      line: 278
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 387
+      line: 371
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 85
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -6483,7 +6475,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 221
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 332
+      line: 316
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 294
   - label: Accept-Ranges grammar
@@ -6499,7 +6491,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 61
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 296
+      line: 280
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 49
   - label: lint-http-rules/src/helpers/accept_ranges.rs (4)
@@ -6515,7 +6507,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 208
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 333
+      line: 317
     - file: lint-http-rules/src/rules/content_transfer_encoding_valid.rs
       line: 122
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
@@ -6535,7 +6527,7 @@ sources:
     - file: lint-http-rules/src/helpers/accept_ranges.rs
       line: 118
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 340
+      line: 324
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
       line: 212
   - label: lint-http-rules/src/helpers/auth.rs
@@ -6613,7 +6605,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 126
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 355
+      line: 339
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 329
     - file: lint-http-rules/src/rules/preference_applied_header_valid.rs
@@ -6637,7 +6629,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 137
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 359
+      line: 343
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 104
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
@@ -6961,7 +6953,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 90
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 221
+      line: 205
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 210
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -6989,7 +6981,7 @@ sources:
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 96
     - file: lint-http-rules/src/rules/etag_syntax.rs
-      line: 156
+      line: 159
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 369
     - file: lint-http-rules/src/rules/host_header.rs
@@ -7089,7 +7081,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 222
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
-      line: 356
+      line: 340
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 147
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
@@ -7557,7 +7549,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 133
     - file: lint-http-rules/src/rules/etag_syntax.rs
-      line: 138
+      line: 141
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
       line: 145
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs

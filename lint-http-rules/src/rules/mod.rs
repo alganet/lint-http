@@ -1296,10 +1296,12 @@ severity = "warn"
         ///
         /// It also falls when a finding *stops being made*: the
         /// `Authorization` rules' "contains non-UTF8 value" arms went when
-        /// those fields began to be read as octets, and one of them was cited.
-        /// The sentence it named is still declared by the rule and carried by
-        /// the defs; what left is the site.
-        const FLOOR: usize = 146;
+        /// those fields began to be read as octets, and two of the family's
+        /// sites were cited — the other being `Accept-Ranges`, whose sentence
+        /// about `token` moved onto the id the member walk reports under. The
+        /// sentences are still declared by their rules and carried by the
+        /// defs; what left is the site.
+        const FLOOR: usize = 145;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

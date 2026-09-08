@@ -28,10 +28,9 @@ pub struct AcceptRangesValuesValid;
 /// combination — so it was always the finding here that least deserved to share
 /// a level with an octet no `token` admits.
 ///
-/// The non-UTF-8 line stays on the older API, with its own reasoning at the
-/// site: `to_str` refuses every octet outside visible US-ASCII, and what is
-/// wrong is that a range unit name is spelled from a subset of that — which is
-/// the octet-wise reading the rest of the tree owes this family.
+/// The value is read as octets, so an octet outside visible US-ASCII is one of
+/// these two ids rather than a sentence of its own: a range unit name is a
+/// `token`, and every character of one is inside that set.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_MISSING,
     &LIST_MEMBER_EMPTY,
@@ -176,38 +175,23 @@ impl Rule for AcceptRangesValuesValid {
         // cite(RFC 9110 § 14): "Range requests are an OPTIONAL feature of HTTP, designed so that recipients not implementing this feature (or not supporting it for the target resource) can respond as if it is a normal GET request without impacting interoperability."
         let mut units: Vec<String> = Vec::new();
         for section in crate::helpers::accept_ranges::field_sections(resp) {
-            let mut lines: Vec<&str> = Vec::new();
-            // Set where this section cannot be read as a list at all. What
-            // follows is then skipped *for this section only* — the other
-            // section is a separate value and answers for itself, which is
-            // what returning at the first defect used to prevent: a header
-            // section holding an octet no range-unit admits hid a trailer
-            // section that was not `1#range-unit` either.
-            let mut unreadable = false;
+            // Read as octets. The whole of this field is built from `token`,
+            // so an octet outside visible US-ASCII is a character the
+            // production does not admit — which is what the member walk below
+            // reports it as, under the id every other reader of `token` uses.
+            // The refusal that stood here said the same thing in a sentence of
+            // its own, one step earlier and at the rule's severity; what it
+            // could not say is *which* octet, because the value it was
+            // refusing never became a value.
+            let mut lines: Vec<String> = Vec::new();
             for hv in section.get_all("accept-ranges").iter() {
-                // `to_str` refuses every octet outside visible US-ASCII, and the
-                // whole of this field is built from `token`, whose characters
-                // are a subset of that -- so the refusal is never a false alarm
-                // here and no other rule owns the field's syntax to report it.
-                // The line used to be handed to a reader that folds an absent
-                // field into an unreadable one, so the rule said nothing at all
-                // about a value no production admits.
-                //
-                // What makes it a finding is not that the value failed to be
-                // UTF-8: a `0xC3 0xA9` that decodes to a perfectly good `é` is
-                // refused as readily as a lone `0xFF`, and neither octet is one
-                // a range unit name is allowed to be built from.
-                //
-                // cite(RFC 9110 § 5.6.2): "Tokens are short textual identifiers that do not include whitespace or delimiters."
-                // cite(RFC 9110 § 5.6.2, label: tchar grammar): "tchar          = "!" / "#" / "$" / "%" / "&" / "'" / "*" / "+" / "-" / "." / "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA ; any VCHAR, except delimiters"
-                let Ok(value) = hv.to_str() else {
-                    out.push(self.cited(&RFC_9110_5_6_2, ctx.severity, "Accept-Ranges holds an octet no range-unit admits: a range unit name is a token, whose characters are all visible US-ASCII".into()));
-                    unreadable = true;
-                    break;
-                };
-                lines.push(value.trim());
+                lines.push(
+                    crate::helpers::headers::field_line_as_written(hv)
+                        .trim()
+                        .to_string(),
+                );
             }
-            if unreadable || lines.is_empty() {
+            if lines.is_empty() {
                 continue;
             }
 
@@ -556,18 +540,15 @@ mod tests {
 
     /// `0xFF` is not UTF-8 and `0xC3 0xA9` is -- the `é` a server might put in a
     /// field value by accident. Both are outside `token`, which is the whole of
-    /// what this field is built from, and the rule used to say nothing about
-    /// either: the reader it called folds an unreadable value into an absent one.
+    /// what this field is built from, so both report as the character the
+    /// production does not admit rather than as a verdict about the value's
+    /// encoding.
     #[rstest]
     #[case(&[0xff][..])]
     #[case("bytes, pag\u{e9}s".as_bytes())]
     fn an_octet_outside_the_grammar_is_reported(#[case] bad: &[u8]) {
-        let found = judge(&advertising(&[(Section::Header, bad)]));
-        let message = found.expect("expected a violation").message;
-        assert!(
-            message.contains("no range-unit admits"),
-            "reported for another reason: {message}"
-        );
+        let found = judge(&advertising(&[(Section::Header, bad)])).expect("a violation");
+        assert_eq!(found.violation, "token_character_forbidden", "{found:?}");
     }
 
     /// Nothing else runs a rule's published examples through it. These used to be
@@ -648,11 +629,7 @@ mod tests {
         ]);
         let all = judge_all(&tx);
         assert_eq!(all.len(), 2, "{all:?}");
-        assert!(
-            all[0].message.contains("no range-unit admits"),
-            "{}",
-            all[0].message
-        );
+        assert_eq!(all[0].violation, "token_character_forbidden", "{all:?}");
         assert!(all[1].message.contains("is empty"), "{}", all[1].message);
     }
 
