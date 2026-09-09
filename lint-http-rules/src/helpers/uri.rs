@@ -3,6 +3,19 @@
 // SPDX-License-Identifier: ISC
 
 //! Small reusable helpers for URI-ish checks used by several rules.
+//!
+//! **Every trim in this module is `OWS` and not `str::trim`, because the values
+//! that reach it are read as the octets a sender wrote.** A caller holding one
+//! `char` per octet has `%xA0` in hand where a UTF-8 decode would have had
+//! U+00A0, and `str::trim` removes the second — so a `Location`, an `Origin` or
+//! a request-target with an `obs-text` octet at its edge would arrive here
+//! *shorter than the sender wrote it* and be pronounced valid. The octet is
+//! `obs-text`, no URI character admits it, and the finding is the caller's;
+//! taking it off first is how the finding stops being made. `SP` and `HTAB` are
+//! the only whitespace a field value can carry beside its content, and
+//! [`trim_ows`] is exactly them.
+
+use crate::helpers::headers::trim_ows;
 
 /// The two ways a `pct-encoded` triplet fails to be one.
 ///
@@ -348,7 +361,7 @@ pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
 /// of the form `scheme://host[:port]`. Returns `None` if valid or
 /// `Some(msg)` describing the problem.
 pub fn validate_origin_value(s: &str) -> Option<String> {
-    let s_trim = s.trim();
+    let s_trim = trim_ows(s);
     // The `%x6E %x75 %x6C %x6C` hex literals spell lowercase `null` byte-for-byte,
     // so the comparison is case-sensitive.
     // cite(RFC 6454 § 7.1): "origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list"
@@ -437,7 +450,7 @@ pub fn target_uri_authority(
         return None;
     }
     crate::helpers::headers::get_header_str(request_headers, "host")
-        .map(|h| h.trim().to_string())
+        .map(|h| trim_ows(h).to_string())
         .filter(|h| !h.is_empty())
 }
 
@@ -455,7 +468,7 @@ pub fn target_uri_authority(
 /// when present (e.g. `"example.com:8080"`).  Userinfo (`user@`) is included
 /// if present, since consistency checks must compare the raw values.
 pub fn extract_authority_from_request_target(s: &str) -> Option<String> {
-    let s_trim = s.trim();
+    let s_trim = trim_ows(s);
 
     // cite(RFC 9112 § 3.2, label: request-target forms): "request-target = origin-form / absolute-form / authority-form / asterisk-form"
     if s_trim.is_empty() || s_trim == "*" || s_trim.starts_with('/') {
@@ -528,7 +541,7 @@ pub fn extract_host_from_request_target(s: &str) -> Option<String> {
 /// - For authority-form (CONNECT) or asterisk-form (`*`) request-targets,
 ///   returns `None` since they do not carry a path to validate.
 pub fn extract_path_from_request_target(s: &str) -> Option<String> {
-    let s_trim = s.trim();
+    let s_trim = trim_ows(s);
 
     // cite(RFC 9112 § 3.2, label: request-target forms): "request-target = origin-form / absolute-form / authority-form / asterisk-form"
     if s_trim == "*" {
@@ -572,7 +585,7 @@ pub fn extract_path_from_request_target(s: &str) -> Option<String> {
 /// - For authority-form (CONNECT) or asterisk-form (`*`) request-targets,
 ///   returns `None` since they do not carry a path to validate.
 pub fn extract_path_and_query_from_request_target(s: &str) -> Option<String> {
-    let s_trim = s.trim();
+    let s_trim = trim_ows(s);
 
     if s_trim == "*" {
         return None;
@@ -848,7 +861,7 @@ fn merge_paths(base_path: &str, ref_path: &str) -> String {
 /// reason.
 // cite(RFC 3986 § 4.2): "A relative reference that begins with two slash characters is termed a network-path reference; such references are rarely used."
 pub fn reference_authority(reference: &str) -> Option<String> {
-    authority_component(reference.trim())
+    authority_component(trim_ows(reference))
         .filter(|authority| !authority.is_empty())
         .map(str::to_string)
 }
@@ -889,7 +902,7 @@ pub fn resolve_reference_path_and_query(
 /// result. The fourth, where the reference's path is empty, takes the base's
 /// path as it stands and is left doing exactly that.
 fn resolve_reference_transform(base_path_and_query: &str, reference: &str) -> Option<String> {
-    let r = reference.trim();
+    let r = trim_ows(reference);
     // §5.2.2 carries the reference's fragment into the target untouched; it
     // identifies a secondary resource and is not part of the URI being compared.
     let r = &r[..r.find('#').unwrap_or(r.len())];
@@ -1351,7 +1364,7 @@ impl HostAndPortDefect<'_> {
 // syntax) that Fetch's serialization would reject.
 // cite(Fetch § 3.2): "The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways."
 pub fn is_valid_serialized_origin(val: &str) -> bool {
-    let s = val.trim();
+    let s = trim_ows(val);
     if s.is_empty() {
         return false;
     }
@@ -2334,6 +2347,19 @@ mod tests {
             ]
         );
     }
+    /// The trim is `OWS`, so an `obs-text` octet at the edge of a value stays
+    /// in it — where `str::trim` took U+00A0 off and pronounced the rest valid.
+    #[test]
+    fn an_obs_text_octet_at_the_edge_is_part_of_the_value() {
+        let padded: String = std::iter::once('\u{a0}')
+            .chain("https://example.com".chars())
+            .collect();
+        assert!(validate_origin_value(&padded).is_some());
+        assert!(!is_valid_serialized_origin(&padded));
+        // The `OWS` a field value may carry beside its content is still taken.
+        assert!(validate_origin_value(" https://example.com\t").is_none());
+    }
+
     #[test]
     fn validate_origin_value_cases() {
         assert!(validate_origin_value("null").is_none());
