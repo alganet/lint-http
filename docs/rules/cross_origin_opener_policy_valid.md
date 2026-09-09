@@ -15,6 +15,7 @@ This rule checks the `Cross-Origin-Opener-Policy` response header value and ensu
 - [MDN Cross-Origin-Opener-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Opener-Policy): Cross-Origin-Opener-Policy
 - [HTML §7.1.3.1](https://html.spec.whatwg.org/multipage/browsers.html#the-coop-headers): The `Cross-Origin-Opener-Policy` header is parsed as a single structured-field item (token); `same-origin-plus-COEP` is derived from `same-origin` + a compatible COEP, never set directly
 - [HTML](https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-opener-policies): “Cross-origin opener policies” — the possible opener policy values and their meanings
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 

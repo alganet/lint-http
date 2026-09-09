@@ -20,7 +20,7 @@ Reports a message writing more than one field line of a singleton field. RFC 911
 
 ## Specifications
 
-- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order: the MUST NOT this rule enforces — multiple field lines with one name in a message, headers or trailers, unless the field's definition has a comma-separated-list alternative
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 - [RFC 9110 §5.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5): Field Values: what a singleton field is, and the sentence saying that detecting an erroneously repeated one improves interoperability
 - [RFC 9110 §5.6.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1): Lists: the `#rule` extension — the shape a field's definition has when §5.3's exception applies to it, and the shape none of the sixteen grammars in this rule's table has
 - [RFC 9111 §5.1](https://www.rfc-editor.org/rfc/rfc9111.html#section-5.1): Age — defined as a singleton header field in as many words, with the recipient's first-member recovery beside it, which is a recipient's SHOULD and not a sender's licence

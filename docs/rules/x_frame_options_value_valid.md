@@ -14,6 +14,7 @@ The `X-Frame-Options` response header protects content from being embedded in fr
 
 - [HTML Speculative Loading §7.7](https://html.spec.whatwg.org/multipage/speculative-loading.html#the-x-frame-options-header): Governing definition: conformance ABNF `"DENY" / "SAMEORIGIN"`, case-insensitive processing, `ALLOW-FROM` not to be implemented
 - [RFC 7034 §2.1](https://www.rfc-editor.org/rfc/rfc7034.html#section-2.1): Historical definition (including the dropped `ALLOW-FROM` variant); superseded by the HTML Standard
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 

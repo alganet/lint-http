@@ -4,6 +4,13 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::ViolationDef;
+
+/// The one entry a field with no list form always has available: its own
+/// repetition. The value on each line here is measured by the checks below;
+/// what § 5.3 forbids is there being two lines at all.
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 
 pub struct CrossOriginResourcePolicyValid;
 
@@ -43,7 +50,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_3_7, MDN_CROSS_ORIGIN_RESOURCE_POLICY]
+        &[FETCH_3_7, MDN_CROSS_ORIGIN_RESOURCE_POLICY, RFC_9110_5_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -104,8 +115,8 @@ impl Rule for CrossOriginResourcePolicyValid {
             }
 
             if count > 1 {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &FIELD_LINE_DUPLICATED,
                     "Multiple Cross-Origin-Resource-Policy header fields present".into(),
                 ));
             }

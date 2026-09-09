@@ -14,6 +14,7 @@ This rule checks the `Cross-Origin-Resource-Policy` response header value and en
 
 - [Fetch §3.7](https://fetch.spec.whatwg.org/#cross-origin-resource-policy-header): `Cross-Origin-Resource-Policy` — the case-sensitive `same-origin`/`same-site`/`cross-origin` grammar, and unrecognized values set to null
 - [MDN Cross-Origin-Resource-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Resource-Policy): Cross-Origin-Resource-Policy
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 

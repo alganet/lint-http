@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::uri::{
     origin_defect, RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN,
     URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
@@ -23,6 +24,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &URI_CHARACTER_FORBIDDEN,
+    &FIELD_LINE_DUPLICATED,
 ];
 
 pub struct OriginMatchingForCors;
@@ -75,6 +77,7 @@ severity = "warn"
             MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
             RFC_3986_2,
             RFC_3986_3_1,
+            RFC_9110_5_3,
         ]
     }
 
@@ -180,7 +183,7 @@ impl Rule for OriginMatchingForCors {
             // Multiple header fields are not permitted; treat as violation early
             // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
             if acao_values.len() > 1 {
-                return Some(self.violation(ctx.severity, "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into()));
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, "Multiple Access-Control-Allow-Origin header fields present; only a single value is allowed".into()));
             }
 
             // Now we have exactly one header field; validate its value semantics

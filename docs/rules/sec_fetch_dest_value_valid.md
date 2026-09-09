@@ -13,6 +13,7 @@ Validate the `Sec-Fetch-Dest` request header follows the Fetch Metadata specific
 ## Specifications
 
 - [Fetch Metadata §2.1](https://www.w3.org/TR/fetch-metadata/#sec-fetch-dest-header): Fetch Metadata (W3C) — `Sec-Fetch-Dest`: an sf-token whose valid values are Fetch's request destinations
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 
