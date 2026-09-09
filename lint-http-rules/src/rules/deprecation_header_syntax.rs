@@ -4,6 +4,13 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::ViolationDef;
+
+/// § 5.3's repeated field line, which this rule reports for its own field.
+/// The sentence is the catalogue's; what stays here is the reading that says
+/// this field's definition has no comma-separated-list alternative.
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 
 pub struct DeprecationHeaderSyntax;
 
@@ -21,12 +28,6 @@ const RFC_9651_3_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("3.3.7"),
     url: "https://www.rfc-editor.org/rfc/rfc9651.html#section-3.3.7",
     note: "Structured Field `Date` item syntax (leading `@`)",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order: an Item field (non-list) must not appear as multiple field lines",
 };
 
 impl RuleMeta for DeprecationHeaderSyntax {
@@ -46,6 +47,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9745_2_1, RFC_9651_3_3_7, RFC_9110_5_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -95,7 +100,7 @@ impl Rule for DeprecationHeaderSyntax {
             // cite(RFC 9745 § 2.1): "Deprecation is an Item Structured Header Field; its value MUST be a Date as per Section 3.3.7 of [RFC9651]."
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if vals.len() > 1 {
-                return Some(self.violation(ctx.severity, "Multiple Deprecation header fields present; Deprecation is a single Structured Field Item (RFC 9745 §2.1), so a response carries at most one Deprecation field line (RFC 9110 §5.3)".into()));
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, "Multiple Deprecation header fields present; Deprecation is a single Structured Field Item (RFC 9745 §2.1), so a response carries at most one Deprecation field line (RFC 9110 §5.3)".into()));
             }
 
             let hv = vals.into_iter().next()?;

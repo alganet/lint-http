@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -33,6 +34,7 @@ pub struct ContentDispositionTokenValid;
 /// octet the grammar does not admit, whose right conversion is an octet-wise
 /// reader first.
 static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -58,12 +60,6 @@ const RFC_6266_4: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4"),
     url: "https://www.rfc-editor.org/rfc/rfc6266.html#section-4",
     note: "Defines Content-Disposition as a *response* header field — the request half of this rule is a deliberate extension beyond the document, since upload APIs do send one",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order: a sender MUST NOT emit multiple field lines for a field whose definition has no comma-separated-list alternative",
 };
 
 impl RuleMeta for ContentDispositionTokenValid {
@@ -265,8 +261,8 @@ impl Rule for ContentDispositionTokenValid {
                     } else {
                         "no definition of this field gives it a comma-separated-list form, so at most one field line may be sent (RFC 9110 §5.3)"
                     };
-                    return Some(self.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &FIELD_LINE_DUPLICATED,
                         format!(
                             "Multiple Content-Disposition header fields in the {}; {}",
                             kind, basis

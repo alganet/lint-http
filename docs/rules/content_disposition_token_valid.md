@@ -24,7 +24,7 @@ Since the grammar has no comma-separated-list alternative, a message section car
 - [RFC 6266 §4.2](https://www.rfc-editor.org/rfc/rfc6266.html#section-4.2): Disposition Type: an unknown type is conforming and has defined handling (treat as `attachment`), which is why this rule validates the value's shape and not its membership in any list
 - [RFC 6266 §4](https://www.rfc-editor.org/rfc/rfc6266.html#section-4): Defines Content-Disposition as a *response* header field — the request half of this rule is a deliberate extension beyond the document, since upload APIs do send one
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
-- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order: a sender MUST NOT emit multiple field lines for a field whose definition has no comma-separated-list alternative
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 
