@@ -86,14 +86,34 @@ impl<'a> Directive<'a> {
     }
 }
 
-/// Every list member in the section's `Cache-Control` field lines, in order and
-/// as written — **including the empty ones**.
+/// The section's `Cache-Control` field lines, each read as the octets the sender
+/// wrote.
 ///
-/// [`directives`] drops an empty member because a caller asking what the sender
-/// requested has nothing to read in one. A caller reporting on the sender's
-/// syntax has the opposite need: an empty element is precisely its finding, and
-/// before this existed those callers reached past the reader and re-split the
-/// field themselves to see it.
+/// **The line boundary is kept and the string reader is not.** § 5.3's combining
+/// is a *recipient's* option, so an empty `Cache-Control:` line is a
+/// zero-element list the sender wrote and not an empty element it generated —
+/// which is a finding one of the callers here makes, and joining first would
+/// invent it. What does go is `to_str`: a directive name holding an octet
+/// outside visible US-ASCII is a `token` defect the two syntax rules report, and
+/// a reader that refused the whole *line* for it hid every directive written
+/// beside it, so `Cache-Control: no-store, \xff` answered "no directives here"
+/// to every rule that asked.
+///
+/// The caller holds the vector for the length of its walk: a member borrows the
+/// line it was cut from. The field name lives here once so no caller spells it.
+// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
+pub fn field_lines(headers: &HeaderMap) -> Vec<String> {
+    crate::helpers::headers::field_lines_as_written(headers, "cache-control")
+}
+
+/// Every list member across those field lines, in order and as written —
+/// **including the empty ones**.
+///
+/// [`directives_in`] drops an empty member because a caller asking what the
+/// sender requested has nothing to read in one. A caller reporting on the
+/// sender's syntax has the opposite need: an empty element is precisely its
+/// finding, and before this existed those callers reached past the reader and
+/// re-split the field themselves to see it.
 ///
 /// **A field line that is empty contributes no members at all**, and that is
 /// the one exemption every caller of this needs: an entirely empty
@@ -102,16 +122,10 @@ impl<'a> Directive<'a> {
 /// distinction out separately — skipping the empty value at the call site and
 /// reporting the empty member in a function two levels down — which is two
 /// places to get one sentence right.
-///
-/// Field lines that are not readable as text are skipped by both readers.
-/// Naming *that* defect belongs to the rule that owns the field and needs the
-/// field line rather than the member, so it asks
-/// [`crate::helpers::headers::has_unreadable_line`].
-// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
 // cite(RFC 9110 § 5.6.1): "#element => [ element ] *( OWS "," OWS [ element ] )"
-pub fn members(headers: &HeaderMap) -> impl Iterator<Item = &str> {
-    crate::helpers::headers::field_lines(headers, "cache-control").flat_map(members_of)
+pub fn members(lines: &[String]) -> impl Iterator<Item = &str> {
+    lines.iter().flat_map(|line| members_of(line))
 }
 
 /// The list members of one `Cache-Control` field line, as written.
@@ -130,16 +144,26 @@ pub fn members_of(line: &str) -> Vec<&str> {
     split_top_level(line, b",;")
 }
 
-/// Every directive in the section's `Cache-Control` field lines, in order.
+/// Every directive across those field lines, in order.
 ///
 /// Empty members are dropped: every caller here is asking what the sender
 /// *asked for*, not whether they wrote it correctly. Use [`members`] to see
 /// them.
-pub fn directives(headers: &HeaderMap) -> impl Iterator<Item = Directive<'_>> {
-    members(headers)
+///
+/// The lines come from [`field_lines`] and the caller holds them: a directive
+/// borrows the member it was parsed from, and the member borrows the decoded
+/// line. That is the whole cost of reading the field as the sender wrote it
+/// rather than through a `&str` the header map already owned.
+pub fn directives_in(lines: &[String]) -> impl Iterator<Item = Directive<'_>> {
+    members(lines)
         .filter(|member| !member.is_empty())
         .map(Directive::parse)
 }
+
+// The four questions below each answer with a `bool` or a number, so each can
+// hold the decoded lines for the length of its own walk. A caller that wants the
+// directives themselves cannot: a `Directive` borrows the member it was parsed
+// from, so the lines have to outlive the loop and the rule holds them.
 
 /// Read one list member strictly, as a rule reporting on this field's syntax
 /// must: a defect comes back as the sentence that names it.
@@ -206,12 +230,12 @@ impl MemberDefect<'_> {
 
 /// Whether the section carries the named directive at all.
 pub fn has(headers: &HeaderMap, name: &str) -> bool {
-    directives(headers).any(|d| d.is(name))
+    directives_in(&field_lines(headers)).any(|d| d.is(name))
 }
 
 /// Whether the section carries the named directive in its bare form.
 pub fn has_unqualified(headers: &HeaderMap, name: &str) -> bool {
-    directives(headers).any(|d| d.is_unqualified(name))
+    directives_in(&field_lines(headers)).any(|d| d.is_unqualified(name))
 }
 
 /// The first non-negative `delta-seconds` given for the named directive.
@@ -221,7 +245,7 @@ pub fn has_unqualified(headers: &HeaderMap, name: &str) -> bool {
 /// carries none is not the answer to "what lifetime was advertised" and the
 /// next member still might be.
 pub fn delta_seconds(headers: &HeaderMap, name: &str) -> Option<i64> {
-    directives(headers)
+    directives_in(&field_lines(headers))
         .filter(|d| d.is(name))
         .filter_map(|d| d.delta_seconds())
         .find(|seconds| *seconds >= 0)
@@ -246,7 +270,8 @@ pub fn delta_seconds(headers: &HeaderMap, name: &str) -> Option<i64> {
 // cite(RFC 9111 § 5.2.2.4): "The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response"
 // cite(RFC 9111 § 5.2.2.4): "The qualified form of the no-cache response directive, with an argument that lists one or more field names, indicates that a cache MAY use the response to satisfy a subsequent request"
 pub fn forbids_storage_or_reuse(headers: &HeaderMap) -> bool {
-    directives(headers).any(|d| d.is_unqualified("no-store") || d.is_unqualified("no-cache"))
+    directives_in(&field_lines(headers))
+        .any(|d| d.is_unqualified("no-store") || d.is_unqualified("no-cache"))
 }
 
 // ── Freshness, computed from the directives above ────────────────────
@@ -398,14 +423,16 @@ mod tests {
     #[test]
     fn directives_come_off_every_field_line_in_order() {
         let hm = headers(&["max-age=60, private", "no-store"]);
-        let names: Vec<&str> = directives(&hm).map(|d| d.name).collect();
+        let lines = field_lines(&hm);
+        let names: Vec<&str> = directives_in(&lines).map(|d| d.name).collect();
         assert_eq!(names, ["max-age", "private", "no-store"]);
     }
 
     #[test]
     fn a_member_is_parsed_into_name_and_argument() {
         let hm = headers(&["no-cache=\"set-cookie\""]);
-        let d = directives(&hm).next().unwrap();
+        let lines = field_lines(&hm);
+        let d = directives_in(&lines).next().unwrap();
         assert_eq!(d.name, "no-cache");
         assert_eq!(d.argument, Some("\"set-cookie\""));
         assert!(d.is("no-cache"));
@@ -434,7 +461,7 @@ mod tests {
     fn a_quoted_argument_hides_neither_separator_nor_directive_name() {
         let hm = headers(&["private=\"no-store,x-secret\""]);
         assert!(!forbids_storage_or_reuse(&hm));
-        assert_eq!(directives(&hm).count(), 1);
+        assert_eq!(directives_in(&field_lines(&hm)).count(), 1);
     }
 
     /// **The qualified form licenses what the bare form forbids**, so a
@@ -454,10 +481,25 @@ mod tests {
     }
 
     #[test]
-    fn a_field_line_that_is_not_text_is_skipped_not_reported() {
+    /// A field line holding an octet outside US-ASCII is read like any other,
+    /// and the directives written beside it are still there. The reader used to
+    /// drop the whole line: `no-store, \xff` answered "no directives here", and
+    /// two rules carried a compensating finding that named the encoding instead
+    /// of the octet.
+    fn a_field_line_that_is_not_text_is_read_like_any_other() {
         let mut hm = headers(&["max-age=60"]);
         hm.append("cache-control", HeaderValue::from_bytes(&[0xff]).unwrap());
         assert_eq!(delta_seconds(&hm, "max-age"), Some(60));
+
+        let mut hm = HeaderMap::new();
+        hm.append(
+            "cache-control",
+            HeaderValue::from_bytes(b"no-store, \xff").unwrap(),
+        );
+        assert!(forbids_storage_or_reuse(&hm), "the readable half survives");
+        let lines = field_lines(&hm);
+        let names: Vec<&str> = directives_in(&lines).map(|d| d.name).collect();
+        assert_eq!(names, ["no-store", "\u{ff}"]);
     }
 
     #[test]
@@ -472,7 +514,8 @@ mod tests {
     #[test]
     fn a_directive_reports_its_argument_as_written() {
         let hm = headers(&["max-age=-1"]);
-        let d = directives(&hm).next().unwrap();
+        let lines = field_lines(&hm);
+        let d = directives_in(&lines).next().unwrap();
         assert_eq!(d.delta_seconds(), Some(-1));
         assert_eq!(delta_seconds(&hm, "max-age"), None);
     }
@@ -481,22 +524,29 @@ mod tests {
     #[test]
     fn members_keeps_the_empty_elements_directives_drops() {
         let hm = headers(&["max-age=1, ,public"]);
+        let lines = field_lines(&hm);
         assert_eq!(
-            members(&hm).collect::<Vec<_>>(),
+            members(&lines).collect::<Vec<_>>(),
             ["max-age=1", "", "public"]
         );
-        assert_eq!(directives(&hm).count(), 2);
+        assert_eq!(directives_in(&lines).count(), 2);
     }
 
     /// An empty *value* is a zero-element list and contributes no member; an
     /// empty *element* inside a list is a member, and a defect.
     #[test]
     fn an_empty_field_value_is_a_zero_element_list() {
-        assert_eq!(members(&headers(&[""])).count(), 0);
-        assert_eq!(members(&headers(&["   "])).count(), 0);
-        assert_eq!(members(&headers(&[","])).collect::<Vec<_>>(), ["", ""]);
+        assert_eq!(members(&field_lines(&headers(&[""]))).count(), 0);
+        assert_eq!(members(&field_lines(&headers(&["   "]))).count(), 0);
         assert_eq!(
-            members(&headers(&["", "max-age=1"])).collect::<Vec<_>>(),
+            members(&field_lines(&headers(&[","]))).collect::<Vec<_>>(),
+            ["", ""]
+        );
+        // § 5.3's combining is a recipient's option, so an empty field line is
+        // a zero-element list the sender wrote and not an empty element it
+        // generated. Joining the lines before counting would invent one.
+        assert_eq!(
+            members(&field_lines(&headers(&["", "max-age=1"]))).collect::<Vec<_>>(),
             ["max-age=1"]
         );
     }
@@ -535,7 +585,7 @@ mod tests {
     #[test]
     fn empty_members_are_not_directives() {
         let hm = headers(&[", ,max-age=1,"]);
-        assert_eq!(directives(&hm).count(), 1);
+        assert_eq!(directives_in(&field_lines(&hm)).count(), 1);
     }
 
     #[test]

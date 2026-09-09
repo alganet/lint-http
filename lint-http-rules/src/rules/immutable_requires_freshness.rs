@@ -111,16 +111,14 @@ impl Rule for ImmutableRequiresFreshness {
             let mut found_immutable = false;
             let mut conflicting: Option<String> = None;
 
-            // The shared reader skips a field line it cannot read as text;
-            // reporting that is this rule's, so it is asked for separately.
-            if crate::helpers::headers::has_unreadable_line(&resp.headers, "cache-control") {
-                return Some(self.violation(
-                    ctx.severity,
-                    "Cache-Control header contains non-UTF8 value".into(),
-                ));
-            }
+            // The value is read as the octets the sender wrote, so there is no
+            // line for a reader to skip and nothing for this rule to say about
+            // the field's encoding: an octet no `tchar` admits is a directive
+            // name's defect, and the two rules that read this field's syntax
+            // report it under the id that names it.
+            let lines = crate::helpers::cache_control::field_lines(&resp.headers);
 
-            for directive in crate::helpers::cache_control::directives(&resp.headers) {
+            for directive in crate::helpers::cache_control::directives_in(&lines) {
                 let lname = directive.name.to_ascii_lowercase();
                 let value = directive.argument;
 
@@ -267,38 +265,41 @@ mod tests {
         assert!(v.is_some());
     }
 
+    /// The octet is not this rule's finding, and `immutable` beside a directive
+    /// that leaves no freshness lifetime still is. The reader used to drop the
+    /// whole field line, so the pairing below went unreported and what came out
+    /// instead was a verdict about the field's encoding.
     #[test]
-    fn non_utf8_header_value_is_violation() -> anyhow::Result<()> {
+    fn an_octet_hides_neither_the_pairing_nor_this_rules_silence() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
+        let run = |bytes: &[u8]| -> Option<Violation> {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                "cache-control",
+                HeaderValue::from_bytes(bytes).expect("a line"),
+            );
+            tx.response = Some(crate::http_transaction::ResponseInfo {
+                status: 200,
+                version: "HTTP/1.1".into(),
+                headers,
+                body_length: None,
+                trailers: None,
+            });
+            crate::test_helpers::run_rule(
+                &ImmutableRequiresFreshness,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "immutable_requires_freshness",
+                ]),
+            )
+        };
 
-        let mut tx = crate::test_helpers::make_test_transaction();
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: HeaderMap::new(),
-
-            body_length: None,
-            trailers: None,
-        });
-
-        let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");
-        tx.response
-            .as_mut()
-            .unwrap()
-            .headers
-            .insert("cache-control", bad);
-
-        let rule = ImmutableRequiresFreshness;
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8"));
+        assert!(run(&[0xff]).is_none(), "the octet alone is not this rule's");
+        let found = run(b"immutable, max-age=0, \xff").expect("the pairing");
+        assert!(found.message.contains("immutable"), "{}", found.message);
         Ok(())
     }
 

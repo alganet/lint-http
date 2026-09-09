@@ -88,22 +88,20 @@ impl Rule for CachingDirectiveInteraction {
         let finding = || -> Option<Violation> {
             // Helper to check a single HeaderMap for contradictions
             let check_headers = |hdrs: &hyper::HeaderMap| -> Option<Violation> {
-                // The shared reader skips a field line it cannot read as text;
-                // reporting that is this rule's, so it is asked for separately.
-                if crate::helpers::headers::has_unreadable_line(hdrs, "cache-control") {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Cache-Control header contains non-UTF8 value".into(),
-                    ));
-                }
+                // The value is read as the octets the sender wrote, so there is
+                // no line for a reader to skip and nothing for this rule to say
+                // about the field's encoding. An octet no `tchar` admits is a
+                // directive name's defect, which the two syntax rules next door
+                // report with the id that names it.
+                let lines = crate::helpers::cache_control::field_lines(hdrs);
 
                 // An empty *element* within the list is forbidden — as distinct
                 // from an entirely empty field value, which is a legal
                 // zero-element list and which `members` already exempts.
-                // `directives` would have dropped the empty member; this is
+                // `directives_of` would have dropped the empty member; this is
                 // what the raw reader is for.
                 // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                if crate::helpers::cache_control::members(hdrs).any(str::is_empty) {
+                if crate::helpers::cache_control::members(&lines).any(str::is_empty) {
                     return Some(self.violation(
                         ctx.severity,
                         "Cache-Control header contains empty member".into(),
@@ -114,7 +112,7 @@ impl Rule for CachingDirectiveInteraction {
                 // keyed by the folded name; the argument is kept as written.
                 use std::collections::HashMap;
                 let mut seen: HashMap<String, Vec<Option<String>>> = HashMap::new();
-                for directive in crate::helpers::cache_control::directives(hdrs) {
+                for directive in crate::helpers::cache_control::directives_in(&lines) {
                     seen.entry(directive.name.to_ascii_lowercase())
                         .or_default()
                         .push(directive.argument.map(str::to_string));
@@ -284,25 +282,42 @@ mod tests {
         }
     }
 
+    /// The octet is not this rule's finding, and the directives written beside
+    /// it are. The reader used to drop the whole field line, so the
+    /// contradiction below was invisible and what this rule reported instead
+    /// was a verdict about the field's encoding — a claim `cache_control_token_valid`
+    /// and `cache_control_directive_valid` answer properly, with the id that
+    /// names the octet.
     #[test]
-    fn non_utf8_header_is_violation() {
+    fn an_octet_hides_neither_the_contradiction_nor_this_rules_silence() {
         use hyper::header::HeaderValue;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let bad = HeaderValue::from_bytes(&[0xff]).expect("should construct non-utf8 header");
-        let mut hm = hyper::HeaderMap::new();
-        hm.insert("cache-control", bad);
-        tx.request.headers = hm;
         let rule = CachingDirectiveInteraction;
         let cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[
             "caching_directive_interaction",
         ]);
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &cfg,
+        let run = |bytes: &[u8]| {
+            let mut tx = crate::test_helpers::make_test_transaction();
+            let mut hm = hyper::HeaderMap::new();
+            hm.insert(
+                "cache-control",
+                HeaderValue::from_bytes(bytes).expect("a line"),
+            );
+            tx.request.headers = hm;
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+        };
+
+        assert!(run(&[0xff]).is_none(), "the octet alone is not this rule's");
+        let found = run(b"public, private, \xff").expect("the contradiction");
+        assert!(
+            found.message.contains("contradictory visibility"),
+            "{}",
+            found.message
         );
-        assert!(v.is_some());
     }
 
     #[test]

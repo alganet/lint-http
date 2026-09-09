@@ -108,7 +108,11 @@ impl Rule for VaryAndCacheConsistent {
             // deliberately excluded: it promises no reuse benefit (it requires
             // revalidation), so pairing it with Vary: * is not a misconfiguration signal.
             const ADVERTISES_REUSE: [&str; 3] = ["max-age", "s-maxage", "public"];
-            for directive in crate::helpers::cache_control::directives(&resp.headers) {
+            // The joined value is held here because a directive borrows the
+            // member it was parsed from, and it is read as octets so a bad
+            // one no longer hides the directives written beside it.
+            let lines = crate::helpers::cache_control::field_lines(&resp.headers);
+            for directive in crate::helpers::cache_control::directives_in(&lines) {
                 if ADVERTISES_REUSE.iter().any(|name| directive.is(name)) {
                     let name = directive.name.to_ascii_lowercase();
                     return Some(self.violation(ctx.severity, format!(
