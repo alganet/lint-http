@@ -56,10 +56,13 @@ impl ContentSecurityPolicyValid {
             ));
         }
 
-        let mut parts = directive.split_whitespace();
-        let name = parts
-            .next()
-            .expect("split_whitespace yields at least one item since the directive is not empty");
+        // ASCII whitespace, not Unicode: the value is one `char` per octet, so
+        // %xA0 is an `obs-text` octet the sender wrote inside a token and not a
+        // separator between two of them.
+        let mut parts = directive.split_ascii_whitespace();
+        let name = parts.next().expect(
+            "split_ascii_whitespace yields at least one item since the directive is not empty",
+        );
 
         // A CSP directive-name is narrower than the HTTP `token`: only
         // letters, digits and `-`. Enforcing `token` here let typos like
@@ -72,8 +75,10 @@ impl ContentSecurityPolicyValid {
             return Some(self.violation(
                 severity,
                 format!(
-                    "Invalid character '{}' in CSP directive-name '{}', at position {}",
-                    c, name, position
+                    "Invalid character {} in CSP directive-name '{}', at position {}",
+                    crate::helpers::shown::describe_char(c),
+                    crate::helpers::shown::shown_in_finding(name),
+                    position
                 ),
             ));
         }
@@ -248,15 +253,18 @@ impl Rule for ContentSecurityPolicyValid {
         let finding = || -> Option<Violation> {
             let resp = tx.response.as_ref()?;
 
-            for line in resp.headers.get_all("content-security-policy").iter() {
-                let Ok(policy) = line.to_str() else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Content-Security-Policy header value is not valid UTF-8".into(),
-                    ));
-                };
+            // Read as the octets the sender wrote. A `directive-name` is
+            // `1*( ALPHA / DIGIT / "-" )`, so an octet outside visible US-ASCII is
+            // a character the name cannot hold and the check in
+            // `directive_defect` names it — where the deleted branch could only
+            // say the whole policy was unreadable.
+            for policy in crate::helpers::headers::field_lines_as_written(
+                &resp.headers,
+                "content-security-policy",
+            ) {
+                let policy = policy.as_str();
 
-                if policy.trim().is_empty() {
+                if crate::helpers::headers::trim_ows(policy).is_empty() {
                     return Some(self.violation(
                         ctx.severity,
                         "Content-Security-Policy header MUST not be empty".into(),
@@ -264,9 +272,11 @@ impl Rule for ContentSecurityPolicyValid {
                 }
 
                 for (position, directive) in policy.split(';').enumerate() {
-                    if let Some(defect) =
-                        self.directive_defect(directive.trim(), position, ctx.severity)
-                    {
+                    if let Some(defect) = self.directive_defect(
+                        crate::helpers::headers::trim_ows(directive),
+                        position,
+                        ctx.severity,
+                    ) {
                         return Some(defect);
                     }
                 }
@@ -441,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_header_is_violation() {
+    fn an_obs_text_octet_in_a_directive_name_is_named() {
         let rule = ContentSecurityPolicyValid;
         let cfg = make_cfg();
 
@@ -458,7 +468,10 @@ mod tests {
             &cfg,
         )
         .unwrap();
-        assert!(v.message.contains("not valid UTF-8"));
+        assert_eq!(
+            v.message,
+            "Invalid character 0xFF in CSP directive-name '\u{ff}', at position 0"
+        );
     }
 
     #[test]

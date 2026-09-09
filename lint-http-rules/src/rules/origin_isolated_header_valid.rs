@@ -101,21 +101,18 @@ impl Rule for OriginIsolatedHeaderValid {
                 ));
             }
 
-            let val = match crate::helpers::headers::get_header_str(
-                &resp.headers,
-                "origin-agent-cluster",
-            ) {
-                Some(v) => v.trim(),
-                None => {
-                    return Some(
-                        self.violation(
-                            ctx.severity,
-                            "Origin-Agent-Cluster header contains non-ASCII or control characters"
-                                .into(),
-                        ),
-                    )
-                }
-            };
+            // Read as the octets the sender wrote. The only value this field ever
+            // carries is the two characters `?1`, so an octet outside visible
+            // US-ASCII is a value that is not it — which the finding at the end
+            // says, with the value in hand.
+            let hv = resp
+                .headers
+                .get_all("origin-agent-cluster")
+                .iter()
+                .next()
+                .expect("a field line, since the count above is one");
+            let line = crate::helpers::headers::field_line_as_written(hv);
+            let val = crate::helpers::headers::trim_ows(&line);
 
             // Must not be a comma-separated list
             // cite(HTML § 7.1.2): "This header is a structured header whose value must be a boolean."
@@ -136,7 +133,7 @@ impl Rule for OriginIsolatedHeaderValid {
                 return None;
             }
 
-            Some(self.cited(&HTML_7_1_2, ctx.severity, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", val)))
+            Some(self.cited(&HTML_7_1_2, ctx.severity, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", crate::helpers::shown::shown_in_finding(val))))
         };
         Vec::from_iter(finding())
     }
@@ -216,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_is_violation() -> anyhow::Result<()> {
+    fn an_obs_text_octet_is_a_value_that_is_not_the_boolean() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         let rule = OriginIsolatedHeaderValid;
         let mut tx = crate::test_helpers::make_test_transaction();
@@ -237,34 +234,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        Ok(())
-    }
-
-    #[test]
-    fn non_utf8_is_violation_message_contains_hint() -> anyhow::Result<()> {
-        use hyper::header::HeaderValue;
-        let rule = OriginIsolatedHeaderValid;
-        let mut tx = crate::test_helpers::make_test_transaction();
-        let mut hdrs =
-            crate::test_helpers::make_headers_from_pairs(&[("origin-agent-cluster", "?1")]);
-        hdrs.insert("origin-agent-cluster", HeaderValue::from_bytes(&[0xff])?);
-        tx.response = Some(crate::http_transaction::ResponseInfo {
-            status: 200,
-            version: "HTTP/1.1".into(),
-            headers: hdrs,
-            body_length: None,
-            trailers: None,
-        });
-
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        assert_eq!(
+            v.expect("a finding").message,
+            "Origin-Agent-Cluster header value '\u{ff}' is invalid: expected '?1' to request an \
+             origin-keyed agent cluster"
         );
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-ASCII") || msg.contains("control"));
         Ok(())
     }
 
