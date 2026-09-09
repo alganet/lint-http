@@ -4,6 +4,41 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::etag::{
+    entity_tag_defect, ETAG_CHARACTER_FORBIDDEN, ETAG_DELIMITER_MISSING,
+    ETAG_WEAK_INDICATOR_INVALID, RFC_9110_8_8_3,
+};
+use crate::violations::http_date::{
+    http_date_defect, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN,
+    RFC_9110_5_6_7,
+};
+use crate::violations::ViolationDef;
+
+/// `If-Range = entity-tag / HTTP-date`, and both alternatives are somebody
+/// else's production.
+///
+/// The two subjects arrive together because the field imports both and adds
+/// nothing to either — the same shape `Age` had with `delta-seconds`, at an
+/// alternation instead of at a single production. **What makes them reachable
+/// is that this alternation has a committing delimiter, and the document writes
+/// the test itself**: § 13.1.5 tells a recipient to examine the first three
+/// characters for a DQUOTE. So a value is measured against the alternative it
+/// chose, rather than being refused for deriving from neither — which is the
+/// finding 2.63's rule says the catalogue cannot name, and the one this field
+/// does not have to make.
+///
+/// The rule keeps everything the *pairing* of these fields costs: an
+/// `If-Range` with no `Range`, a weak validator where only a strong one may
+/// stand, a date conditional beside an entity-tag one, and a second field line
+/// where the grammar admits one.
+static DECLARED: &[&ViolationDef] = &[
+    &ETAG_WEAK_INDICATOR_INVALID,
+    &ETAG_DELIMITER_MISSING,
+    &ETAG_CHARACTER_FORBIDDEN,
+    &HTTP_DATE_MALFORMED,
+    &HTTP_DATE_OBSOLETE,
+    &HTTP_DATE_WHITESPACE_FORBIDDEN,
+];
 
 /// Validate mutual exclusivity and sanity of conditional request headers.
 ///
@@ -12,6 +47,9 @@ use crate::rules::{Rule, RuleMeta};
 /// - `If-Unmodified-Since` must be ignored when `If-Match` is present (flagged here)
 /// - `If-Range` MUST not appear without a corresponding `Range` header
 /// - `If-Range` MUST NOT contain a weak entity-tag (W/"...")
+/// - `If-Range`'s value is measured against the alternative it chose — an
+///   entity-tag where the first three characters hold a DQUOTE, an IMF-fixdate
+///   otherwise
 /// - `If-Modified-Since` is only meaningful for GET/HEAD requests (flag presence on other methods)
 pub struct ConditionalHeadersConsistent;
 
@@ -28,7 +66,7 @@ const RFC_9110_13_1_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("13.1.5"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.5",
-    note: "If-Range: no If-Range without Range; no weak entity-tag in If-Range",
+    note: "If-Range — `If-Range = entity-tag / HTTP-date`, the three-character DQUOTE test that says which alternative a value chose, no If-Range without Range, and no weak entity-tag in one",
 };
 const RFC_9110_13_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -55,11 +93,22 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore."
+        "Validate consistency and mutual exclusivity of conditional request headers. When an ETag-based conditional is present, this rule flags a redundant date-based conditional that the recipient is required to ignore (RFC 9110 §13.1.3, §13.1.4); it also ensures `If-Range` is only used with `Range` requests, disallows a weak entity-tag in `If-Range`, measures an `If-Range` value against the alternative it chose — `If-Range = entity-tag / HTTP-date`, and §13.1.5's own test is to examine the first three characters for a DQUOTE — flags `If-Modified-Since` on methods other than GET/HEAD, and flags a repeated `If-Modified-Since`/`If-Unmodified-Since` field, whose combined value is a list of dates the recipient must ignore."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_13_1, RFC_9110_13_1_5, RFC_9110_13_2, RFC_9110_14_2]
+        &[
+            RFC_9110_13_1,
+            RFC_9110_13_1_5,
+            RFC_9110_13_2,
+            RFC_9110_14_2,
+            RFC_9110_8_8_3,
+            RFC_9110_5_6_7,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -142,15 +191,15 @@ impl Rule for ConditionalHeadersConsistent {
                     return Some(self.cited(&RFC_9110_13_1_5, ctx.severity, "If-Range present in request without Range header; If-Range MUST only be used with Range requests".into()));
                 }
 
-                // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak.
-                // (A weak marker is the `W/` prefix; a bare quoted-string is a strong tag and
-                // fine, and a date is left to date-validity rules.)
-                //
-                // Read as the octets the sender wrote, and this rule says nothing
-                // about what they are: `etagc` admits `obs-text`, so an octet
-                // inside a tag is a value the production generates, and the one
-                // question asked here is whether the value opens with `W/`.
+                // Read as the octets the sender wrote: `etagc` admits `obs-text`,
+                // so an octet inside a tag is a character the production
+                // generates and is measured against it like any other.
                 let trimmed = crate::helpers::headers::trim_ows(&line);
+
+                // The weakness indicator is read before the alternation, because
+                // it is the one finding that is about *this field* rather than
+                // about either production: a weak validator is a well-formed
+                // entity-tag that § 13.1.5 forbids here specifically.
                 // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
                 if trimmed.starts_with("W/") {
                     return Some(self.cited(
@@ -159,8 +208,38 @@ impl Rule for ConditionalHeadersConsistent {
                         "If-Range MUST not contain a weak entity-tag (W/...)".into(),
                     ));
                 }
-                // If it starts with a quoted-string, it's a strong ETag and fine; if it's a date, we'll not flag here
-                // (date validity is checked by other rules)
+
+                // `If-Range = entity-tag / HTTP-date` — an alternation whose
+                // committing delimiter the document names itself, which is what
+                // lets each half be measured against the production it chose.
+                // A value that chose neither is this rule's own finding, because
+                // *derives from none of my alternatives* is what no subject can
+                // name.
+                // cite(RFC 9110 § 13.1.5, label: If-Range grammar): "If-Range = entity-tag / HTTP-date"
+                // cite(RFC 9110 § 13.1.5): "A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE."
+                if trimmed.is_empty() {
+                    return Some(self.cited(
+                        &RFC_9110_13_1_5,
+                        ctx.severity,
+                        "If-Range is empty, which is neither an entity-tag nor an HTTP-date".into(),
+                    ));
+                }
+                if trimmed.chars().take(3).any(|c| c == '"') {
+                    if let Err(defect) = crate::helpers::validator::check_entity_tag(trimmed) {
+                        return Some(ctx.report_with(
+                            entity_tag_defect(defect),
+                            format!("If-Range entity-tag is invalid: {}", defect.message()),
+                        ));
+                    }
+                } else if let Err(defect) = crate::http_date::check_imf_fixdate(trimmed) {
+                    return Some(ctx.report_with(
+                        http_date_defect(defect),
+                        format!(
+                            "If-Range timestamp '{}' is not a valid IMF-fixdate",
+                            crate::helpers::shown::shown_in_finding(trimmed)
+                        ),
+                    ));
+                }
             }
 
             // Neither date conditional is a list, so a second field line is a sender
@@ -386,6 +465,83 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
+    }
+
+    /// Each alternative is measured against the production it committed to,
+    /// and the document's own three-character test is what says which.
+    #[rstest]
+    #[case("\"abc", "etag_delimiter_missing")]
+    #[case("\"a b\"", "etag_character_forbidden")]
+    #[case("w/\"abc\"", "etag_weak_indicator_invalid")]
+    #[case("bogus", "http_date_malformed")]
+    #[case("Sunday, 06-Nov-94 08:49:37 GMT", "http_date_obsolete")]
+    fn a_committed_alternative_answers_to_its_own_production(
+        #[case] if_range: &str,
+        #[case] expected: &str,
+    ) {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("range", "bytes=0-1"),
+            ("if-range", if_range),
+        ]);
+
+        let rule = ConditionalHeadersConsistent;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, expected, "{}", v.message);
+    }
+
+    /// An empty value chose neither alternative, which is the one finding here
+    /// that stays this rule's own.
+    #[rstest]
+    fn an_empty_if_range_derives_from_neither_alternative() {
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[
+            ("range", "bytes=0-1"),
+            ("if-range", ""),
+        ]);
+
+        let rule = ConditionalHeadersConsistent;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(
+            v.message,
+            "If-Range is empty, which is neither an entity-tag nor an HTTP-date"
+        );
+    }
+
+    /// A strong tag holding an `obs-text` octet is a tag: `etagc` generates it.
+    #[rstest]
+    fn an_obs_text_octet_inside_a_tag_is_no_finding() {
+        use hyper::header::HeaderValue;
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut hm = hyper::HeaderMap::new();
+        hm.insert("range", "bytes=0-1".parse().expect("a field line"));
+        hm.insert(
+            "if-range",
+            HeaderValue::from_bytes(b"\"caf\xe9\"").expect("a field line"),
+        );
+        tx.request.headers = hm;
+
+        let rule = ConditionalHeadersConsistent;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[rstest]
