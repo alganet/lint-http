@@ -153,22 +153,18 @@ impl Rule for TimingAllowOriginValid {
             // cite(Resource Timing § 3.5.2): "The sender MAY generate multiple Timing-Allow-Origin header fields."
             // cite(Resource Timing § 3.5.2): "The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma."
             for hv in headers.get_all("timing-allow-origin").iter() {
-                // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-                let s = match hv.to_str() {
-                    Ok(v) => v,
-                    Err(_) => return Some(
-                        self.violation(
-                            ctx.severity,
-                            "Timing-Allow-Origin header contains non-ASCII or control characters"
-                                .into(),
-                        ),
-                    ),
-                };
+                // Read as the octets the sender wrote: every member derives from
+                // `*`, the case-sensitive `null` or a serialized origin, and all
+                // three are inside visible US-ASCII — so an octet above it is a
+                // member deriving from none of them, which the origin finding
+                // below already says.
+                let line = crate::helpers::headers::field_line_as_written(hv);
+                let s = line.as_str();
 
                 // Empty header value (only whitespace) is invalid: `1#` requires at least
                 // one member.
                 // cite(Resource Timing): "Timing-Allow-Origin = 1#( origin-or-null / wildcard )"
-                if s.trim().is_empty() {
+                if crate::helpers::headers::trim_ows(s).is_empty() {
                     return Some(ctx.report_with(
                         &LIST_MEMBER_MISSING,
                         "Timing-Allow-Origin header value is empty".into(),
@@ -181,11 +177,15 @@ impl Rule for TimingAllowOriginValid {
                 // cite(Resource Timing § 3.5.2): "The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):"
                 let parts: Vec<&str> = s.split(',').collect();
                 for (i, raw_member) in parts.iter().enumerate() {
-                    if raw_member.trim().is_empty() {
+                    if crate::helpers::headers::trim_ows(raw_member).is_empty() {
                         // An internal/leading empty member means the sender generated an
                         // empty list element.
                         // cite(RFC 9110 § 5.6.1.1): "In any production that uses the list construct, a sender MUST NOT generate empty list elements."
-                        if parts.iter().skip(i + 1).any(|p| !p.trim().is_empty()) {
+                        if parts
+                            .iter()
+                            .skip(i + 1)
+                            .any(|p| !crate::helpers::headers::trim_ows(p).is_empty())
+                        {
                             return Some(ctx.report_with(
                                 &LIST_MEMBER_EMPTY,
                                 "Timing-Allow-Origin header contains empty member".into(),
@@ -210,7 +210,10 @@ impl Rule for TimingAllowOriginValid {
                     if !crate::helpers::uri::is_valid_serialized_origin(m) {
                         return Some(self.violation(
                             ctx.severity,
-                            format!("Timing-Allow-Origin contains invalid origin: '{}'", m),
+                            format!(
+                                "Timing-Allow-Origin contains invalid origin: '{}'",
+                                crate::helpers::shown::shown_in_finding(m)
+                            ),
                         ));
                     }
                 }
@@ -314,8 +317,12 @@ mod tests {
         );
     }
 
+    /// The octet is a member deriving from none of the three alternatives, and
+    /// that is what the finding says. It used to be a verdict about the octet
+    /// class, reached before any member had been read — which also meant a
+    /// legible origin written beside the octet was never measured.
     #[test]
-    fn non_utf8_header_is_violation() {
+    fn an_octet_is_a_value_deriving_from_none_of_the_alternatives() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
 
@@ -341,8 +348,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        let v = v.expect("a finding");
+        assert!(v.message.contains("invalid origin"), "{}", v.message);
     }
 
     #[test]

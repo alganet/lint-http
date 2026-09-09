@@ -541,7 +541,7 @@ sources:
     snippet: Timing-Allow-Origin = 1#( origin-or-null / wildcard )
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 170
+      line: 166
   - label: timing_allow_origin_valid (2)
     section: § 3.5.2
     snippet: Server-side applications may return the Timing-Allow-Origin HTTP response header to allow the User Agent to fully expose, to the document origin(s) specified, the values of attributes that would have been zero due to those cross-origin restrictions.
@@ -553,7 +553,7 @@ sources:
     snippet: 'The header’s value is represented by the following ABNF [RFC5234] (using List Extension, [RFC9110]):'
     cited_by:
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 181
+      line: 177
   - label: timing_allow_origin_valid (4)
     section: § 3.5.2
     snippet: The recipient MAY combine multiple Timing-Allow-Origin header fields by appending each subsequent field value to the combined field value in order, separated by a comma.
@@ -6659,7 +6659,7 @@ sources:
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 85
     - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 187
+      line: 183
     - file: lint-http-rules/src/rules/trailer_header_valid.rs
       line: 92
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
@@ -8630,8 +8630,6 @@ sources:
       line: 102
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
       line: 107
-    - file: lint-http-rules/src/rules/timing_allow_origin_valid.rs
-      line: 156
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
       line: 114
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
