@@ -286,6 +286,14 @@ pub fn check_quoted_string(val: &str) -> Result<(), QuotedStringDefect> {
 /// used to render on the way out, which put a rendered `String` between the
 /// only reporter and the four defects the production has.
 ///
+/// **The trim is `OWS` and the choice is a reading of `qdtext`.** A
+/// `quoted-string` admits `obs-text` between its quotes, so `"%xA0"` holds a
+/// character the production generates and is *not* an empty value; `SP` and
+/// `HTAB` are the only whitespace this question can have meant. A Unicode-aware
+/// trim answered that `"%xA0"` and `""` are the same value, which is the
+/// difference between a parameter that names nothing and one that names an
+/// octet.
+///
 /// The empty verdict itself belongs to no def: a `quoted-string` holding
 /// nothing derives from § 5.6.4 exactly as written, so what an empty one means
 /// is the *field's* question and each caller answers it. That is the same line
@@ -293,7 +301,7 @@ pub fn check_quoted_string(val: &str) -> Result<(), QuotedStringDefect> {
 /// not exist, and `charset=""`, a well-formed pair of DQUOTEs around no name.
 pub fn quoted_string_inner_trimmed_is_empty(val: &str) -> Result<bool, QuotedStringDefect> {
     // Reuse `unescape_quoted_string` to perform unescaping and validation
-    unescape_quoted_string(val).map(|s| s.trim().is_empty())
+    unescape_quoted_string(val).map(|s| crate::helpers::headers::trim_ows(&s).is_empty())
 }
 
 /// Unescape a well-formed HTTP `quoted-string` value and return its inner contents.
@@ -331,6 +339,18 @@ pub fn unescape_quoted_string(val: &str) -> Result<String, QuotedStringDefect> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An `obs-text` octet between the quotes is content, so the value is not
+    /// an empty one — the reading the `OWS` trim makes.
+    #[test]
+    fn an_obs_text_octet_is_not_an_empty_quoted_string() {
+        let val: String = std::iter::once('"')
+            .chain(std::iter::once('\u{a0}'))
+            .chain(std::iter::once('"'))
+            .collect();
+        assert_eq!(quoted_string_inner_trimmed_is_empty(&val), Ok(false));
+        assert_eq!(quoted_string_inner_trimmed_is_empty("\" \t\""), Ok(true));
+    }
 
     /// `qdtext` and `quoted-pair` allow different octets after their respective
     /// positions, and a backslash does not widen the set to "anything".

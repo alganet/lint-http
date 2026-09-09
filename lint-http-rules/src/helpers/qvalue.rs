@@ -23,9 +23,12 @@
 /// The leading/trailing trim is a tolerance, not the grammar: a `qvalue` has no
 /// whitespace in it anywhere. Every caller trims before asking, so it changes
 /// no verdict today; it is kept because nothing depends on it being strict and
-/// removing it would be a silent trap for a caller that does not trim.
+/// removing it would be a silent trap for a caller that does not trim. It is
+/// `OWS` rather than `str::trim` for the reason every trim in these helpers is:
+/// the callers hold one `char` per octet, and `%xA0` is an octet a sender wrote
+/// rather than padding to be taken off.
 pub fn valid_qvalue(s: &str) -> bool {
-    let s = s.trim();
+    let s = crate::helpers::headers::trim_ows(s);
     // The three-decimal cap and the "1 may only be followed by zeroes" asymmetry are
     // both in the production; neither is arbitrary.
     // cite(RFC 9110 § 12.4.2, label: qvalue grammar): "qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )"
