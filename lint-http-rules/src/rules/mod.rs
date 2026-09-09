@@ -1302,8 +1302,12 @@ severity = "warn"
         /// timestamp's own defect. The sentences are still declared by their
         /// rules and carried by the defs; what left is the site. `Retry-After`
         /// is the fourth: its octet is a value deriving from neither
-        /// alternative, which the rule says at a site of its own.
-        const FLOOR: usize = 143;
+        /// alternative, which the rule says at a site of its own. `Age` is the
+        /// fifth, and it had cited the *field's* section for it — § 5.1 says
+        /// what the value means and nothing about an encoding, so the sentence
+        /// stays where the rule reads it and the octet answers to
+        /// `delta-seconds`.
+        const FLOOR: usize = 142;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

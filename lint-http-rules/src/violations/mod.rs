@@ -39,6 +39,7 @@ pub mod content_length;
 pub mod content_range;
 pub mod cookie;
 pub mod credentials;
+pub mod delta_seconds;
 pub mod domain;
 pub mod etag;
 pub mod http_date;
@@ -362,7 +363,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 118;
+        const FLOOR: usize = 120;
         let cited = VIOLATIONS.iter().filter(|d| d.spec.is_some()).count();
         assert!(
             cited >= FLOOR,
