@@ -4,8 +4,41 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    host_and_port, scheme_name, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3,
+    URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
+    URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
+    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+};
+use crate::violations::ViolationDef;
 
 pub struct Http3PseudoHeadersValid;
+
+/// The authority's and the scheme's defects, which is all this rule borrows —
+/// the same eight the HTTP/2 twin declares, for the same values.
+///
+/// § 4.3.1 conveys the authority portion of the target URI and the scheme
+/// portion of the request target; neither is a production this document writes,
+/// so a bracket, a host character, a port digit or a scheme's first letter is
+/// the same defect here, in a `Host` field and in an HTTP/2 request. **The two
+/// version rules had read the same value to different depths**: the twin has
+/// measured this authority against `uri-host [ ":" port ]` since it was
+/// converted, and this one only ever looked for an `@`.
+///
+/// Everything else here is about *which* pseudo-header a message carries and
+/// where — a missing `:method`, a CONNECT with no authority, an asterisk target
+/// on a method that may not use one. None of that is a defect of a production,
+/// and the documents that require it write no grammar to name it after.
+static DECLARED: &[&ViolationDef] = &[
+    &URI_HOST_CLOSING_BRACKET_MISSING,
+    &URI_HOST_IP_LITERAL_MALFORMED,
+    &URI_HOST_BRACKET_FORBIDDEN,
+    &URI_HOST_CHARACTER_FORBIDDEN,
+    &URI_PORT_CHARACTER_FORBIDDEN,
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
+];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
@@ -79,7 +112,14 @@ severity = "error"
             RFC_9114_4_3_2,
             RFC_9114_4_4,
             RFC_9110_7_1,
+            RFC_3986_3_1,
+            RFC_3986_3_2_2,
+            RFC_3986_3_2_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -224,6 +264,31 @@ impl Rule for Http3PseudoHeadersValid {
                             crate::helpers::shown::shown_in_finding(&shown)
                         )));
                 }
+
+                // `uri-host [ ":" port ]` is one question with one answer, and
+                // the shared reader is where it lives — the same call the HTTP/2
+                // twin makes on the same value. § 4.4 names the two components
+                // and writes neither, so the bracket, the address inside it and
+                // the port's digits answer to RFC 3986.
+                // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
+                if let Some(authority) = crate::helpers::uri::extract_authority_from_request_target(
+                    uri_trimmed,
+                )
+                .filter(|_| crate::helpers::uri::scheme_authority_marker(uri_trimmed).is_none())
+                {
+                    if let Err(defect) =
+                        crate::helpers::uri::validate_host_and_optional_port(&authority)
+                    {
+                        return Some(ctx.report_with(
+                            host_and_port(defect),
+                            format!(
+                                "HTTP/3 CONNECT ':authority' '{}' is not a host and port: {}",
+                                crate::helpers::shown::shown_in_finding(&authority),
+                                defect.message()
+                            ),
+                        ));
+                    }
+                }
             } else {
                 // Non-CONNECT: the request-target is either the asterisk-form (OPTIONS
                 // only) or a path. RFC 9110 § 7.1 permits "*" for OPTIONS and forbids it
@@ -280,17 +345,52 @@ impl Rule for Http3PseudoHeadersValid {
                 // (RFC 3986 § 3.2.1, at the shared helper).
                 // cite(RFC 9114 § 4.3.1): "The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https"."
                 if let Some(marker) = crate::helpers::uri::scheme_authority_marker(uri_trimmed) {
+                    // The scheme is the characters before the marker, and the
+                    // helper carries the production. Nothing here asks whether it
+                    // is one anybody serves — this pseudo-header is not
+                    // restricted to http and https — only whether it is a scheme
+                    // name at all, which is the reading the twin already makes.
+                    // cite(RFC 9114 § 4.3.1): "Contains the scheme portion of the target URI (Section 3.1 of [URI])."
+                    if let Some(defect) = crate::helpers::uri::scheme_if_present(uri_trimmed) {
+                        return Some(ctx.report_with(
+                            scheme_name(defect),
+                            format!(
+                                "Request target's scheme is not a scheme name: {}",
+                                defect.message()
+                            ),
+                        ));
+                    }
+
                     let scheme = &uri_trimmed[..marker];
-                    if let Some(authority) = authority.filter(|a| a.contains('@')) {
+
+                    if let Some(authority) = authority.as_ref().filter(|a| a.contains('@')) {
                         if scheme.eq_ignore_ascii_case("http")
                             || scheme.eq_ignore_ascii_case("https")
                         {
-                            let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
-                                .unwrap_or(authority);
+                            let shown = crate::helpers::uri::userinfo_password_withheld(authority)
+                                .unwrap_or_else(|| authority.clone());
                             return Some(self.cited(&RFC_9114_4_3_1, ctx.severity, format!(
                                     "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter",
                                     crate::helpers::shown::shown_in_finding(&shown)
                                 )));
+                        }
+                    }
+
+                    // The same `uri-host [ ":" port ]` reading the CONNECT branch
+                    // makes, on the authority this target reassembled.
+                    // cite(RFC 9114 § 4.3.1): "Contains the authority portion of the target URI (Section 3.2 of [URI])."
+                    if let Some(ref authority) = authority {
+                        if let Err(defect) =
+                            crate::helpers::uri::validate_host_and_optional_port(authority)
+                        {
+                            return Some(ctx.report_with(
+                                host_and_port(defect),
+                                format!(
+                                    "HTTP/3 ':authority' '{}' is not a host and port: {}",
+                                    crate::helpers::shown::shown_in_finding(authority),
+                                    defect.message()
+                                ),
+                            ));
                         }
                     }
                 }
@@ -345,6 +445,51 @@ mod tests {
             resp.version = "HTTP/3.0".into();
         }
         tx
+    }
+
+    /// The authority and the scheme answer to the same ids the HTTP/2 twin
+    /// reports, on the same values — the reading this rule was missing.
+    #[rstest]
+    #[case("https://exa mple.com/p", "uri_host_character_forbidden")]
+    #[case("https://[::1/p", "uri_host_closing_bracket_missing")]
+    #[case("https://example.com:80a/p", "uri_port_character_forbidden")]
+    #[case("1https://example.com/p", "uri_scheme_leading_letter_missing")]
+    fn an_authority_or_scheme_defect_answers_to_its_production(
+        #[case] target: &str,
+        #[case] expected: &str,
+    ) {
+        let rule = Http3PseudoHeadersValid;
+        let mut tx = make_h3_transaction();
+        tx.request.method = "GET".into();
+        tx.request.uri = target.into();
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, expected, "{}", v.message);
+    }
+
+    /// A CONNECT's authority is measured too, and its port is where the twin
+    /// looks first.
+    #[rstest]
+    fn a_connect_authority_is_measured_against_the_production() {
+        let rule = Http3PseudoHeadersValid;
+        let mut tx = make_h3_transaction();
+        tx.request.method = "CONNECT".into();
+        tx.request.uri = "example.com:80a".into();
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "uri_port_character_forbidden", "{}", v.message);
     }
 
     // --- :method pseudo-header required ---
