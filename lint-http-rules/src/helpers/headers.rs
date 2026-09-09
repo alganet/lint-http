@@ -47,6 +47,15 @@ pub fn get_header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str>
 /// that must measure what a sender actually wrote — including the octets
 /// `to_str` refuses — want [`combined_field_value_octets`] instead, and the
 /// distinction is the same one drawn at [`get_all_header_values`].
+///
+/// **The skip is silent, and a rule that compensates for it is reading the
+/// wrong function.** There used to be a `has_unreadable_line` beside this one
+/// so a rule could ask whether anything had been skipped and report it; two
+/// rules did, and both reported the skip as a verdict about the field's
+/// encoding while the octet that caused it went unnamed — and every other
+/// directive on that line went unread. The answer is not a companion question
+/// but [`field_lines_as_written`] beside it: where a field's own grammar is
+/// inside visible US-ASCII, that reader refuses nothing the grammar does not.
 pub fn field_lines<'a>(headers: &'a HeaderMap, name: &str) -> impl Iterator<Item = &'a str> {
     headers
         .get_all(name)
@@ -54,15 +63,29 @@ pub fn field_lines<'a>(headers: &'a HeaderMap, name: &str) -> impl Iterator<Item
         .filter_map(|hv| hv.to_str().ok())
 }
 
-/// Whether any field line for `name` carries octets that are not text.
+/// The field lines for `name`, in order, each one `char` per octet — **all of
+/// them**.
 ///
-/// The companion to [`field_lines`], and the reason that one can be silent: it
-/// skips such a line, so a rule whose *finding* is that the sender wrote one
-/// has to ask separately. Keeping the two beside each other is what stops the
-/// silent skip from quietly deleting a rule's finding when it adopts the
-/// reader.
-pub fn has_unreadable_line(headers: &HeaderMap, name: &str) -> bool {
-    headers.get_all(name).iter().any(|hv| hv.to_str().is_err())
+/// [`field_lines`]'s octet twin, and the difference is the whole of why it
+/// exists: that one drops a line it cannot read as text, so a single octet
+/// outside US-ASCII takes every value written beside it out of reach, and this
+/// one drops nothing. Where the field's own grammar is inside visible US-ASCII,
+/// the octet is a defect of whatever production it landed in and the rule that
+/// measures that production names it.
+///
+/// A `Vec<String>` rather than an iterator of `&str`, because the decode
+/// allocates: a caller that walks the members of these lines holds the vector
+/// for the length of the walk, since each member borrows the line it was cut
+/// from. [`combined_field_value_as_written`] is the sibling for a field whose
+/// grammar is a list over the whole section; this one is for a caller that must
+/// keep the line boundary, because § 5.3's combining is a *recipient's* option
+/// and some findings are about what the sender wrote on one line.
+pub fn field_lines_as_written(headers: &HeaderMap, name: &str) -> Vec<String> {
+    headers
+        .get_all(name)
+        .iter()
+        .map(field_line_as_written)
+        .collect()
 }
 
 /// Collect all header values for the given name and concatenate them using

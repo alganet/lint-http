@@ -4119,7 +4119,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
       line: 138
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
-      line: 159
+      line: 157
   - label: immutable_cache_never_stale (2)
     section: § 2
     snippet: The immutable extension only applies during the freshness lifetime of the stored response.
@@ -4127,7 +4127,7 @@ sources:
     - file: lint-http-rules/src/rules/immutable_cache_never_stale.rs
       line: 139
     - file: lint-http-rules/src/rules/immutable_requires_freshness.rs
-      line: 158
+      line: 156
 - label: RFC 8259
   url: https://www.rfc-editor.org/rfc/rfc8259.html
   fragments:
@@ -6619,9 +6619,9 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 676
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 111
+      line: 125
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 152
+      line: 176
     - file: lint-http-rules/src/helpers/list.rs
       line: 87
     - file: lint-http-rules/src/helpers/list.rs
@@ -6635,7 +6635,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 752
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 105
+      line: 103
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 89
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
@@ -6673,11 +6673,11 @@ sources:
     snippet: When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 110
+      line: 104
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 121
+      line: 144
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 389
+      line: 412
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
       line: 127
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
@@ -6699,7 +6699,7 @@ sources:
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 112
+      line: 126
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 347
   - label: lint-http-rules/src/helpers/comment.rs
@@ -6945,7 +6945,7 @@ sources:
     snippet: Fields are sent and received within the header and trailer sections of messages
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 252
+      line: 275
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 135
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
@@ -6955,7 +6955,7 @@ sources:
     snippet: A recipient MAY combine multiple field lines within a field section that have the same field name into one field line, without changing the semantics of the message, by appending each subsequent field line value to the initial field line value in order, separated by a comma (",") and optional whitespace (OWS, defined in Section 5.6.3).  For consistency, use comma SP.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 90
+      line: 113
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 205
     - file: lint-http-rules/src/rules/range_header_syntax.rs
@@ -6967,13 +6967,13 @@ sources:
     snippet: Since it cannot be combined into a single field value, recipients ought to handle "Set-Cookie" as a special case while processing fields.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 91
+      line: 114
   - label: lint-http-rules/src/helpers/headers.rs (4)
     section: § 5.3
     snippet: a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 390
+      line: 413
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 28
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
@@ -7013,9 +7013,9 @@ sources:
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 122
+      line: 145
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 157
+      line: 180
     - file: lint-http-rules/src/helpers/shown.rs
       line: 43
     - file: lint-http-rules/src/rules/charset_registered.rs
@@ -7043,7 +7043,7 @@ sources:
     snippet: Fields that only anticipate a single member as the field value are referred to as "singleton fields".
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 387
+      line: 410
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 256
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
@@ -7053,7 +7053,7 @@ sources:
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 388
+      line: 411
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 264
   - label: lint-http-rules/src/helpers/headers.rs (8)
@@ -7061,13 +7061,13 @@ sources:
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 158
+      line: 181
   - label: OWS grammar
     section: § 5.6.3
     snippet: OWS            = *( SP / HTAB )
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 311
+      line: 334
     - file: lint-http-rules/src/helpers/list.rs
       line: 36
     - file: lint-http-rules/src/helpers/list.rs
@@ -7115,15 +7115,15 @@ sources:
     snippet: The OWS rule is used where zero or more linear whitespace octets might appear.
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 310
+      line: 333
   - label: lint-http-rules/src/helpers/headers.rs (10)
     section: § 6.5
     snippet: Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields"
     cited_by:
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 203
+      line: 226
     - file: lint-http-rules/src/helpers/headers.rs
-      line: 253
+      line: 276
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 154
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
@@ -9422,13 +9422,13 @@ sources:
     snippet: 'When there is more than one value present for a given directive (e.g., two Expires header field lines or multiple Cache-Control: max-age directives), either the first occurrence should be used or the response should be considered stale.'
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 160
+      line: 158
   - label: caching_directive_interaction (2)
     section: § 5.2.2.7
     snippet: The unqualified private response directive indicates that a shared cache MUST NOT store the response (i.e., the response is intended for a single user).
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 135
+      line: 133
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
       line: 129
     - file: lint-http-rules/src/rules/private_cache_visibility.rs
@@ -9438,27 +9438,27 @@ sources:
     snippet: The public response directive indicates that a cache MAY store the response even if it would otherwise be prohibited, subject to the constraints defined in Section 3.
     cited_by:
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 134
+      line: 132
   - label: expires_and_cache_control_consistent
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 159
+      line: 163
   - label: expires_and_cache_control_consistent (2)
     section: § 5.3
     snippet: A cache recipient MUST interpret invalid date formats, especially the value "0", as representing a time in the past (i.e., "already expired").
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 135
+      line: 139
   - label: expires_and_cache_control_consistent (3)
     section: § 5.3
     snippet: If a response includes a Cache-Control header field with the max-age directive (Section 5.2.2.1), a recipient MUST ignore the Expires header field.
     cited_by:
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 158
+      line: 162
     - file: lint-http-rules/src/rules/expires_and_cache_control_consistent.rs
-      line: 172
+      line: 176
   - label: expires_and_cache_control_consistent (4)
     section: § 5.3
     snippet: The Expires field value is an HTTP-date timestamp, as defined in Section 5.6.7 of [HTTP].
@@ -9498,25 +9498,25 @@ sources:
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 359
+      line: 384
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 4.2.1
     snippet: Note that this calculation is intended to reduce clock skew by using the clock information provided by the origin server whenever possible.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 369
+      line: 394
   - label: lint-http-rules/src/helpers/cache_control.rs (3)
     section: § 4.2.3
     snippet: corrected_initial_age = max(apparent_age, corrected_age_value)
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 324
+      line: 349
   - label: lint-http-rules/src/helpers/cache_control.rs (4)
     section: § 5.1
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 323
+      line: 348
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 86
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
@@ -9540,7 +9540,7 @@ sources:
     snippet: cache-directive = token [ "=" ( token / quoted-string ) ]
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 151
+      line: 175
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 211
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
@@ -9550,7 +9550,7 @@ sources:
     snippet: The no-cache response directive, in its unqualified form (without an argument), indicates that the response MUST NOT be used to satisfy any other request without forwarding it for validation and receiving a successful response
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 246
+      line: 270
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 134
   - label: lint-http-rules/src/helpers/cache_control.rs (9)
@@ -9560,7 +9560,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 72
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 247
+      line: 271
     - file: lint-http-rules/src/rules/no_cache_revalidation.rs
       line: 150
   - label: lint-http-rules/src/helpers/cache_control.rs (10)
@@ -9568,9 +9568,9 @@ sources:
     snippet: The no-store response directive indicates that a cache MUST NOT store any part of either the immediate request or the response and MUST NOT use the response to satisfy any other request.
     cited_by:
     - file: lint-http-rules/src/helpers/cache_control.rs
-      line: 245
+      line: 269
     - file: lint-http-rules/src/rules/caching_directive_interaction.rs
-      line: 150
+      line: 148
     - file: lint-http-rules/src/rules/no_store_enforced.rs
       line: 169
     - file: lint-http-rules/src/rules/no_store_enforced.rs

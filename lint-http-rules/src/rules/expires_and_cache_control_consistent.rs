@@ -106,7 +106,11 @@ impl Rule for ExpiresAndCacheControlConsistent {
             let mut cc_no_cache = false;
             let mut cc_no_store = false;
             let mut cc_max_age: Option<i64> = None;
-            for directive in crate::helpers::cache_control::directives(&resp.headers) {
+            // The joined value is held here because a directive borrows the
+            // member it was parsed from, and it is read as octets so a bad
+            // one no longer hides the directives written beside it.
+            let lines = crate::helpers::cache_control::field_lines(&resp.headers);
+            for directive in crate::helpers::cache_control::directives_in(&lines) {
                 cc_present = true;
                 if directive.is("no-cache") {
                     cc_no_cache = true;
