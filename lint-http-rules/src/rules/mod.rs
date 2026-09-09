@@ -1306,8 +1306,13 @@ severity = "warn"
         /// fifth, and it had cited the *field's* section for it — § 5.1 says
         /// what the value means and nothing about an encoding, so the sentence
         /// stays where the rule reads it and the octet answers to
-        /// `delta-seconds`.
-        const FLOOR: usize = 142;
+        /// `delta-seconds`. `Vary` and `Strict-Transport-Security` are the sixth
+        /// and seventh, and both had cited the *field's* section the way `Age`
+        /// did: § 12.5.5 writes `Vary = #( "*" / field-name )` and § 6.1 the STS
+        /// directive list, and neither says anything about an encoding. Each
+        /// field's octet is now `token`'s, under an id the rule already
+        /// declared.
+        const FLOOR: usize = 140;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

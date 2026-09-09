@@ -27,24 +27,24 @@ pub struct StrictTransportSecurityValid;
 /// separators and CTLs from `CHAR`, and what is left is `tchar`. So the two
 /// `token` entries transfer with nothing to decide.
 ///
-/// **The `quoted-string` half genuinely differs, and the difference cannot
-/// arrive.** RFC 2616 writes `quoted-pair = "\" CHAR`, which admits an escaped
-/// control octet § 5.6.4 refuses and refuses the `obs-text` § 5.6.4 admits — so
-/// `quoted_pair_malformed` names a sentence this field's document
-/// does not use, for those two octets. Neither reaches this rule: the value is
-/// read through `to_str`, whose alphabet is HTAB and visible US-ASCII, so an
-/// escaped CTL and an `obs-text` are both refused at the door and every escape
-/// that gets here is one both documents admit. What does reach the def is a
-/// backslash with nothing after it, which is two octets short of a
-/// `quoted-pair` in either. **A divergence that no value can express is not a
-/// reason to decline the id** — but it is a reason to write down which reader
-/// keeps it that way, because a rule reading these octets some other day would
-/// have to ask again.
+/// **The `quoted-string` half genuinely differs, and half of the difference can
+/// now arrive.** RFC 2616 writes `quoted-pair = "\" CHAR`, which admits an
+/// escaped control octet § 5.6.4 refuses and refuses the `obs-text` § 5.6.4
+/// admits. The escaped CTL still cannot reach this rule — a control octet does
+/// not enter a `hyper::HeaderValue` — but the `obs-text` one does, because the
+/// value is no longer read through `to_str`: it is read as the octets the sender
+/// wrote, so `foo="a\<%xFF>"` reaches [`check_quoted_string`](crate::helpers::quoted_string::check_quoted_string) and is accepted
+/// under § 5.6.4 where RFC 2616's production would refuse it. **That is an
+/// under-report of one octet class in a superseded document's grammar, and it is
+/// the deliberate answer**: § 5.6.4 is the escape a recipient applies today, and
+/// no finding here claims otherwise. What reaches `quoted_pair_malformed` is
+/// still a backslash with nothing after it, which is two octets short of a
+/// `quoted-pair` in either document. The reader is what decides this, which is
+/// why it is written down beside the ids rather than at the site.
 ///
 /// The other two `quoted_string_*` entries are declared and unreachable for the
-/// same reason the mapping is exhaustive: a control octet cannot enter a
-/// `hyper::HeaderValue`, and the grammar's reader is where the grammar's
-/// question is answered.
+/// one reason that survives an octet-wise read: a control octet cannot enter a
+/// `hyper::HeaderValue`, whatever the rule does with it afterwards.
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -89,7 +89,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "The `Strict-Transport-Security` response header signals HSTS policies. This rule ensures responses include the required `max-age` directive (a non-negative integer) and that optional directives `includeSubDomains` and `preload` are present without values. Unknown directives are accepted but any value must be a `token` or `quoted-string`. Non-UTF8 header values and syntactic violations are reported as rule violations."
+        "The `Strict-Transport-Security` response header signals HSTS policies. This rule ensures responses include the required `max-age` directive (a non-negative integer) and that optional directives `includeSubDomains` and `preload` are present without values. Unknown directives are accepted but any value must be a `token` or `quoted-string`. The value is read as the octets the sender wrote, so an octet outside the `token` alphabet is reported where it lands rather than as an encoding verdict about the whole field."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -158,17 +158,16 @@ impl Rule for StrictTransportSecurityValid {
             // A malformed STS header is not a weaker policy — the UA drops it whole and the
             // host is not treated as Known HSTS, so every syntax check below enforces this MUST.
             // cite(RFC 6797 § 6.1): "UAs MUST ignore any STS header field containing directives, or other header field value data, that does not conform to the syntax defined in this specification."
-            for hv in resp.headers.get_all("strict-transport-security").iter() {
-                let v = match hv.to_str() {
-                    Ok(s) => s.trim(),
-                    Err(_) => {
-                        return Some(self.cited(
-                            &RFC_6797_6_1,
-                            ctx.severity,
-                            "Strict-Transport-Security header contains non-UTF8 value".into(),
-                        ));
-                    }
-                };
+            // Read as the octets the sender wrote. A `directive-name` is a
+            // `token`, so an octet no `tchar` admits is the production's defect
+            // and reports under the id below; inside a `directive-value`'s
+            // `quoted-string` it is `qdtext`, which admits `obs-text`, so the
+            // string reader was refusing a value this field generates.
+            for line in crate::helpers::headers::field_lines_as_written(
+                &resp.headers,
+                "strict-transport-security",
+            ) {
+                let v = crate::helpers::headers::trim_ows(&line);
 
                 // Unnamed, and the grammar is the reason. § 6.1 writes
                 // `[ directive ] *( ";" [ directive ] )`, so the empty value
@@ -186,7 +185,7 @@ impl Rule for StrictTransportSecurityValid {
                 let mut max_age_count = 0usize;
 
                 for member in crate::helpers::list::split_semicolons_respecting_quotes(v) {
-                    let member = member.trim();
+                    let member = crate::helpers::headers::trim_ows(member);
                     // **Not `list_member_empty`.** That def carries § 5.6.1.1's
                     // MUST NOT against an empty element of a `#` list, and this
                     // is not one: the members are semicolon-separated by this
@@ -204,7 +203,7 @@ impl Rule for StrictTransportSecurityValid {
 
                     // directive = token [ "=" token ]
                     let mut kv = member.splitn(2, '=');
-                    let name = kv.next().unwrap().trim();
+                    let name = crate::helpers::headers::trim_ows(kv.next().unwrap());
                     if name.is_empty() {
                         return Some(ctx.report_with(
                             &TOKEN_EMPTY,
@@ -219,7 +218,7 @@ impl Rule for StrictTransportSecurityValid {
                     // `token = 1*tchar`, the character set RFC 2616's derives too.
                     // cite(RFC 6797 § 6.1): "directive-name            = token"
                     if let Some(c) = crate::helpers::token::find_invalid_token_char(name) {
-                        return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security directive name contains invalid character: '{}'", c)));
+                        return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security directive name contains invalid character: {}", crate::helpers::shown::describe_char(c))));
                     }
 
                     let lname = name.to_ascii_lowercase();
@@ -232,7 +231,7 @@ impl Rule for StrictTransportSecurityValid {
                             saw_max_age = true;
                             // must have a value
                             if let Some(vpart) = kv.next() {
-                                let vpart = vpart.trim();
+                                let vpart = crate::helpers::headers::trim_ows(vpart);
                                 if vpart.is_empty() {
                                     return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' must have a numeric value".into()));
                                 }
@@ -244,7 +243,7 @@ impl Rule for StrictTransportSecurityValid {
                                 if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(vpart)
                                 {
-                                    return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security 'max-age' contains invalid character: '{}'", c)));
+                                    return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security 'max-age' contains invalid character: {}", crate::helpers::shown::describe_char(c))));
                                 }
                                 if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
                                     return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' must be a non-negative integer".into()));
@@ -280,7 +279,7 @@ impl Rule for StrictTransportSecurityValid {
                             // Unknown directives: allow but ensure if a value is present it is token or quoted-string
                             // cite(RFC 6797 § 6.1): "directive-value           = token | quoted-string"
                             if let Some(vpart) = kv.next() {
-                                let vpart = vpart.trim();
+                                let vpart = crate::helpers::headers::trim_ows(vpart);
                                 if vpart.starts_with('"') {
                                     if let Err(defect) =
                                         crate::helpers::quoted_string::check_quoted_string(vpart)
@@ -290,7 +289,7 @@ impl Rule for StrictTransportSecurityValid {
                                 } else if let Some(c) =
                                     crate::helpers::token::find_invalid_token_char(vpart)
                                 {
-                                    return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security directive '{}' value contains invalid character: '{}'", name, c)));
+                                    return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security directive '{}' value contains invalid character: {}", name, crate::helpers::shown::describe_char(c))));
                                 }
                             }
                         }
@@ -736,6 +735,52 @@ mod tests {
             &cfg,
         )
         .is_some());
+    }
+
+    #[test]
+    fn an_obs_text_octet_lands_where_the_grammar_puts_it() {
+        use hyper::header::HeaderValue;
+
+        let rule = StrictTransportSecurityValid;
+
+        // In a directive name it is a `token` defect, with the octet named.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.insert(
+            "strict-transport-security",
+            HeaderValue::from_bytes(b"max-age=1; inc\xffude").expect("a field line"),
+        );
+        tx.response.as_mut().expect("a response").headers = hm;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(
+            v.message,
+            "Strict-Transport-Security directive name contains invalid character: 0xFF"
+        );
+
+        // Inside a quoted-string it is `qdtext`, which admits it: the string
+        // reader used to report the whole header for an octet the production
+        // generates.
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        let mut hm = hyper::HeaderMap::new();
+        hm.insert(
+            "strict-transport-security",
+            HeaderValue::from_bytes(b"max-age=1; ext=\"caf\xe9\"").expect("a field line"),
+        );
+        tx.response.as_mut().expect("a response").headers = hm;
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]
