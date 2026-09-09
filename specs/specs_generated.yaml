@@ -9302,40 +9302,30 @@ sources:
   url: https://www.rfc-editor.org/rfc/rfc9111.html
   fragments:
   - label: age_header_numeric
-    section: § 1.2.2
-    snippet: If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648
-    cited_by:
-    - file: lint-http-rules/src/rules/age_header_numeric.rs
-      line: 110
-    - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 315
-    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 253
-  - label: age_header_numeric (2)
-    section: § 1.2.2
-    snippet: or the greatest positive integer it can conveniently represent.
-    cited_by:
-    - file: lint-http-rules/src/rules/age_header_numeric.rs
-      line: 111
-    - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
-      line: 316
-    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 254
-  - label: age_header_numeric (3)
     section: § 5.1
     snippet: Although it is defined as a singleton header field, a cache encountering a message with a list-based Age field value SHOULD use the first member of the field value, discarding subsequent ones.
     cited_by:
     - file: lint-http-rules/src/rules/age_header_numeric.rs
-      line: 89
+      line: 108
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 45
-  - label: age_header_numeric (4)
+  - label: age_header_numeric (2)
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
     cited_by:
     - file: lint-http-rules/src/rules/age_header_numeric.rs
-      line: 109
+      line: 126
   - label: alt_svc_h3_advertisement_valid
+    section: § 1.2.2
+    snippet: If a cache receives a delta-seconds value greater than the greatest integer it can represent, or if any of its subsequent calculations overflows, the cache MUST consider the value to be 2147483648
+    cited_by:
+    - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
+      line: 315
+    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
+      line: 253
+    - file: lint-http-rules/src/violations/delta_seconds.rs
+      line: 23
+  - label: alt_svc_h3_advertisement_valid (2)
     section: § 1.2.2
     snippet: The delta-seconds rule specifies a non-negative integer, representing time in seconds.
     cited_by:
@@ -9343,6 +9333,14 @@ sources:
       line: 304
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
       line: 227
+  - label: alt_svc_h3_advertisement_valid (3)
+    section: § 1.2.2
+    snippet: or the greatest positive integer it can conveniently represent.
+    cited_by:
+    - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
+      line: 316
+    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
+      line: 254
   - label: cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -9485,6 +9483,10 @@ sources:
       line: 710
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 100
+    - file: lint-http-rules/src/violations/delta_seconds.rs
+      line: 45
+    - file: lint-http-rules/src/violations/delta_seconds.rs
+      line: 65
   - label: lint-http-rules/src/helpers/cache_control.rs
     section: § 4.2.1
     snippet: If the max-age response directive (Section 5.2.2.1) is present, use its value, or If the Expires response header field (Section 5.3) is present, use its value minus the value of the Date response header field (using the time the message was received if it is not present, as per Section 6.6.1 of [HTTP]), or
@@ -9510,7 +9512,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 323
     - file: lint-http-rules/src/rules/age_header_numeric.rs
-      line: 68
+      line: 86
     - file: lint-http-rules/src/rules/max_age_directive_valid.rs
       line: 141
   - label: lint-http-rules/src/helpers/cache_control.rs (5)

@@ -1251,6 +1251,14 @@ severity = "warn"
 # Credentials are absent after the scheme
 severity = "warn"
 
+[violations.delta_seconds_character_forbidden]
+# A time in seconds holds an octet DIGIT does not admit
+severity = "warn"
+
+[violations.delta_seconds_empty]
+# A time in seconds is stated with no digits
+severity = "warn"
+
 [violations.domain_label_character_forbidden]
 # Domain label holds a character outside letters, digits and hyphen
 severity = "warn"
