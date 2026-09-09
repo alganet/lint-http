@@ -99,16 +99,18 @@ impl Rule for SecFetchSiteValueValid {
                 ));
             }
 
-            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-            let val = match crate::helpers::headers::get_header_str(headers, "sec-fetch-site") {
-                Some(v) => v.trim(),
-                None => {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Sec-Fetch-Site header contains non-ASCII or control characters".into(),
-                    ))
-                }
-            };
+            // Read as the octets the sender wrote. Every character an `sf-token`
+            // generates is inside visible US-ASCII, so a value the string reader
+            // refuses is a value the token check below refuses — and that check
+            // can say which octet, where a verdict about the whole value could
+            // only say that one was in there somewhere.
+            let hv = headers
+                .get_all("sec-fetch-site")
+                .iter()
+                .next()
+                .expect("a field line, since the count above is one");
+            let line = crate::helpers::headers::field_line_as_written(hv);
+            let val = crate::helpers::headers::trim_ows(&line);
 
             // An empty value cannot be a token (§2.3 words it without the MUST its
             // sibling sections carry, but the constraint is the same).
@@ -131,8 +133,8 @@ impl Rule for SecFetchSiteValueValid {
                     &FETCH_METADATA_2_3,
                     ctx.severity,
                     format!(
-                        "Sec-Fetch-Site header contains invalid token character: '{}'",
-                        c
+                        "Sec-Fetch-Site header contains invalid token character: {}",
+                        crate::helpers::shown::describe_char(c)
                     ),
                 ));
             }
@@ -203,7 +205,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_is_violation() {
+    fn an_obs_text_octet_is_named_by_the_token_check() {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
 
@@ -224,8 +226,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        assert_eq!(
+            v.expect("a finding").message,
+            "Sec-Fetch-Site header contains invalid token character: 0xFF"
+        );
     }
 
     #[test]

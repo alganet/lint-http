@@ -84,7 +84,7 @@ sources:
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 155
+      line: 157
   - label: timing_allow_origin_valid
     section: § 3.2
     snippet: origin-or-null = serialized-origin / %s"null" ; case-sensitive
@@ -455,35 +455,35 @@ sources:
     snippet: If r’s destination is the empty string, set header’s value to the string "empty"
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 158
+      line: 160
   - label: sec_fetch_dest_value_valid (3)
     section: § 2.1
     snippet: In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 153
+      line: 155
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 137
+      line: 139
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 143
+      line: 145
   - label: sec_fetch_dest_value_valid (4)
     section: § 2.1
     snippet: It is a Structured Field whose value MUST be a token.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 122
+      line: 124
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 135
+      line: 137
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 114
+      line: 116
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 123
+      line: 125
   - label: sec_fetch_dest_value_valid (5)
     section: § 2.1
     snippet: Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch].
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 154
+      line: 156
   - label: sec_fetch_mode_value_valid
     section: § 2.2
     snippet: HTTP request header exposes a request’s mode to a server
@@ -495,7 +495,7 @@ sources:
     snippet: Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket".
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 138
+      line: 140
   - label: sec_fetch_site_value_valid
     section: § 2.3
     snippet: HTTP request header exposes the relationship between a request initiator’s origin and its target’s origin
@@ -507,20 +507,20 @@ sources:
     snippet: It is a Structured Field whose value is a token.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 115
+      line: 117
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 128
+      line: 130
   - label: sec_fetch_site_value_valid (3)
     section: § 2.3
     snippet: Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none".
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 144
+      line: 146
   - label: sec_fetch_user_value_valid
     snippet: 'Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true.'
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
-      line: 131
+      line: 132
   - label: sec_fetch_user_value_valid (2)
     section: § 2.4
     snippet: HTTP request header exposes whether or not a navigation request was triggered by user activation.
@@ -532,7 +532,7 @@ sources:
     snippet: It is a Structured Field whose value is a boolean.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
-      line: 119
+      line: 120
 - label: Resource Timing
   url: https://www.w3.org/TR/resource-timing/
   type: text/html
@@ -8618,22 +8618,6 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/retry_after_status_valid.rs
       line: 26
-  - label: sec_fetch_dest_value_valid
-    section: § 5.5
-    snippet: newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB
-    cited_by:
-    - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 110
-    - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 102
-    - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 102
-    - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
-      line: 107
-    - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 114
-    - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 117
   - label: server_header_product_valid
     section: § 10.2.4
     snippet: An origin server MAY generate a Server header field in its responses.
@@ -9296,6 +9280,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 680
+  - label: x_frame_options_value_valid
+    section: § 5.5
+    snippet: newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB
+    cited_by:
+    - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
+      line: 114
+    - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
+      line: 117
 - label: RFC 9111
   url: https://www.rfc-editor.org/rfc/rfc9111.html
   fragments:
