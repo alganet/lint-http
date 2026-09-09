@@ -135,7 +135,7 @@ pub fn members(lines: &[String]) -> impl Iterator<Item = &str> {
 /// line, not the member, is what its finding is about — and the two must agree
 /// about the member boundary, which is why the split lives here once.
 pub fn members_of(line: &str) -> Vec<&str> {
-    if line.trim().is_empty() {
+    if crate::helpers::headers::trim_ows(line).is_empty() {
         return Vec::new();
     }
     // `,` is the list separator the grammar prints; `;` is a tolerance for the

@@ -73,7 +73,7 @@ impl CookiePathDefect<'_> {
 /// asymmetry was already here when the errors were strings; naming the variants
 /// is what made it visible enough to write down.
 pub fn validate_cookie_path(s: &str) -> Result<(), CookiePathDefect<'_>> {
-    let v = s.trim();
+    let v = crate::helpers::headers::trim_ows(s);
     // Empty and non-`/` values are not a *syntax* error: §5.2.4 has the user
     // agent replace them with the default-path. That semantics is cited at the
     // sole call site (`cookie_path_valid`); here we flag them as the
@@ -252,8 +252,8 @@ pub fn split_set_cookie(line: &str) -> (&str, impl Iterator<Item = Attribute<'_>
         .filter(|segment| !segment.is_empty())
         .map(|segment| match segment.split_once('=') {
             Some((name, value)) => Attribute {
-                name: name.trim(),
-                value: Some(value.trim()),
+                name: crate::helpers::headers::trim_ows(name),
+                value: Some(crate::helpers::headers::trim_ows(value)),
             },
             None => Attribute {
                 name: segment,
@@ -320,8 +320,8 @@ pub fn parse_set_cookie(
     }
 
     let mut kv = pair.splitn(2, '=');
-    let name = kv.next()?.trim().to_string();
-    let value = kv.next().unwrap_or("").trim().to_string();
+    let name = crate::helpers::headers::trim_ows(kv.next()?).to_string();
+    let value = crate::helpers::headers::trim_ows(kv.next().unwrap_or("")).to_string();
 
     let mut domain_attr: Option<String> = None;
     let mut path_attr: Option<String> = None;
@@ -420,8 +420,8 @@ pub fn parse_cookie_header(s: &str) -> Vec<(String, String)> {
     s.split(';')
         .filter_map(|piece| {
             let mut kv = piece.splitn(2, '=');
-            let name = kv.next()?.trim().to_string();
-            let value = kv.next().unwrap_or("").trim().to_string();
+            let name = crate::helpers::headers::trim_ows(kv.next()?).to_string();
+            let value = crate::helpers::headers::trim_ows(kv.next().unwrap_or("")).to_string();
             Some((name, value))
         })
         .collect()

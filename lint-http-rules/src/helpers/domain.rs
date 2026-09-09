@@ -92,7 +92,7 @@ impl CookieDomainDefect {
 /// Validate a domain name suitable for a cookie `Domain` attribute.
 /// Returns Ok(()) when syntactically valid, or the named defect.
 pub fn validate_cookie_domain(s: &str) -> Result<(), CookieDomainDefect> {
-    let s = s.trim();
+    let s = crate::helpers::headers::trim_ows(s);
     if s.is_empty() {
         return Err(CookieDomainDefect::Empty);
     }

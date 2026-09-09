@@ -7473,7 +7473,7 @@ sources:
     snippet: qvalue = ( "0" [ "." 0*3DIGIT ] ) / ( "1" [ "." 0*3("0") ] )
     cited_by:
     - file: lint-http-rules/src/helpers/qvalue.rs
-      line: 31
+      line: 34
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 305
     - file: lint-http-rules/src/rules/accept_language_weight_valid.rs
