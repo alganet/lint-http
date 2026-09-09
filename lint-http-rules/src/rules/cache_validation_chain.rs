@@ -126,9 +126,15 @@ impl Rule for CacheValidationChain {
             // form — and therefore cannot be matched against a previously observed
             // ETag.  Skip the rule in that case to avoid spurious warnings.
             // cite(RFC 9110 § 13.1.2): "The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*""
-            let inm_lines = || crate::helpers::headers::field_lines(&req.headers, "if-none-match");
-            if inm_lines()
-                .flat_map(crate::helpers::list::split_commas_respecting_quotes)
+            // As written: an `If-None-Match` member is an entity tag, and `etagc`
+            // admits `obs-text`, so a line the string reader drops is a validator
+            // the client did send — invisible to the comparison below and quoted
+            // into the finding as a placeholder.
+            let inm_lines =
+                crate::helpers::headers::field_lines_as_written(&req.headers, "if-none-match");
+            if inm_lines
+                .iter()
+                .flat_map(|line| crate::helpers::list::split_commas_respecting_quotes(line))
                 .any(|member| member == "*")
             {
                 return None;
@@ -154,16 +160,15 @@ impl Rule for CacheValidationChain {
             // cite(RFC 9111 § 4.3.1): "SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value."
             if let Some(known_etag) = etag {
                 if has_inm
-                    && !inm_lines()
+                    && !inm_lines
+                        .iter()
                         .any(|line| crate::helpers::validator::inm_matches_known(line, &known_etag))
                 {
-                    // A field line that is not text matched nothing, and is what
-                    // the finding has to quote when it is all the request sent.
-                    let reported = inm_lines().next().unwrap_or("<non-UTF8 If-None-Match>");
+                    let reported = inm_lines.first().map_or("", String::as_str);
                     // cite(RFC 9111 § 4.3.1): "It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI."
                     return Some(self.cited(&RFC_9111_4_3_1, ctx.severity, format!(
                             "Conditional request uses If-None-Match '{}' which does not match most recent validator '{}' from history; cache validation chain may be broken",
-                            reported.trim(),
+                            crate::helpers::headers::trim_ows(reported),
                             known_etag
                         )));
                 }
@@ -286,6 +291,38 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&["cache_validation_chain"]),
         );
         assert!(v.is_none());
+    }
+
+    #[test]
+    fn an_obs_text_tag_matches_the_one_the_response_offered() {
+        use hyper::header::HeaderValue;
+
+        let rule = CacheValidationChain;
+        let mut prev = make_prev(200, &[]);
+        let mut resp_headers = hyper::HeaderMap::new();
+        resp_headers.insert(
+            "etag",
+            HeaderValue::from_bytes(b"\"caf\xe9\"").expect("a field line"),
+        );
+        prev.response.as_mut().expect("a response").headers = resp_headers;
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        let mut req_headers = hyper::HeaderMap::new();
+        req_headers.insert(
+            "if-none-match",
+            HeaderValue::from_bytes(b"\"caf\xe9\"").expect("a field line"),
+        );
+        tx.request.headers = req_headers;
+
+        // Both sides used to be dropped by the decode: the response offered no
+        // validator this rule could see, and the request quoted a placeholder.
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::from_transactions(vec![prev]),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&["cache_validation_chain"]),
+        );
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[test]

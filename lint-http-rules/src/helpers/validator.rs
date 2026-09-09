@@ -15,7 +15,7 @@
 //!
 //! [`check_entity_tag`] is the grammar underneath all of it.
 
-use crate::helpers::headers::get_header_str;
+use crate::helpers::headers::{field_lines_as_written, trim_ows};
 use crate::helpers::list::split_commas_respecting_quotes;
 use hyper::HeaderMap;
 
@@ -27,10 +27,10 @@ use hyper::HeaderMap;
 /// it represents an existence condition rather than a specific validator.
 pub fn inm_matches_known(inm: &str, known: &str) -> bool {
     fn normalize(s: &str) -> &str {
-        let s = s.trim();
+        let s = trim_ows(s);
         // cite(RFC 9110 § 13.1.2, label: If-None-Match weak comparison): "A recipient MUST use the weak comparison function when comparing entity tags for If-None-Match"
         if let Some(rest) = s.strip_prefix("W/") {
-            rest.trim()
+            trim_ows(rest)
         } else {
             s
         }
@@ -38,7 +38,7 @@ pub fn inm_matches_known(inm: &str, known: &str) -> bool {
 
     let known_norm = normalize(known);
     for member in split_commas_respecting_quotes(inm) {
-        let t = member.trim();
+        let t = trim_ows(member);
         if t == "*" {
             return false;
         }
@@ -72,7 +72,14 @@ pub fn extract_validators_from_response(headers: &HeaderMap) -> (Option<String>,
 
 /// One validator field, trimmed, if the response carries a readable one.
 fn validator(headers: &HeaderMap, name: &str) -> Option<String> {
-    get_header_str(headers, name).map(|value| value.trim().to_string())
+    // As written, because `etagc = %x21 / %x23-7E / obs-text`: an octet at or
+    // above %x80 is a character an entity tag *generates*, so a decode that
+    // refuses it drops a legal validator and every question asked of the pair
+    // is then answered about a response that did offer one.
+    field_lines_as_written(headers, name)
+        .into_iter()
+        .next()
+        .map(|line| trim_ows(&line).to_string())
 }
 
 /// Extract **strong** validators from a response's headers.
@@ -109,9 +116,9 @@ pub fn extract_strong_validators_from_response(
 ///
 // cite(RFC 9110 § 8.8.3.2): "two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak"."
 pub fn normalize_etag(s: &str) -> String {
-    let trimmed = s.trim();
+    let trimmed = trim_ows(s);
     if trimmed.len() >= 2 && (trimmed.starts_with("W/") || trimmed.starts_with("w/")) {
-        trimmed[2..].trim().to_string()
+        trim_ows(&trimmed[2..]).to_string()
     } else {
         trimmed.to_string()
     }
@@ -133,11 +140,11 @@ pub fn normalize_etag(s: &str) -> String {
 // cite(RFC 9110 § 8.8.3): "An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator."
 pub fn check_entity_tag(val: &str) -> Result<(), EntityTagDefect> {
     // cite(RFC 9110 § 8.8.3, label: entity-tag grammar): "entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE"
-    let s = val.trim();
+    let s = trim_ows(val);
 
     let rest = if let Some(stripped) = s.strip_prefix("W/") {
         stripped
-    } else if s.len() >= 2 && s[..2].eq_ignore_ascii_case("w/") {
+    } else if s.get(..2).is_some_and(|p| p.eq_ignore_ascii_case("w/")) {
         // `%s"W/"` — the `%s` prefix is what makes the case part of the
         // production, and RFC 5234 § 2.3 says an unprefixed string would have
         // been case-insensitive. A `w/` is therefore a weakness indicator the
@@ -260,16 +267,27 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_headers_are_skipped() {
+    fn an_obs_text_octet_is_part_of_the_tag_not_a_reason_to_drop_it() {
         let mut headers = HeaderMap::new();
-        // create invalid bytes
-        let bad = HeaderValue::from_bytes(&[0xff]).unwrap();
+        // `etagc` generates this octet, so the response did offer a validator
+        // and the old decode answered that it had offered none.
+        let bad = HeaderValue::from_bytes(b"\"caf\xe9\"").expect("a field line");
         headers.insert("etag", bad);
         let (etag, _lm) = extract_validators_from_response(&headers);
-        assert!(
-            etag.is_none(),
-            "invalid etag should not panic or return value"
+        assert_eq!(
+            etag.expect("a validator"),
+            ['"', 'c', 'a', 'f', '\u{e9}', '"']
+                .iter()
+                .collect::<String>()
         );
+    }
+
+    #[test]
+    fn a_tag_whose_second_octet_is_obs_text_is_measured_not_sliced() {
+        // One `char` per octet is not one *byte* per octet: `a%xFF"` puts byte
+        // index 2 inside a code point, which a `[..2]` would have split.
+        let val: String = [0x61u8, 0xff, 0x22].into_iter().map(char::from).collect();
+        assert!(check_entity_tag(&val).is_err());
     }
 
     #[test]

@@ -1715,7 +1715,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 67
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 146
+      line: 153
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 242
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
@@ -5469,9 +5469,9 @@ sources:
     snippet: A recipient MUST ignore the If-Modified-Since header field if the received field value is not a valid HTTP-date, the field value has more than one member, or if the request method is neither GET nor HEAD.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 172
+      line: 175
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 190
+      line: 193
   - label: conditional_headers_consistent (3)
     section: § 13.1.4
     snippet: A recipient MUST ignore If-Unmodified-Since if the request contains an If-Match header field
@@ -5483,19 +5483,19 @@ sources:
     snippet: A recipient MUST ignore the If-Unmodified-Since header field if the received field value is not a valid HTTP-date (including when the field value appears to be a list of dates).
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 173
+      line: 176
   - label: conditional_headers_consistent (5)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 151
+      line: 154
   - label: conditional_headers_consistent (6)
     section: § 13.1.5
     snippet: A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field.
     cited_by:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 136
+      line: 140
   - label: conditional_request_handling
     section: § 13.1.2
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
@@ -6977,7 +6977,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_on_partial_content.rs
       line: 28
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
-      line: 169
+      line: 172
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 257
     - file: lint-http-rules/src/rules/content_type_valid.rs
@@ -7551,7 +7551,7 @@ sources:
     snippet: An entity tag consists of an opaque quoted string, possibly prefixed by a weakness indicator.
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 133
+      line: 140
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 141
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
@@ -7563,13 +7563,13 @@ sources:
     snippet: entity-tag = [ weak ] opaque-tag weak = %s"W/" opaque-tag = DQUOTE *etagc DQUOTE
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 135
+      line: 142
   - label: lint-http-rules/src/helpers/validator.rs (2)
     section: § 8.8.3
     snippet: etagc      = %x21 / %x23-7E / obs-text ; VCHAR except double quotes, plus obs-text
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 178
+      line: 185
     - file: lint-http-rules/src/rules/if_match_etag_syntax.rs
       line: 167
     - file: lint-http-rules/src/rules/if_none_match_etag_syntax.rs
@@ -7581,7 +7581,7 @@ sources:
     snippet: two entity tags are equivalent if their opaque-tags match character-by-character, regardless of either or both being tagged as "weak".
     cited_by:
     - file: lint-http-rules/src/helpers/validator.rs
-      line: 110
+      line: 117
   - label: Vary grammar
     section: § 12.5.5
     snippet: 'Vary = #( "*" / field-name )'
@@ -8251,19 +8251,19 @@ sources:
     snippet: A valid entity-tag can be distinguished from a valid HTTP-date by examining the first three characters for a DQUOTE.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 279
+      line: 278
   - label: range_request_and_caching (2)
     section: § 13.1.5
     snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 296
+      line: 295
   - label: range_request_and_caching (3)
     section: § 13.1.5
     snippet: Range header field containing an HTTP-date unless the client has no entity tag for the corresponding representation and the date is a strong validator in the sense defined by Section 8.8.2.2.
     cited_by:
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
-      line: 290
+      line: 289
   - label: range_request_and_caching (4)
     section: § 15.3.7.3
     snippet: A client that has received multiple partial responses to GET requests on a target resource MAY combine those responses into a larger continuous range if they share the same strong validator.
@@ -9380,15 +9380,15 @@ sources:
     snippet: It then updates that request with one or more precondition header fields. These contain validator metadata sourced from a stored response(s) that has the same URI.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 163
+      line: 168
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 199
+      line: 204
   - label: cache_validation_chain (2)
     section: § 4.3.1
     snippet: MUST send the relevant entity tags (using If-Match, If-None-Match, or If-Range) if the entity tags were provided in the stored response(s) being validated.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 153
+      line: 159
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 252
   - label: cache_validation_chain (3)
@@ -9396,7 +9396,7 @@ sources:
     snippet: SHOULD send the Last-Modified value (using If-Modified-Since) if the request is not for a subrange, a single stored response is being validated, and that response contains a Last-Modified value.
     cited_by:
     - file: lint-http-rules/src/rules/cache_validation_chain.rs
-      line: 154
+      line: 160
     - file: lint-http-rules/src/rules/range_request_and_caching.rs
       line: 225
   - label: caching_directive_interaction

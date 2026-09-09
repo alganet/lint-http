@@ -131,7 +131,11 @@ impl Rule for ConditionalHeadersConsistent {
             }
 
             // If-Range should only be sent in requests that contain Range
-            if let Some(hv) = req.headers.get_all("if-range").iter().next() {
+            if let Some(line) =
+                crate::helpers::headers::field_lines_as_written(&req.headers, "if-range")
+                    .into_iter()
+                    .next()
+            {
                 // If-Range exists
                 // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field in a request that does not contain a Range header field."
                 if req.headers.get("range").is_none() {
@@ -141,13 +145,12 @@ impl Rule for ConditionalHeadersConsistent {
                 // Validate If-Range content: if it's an entity-tag, it MUST NOT be weak.
                 // (A weak marker is the `W/` prefix; a bare quoted-string is a strong tag and
                 // fine, and a date is left to date-validity rules.)
-                let Ok(s) = hv.to_str() else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "If-Range header contains non-UTF8 value".into(),
-                    ));
-                };
-                let trimmed = s.trim();
+                //
+                // Read as the octets the sender wrote, and this rule says nothing
+                // about what they are: `etagc` admits `obs-text`, so an octet
+                // inside a tag is a value the production generates, and the one
+                // question asked here is whether the value opens with `W/`.
+                let trimmed = crate::helpers::headers::trim_ows(&line);
                 // cite(RFC 9110 § 13.1.5): "A client MUST NOT generate an If-Range header field containing an entity tag that is marked as weak."
                 if trimmed.starts_with("W/") {
                     return Some(self.cited(
@@ -344,16 +347,17 @@ mod tests {
     }
 
     #[rstest]
-    fn if_range_with_non_utf8_reports_violation() {
+    fn if_range_holding_an_obs_text_octet_is_not_this_rules_finding() {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
 
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = HeaderMap::new();
         hm.insert("range", "bytes=0-1".parse().unwrap());
-        // Create a non-UTF8 header value by using arbitrary bytes that don't form valid UTF-8
-        let non_utf8 = HeaderValue::from_bytes(&[0xFF, 0xFF]).expect("create header value");
-        hm.insert("if-range", non_utf8);
+        // `etagc` generates this octet, and the only question this rule asks of
+        // the value is whether it opens with `W/`.
+        let obs_text = HeaderValue::from_bytes(b"\"caf\xe9\"").expect("create header value");
+        hm.insert("if-range", obs_text);
         tx.request.headers = hm;
 
         let rule = ConditionalHeadersConsistent;
@@ -363,8 +367,7 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-UTF8"));
+        assert!(v.is_none(), "{v:?}");
     }
 
     #[rstest]
