@@ -144,11 +144,15 @@ impl Rule for AccessControlAllowOriginValid {
                 .iter()
                 .next()
                 .unwrap();
-            let s = match hv.to_str() {
-                Ok(v) => v.trim(),
-                Err(_) => return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin header contains non-ASCII or control characters"
-                            .into())),
-            };
+            // Read as the octets the sender wrote. The value derives from one of
+            // three alternatives — `*`, the case-sensitive `null`, or a
+            // serialized origin — and every one of them is inside visible
+            // US-ASCII, so an octet above it is a value deriving from none of
+            // them and the finding below says exactly that. Naming the octet
+            // class instead was a fourth verdict for a value that had already
+            // failed all three.
+            let line = crate::helpers::headers::field_line_as_written(hv);
+            let s = crate::helpers::headers::trim_ows(&line);
 
             // Must be a single value (not a comma-separated list)
             let members: Vec<String> = crate::helpers::list::list_members(s)
@@ -168,7 +172,7 @@ impl Rule for AccessControlAllowOriginValid {
                     ctx.severity,
                     format!(
                         "Access-Control-Allow-Origin contains invalid origin: '{}'",
-                        member
+                        crate::helpers::shown::shown_in_finding(&member)
                     ),
                 ));
             }
@@ -363,8 +367,12 @@ mod tests {
         assert!(v.unwrap().message.contains("invalid origin"));
     }
 
+    /// The octet is a value deriving from none of the three alternatives, and
+    /// that is what the finding says. It used to be a fourth verdict — the octet
+    /// class, named before the value had been measured against `*`, `null` or an
+    /// origin — and the three-way alternation had already refused it.
     #[test]
-    fn non_utf8_header_is_violation() {
+    fn an_octet_is_a_value_deriving_from_none_of_the_alternatives() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
 
@@ -390,8 +398,8 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        let v = v.expect("a finding");
+        assert!(v.message.contains("invalid origin"), "{}", v.message);
     }
 
     #[test]
