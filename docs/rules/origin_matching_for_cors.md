@@ -26,6 +26,8 @@ This check applies to server responses (RuleScope::Server).
 - [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454.html): The Web Origin Concept
 - [Fetch §4.10](https://fetch.spec.whatwg.org/#concept-cors-check): Fetch CORS check — the response origin must byte-match the request `Origin` (or be `*` for a non-credentialed request); this rule's matching logic lives here (two of its three cites)
 - [MDN Access-Control-Allow-Origin](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Allow-Origin): Access-Control-Allow-Origin
+- [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters — the limited set a URI is composed from, every other octet being percent-encoded before the reference is formed
+- [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
 
 ## Configuration
 

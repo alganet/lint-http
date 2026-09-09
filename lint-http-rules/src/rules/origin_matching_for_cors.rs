@@ -4,6 +4,26 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    origin_defect, RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN,
+    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+};
+use crate::violations::ViolationDef;
+
+/// The two productions an `Origin` borrows, and no more.
+///
+/// `origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list` is RFC 6454's, and
+/// what a `serialized-origin` is made of is RFC 3986's: a scheme name, and the
+/// alphabet a URI is composed from. The other two verdicts the shared reader
+/// gives — a path where the production has no path component, and a value
+/// deriving from neither alternative — stay this rule's own, because *derives
+/// from none of my alternatives* is the finding no subject can hold.
+static DECLARED: &[&ViolationDef] = &[
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &URI_CHARACTER_FORBIDDEN,
+];
 
 pub struct OriginMatchingForCors;
 
@@ -49,7 +69,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6454, FETCH_4_10, MDN_ACCESS_CONTROL_ALLOW_ORIGIN]
+        &[
+            RFC_6454,
+            FETCH_4_10,
+            MDN_ACCESS_CONTROL_ALLOW_ORIGIN,
+            RFC_3986_2,
+            RFC_3986_3_1,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -116,16 +146,21 @@ impl Rule for OriginMatchingForCors {
                 .next()?;
             let origin = crate::helpers::headers::trim_ows(&origin_line);
 
-            // Validate origin syntax using shared helper (handles "null" and serialized origins).
-            if let Some(reason) = crate::helpers::uri::validate_origin_value(origin) {
-                return Some(self.violation(
-                    ctx.severity,
-                    format!(
-                        "Invalid Origin header value '{}': {}",
-                        crate::helpers::shown::shown_in_finding(origin),
-                        reason
-                    ),
-                ));
+            // Validate origin syntax using shared helper (handles "null" and
+            // serialized origins). Two of its four verdicts are productions the
+            // catalogue names — the scheme and the URI alphabet — and two are
+            // this field's own: a path where the production has no component for
+            // one, and a value deriving from neither alternative.
+            if let Err(defect) = crate::helpers::uri::validate_origin_value(origin) {
+                let message = format!(
+                    "Invalid Origin header value '{}': {}",
+                    crate::helpers::shown::shown_in_finding(origin),
+                    defect.message()
+                );
+                return Some(match origin_defect(defect) {
+                    Some(def) => ctx.report_with(def, message),
+                    None => self.violation(ctx.severity, message),
+                });
             }
 
             let resp = tx.response.as_ref()?;
@@ -227,6 +262,34 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
+    }
+
+    /// The two productions the shared reader borrows report under their own
+    /// ids; the two verdicts about the field's own grammar do not.
+    #[rstest]
+    #[case("1http://example.com", Some("uri_scheme_leading_letter_missing"))]
+    #[case("https://exa<mple.com", Some("uri_character_forbidden"))]
+    #[case("https://example.com/p", None)]
+    #[case("invalid-origin", None)]
+    fn an_origin_defect_reports_under_the_production_it_broke(
+        #[case] origin: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        let rule = OriginMatchingForCors;
+        let mut tx = make_test_transaction_with_response(
+            200,
+            &[("access-control-allow-origin", "https://example.com")],
+        );
+        tx.request.headers = make_headers_from_pairs(&[("origin", origin)]);
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, expected.unwrap_or_default(), "{}", v.message);
     }
 
     #[test]
