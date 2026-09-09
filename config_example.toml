@@ -1131,9 +1131,25 @@ severity = "warn"
 # Comment is never closed
 severity = "warn"
 
+[violations.content_length_character_forbidden]
+# Content-Length value holds an octet DIGIT does not admit
+severity = "error"
+
 [violations.content_length_conflicting]
 # Content-Length disagrees with the octets received
 severity = "error"
+
+[violations.content_length_empty]
+# Content-Length declares no length
+severity = "error"
+
+[violations.content_length_members_conflicting]
+# Content-Length is declared twice with different numbers
+severity = "error"
+
+[violations.content_length_numeral_invalid]
+# Content-Length numeral is too large to represent
+severity = "warn"
 
 [violations.content_range_complete_length_conflicting]
 # Content-Range complete-length does not exceed its last-pos

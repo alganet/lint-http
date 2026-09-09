@@ -4,24 +4,29 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_length::{
+    content_length_defect, CONTENT_LENGTH_CHARACTER_FORBIDDEN, CONTENT_LENGTH_EMPTY,
+    CONTENT_LENGTH_MEMBERS_CONFLICTING, CONTENT_LENGTH_NUMERAL_INVALID, RFC_9110_8_6, RFC_9112_6_3,
+};
+use crate::violations::ViolationDef;
 
 pub struct ContentLengthValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.6",
-    note: "Where `Content-Length = 1*DIGIT` is defined — the grammar every value here is checked against",
-};
-const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("6.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3",
-    note: "Why differing values are an error and why a single field line may carry a comma-separated list, provided every member is valid and identical",
-};
+/// Everything this rule reports, and all of it belongs to the field rather than
+/// to this reading of it.
+///
+/// The messages come from `validate_content_length`, which four other rules
+/// call as a gate — so the defects are the *helper's* and the subject is the
+/// field's, not this rule's. What is left here is the claim that a malformed or
+/// self-contradictory `Content-Length` is worth reporting wherever it appears,
+/// which is why the rule reads both directions and cites the sentence saying
+/// the field describes a representation rather than a direction.
+static DECLARED: &[&ViolationDef] = &[
+    &CONTENT_LENGTH_EMPTY,
+    &CONTENT_LENGTH_CHARACTER_FORBIDDEN,
+    &CONTENT_LENGTH_NUMERAL_INVALID,
+    &CONTENT_LENGTH_MEMBERS_CONFLICTING,
+];
 
 impl RuleMeta for ContentLengthValid {
     fn id(&self) -> &'static str {
@@ -39,11 +44,15 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "This rule validates `Content-Length` header values for syntax and consistency:\n\n- Each `Content-Length` header value must be a non-negative decimal integer (no signs, no decimals).\n- A `Content-Length` header with an empty value or containing non-digit characters is invalid.\n- When multiple `Content-Length` header fields are present, their trimmed numeric values MUST be identical.\n\nImproper `Content-Length` values can lead to message framing errors or truncated bodies; the rule flags invalid or inconsistent values."
+        "This rule validates `Content-Length` header values for syntax and consistency:\n\n- Each `Content-Length` header value must be a non-negative decimal integer (no signs, no decimals).\n- A `Content-Length` header with an empty value or containing non-digit characters is invalid.\n- When multiple `Content-Length` header fields are present, their trimmed numeric values MUST be identical.\n\nThe field lines are read as the octets the sender wrote, so an octet outside US-ASCII is reported as the character `DIGIT` does not admit rather than as a verdict about the value's encoding — the whole production is ten visible US-ASCII characters, so there was never anything for the encoding to say first.\n\nImproper `Content-Length` values can lead to message framing errors or truncated bodies; the rule flags invalid or inconsistent values."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_8_6, RFC_9112_6_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -88,12 +97,19 @@ impl Rule for ContentLengthValid {
                 match crate::helpers::content_length::validate_content_length(headers) {
                     Ok(_) => None,
                     Err(e) => {
-                        let message = match e {
-                            crate::helpers::content_length::ContentLengthError::NonUtf8 => {
-                                "Invalid Content-Length value (non-UTF8)".into()
+                        // The format strings stay where their arguments are; the
+                        // id comes from the helper's subject, because the helper
+                        // is what four other rules read this field through.
+                        let message = match &e {
+                            crate::helpers::content_length::ContentLengthError::Empty => {
+                                "Content-Length carries no digits".into()
                             }
-                            crate::helpers::content_length::ContentLengthError::InvalidCharacter(s) => {
-                                format!("Invalid Content-Length value: '{}'", s)
+                            crate::helpers::content_length::ContentLengthError::InvalidCharacter(c, s) => {
+                                format!(
+                                    "Invalid Content-Length value '{}': contains {}",
+                                    crate::helpers::shown::shown_in_finding(s),
+                                    crate::helpers::shown::describe_char(*c),
+                                )
                             }
                             crate::helpers::content_length::ContentLengthError::TooLarge(s) => {
                                 format!("Content-Length value too large: '{}'", s)
@@ -109,7 +125,7 @@ impl Rule for ContentLengthValid {
                             }
                         };
 
-                        Some(self.violation(ctx.severity, message))
+                        Some(ctx.report_with(content_length_defect(&e), message))
                     }
                 }
             };
@@ -284,12 +300,15 @@ mod tests {
         Ok(())
     }
 
+    /// The octet is the alphabet's defect and the finding names it. It used to
+    /// be reported as a verdict about the value's encoding, which said nothing
+    /// about which octet arrived — and `DIGIT` had already refused it, because
+    /// the whole production is visible US-ASCII.
     #[test]
-    fn check_non_utf8() -> anyhow::Result<()> {
+    fn an_octet_outside_us_ascii_is_named_rather_than_called_an_encoding() -> anyhow::Result<()> {
         let rule = ContentLengthValid;
         let mut tx = crate::test_helpers::make_test_transaction();
         let mut hm = hyper::HeaderMap::new();
-        // 0xFF is not a valid UTF-8 character
         let bad_value = HeaderValue::from_bytes(&[0xFF])?;
         hm.insert(hyper::header::CONTENT_LENGTH, bad_value);
         tx.request.headers = hm;
@@ -299,10 +318,56 @@ mod tests {
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "content_length_character_forbidden");
+        assert_eq!(
+            v.message, "Invalid Content-Length value 'ÿ': contains 0xFF",
+            "the octet is named, and the value is shown as it was written",
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-UTF8"));
         Ok(())
+    }
+
+    /// Four ways to get the framing wrong, four ids, and three of them outrank
+    /// the fourth: the overlong numeral is the one no sentence refuses, so it
+    /// stays `warn` while the rest are `error`. One rule severity said all four
+    /// at once.
+    #[test]
+    fn each_defect_is_the_fields_and_carries_its_own_rank() {
+        for (value, id, severity) in [
+            ("", "content_length_empty", crate::lint::Severity::Error),
+            (
+                "1.5",
+                "content_length_character_forbidden",
+                crate::lint::Severity::Error,
+            ),
+            (
+                "340282366920938463463374607431768211456",
+                "content_length_numeral_invalid",
+                crate::lint::Severity::Warn,
+            ),
+            (
+                "10, 20",
+                "content_length_members_conflicting",
+                crate::lint::Severity::Error,
+            ),
+        ] {
+            let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+                "content-length",
+                value,
+            )]);
+            let found = crate::test_helpers::run_rule(
+                &ContentLengthValid,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "content_length_valid",
+                ]),
+            )
+            .unwrap_or_else(|| panic!("{value:?}"));
+            assert_eq!(found.violation, id, "{value:?}");
+            assert_eq!(found.severity, severity, "{value:?}");
+        }
     }
 
     #[test]

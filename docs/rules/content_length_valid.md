@@ -14,6 +14,8 @@ This rule validates `Content-Length` header values for syntax and consistency:
 - A `Content-Length` header with an empty value or containing non-digit characters is invalid.
 - When multiple `Content-Length` header fields are present, their trimmed numeric values MUST be identical.
 
+The field lines are read as the octets the sender wrote, so an octet outside US-ASCII is reported as the character `DIGIT` does not admit rather than as a verdict about the value's encoding — the whole production is ten visible US-ASCII characters, so there was never anything for the encoding to say first.
+
 Improper `Content-Length` values can lead to message framing errors or truncated bodies; the rule flags invalid or inconsistent values.
 
 ## Specifications
