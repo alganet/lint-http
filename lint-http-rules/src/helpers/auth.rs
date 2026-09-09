@@ -20,12 +20,22 @@
 //! `ChallengeDefect::ParameterNameCharacter` — which is the distinction the
 //! `String`s could not draw and the reason the conversion was worth doing.
 //!
+//! **Every trim here is `OWS` and every split is `is_sp_or_htab`, and the two
+//! have to stay matched.** The values reaching this module are read as the
+//! octets a sender wrote, so `%xA0` arrives as a `char` that `str::trim` removes
+//! and no `SP` in `auth-scheme 1*SP …` generates — a scheme padded with one
+//! would have been trimmed into validity, and one written *inside* a challenge
+//! would have separated two members the sender wrote as one. The pairing is the
+//! invariant the paragraph below turns on: the trim must remove exactly the
+//! characters the split matches, or the first part of the split can be empty
+//! where the code proves it cannot.
+//!
 //! **Four unreachable branches came out of naming them, three of one shape.**
 //! `validate_challenge_syntax`, `validate_authorization_syntax` and the
 //! `Content-Range` parser in another module each trimmed a value, rejected it
 //! for emptiness, split at the first whitespace, and then checked whether the
-//! first part was empty — which by then it cannot be, because `str::trim`
-//! removes exactly the characters `char::is_whitespace` matches. Written once
+//! first part was empty — which by then it cannot be, because the trim
+//! removes exactly the characters the split matches. Written once
 //! and copied twice. A `Result<_, String>` hides that: a dead `return Err` is a
 //! line, while a variant nothing constructs is a claim the module cannot back.
 //! The fourth was `Basic`'s "decoded credentials empty", which needed base64's
@@ -40,8 +50,21 @@
 //! `parse_nc_hex` one, and an enum with a single variant is a `bool` with
 //! ceremony.
 
+use crate::helpers::headers::trim_ows;
 use crate::helpers::list::split_commas_respecting_quotes;
 use base64::Engine;
+
+/// The whitespace `auth-scheme 1*SP …` prints, and the only whitespace a field
+/// value carries beside its content.
+///
+/// `char::is_whitespace` is what this replaced, and it matches `%xA0` — an
+/// `obs-text` octet a sender writes *inside* a value, which as a separator
+/// would cut one member into two and as padding would be trimmed away. `SP` is
+/// what the grammar writes; `HTAB` is admitted with it because
+/// [`trim_ows`] takes both and the two must match.
+fn is_sp_or_htab(c: char) -> bool {
+    c == ' ' || c == '\t'
+}
 
 /// Split a WWW-Authenticate header value into "assembled" challenges.
 ///
@@ -77,8 +100,8 @@ pub fn split_and_group_challenges(s: &str) -> Result<Vec<String>, ChallengeDefec
 
         let is_new = {
             let s = mm;
-            if let Some(idx) = s.find(char::is_whitespace) {
-                let scheme = s[..idx].trim();
+            if let Some(idx) = s.find(is_sp_or_htab) {
+                let scheme = trim_ows(&s[..idx]);
                 crate::helpers::token::find_invalid_token_char(scheme).is_none()
             } else if s.contains('=') {
                 false
@@ -227,7 +250,7 @@ impl ChallengeDefect<'_> {
 /// **A challenge cannot fail to have an `auth-scheme` here, and the branch that
 /// said it could is gone.** The value is trimmed and checked for emptiness
 /// first, so it opens with a non-whitespace character; the scheme is everything
-/// before the first `char::is_whitespace`, which is therefore non-empty, and
+/// before the first `is_sp_or_htab`, which is therefore non-empty, and
 /// `str::trim` removes exactly that same set so it cannot empty it either. The
 /// old `"challenge missing auth-scheme"` string was unreachable, and only became
 /// visible when the failures had to be enumerated as variants — an enum with a
@@ -235,7 +258,7 @@ impl ChallengeDefect<'_> {
 /// named `validate_missing_scheme_error` actually exercises is a leading-space
 /// member whose scheme reads as `realm="x"` and fails on the `=`.
 pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<'_>> {
-    let c = challenge.trim();
+    let c = trim_ows(challenge);
     if c.is_empty() {
         return Err(ChallengeDefect::Empty);
     }
@@ -246,17 +269,17 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
 
     // scheme is first token before whitespace
     // cite(RFC 9110 § 11.3): "challenge = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
-    let mut parts = c.splitn(2, char::is_whitespace);
+    let mut parts = c.splitn(2, is_sp_or_htab);
     let scheme = parts
         .next()
-        .expect("splitn always yields at least one element")
-        .trim();
+        .expect("splitn always yields at least one element");
+    let scheme = trim_ows(scheme);
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
         return Err(ChallengeDefect::SchemeCharacter(invalid));
     }
 
     if let Some(rest) = parts.next() {
-        let rest = rest.trim();
+        let rest = trim_ows(rest);
         if rest.is_empty() {
             return Ok(());
         }
@@ -275,8 +298,8 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
         }
 
         // rest contains '='; decide heuristics
-        let first_part = rest.split('=').next().unwrap_or("").trim();
-        let after_eq = rest.split_once('=').map(|x| x.1).unwrap_or("").trim();
+        let first_part = trim_ows(rest.split('=').next().unwrap_or(""));
+        let after_eq = trim_ows(rest.split_once('=').map(|x| x.1).unwrap_or(""));
         let first_invalid = crate::helpers::token::find_invalid_token_char(first_part).is_some();
         if !rest.contains(',') {
             if first_invalid && !after_eq.starts_with('"') {
@@ -311,8 +334,8 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
             let mut kv = param.splitn(2, '=');
             let name = kv
                 .next()
-                .expect("splitn always yields at least one element")
-                .trim();
+                .expect("splitn always yields at least one element");
+            let name = trim_ows(name);
             let val = kv.next();
             if name.is_empty() {
                 return Err(ChallengeDefect::EmptyParameterName);
@@ -323,7 +346,7 @@ pub fn validate_challenge_syntax(challenge: &str) -> Result<(), ChallengeDefect<
             if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
                 return Err(ChallengeDefect::ParameterNameCharacter(inv));
             }
-            let v = val.trim();
+            let v = trim_ows(val);
             if v.is_empty() {
                 return Err(ChallengeDefect::ParameterMissingValue(name));
             }
@@ -393,21 +416,21 @@ impl AuthorizationDefect {
 ///
 /// **The scheme cannot be missing here either.** Same argument as
 /// [`validate_challenge_syntax`]: the value is trimmed and checked for
-/// emptiness, so what precedes the first `char::is_whitespace` is non-empty and
-/// `str::trim` cannot empty it. That makes three helpers in this module that
+/// emptiness, so what precedes the first `is_sp_or_htab` is non-empty and
+/// `trim_ows` cannot empty it. That makes three helpers in this module that
 /// carried the same unreachable sentence, all three written the same way, and
 /// naming the failures is what surfaced all three.
 pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDefect> {
-    let v = value.trim();
+    let v = trim_ows(value);
     if v.is_empty() {
         return Err(AuthorizationDefect::Empty);
     }
 
-    let mut parts = v.splitn(2, char::is_whitespace);
+    let mut parts = v.splitn(2, is_sp_or_htab);
     let scheme = parts
         .next()
-        .expect("splitn always yields at least one element")
-        .trim();
+        .expect("splitn always yields at least one element");
+    let scheme = trim_ows(scheme);
     // cite(RFC 9110 § 11.1): "It uses a case-insensitive token to identify the authentication scheme"
     if let Some(invalid) = crate::helpers::token::find_invalid_token_char(scheme) {
         return Err(AuthorizationDefect::SchemeCharacter(invalid));
@@ -422,7 +445,7 @@ pub fn validate_authorization_syntax(value: &str) -> Result<(), AuthorizationDef
     // the framework grammar.
     // cite(RFC 9110 § 11.4): "credentials = auth-scheme [ 1*SP ( token68 / #auth-param ) ]"
     if let Some(rest) = parts.next() {
-        let rest = rest.trim();
+        let rest = trim_ows(rest);
         if rest.is_empty() {
             return Err(AuthorizationDefect::MissingCredentials);
         }
@@ -501,7 +524,7 @@ impl BasicCredentialsDefect {
 /// next line reports a `user-pass` with no `:` in it — which is what it would
 /// be.
 pub fn validate_basic_credentials(token68: &str) -> Result<(), BasicCredentialsDefect> {
-    let s = token68.trim();
+    let s = trim_ows(token68);
     if s.is_empty() {
         return Err(BasicCredentialsDefect::Empty);
     }
@@ -579,7 +602,7 @@ impl BearerTokenDefect {
 /// and any trailing padding must be '=' characters, answered as a
 /// [`BearerTokenDefect`].
 pub fn validate_bearer_token(token: &str) -> Result<(), BearerTokenDefect> {
-    let s = token.trim();
+    let s = trim_ows(token);
     if s.is_empty() {
         return Err(BearerTokenDefect::Empty);
     }
@@ -687,12 +710,12 @@ pub fn parse_auth_params(
         let mut kv = p.splitn(2, '=');
         let name = kv
             .next()
-            .map(|x| x.trim())
+            .map(trim_ows)
             .filter(|x| !x.is_empty())
             .ok_or(AuthParamsDefect::NameEmpty)?;
         let val = kv
             .next()
-            .map(|x| x.trim())
+            .map(trim_ows)
             .ok_or(AuthParamsDefect::ValueMissing(name))?;
         // name must be a token
         if let Some(inv) = crate::helpers::token::find_invalid_token_char(name) {
@@ -709,7 +732,7 @@ pub fn parse_auth_params(
 /// and convert to a `u64` for easy comparison.  The returned error string is
 /// suitable for inclusion in violation messages.
 pub fn parse_nc_hex(s: &str) -> Result<u64, String> {
-    let s = s.trim();
+    let s = trim_ows(s);
     // RFC 7616 gives `nc` no ABNF at all. § 3.4 introduces it as "the hexadecimal
     // count" and never fixes its width; the sentence below is the only place in the
     // document that does. It sits in § 3.5, about Authentication-Info, but the same
@@ -725,6 +748,20 @@ pub fn parse_nc_hex(s: &str) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The trim and the split are `OWS`, so an `obs-text` octet is content:
+    /// padding a scheme with one leaves it in the scheme, where the `token`
+    /// alphabet refuses it, instead of trimming the value into validity.
+    #[test]
+    fn an_obs_text_octet_is_neither_padding_nor_a_separator() {
+        let padded: String = std::iter::once('\u{a0}').chain("Basic x".chars()).collect();
+        assert!(matches!(
+            validate_authorization_syntax(&padded),
+            Err(AuthorizationDefect::SchemeCharacter('\u{a0}'))
+        ));
+        // The whitespace the grammar does print is still a separator.
+        assert!(validate_authorization_syntax("Basic\tx").is_ok());
+    }
 
     #[test]
     fn basic_single_challenge() {
