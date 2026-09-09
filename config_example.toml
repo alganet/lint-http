@@ -1447,6 +1447,18 @@ severity = "warn"
 # Node identifier holds something that is not a node-port
 severity = "warn"
 
+[violations.origin_agent_cluster_empty]
+# Origin-Agent-Cluster is written with no boolean on it
+severity = "warn"
+
+[violations.origin_agent_cluster_invalid]
+# Origin-Agent-Cluster states a value that is not `?1`
+severity = "warn"
+
+[violations.origin_agent_cluster_malformed]
+# Origin-Agent-Cluster carries a list where a boolean is due
+severity = "warn"
+
 [violations.parameter_equals_missing]
 # Parameter is written without its '='
 severity = "warn"
