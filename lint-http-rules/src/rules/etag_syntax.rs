@@ -8,6 +8,7 @@ use crate::violations::etag::{
     entity_tag_defect, ETAG_CHARACTER_FORBIDDEN, ETAG_DELIMITER_MISSING,
     ETAG_WEAK_INDICATOR_INVALID, RFC_9110_8_8_3,
 };
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::ViolationDef;
 
 /// The production's three defects, which is everything this rule says about a
@@ -19,24 +20,20 @@ use crate::violations::ViolationDef;
 /// `*` is not a tag but is the shape a server copies from the conditional
 /// fields, and more than one field line is a statement about the message.
 static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
     &ETAG_WEAK_INDICATOR_INVALID,
     &ETAG_DELIMITER_MISSING,
     &ETAG_CHARACTER_FORBIDDEN,
 ];
 
-/// Validate `ETag` header values: must be a single entity-tag (strong or weak quoted-string)
-/// per RFC 9110 §8.8.3. Also flags invalid UTF-8 and multiple header fields.
+/// Validate `ETag` header values: must be a single entity-tag (strong or weak
+/// quoted-string) per RFC 9110 §8.8.3. Also flags a repeated field line.
+///
+/// Both specification references this rule declares now live beside the defs
+/// they answer for — the entity-tag grammar in `violations/etag.rs` and § 5.3's
+/// field order in `violations/field.rs` — which is why no `SpecRef` is written
+/// here.
 pub struct EtagSyntax;
-
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order: a non-list field (such as `ETag = entity-tag`) must not appear as multiple field lines",
-};
 
 impl RuleMeta for EtagSyntax {
     fn id(&self) -> &'static str {
@@ -158,7 +155,7 @@ impl Rule for EtagSyntax {
             // exception does not apply, and a sender must emit at most one ETag field line.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if count > 1 {
-                return Some(self.cited(&RFC_9110_5_3, ctx.severity, format!(
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                         "Multiple ETag header fields present ({}); ETag must be a single entity-tag",
                         count
                     )));

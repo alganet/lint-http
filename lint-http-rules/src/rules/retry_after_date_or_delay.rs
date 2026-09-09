@@ -4,6 +4,13 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::ViolationDef;
+
+/// § 5.3's repeated field line, which this rule reports for its own field.
+/// The sentence is the catalogue's; what stays here is the reading that says
+/// this field's definition has no comma-separated-list alternative.
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 
 pub struct RetryAfterDateOrDelay;
 
@@ -37,7 +44,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_10_2_3]
+        &[RFC_9110_10_2_3, RFC_9110_5_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -81,7 +92,7 @@ impl Rule for RetryAfterDateOrDelay {
             // comma of its own, so a comma-joined value is ambiguous rather than merely long.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if resp.headers.get_all("retry-after").iter().count() > 1 {
-                return Some(self.violation(ctx.severity, "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into()));
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, "Multiple Retry-After header fields present; Retry-After takes a single value and cannot be combined into a list".into()));
             }
 
             // Each value is either a delay-seconds count or an HTTP-date.

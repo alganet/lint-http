@@ -13,6 +13,7 @@ The `Retry-After` header, when present in responses, MUST be either a non-negati
 ## Specifications
 
 - [RFC 9110 §10.2.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2.3): Retry-After header
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 

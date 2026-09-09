@@ -8,6 +8,7 @@ use crate::violations::etag::{
     entity_tag_defect, ETAG_CHARACTER_FORBIDDEN, ETAG_DELIMITER_MISSING,
     ETAG_WEAK_INDICATOR_INVALID, RFC_9110_8_8_3,
 };
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::http_date::{
     http_date_defect, HTTP_DATE_MALFORMED, HTTP_DATE_OBSOLETE, HTTP_DATE_WHITESPACE_FORBIDDEN,
     RFC_9110_5_6_7,
@@ -32,6 +33,7 @@ use crate::violations::ViolationDef;
 /// stand, a date conditional beside an entity-tag one, and a second field line
 /// where the grammar admits one.
 static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
     &ETAG_WEAK_INDICATOR_INVALID,
     &ETAG_DELIMITER_MISSING,
     &ETAG_CHARACTER_FORBIDDEN,
@@ -104,6 +106,7 @@ severity = "warn"
             RFC_9110_14_2,
             RFC_9110_8_8_3,
             RFC_9110_5_6_7,
+            RFC_9110_5_3,
         ]
     }
 
@@ -258,7 +261,7 @@ impl Rule for ConditionalHeadersConsistent {
                 ("if-unmodified-since", "If-Unmodified-Since"),
             ] {
                 if req.headers.get_all(name).iter().count() > 1 {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                             "Multiple {} header fields present; the combined value is a list of dates, which the recipient MUST ignore",
                             label
                         )));

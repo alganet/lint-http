@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
 };
@@ -40,6 +41,7 @@ pub struct ContentTypeValid;
 /// declaring that subject, and the reachability question belongs to the
 /// reading of every body rather than to this list.
 static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -71,12 +73,6 @@ const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("12.5.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
     note: "Accept: where `*` belongs — `media-range`, which names a set of media types. Cited to explain why a wildcard is reported in Content-Type, which carries a `media-type`",
-};
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order: a sender MUST NOT emit multiple field lines for a field with no comma-separated-list alternative",
 };
 
 impl RuleMeta for ContentTypeValid {
@@ -228,7 +224,7 @@ impl Rule for ContentTypeValid {
                 // one would imply the recipient reads it, which is the thing §8.3
                 // says cannot be assumed.
                 if vals.len() > 1 {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, format!(
                             "Multiple Content-Type field lines in the {}; Content-Type is a singleton field (RFC 9110 §8.3) and recipients differ over which member wins, so the media type the peer acts on is not the one this message states. Individual values are not validated while more than one is present",
                             which
                         )));
