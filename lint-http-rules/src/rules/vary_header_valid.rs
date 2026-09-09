@@ -23,11 +23,6 @@ pub struct VaryHeaderValid;
 /// the tokens *mean*, not what they may be. One rule reads methods and the
 /// other field names; a stray comma and an octet outside `tchar` are the same
 /// two defects in both.
-///
-/// The non-UTF-8 site is not converted, and the reason is at the site: the
-/// verdict names an encoding where the defect is an octet the field's grammar
-/// does not admit, and the right conversion is an octet-wise reader before a
-/// def. Four rules in this tree have already retired that claim.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -120,19 +115,19 @@ impl Rule for VaryHeaderValid {
             // The whole check transcribes the field grammar: a comma list whose members
             // are each "*" or a field-name.
             // cite(RFC 9110 § 12.5.5): "Vary = #( "*" / field-name )"
-            for hv in resp.headers.get_all("vary").iter() {
-                let Ok(s) = hv.to_str() else {
-                    return Some(self.cited(
-                        &RFC_9110_12_5_5,
-                        ctx.severity,
-                        "Vary header contains non-UTF8 value".into(),
-                    ));
-                };
+            // Read as the octets the sender wrote. Every member is `*` or a
+            // `field-name`, which is a `token`, so an octet no `tchar` admits is
+            // the production's defect and the member walk below reports it under
+            // the id this rule already declares. Per line rather than joined,
+            // because the empty-whole-value case below is a judgment about what
+            // one line held.
+            for line in crate::helpers::headers::field_lines_as_written(&resp.headers, "vary") {
+                let s = line.as_str();
 
                 // Vary is a `#`-list, so an entirely empty value is a legal zero-element
                 // list (the degenerate "does not vary" case), not a malformed header.
                 // Distinct from an empty *element* within a non-empty list, flagged below.
-                if s.trim().is_empty() {
+                if crate::helpers::headers::trim_ows(s).is_empty() {
                     continue;
                 }
 
@@ -141,7 +136,7 @@ impl Rule for VaryHeaderValid {
                 // sentence that forbids it is on the def, where the twenty-odd
                 // other fields reporting a stray comma read the same one.
                 for raw in s.split(',') {
-                    if raw.trim().is_empty() {
+                    if crate::helpers::headers::trim_ows(raw).is_empty() {
                         return Some(ctx.report_with(&LIST_MEMBER_EMPTY, "Vary header contains empty token (e.g., trailing or consecutive commas)".into()));
                     }
                 }
@@ -169,8 +164,8 @@ impl Rule for VaryHeaderValid {
                         return Some(ctx.report_with(
                             token_character(c),
                             format!(
-                                "Vary header contains invalid field-name token character: '{}'",
-                                c
+                                "Vary header contains invalid field-name token character: {}",
+                                crate::helpers::shown::describe_char(c)
                             ),
                         ));
                     }
@@ -322,7 +317,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_header_value_is_violation() -> anyhow::Result<()> {
+    fn an_obs_text_octet_in_a_field_name_is_a_token_defect() -> anyhow::Result<()> {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
         let rule = VaryHeaderValid;
@@ -346,9 +341,12 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        let msg = v.unwrap().message;
-        assert!(msg.contains("non-UTF8"));
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "token_character_forbidden");
+        assert_eq!(
+            v.message,
+            "Vary header contains invalid field-name token character: 0xFF"
+        );
         Ok(())
     }
 
