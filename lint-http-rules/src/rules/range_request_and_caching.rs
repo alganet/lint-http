@@ -260,13 +260,12 @@ impl Rule for RangeRequestAndCaching {
                     )));
             };
 
-            // Present and unreadable is not absent. `conditional_headers_consistent`
-            // reports a non-ASCII `If-Range`; a "carries none of them" finding here
-            // would be false about the message on the wire.
-            let Ok(if_range) = raw_if_range.to_str() else {
-                return None;
-            };
-            let if_range = if_range.trim();
+            // Read as the octets the sender wrote: `etagc` admits `obs-text`, so a
+            // tag holding one is a validator this client did send, and refusing to
+            // read it answered every question below about a request that carried
+            // nothing.
+            let if_range = crate::helpers::headers::field_line_as_written(raw_if_range);
+            let if_range = crate::helpers::headers::trim_ows(&if_range);
 
             // A weak tag in `If-Range` violates §13.1.5 outright, and the rule that
             // owns the field's syntax says so. Declining keeps the two findings from
