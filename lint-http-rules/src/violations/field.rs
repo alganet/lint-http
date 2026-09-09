@@ -13,9 +13,9 @@
 //! a comma-separated-list alternative, and a message breaking it carries values
 //! that are each perfectly well formed.
 //!
-//! That is why it is shared as widely as it is. **Thirty-six rules in this tree
-//! report a repeated field line today**, one field apiece, in thirty-six
-//! wordings of one sentence — and `singleton_fields_not_repeated` reports it for
+//! That is why it is shared as widely as it is. **Nineteen rules in this tree
+//! report a repeated field line**, one field apiece, in nineteen wordings of one
+//! sentence — and `singleton_fields_not_repeated` reports it for
 //! sixteen more fields that have no rule of their own. The spread is
 //! deliberate: that rule's own prose says eight singleton fields are left to the
 //! rules that read their values, "with the joined value in the finding". So the
