@@ -7,7 +7,7 @@ use crate::rules::{Rule, RuleMeta};
 
 /// `Sec-Fetch-User` header must be the structured-boolean true (serialized as `?1`) when present.
 /// The header is request-scoped and only expected on navigation requests. Multiple header
-/// fields or non-ASCII values are flagged as violations.
+/// fields, and any value other than `?1`, are flagged as violations.
 pub struct SecFetchUserValueValid;
 
 /// The specification references this rule declares, each named so a finding
@@ -32,7 +32,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "Requests that include the `Sec-Fetch-User` request header MUST only include the structured-boolean `true` value (serialized as `?1`) when present. This header is sent by user agents for navigation requests that were triggered by a user activation. Multiple header fields or non-ASCII values will be flagged as violations."
+        "Requests that include the `Sec-Fetch-User` request header MUST only include the structured-boolean `true` value (serialized as `?1`) when present. This header is sent by user agents for navigation requests that were triggered by a user activation. Multiple header fields, and any other value, will be flagged as violations."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -104,16 +104,17 @@ impl Rule for SecFetchUserValueValid {
                 ));
             }
 
-            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-            let val = match crate::helpers::headers::get_header_str(headers, "sec-fetch-user") {
-                Some(v) => v.trim(),
-                None => {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Sec-Fetch-User header contains non-ASCII or control characters".into(),
-                    ))
-                }
-            };
+            // Read as the octets the sender wrote. The only value this field ever
+            // carries is the two characters `?1`, so an octet outside visible
+            // US-ASCII is a value that is not it — which is what the comparison
+            // below says, with the value in hand.
+            let hv = headers
+                .get_all("sec-fetch-user")
+                .iter()
+                .next()
+                .expect("a field line, since the count above is one");
+            let line = crate::helpers::headers::field_line_as_written(hv);
+            let val = crate::helpers::headers::trim_ows(&line);
 
             // An empty value cannot be an sf-boolean.
             // cite(Fetch Metadata § 2.4): "It is a Structured Field whose value is a boolean."
@@ -134,7 +135,7 @@ impl Rule for SecFetchUserValueValid {
                     ctx.severity,
                     format!(
                         "Unrecognized Sec-Fetch-User value: '{}'; expected '?1'",
-                        val
+                        crate::helpers::shown::shown_in_finding(val)
                     ),
                 ));
             }
@@ -302,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_is_violation() {
+    fn an_obs_text_octet_is_a_value_that_is_not_the_boolean() {
         use hyper::header::HeaderValue;
         use hyper::HeaderMap;
 
@@ -322,8 +323,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        assert_eq!(
+            v.expect("a finding").message,
+            "Unrecognized Sec-Fetch-User value: 'ÿ'; expected '?1'"
+        );
     }
 
     #[test]
