@@ -10,6 +10,10 @@ use crate::helpers::shown::shown_in_finding;
 use crate::helpers::word::token_or_quoted_string;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::delta_seconds::{
+    DELTA_SECONDS_CHARACTER_FORBIDDEN, DELTA_SECONDS_EMPTY, RFC_9111_1_2_2,
+};
+use crate::violations::ViolationDef;
 
 /// Alt-Svc advertising `h3` must use the final protocol ID (not draft versions),
 /// with a reasonable `ma` (max-age) value (RFC 9114 §3.1.1, RFC 7838).
@@ -67,12 +71,44 @@ const RFC_7838_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
     note:
         "Caching Alt-Svc Header Field Values — what the `ma` parameter's delta-seconds value means",
 };
-const RFC_9111_1_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9111",
-    section: Some("1.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2",
-    note: "delta-seconds — the `1*DIGIT` production `ma` carries, and what a cache does with a value too large to represent",
-};
+
+/// The two halves of `1*DIGIT`, and nothing else.
+///
+/// RFC 7838 § 3.1 gives `ma` a `delta-seconds` value by importing the
+/// production, so both ways of failing it are the production's defects and
+/// neither is this field's — the same arithmetic `Age` and `max-age` carry, in
+/// a parameter of an alternative service. What stays the rule's own is
+/// everything `ma` *means*: a lifetime of zero, and a lifetime so long it is a
+/// typo. Those two have no sentence to cite and no subject to belong to, which
+/// is why this judge is half converted and says so in its type.
+static DECLARED: &[&ViolationDef] = &[&DELTA_SECONDS_EMPTY, &DELTA_SECONDS_CHARACTER_FORBIDDEN];
+
+/// One finding from the reading, and the def that names it where the catalogue
+/// has one.
+///
+/// The shape `expect_header_valid` settled and `alt_svc_header_syntax` uses one
+/// file over: a judge that is half converted carries the `Option` rather than
+/// pretending either half.
+struct Defect {
+    def: Option<&'static ViolationDef>,
+    message: String,
+}
+
+impl Defect {
+    /// A defect the catalogue names.
+    fn named(def: &'static ViolationDef, message: String) -> Self {
+        Self {
+            def: Some(def),
+            message,
+        }
+    }
+
+    /// A defect no subject has claimed, reported at the rule's severity the way
+    /// every finding here was before the catalogue existed.
+    fn unnamed(message: String) -> Self {
+        Self { def: None, message }
+    }
+}
 
 impl RuleMeta for AltSvcH3AdvertisementValid {
     fn id(&self) -> &'static str {
@@ -95,6 +131,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9114_3_1_1, RFC_7838_3, RFC_7838_3_1, RFC_9111_1_2_2]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -246,8 +286,11 @@ impl Rule for AltSvcH3AdvertisementValid {
                     continue;
                 }
 
-                if let Some(message) = h3_ma_defect(parameters) {
-                    return Some(self.violation(ctx.severity, message));
+                if let Some(defect) = h3_ma_defect(parameters) {
+                    return Some(match defect.def {
+                        Some(def) => ctx.report_with(def, defect.message),
+                        None => self.violation(ctx.severity, defect.message),
+                    });
                 }
             }
 
@@ -275,7 +318,7 @@ impl Rule for AltSvcH3AdvertisementValid {
 /// than reported twice in different words.
 // cite(RFC 7838 § 3): "parameter     = token "=" ( token / quoted-string )"
 // cite(RFC 7838 § 3): "Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value."
-fn h3_ma_defect(parameters: &[&str]) -> Option<String> {
+fn h3_ma_defect(parameters: &[&str]) -> Option<Defect> {
     for parameter in parameters {
         // Whitespace beside the '=' leaves it in the name, so `ma = 0` does not
         // match and is not measured here. That is the right answer rather than a
@@ -300,12 +343,26 @@ fn h3_ma_defect(parameters: &[&str]) -> Option<String> {
         // So the characters are measured against the production first and only
         // then read as a number.
         // cite(RFC 7838 § 3.1): "The delta-seconds value indicates the number of seconds since the response was generated for which the alternative service is considered fresh."
-        // cite(RFC 9111 § 1.2.2, label: delta-seconds): "delta-seconds  = 1*DIGIT"
         // cite(RFC 9111 § 1.2.2): "The delta-seconds rule specifies a non-negative integer, representing time in seconds."
-        if seconds.is_empty() || !seconds.chars().all(|c| c.is_ascii_digit()) {
-            return Some(format!(
-                "Alt-Svc h3 entry has 'ma={}', which is no `delta-seconds`: the production is `1*DIGIT` (RFC 9111 §1.2.2), so a sign, a radix point or any other character leaves the freshness lifetime unstated",
-                shown_in_finding(&seconds)
+        //
+        // The floor and the alphabet are two entries of the subject, so they are
+        // two branches here: `ma=""` states no time at all, and `ma=+5` states
+        // one in characters the production does not write. One `String` could
+        // not have told them apart, which is the same split `Content-Length`
+        // needed when its own `1*DIGIT` was read.
+        if seconds.is_empty() {
+            return Some(Defect::named(
+                &DELTA_SECONDS_EMPTY,
+                "Alt-Svc h3 entry has an 'ma' with no digits in it, so the advertisement states no freshness lifetime".into(),
+            ));
+        }
+        if !seconds.chars().all(|c| c.is_ascii_digit()) {
+            return Some(Defect::named(
+                &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+                format!(
+                    "Alt-Svc h3 entry has 'ma={}', which is no `delta-seconds`: a sign, a radix point or any other character leaves the freshness lifetime unstated",
+                    shown_in_finding(&seconds)
+                ),
             ));
         }
 
@@ -317,19 +374,19 @@ fn h3_ma_defect(parameters: &[&str]) -> Option<String> {
         let n = seconds.parse::<u64>().unwrap_or(u64::MAX);
 
         if n == 0 {
-            return Some(
+            return Some(Defect::unnamed(
                 "Alt-Svc h3 entry has 'ma=0' which immediately invalidates the advertisement (RFC 7838 §3.1)"
                     .into(),
-            );
+            ));
         }
         // Heuristic ceiling, not spec-derived: RFC 7838 places no upper bound
         // on `ma` (see MAX_REASONABLE_MA). Flags likely misconfiguration only.
         if n > MAX_REASONABLE_MA {
-            return Some(format!(
+            return Some(Defect::unnamed(format!(
                 "Alt-Svc h3 entry has unreasonably large 'ma={}' (exceeds 1 year / {} seconds)",
                 shown_in_finding(&seconds),
                 MAX_REASONABLE_MA
-            ));
+            )));
         }
     }
 
@@ -517,9 +574,10 @@ mod tests {
             &config,
         )
         .unwrap();
+        assert_eq!(v.violation, "delta_seconds_character_forbidden");
         assert_eq!(
             v.message,
-            "Alt-Svc h3 entry has 'ma=abc', which is no `delta-seconds`: the production is `1*DIGIT` (RFC 9111 §1.2.2), so a sign, a radix point or any other character leaves the freshness lifetime unstated"
+            "Alt-Svc h3 entry has 'ma=abc', which is no `delta-seconds`: a sign, a radix point or any other character leaves the freshness lifetime unstated"
         );
     }
 
@@ -541,9 +599,34 @@ mod tests {
         )
         .unwrap();
         assert!(v.message.contains("'ma=+5'"), "{}", v.message);
-        assert!(v.message.contains("`1*DIGIT`"), "{}", v.message);
+        assert_eq!(v.violation, "delta_seconds_character_forbidden");
         // `parse::<u64>()` reads this as 5 and would have said nothing.
         assert_eq!("+5".parse::<u64>(), Ok(5));
+    }
+
+    /// The floor of `1*DIGIT` is the other half of the subject, and a
+    /// `quoted-string` is the one spelling that reaches it: `ma=` alone is a
+    /// `parameter` with no value, which is the syntax rule's finding.
+    #[test]
+    fn an_empty_quoted_value_states_no_time_at_all() {
+        let rule = AltSvcH3AdvertisementValid;
+        let tx = crate::test_helpers::make_test_transaction_with_response(
+            200,
+            &[("alt-svc", "h3=\":443\"; ma=\"\"")],
+        );
+        let config = crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]);
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &config,
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "delta_seconds_empty");
+        assert_eq!(
+            v.message,
+            "Alt-Svc h3 entry has an 'ma' with no digits in it, so the advertisement states no freshness lifetime"
+        );
     }
 
     /// A run of digits too long for 64 bits is a conforming `delta-seconds`, so

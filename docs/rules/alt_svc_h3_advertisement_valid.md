@@ -27,7 +27,7 @@ The field lines are joined before they are read (RFC 9110 §5.3), because `1#alt
 - [RFC 9114 §3.1.1](https://www.rfc-editor.org/rfc/rfc9114.html#section-3.1.1): HTTP Alternative Services — advertising HTTP/3 via Alt-Svc using the "h3" ALPN token
 - [RFC 7838 §3](https://www.rfc-editor.org/rfc/rfc7838.html#section-3): Alt-Svc — the field's grammar, the `parameter` production, and the requirement that a recipient ignore a parameter name it does not know
 - [RFC 7838 §3.1](https://www.rfc-editor.org/rfc/rfc7838.html#section-3.1): Caching Alt-Svc Header Field Values — what the `ma` parameter's delta-seconds value means
-- [RFC 9111 §1.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2): delta-seconds — the `1*DIGIT` production `ma` carries, and what a cache does with a value too large to represent
+- [RFC 9111 §1.2.2](https://www.rfc-editor.org/rfc/rfc9111.html#section-1.2.2): `delta-seconds = 1*DIGIT` — the production every field carrying a time in seconds writes its value in, and the clamp that makes an over-long run of digits conforming
 
 ## Configuration
 
