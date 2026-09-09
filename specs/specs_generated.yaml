@@ -5589,7 +5589,7 @@ sources:
     snippet: The "Content-Length" header field indicates the associated representation's data length as a decimal non-negative integer number of octets.
     cited_by:
     - file: lint-http-rules/src/rules/content_length_valid.rs
-      line: 86
+      line: 95
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 256
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
@@ -6737,13 +6737,13 @@ sources:
     snippet: For example, an HTTP/1.1 message body (Section 6 of [HTTP/1.1]) might consist of a stream of data encoded with the chunked transfer coding -- a sequence of data chunks, one zero-length chunk, and a trailer section -- whereas the content of that same message includes only the data stream after the transfer coding has been decoded; it does not include the chunk lengths, chunked framing syntax, nor the trailer fields (Section 6.5).
     cited_by:
     - file: lint-http-rules/src/helpers/content_length.rs
-      line: 135
+      line: 153
   - label: lint-http-rules/src/helpers/content_length.rs (2)
     section: § 6.4
     snippet: 'HTTP messages often transfer a complete or partial representation as the message "content": a stream of octets sent after the header section, as delineated by the message framing.'
     cited_by:
     - file: lint-http-rules/src/helpers/content_length.rs
-      line: 134
+      line: 152
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 86
   - label: Content-Length grammar
@@ -6751,13 +6751,17 @@ sources:
     snippet: Content-Length = 1*DIGIT
     cited_by:
     - file: lint-http-rules/src/helpers/content_length.rs
-      line: 68
+      line: 86
+    - file: lint-http-rules/src/violations/content_length.rs
+      line: 88
+    - file: lint-http-rules/src/violations/content_length.rs
+      line: 105
   - label: lint-http-rules/src/helpers/content_length.rs (3)
     section: § 8.6
     snippet: When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing
     cited_by:
     - file: lint-http-rules/src/helpers/content_length.rs
-      line: 155
+      line: 173
   - label: lint-http-rules/src/helpers/content_range.rs
     section: § 14.1
     snippet: This general notion of a "range unit" is used in the Accept-Ranges (Section 14.3) response header field to advertise support for range requests, the Range (Section 14.2) request header field to delineate the parts of a representation that are requested, and the Content-Range (Section 14.4) header field to describe which part of a representation is being transferred.
@@ -9931,9 +9935,11 @@ sources:
     snippet: If a message is received without Transfer-Encoding and with an invalid Content-Length header field, then the message framing is invalid and the recipient MUST treat it as an unrecoverable error, unless the field value can be successfully parsed as a comma-separated list (Section 5.6.1 of [HTTP]), all values in the list are valid, and all values in the list are the same (in which case, the message is processed with that single value used as the Content-Length field value).
     cited_by:
     - file: lint-http-rules/src/helpers/content_length.rs
-      line: 63
+      line: 81
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 123
+    - file: lint-http-rules/src/violations/content_length.rs
+      line: 134
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 3.2
     snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
@@ -10027,7 +10033,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 226
     - file: lint-http-rules/src/violations/content_length.rs
-      line: 44
+      line: 74
   - label: request_body_length_accuracy (2)
     section: § 6.2
     snippet: When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content.

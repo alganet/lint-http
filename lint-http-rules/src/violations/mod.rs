@@ -355,10 +355,14 @@ mod tests {
     /// equality. `cookie_path_whitespace_invalid` is the first proof: no
     /// specification asks for it, this crate refuses the character anyway, and
     /// carrying a citation there would be a guess dressed as a reference.
+    /// `content_length_numeral_invalid` is the second, and its reason is a
+    /// different one worth having beside the first: that value *derives* from
+    /// its production — `1*DIGIT` sets no ceiling — and what refuses it is this
+    /// crate's inability to represent it, which no document asked for either.
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 115;
+        const FLOOR: usize = 118;
         let cited = VIOLATIONS.iter().filter(|d| d.spec.is_some()).count();
         assert!(
             cited >= FLOOR,

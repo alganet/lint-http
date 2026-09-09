@@ -13,25 +13,39 @@
 //! field and a body may be framed by connection close.
 //!
 //! [`ContentLengthError`] is one of the typed defect enums in this tree: the
-//! three ways the field fails are three different findings, and a caller that
+//! four ways the field fails are four different findings, and a caller that
 //! got a `String` could not tell them apart to word them differently.
+//!
+//! **The field lines are read as octets, and there is no encoding verdict among
+//! those four.** `Content-Length = 1*DIGIT` is ten characters of visible
+//! US-ASCII, so every octet a `HeaderValue::to_str` would refuse is an octet the
+//! production refuses first — the string reader was not a gate here but a
+//! second, worse copy of the alphabet check, answering "this value is not valid
+//! UTF-8" where the value holds a `-`, a `.` or a %xFF that `DIGIT` does not
+//! admit. Reading the line one `char` per octet collapses the two, which is why
+//! the enum below has an alphabet variant and no encoding one.
 
+use crate::helpers::headers::field_line_as_written;
 use crate::helpers::list::list_members;
 use hyper::HeaderMap;
 
 /// Errors returned by `validate_content_length`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ContentLengthError {
-    InvalidCharacter(String),
+    /// A field line carrying no numeral at all: an empty value, or one written
+    /// as nothing but the commas of a list. `1*DIGIT` has a floor of one.
+    Empty,
+    /// The first octet of a member that `DIGIT` does not admit, and the field
+    /// line it sat in.
+    InvalidCharacter(char, String),
     TooLarge(String),
     MultipleValuesDiffer(String, String),
-    NonUtf8,
 }
 
 /// Validate `Content-Length` headers in a `HeaderMap`.
 ///
 /// Checks:
-/// 1. Values must be valid UTF-8 digits.
+/// 1. Values must be digits, read as the octets the sender wrote.
 /// 2. Values must be parseable as u128.
 /// 3. If multiple values are present, they must be identical.
 ///
@@ -51,7 +65,11 @@ pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, Cont
     let mut first_raw: String = String::new();
 
     for hv in entries.iter() {
-        let s = hv.to_str().map_err(|_| ContentLengthError::NonUtf8)?;
+        // One `char` per octet: the production admits ten characters and this
+        // walk names whichever one the sender wrote instead, so nothing is
+        // gained by asking first whether the whole line is text.
+        let s = field_line_as_written(hv);
+        let s = s.as_str();
 
         // A single field line may itself carry a comma-separated list, and that is
         // not automatically a violation. The sentence below makes `5, 5` valid and
@@ -66,8 +84,8 @@ pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, Cont
             saw_value = true;
 
             // cite(RFC 9110 § 8.6, label: Content-Length grammar): "Content-Length = 1*DIGIT"
-            if !t.chars().all(|c| c.is_ascii_digit()) {
-                return Err(ContentLengthError::InvalidCharacter(s.to_string()));
+            if let Some(c) = t.chars().find(|c| !c.is_ascii_digit()) {
+                return Err(ContentLengthError::InvalidCharacter(c, s.to_string()));
             }
 
             // A digit run too long for `u128` is still valid `1*DIGIT` — the grammar
@@ -99,7 +117,7 @@ pub fn validate_content_length(headers: &HeaderMap) -> Result<Option<u128>, Cont
         // An empty field line has no values to be "all the same", and one is not a
         // list of none: `Content-Length:` is simply not `1*DIGIT`.
         if !saw_value {
-            return Err(ContentLengthError::InvalidCharacter(s.to_string()));
+            return Err(ContentLengthError::Empty);
         }
     }
 
@@ -201,8 +219,44 @@ mod tests {
         ));
 
         // Still not a list of digits.
-        assert!(one("").is_err());
+        assert_eq!(one(""), Err(ContentLengthError::Empty));
         assert!(one("5, x").is_err());
         assert!(one("abc").is_err());
+    }
+
+    /// The alphabet answers the octet, and it always could have. A line holding
+    /// %xFF came back as an encoding verdict about the whole value; `DIGIT` is
+    /// ten characters of visible US-ASCII, so the production had already refused
+    /// that octet and the only question left is which one it was.
+    #[test]
+    fn an_octet_outside_us_ascii_is_the_alphabets_defect_and_not_an_encodings() {
+        let mut h = HeaderMap::new();
+        h.append(
+            "content-length",
+            hyper::header::HeaderValue::from_bytes(&[b'1', 0xFF]).expect("a field line"),
+        );
+        assert_eq!(
+            validate_content_length(&h),
+            Err(ContentLengthError::InvalidCharacter(
+                '\u{FF}',
+                "1\u{FF}".into()
+            )),
+        );
+    }
+
+    /// A value of nothing but commas declares no length either, and it is the
+    /// same defect as an empty line rather than a member-level one: the
+    /// recipient's walk drops the empty members, so what is left is a field
+    /// line with no numeral in it.
+    #[test]
+    fn a_line_of_commas_declares_no_length() {
+        let mut h = HeaderMap::new();
+        h.append(
+            "content-length",
+            ", ,"
+                .parse::<hyper::header::HeaderValue>()
+                .expect("a field line"),
+        );
+        assert_eq!(validate_content_length(&h), Err(ContentLengthError::Empty));
     }
 }
