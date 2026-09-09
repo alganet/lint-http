@@ -105,10 +105,19 @@ impl Rule for RequestOriginHeaderPresentForCors {
                 && (headers.get("access-control-request-method").is_some()
                     || headers.get("access-control-request-headers").is_some())
             {
-                // Origin must be present
-                match crate::helpers::headers::get_header_str(headers, "origin") {
+                // Origin must be present. Presence is `get_all`, not a successful
+                // decode: a field line carrying an octet outside visible US-ASCII
+                // is a header the sender wrote, and calling it *missing* named the
+                // one defect this rule can be certain is not there. The syntax
+                // check below is what the value answers to.
+                match crate::helpers::headers::field_lines_as_written(headers, "origin")
+                    .into_iter()
+                    .next()
+                {
                     Some(origin_val) => {
-                        if let Some(err) = crate::helpers::uri::validate_origin_value(origin_val) {
+                        if let Some(err) = crate::helpers::uri::validate_origin_value(
+                            crate::helpers::headers::trim_ows(&origin_val),
+                        ) {
                             return Some(self.violation(
                                 ctx.severity,
                                 format!("Origin header invalid: {}", err),
@@ -136,8 +145,9 @@ impl Rule for RequestOriginHeaderPresentForCors {
                         if !target_authority.eq_ignore_ascii_case(host_authority) {
                             // they differ; require Origin header
                             // cite(Fetch § 3.2): "The `Origin` request header indicates where a fetch originates from."
-                            if crate::helpers::headers::get_header_str(headers, "origin").is_none()
-                            {
+                            // Presence, again — an unreadable line is a header that
+                            // is there.
+                            if headers.get("origin").is_none() {
                                 return Some(
                                     self.cited(
                                         &FETCH_3_2,
@@ -168,6 +178,32 @@ mod tests {
     use rstest::rstest;
 
     use crate::test_helpers::{make_headers_from_pairs, make_test_transaction};
+
+    #[test]
+    fn a_preflight_origin_holding_an_octet_is_present_and_invalid() {
+        use hyper::header::HeaderValue;
+
+        let rule = RequestOriginHeaderPresentForCors;
+        let mut tx = make_test_transaction();
+        tx.request.method = "OPTIONS".into();
+        let mut hdrs = make_headers_from_pairs(&[("access-control-request-method", "POST")]);
+        hdrs.insert(
+            "origin",
+            HeaderValue::from_bytes(b"https://exa\xffmple.com").expect("a field line"),
+        );
+        tx.request.headers = hdrs;
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        // The sender wrote the header, so "missing" was the one thing it was
+        // not: the value answers to the origin syntax instead.
+        let msg = v.expect("a finding").message;
+        assert!(msg.starts_with("Origin header invalid: "), "{msg}");
+    }
 
     #[rstest]
     fn preflight_without_origin_is_violation() {

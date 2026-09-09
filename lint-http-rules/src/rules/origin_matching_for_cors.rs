@@ -106,29 +106,38 @@ impl Rule for OriginMatchingForCors {
             let req = &tx.request;
             let headers = &req.headers;
 
-            // Nothing to do if request did not include Origin header
-            let origin = crate::helpers::headers::get_header_str(headers, "origin")?.trim();
+            // Nothing to do if request did not include Origin header. The line is
+            // read as the octets the sender wrote: `Origin` is `null` or a
+            // serialized origin, both inside visible US-ASCII, so a value the
+            // string reader refuses is a value the syntax check below refuses —
+            // and refusing it here first meant the rule said nothing at all.
+            let origin_line = crate::helpers::headers::field_lines_as_written(headers, "origin")
+                .into_iter()
+                .next()?;
+            let origin = crate::helpers::headers::trim_ows(&origin_line);
 
             // Validate origin syntax using shared helper (handles "null" and serialized origins).
             if let Some(reason) = crate::helpers::uri::validate_origin_value(origin) {
                 return Some(self.violation(
                     ctx.severity,
-                    format!("Invalid Origin header value '{}': {}", origin, reason),
+                    format!(
+                        "Invalid Origin header value '{}': {}",
+                        crate::helpers::shown::shown_in_finding(origin),
+                        reason
+                    ),
                 ));
             }
 
             let resp = tx.response.as_ref()?;
 
-            // Check for Access-Control-Allow-Origin header in response
-            let mut acao_values: Vec<String> = Vec::new();
-            for hv in resp.headers.get_all("access-control-allow-origin").iter() {
-                match hv.to_str() {
-                    Ok(s) => acao_values.push(s.to_string()),
-                    Err(_) => {
-                        return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin header contains non-ASCII or control characters".into()));
-                    }
-                }
-            }
+            // Check for Access-Control-Allow-Origin header in response. Read as
+            // written for the same reason as the request's `Origin`: this rule
+            // compares the two byte for byte, so a value it cannot read is a
+            // value that does not match, which the finding at the end says.
+            let acao_values = crate::helpers::headers::field_lines_as_written(
+                &resp.headers,
+                "access-control-allow-origin",
+            );
             if acao_values.is_empty() {
                 return None;
             }
@@ -140,7 +149,7 @@ impl Rule for OriginMatchingForCors {
             }
 
             // Now we have exactly one header field; validate its value semantics
-            let acao_raw = acao_values[0].trim();
+            let acao_raw = crate::helpers::headers::trim_ows(&acao_values[0]);
             // Must be a single value (not a comma-separated list)
             let members: Vec<String> = crate::helpers::list::list_members(acao_raw)
                 .map(|m| m.to_string())
@@ -152,7 +161,8 @@ impl Rule for OriginMatchingForCors {
                 ));
             }
 
-            let acao_val = members.into_iter().next().unwrap().trim().to_string();
+            let acao_val = members.into_iter().next().unwrap();
+            let acao_val = crate::helpers::headers::trim_ows(&acao_val).to_string();
 
             // `*` is permitted only when credentials are not allowed. The CORS check short-
             // circuits on `*` *only* for a request that does not carry credentials; a
@@ -181,7 +191,8 @@ impl Rule for OriginMatchingForCors {
                     ctx.severity,
                     format!(
                         "Access-Control-Allow-Origin '{}' does not match request Origin '{}'",
-                        acao_val, origin
+                        crate::helpers::shown::shown_in_finding(&acao_val),
+                        crate::helpers::shown::shown_in_finding(origin)
                     ),
                 ));
             }
@@ -216,6 +227,69 @@ mod tests {
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
         assert!(v.is_none());
+    }
+
+    #[test]
+    fn an_obs_text_octet_in_the_origin_is_a_syntax_finding() {
+        use hyper::header::HeaderValue;
+
+        let rule = OriginMatchingForCors;
+        let mut tx = make_test_transaction_with_response(
+            200,
+            &[("access-control-allow-origin", "https://example.com")],
+        );
+        let mut hdrs = hyper::HeaderMap::new();
+        hdrs.insert(
+            "origin",
+            HeaderValue::from_bytes(b"https://exa\xffmple.com").expect("a field line"),
+        );
+        tx.request.headers = hdrs;
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        // The rule used to say nothing here: the value never reached the origin
+        // syntax check, because the reader refused it first.
+        let msg = v.expect("a finding").message;
+        assert!(
+            msg.starts_with("Invalid Origin header value 'https://exa\u{ff}mple.com'"),
+            "{msg}"
+        );
+    }
+
+    #[test]
+    fn an_obs_text_octet_in_the_allowed_origin_does_not_match() {
+        use hyper::header::HeaderValue;
+
+        let rule = OriginMatchingForCors;
+        let mut tx = make_test_transaction();
+        tx.request.headers = make_headers_from_pairs(&[("origin", "https://example.com")]);
+        let mut hdrs = hyper::HeaderMap::new();
+        hdrs.insert(
+            "access-control-allow-origin",
+            HeaderValue::from_bytes(b"https://exa\xffmple.com").expect("a field line"),
+        );
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hdrs,
+            body_length: None,
+            trailers: None,
+        });
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        assert_eq!(
+            v.expect("a finding").message,
+            "Access-Control-Allow-Origin 'https://exa\u{ff}mple.com' does not match request Origin 'https://example.com'"
+        );
     }
 
     #[rstest]
