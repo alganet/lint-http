@@ -115,14 +115,17 @@ impl Rule for CrossOriginEmbedderPolicyValid {
                 ));
             }
 
-            let val = match crate::helpers::headers::get_header_str(
-                headers,
-                "cross-origin-embedder-policy",
-            ) {
-                Some(v) => v.trim(),
-                None => return Some(self.violation(ctx.severity, "Cross-Origin-Embedder-Policy header contains non-ASCII or control characters"
-                            .into())),
-            };
+            // Read as the octets the sender wrote. The value is one of three
+            // strings, all of them inside visible US-ASCII, so a value the string
+            // reader refuses is a value none of the three spell — which is what
+            // the finding below says, with the value in hand.
+            let hv = headers
+                .get_all("cross-origin-embedder-policy")
+                .iter()
+                .next()
+                .expect("a field line, since the count above is one");
+            let line = crate::helpers::headers::field_line_as_written(hv);
+            let val = crate::helpers::headers::trim_ows(&line);
 
             // Must not be a comma-separated list
             if crate::helpers::list::list_members(val).count() != 1 {
@@ -146,7 +149,7 @@ impl Rule for CrossOriginEmbedderPolicyValid {
 
             Some(self.cited(&HTML_7_1_4, ctx.severity, format!(
                     "Cross-Origin-Embedder-Policy value '{}' does not enable cross-origin isolation (use 'require-corp' or 'credentialless')",
-                    val
+                    crate::helpers::shown::shown_in_finding(val)
                 )))
         };
         Vec::from_iter(finding())
@@ -249,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_is_violation() {
+    fn an_obs_text_octet_is_a_value_none_of_them_spell() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
 
@@ -275,8 +278,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        assert_eq!(
+            v.expect("a finding").message,
+            "Cross-Origin-Embedder-Policy value 'ÿ' does not enable cross-origin isolation (use 'require-corp' or 'credentialless')"
+        );
     }
 
     #[test]

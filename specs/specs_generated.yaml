@@ -30,13 +30,13 @@ sources:
     snippet: Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_resource_policy_valid.rs
-      line: 135
+      line: 138
   - label: cross_origin_resource_policy_valid (2)
     section: § 3.7
     snippet: If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null.
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_resource_policy_valid.rs
-      line: 136
+      line: 139
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 3.2
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
@@ -124,13 +124,13 @@ sources:
     snippet: An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners.
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_embedder_policy_valid.rs
-      line: 140
+      line: 143
   - label: cross_origin_opener_policy_valid
     section: § 7.1.3.1
     snippet: Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list.
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_opener_policy_valid.rs
-      line: 145
+      line: 148
   - label: origin_isolated_header_valid
     section: § 7.1.2
     snippet: This header is a structured header whose value must be a boolean.
