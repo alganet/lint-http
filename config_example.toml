@@ -1295,6 +1295,10 @@ severity = "warn"
 # Weakness indicator is not written W/
 severity = "warn"
 
+[violations.field_line_duplicated]
+# A field is written on more lines than its definition allows
+severity = "warn"
+
 [violations.http_date_malformed]
 # Timestamp derives from no HTTP-date format
 severity = "warn"

@@ -14,6 +14,7 @@ This rule checks the `Cross-Origin-Embedder-Policy` response header value and en
 
 - [MDN Cross-Origin-Embedder-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cross-Origin-Embedder-Policy): Cross-Origin-Embedder-Policy
 - [HTML §7.1.4](https://html.spec.whatwg.org/multipage/browsers.html#cross-origin-embedder-policy): The `Cross-Origin-Embedder-Policy` header — its value is one of the three embedder policy strings `unsafe-none`, `require-corp`, `credentialless`
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 

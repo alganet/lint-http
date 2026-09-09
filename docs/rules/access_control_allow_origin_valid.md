@@ -16,6 +16,7 @@ This rule checks that the `Access-Control-Allow-Origin` response header is synta
 - [Fetch §3.3.3](https://fetch.spec.whatwg.org/#http-access-control-allow-origin): `Access-Control-Allow-Origin` carries one value: an echoed origin, `null`, or `*`
 - [Fetch §3.2](https://fetch.spec.whatwg.org/#origin-header): Governing origin syntax: `serialized-origin` ends at its authority, so a path (not even a trailing slash), a query or a fragment all disqualify it; the host inside it is a `reg-name` or a bracketed `IP-literal`, so a character outside those productions or a malformed percent-encoding disqualifies it too; and `origin-or-null`'s `null` is case-sensitive
 - [RFC 6454 §7.1](https://www.rfc-editor.org/rfc/rfc6454.html#section-7.1): Historical origin syntax the non-`*` value is validated against — `serialized-origin = scheme "://" host [ ":" port ]`, and `null` via origin-list-or-null; Fetch §3.2 supplants it
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 

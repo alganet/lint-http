@@ -4,6 +4,14 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::ViolationDef;
+
+/// The one entry a field with no list form always has available: its own
+/// repetition. What the *value* may be is this rule's own three-way
+/// alternation, which no subject can name — so the repetition is the only
+/// finding here the catalogue holds.
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 
 pub struct AccessControlAllowOriginValid;
 
@@ -60,7 +68,12 @@ severity = "warn"
             FETCH_3_3_3,
             FETCH_3_2,
             RFC_6454_7_1,
+            RFC_9110_5_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -135,7 +148,7 @@ impl Rule for AccessControlAllowOriginValid {
             // header carries one value — an echoed origin, `null`, or `*` — not a list.
             // cite(Fetch § 3.3.3): "Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response."
             if acao_count > 1 {
-                return Some(self.cited(&FETCH_3_3_3, ctx.severity, "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into()));
+                return Some(ctx.report_with(&FIELD_LINE_DUPLICATED, "Multiple Access-Control-Allow-Origin header fields present; only a single value ('*' or a single origin) is allowed".into()));
             }
 
             // There is a single header field; validate its single value semantics and origin syntax.

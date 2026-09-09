@@ -4,6 +4,17 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::ViolationDef;
+
+/// The one entry, and this rule is the widest declarer of it there will be.
+///
+/// Sixteen fields with no rule of their own are counted here; every other
+/// declarer reads one field and reports the same sentence about it. What stays
+/// this rule's own is the *table* — which field definitions have no
+/// comma-separated-list alternative — because that is a reading of sixteen
+/// documents rather than of § 5.3.
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 
 pub struct SingletonFieldsNotRepeated;
 
@@ -99,14 +110,6 @@ const SINGLETON_FIELDS: &[(&str, &str)] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3",
-    note: "Field Order: the MUST NOT this rule enforces — multiple field lines with \
-           one name in a message, headers or trailers, unless the field's \
-           definition has a comma-separated-list alternative",
-};
 const RFC_9110_5_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("5.5"),
@@ -189,6 +192,10 @@ severity = "error"
         &[RFC_9110_5_3, RFC_9110_5_5, RFC_9110_5_6_1, RFC_9111_5_1]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -237,7 +244,7 @@ impl Rule for SingletonFieldsNotRepeated {
                         .and_then(|resp| judge(&resp.headers, resp.trailers.as_ref(), "Response"))
                 })?;
 
-            Some(self.violation(ctx.severity, message))
+            Some(ctx.report_with(&FIELD_LINE_DUPLICATED, message))
         };
         Vec::from_iter(finding())
     }

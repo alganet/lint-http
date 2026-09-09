@@ -13,6 +13,7 @@ Requests that include the `Sec-Fetch-Mode` request header must use one of the ca
 ## Specifications
 
 - [Fetch Metadata §2.2](https://www.w3.org/TR/fetch-metadata/#sec-fetch-mode-header): Fetch Metadata (W3C) — `Sec-Fetch-Mode`: an sf-token whose valid values are the five request modes
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 

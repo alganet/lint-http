@@ -16,6 +16,7 @@ Checks the `Origin-Agent-Cluster` response header and ensures it uses the struct
 
 - [HTML §7.1.2](https://html.spec.whatwg.org/multipage/browsers.html#origin-keyed-agent-clusters): `Origin-Agent-Cluster` — a structured-header boolean; only the `?1` true value requests an origin-keyed agent cluster
 - [RFC 9651 §3](https://www.rfc-editor.org/rfc/rfc9651.html#section-3): Structured Headers boolean values (§3–§4)
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 

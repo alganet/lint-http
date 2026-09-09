@@ -4,6 +4,13 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::ViolationDef;
+
+/// The one entry a field with no list form always has available: its own
+/// repetition. The value on each line here is measured by the checks below;
+/// what § 5.3 forbids is there being two lines at all.
+static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
 
 /// `Sec-Fetch-User` header must be the structured-boolean true (serialized as `?1`) when present.
 /// The header is request-scoped and only expected on navigation requests. Multiple header
@@ -36,7 +43,11 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[FETCH_METADATA_2_4]
+        &[FETCH_METADATA_2_4, RFC_9110_5_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -98,8 +109,8 @@ impl Rule for SecFetchUserValueValid {
             // the field.
             // cite(RFC 9110 § 5.3): "a sender MUST NOT generate multiple field lines with the same name in a message (whether in the headers or trailers) or append a field line when a field line of the same name already exists in the message, unless that field's definition allows multiple field line values to be recombined as a comma-separated list"
             if count > 1 {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &FIELD_LINE_DUPLICATED,
                     "Multiple Sec-Fetch-User header fields present".into(),
                 ));
             }

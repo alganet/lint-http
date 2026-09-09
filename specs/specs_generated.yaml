@@ -16,7 +16,7 @@ sources:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
       line: 172
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 206
+      line: 209
   - label: CORS check reads the field
     section: § 4.10
     snippet: Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list.
@@ -28,21 +28,21 @@ sources:
     snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_origin_valid.rs
-      line: 136
+      line: 149
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 181
+      line: 184
   - label: cross_origin_resource_policy_valid
     section: § 3.7
     snippet: Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_resource_policy_valid.rs
-      line: 138
+      line: 149
   - label: cross_origin_resource_policy_valid (2)
     section: § 3.7
     snippet: If policy is neither `same-origin`, `same-site`, nor `cross-origin`, then set policy to null.
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_resource_policy_valid.rs
-      line: 139
+      line: 150
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 3.2
     snippet: The origin serialization defined here is more constrained than [RFC3986]’s grammar in two substantial ways.
@@ -66,7 +66,7 @@ sources:
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 222
+      line: 225
   - label: refresh_header_syntax
     section: § 2.2.2
     snippet: Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20
@@ -90,7 +90,7 @@ sources:
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 157
+      line: 168
   - label: timing_allow_origin_valid
     section: § 3.2
     snippet: origin-or-null = serialized-origin / %s"null" ; case-sensitive
@@ -130,25 +130,25 @@ sources:
     snippet: An embedder policy value is one of three strings that controls the fetching of cross-origin resources without explicit permission from resource owners.
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_embedder_policy_valid.rs
-      line: 143
+      line: 154
   - label: cross_origin_opener_policy_valid
     section: § 7.1.3.1
     snippet: Let parsedItem be the result of getting a structured field value given `Cross-Origin-Opener-Policy` and "item" from response's header list.
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_opener_policy_valid.rs
-      line: 148
+      line: 164
   - label: origin_isolated_header_valid
     section: § 7.1.2
     snippet: This header is a structured header whose value must be a boolean.
     cited_by:
     - file: lint-http-rules/src/rules/origin_isolated_header_valid.rs
-      line: 118
+      line: 129
   - label: origin_isolated_header_valid (2)
     section: § 7.1.2
     snippet: values that are not the structured header boolean true value (i.e., `?1`) will be ignored.
     cited_by:
     - file: lint-http-rules/src/rules/origin_isolated_header_valid.rs
-      line: 131
+      line: 142
 - label: HTML Links
   url: https://html.spec.whatwg.org/multipage/links.html
   type: text/html
@@ -194,31 +194,31 @@ sources:
     snippet: For each value of rawXFrameOptions, append value, converted to ASCII lowercase, to xFrameOptions.
     cited_by:
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 129
+      line: 140
   - label: x_frame_options_value_valid (2)
     section: § 7.7
     snippet: HTTP response header is a way of controlling whether and how a Document may be loaded inside of a child navigable
     cited_by:
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 94
+      line: 105
   - label: x_frame_options_value_valid (3)
     section: § 7.7
     snippet: In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented.
     cited_by:
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 139
+      line: 150
   - label: x_frame_options_value_valid (4)
     section: § 7.7
     snippet: It was originally defined in HTTP Header Field X-Frame-Options, but the definition and processing model here supersedes that document.
     cited_by:
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 93
+      line: 104
   - label: x_frame_options_value_valid (5)
     section: § 7.7
     snippet: X-Frame-Options = "DENY" / "SAMEORIGIN"
     cited_by:
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 128
+      line: 139
 - label: HTML Semantics
   url: https://html.spec.whatwg.org/multipage/semantics.html
   type: text/html
@@ -455,90 +455,90 @@ sources:
     snippet: HTTP request header exposes a request’s destination to a server
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 93
+      line: 104
   - label: sec_fetch_dest_value_valid (2)
     section: § 2.1
     snippet: If r’s destination is the empty string, set header’s value to the string "empty"
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 160
+      line: 171
   - label: sec_fetch_dest_value_valid (3)
     section: § 2.1
     snippet: In order to support forward-compatibility with as-yet-unknown request types, servers SHOULD ignore this header if it contains an invalid value.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 155
+      line: 166
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 139
+      line: 150
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 145
+      line: 156
   - label: sec_fetch_dest_value_valid (4)
     section: § 2.1
     snippet: It is a Structured Field whose value MUST be a token.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 124
+      line: 135
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 137
+      line: 148
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 116
+      line: 127
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 125
+      line: 136
   - label: sec_fetch_dest_value_valid (5)
     section: § 2.1
     snippet: Valid Sec-Fetch-Dest values include the set of valid request destinations defined by [Fetch].
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 156
+      line: 167
   - label: sec_fetch_mode_value_valid
     section: § 2.2
     snippet: HTTP request header exposes a request’s mode to a server
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 85
+      line: 96
   - label: sec_fetch_mode_value_valid (2)
     section: § 2.2
     snippet: Valid Sec-Fetch-Mode values include "cors", "navigate", "no-cors", "same-origin", and "websocket".
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 140
+      line: 151
   - label: sec_fetch_site_value_valid
     section: § 2.3
     snippet: HTTP request header exposes the relationship between a request initiator’s origin and its target’s origin
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 85
+      line: 96
   - label: sec_fetch_site_value_valid (2)
     section: § 2.3
     snippet: It is a Structured Field whose value is a token.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 117
+      line: 128
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 130
+      line: 141
   - label: sec_fetch_site_value_valid (3)
     section: § 2.3
     snippet: Valid Sec-Fetch-Site values include "cross-site", "same-origin", "same-site", and "none".
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 146
+      line: 157
   - label: sec_fetch_user_value_valid
     snippet: 'Sec-Fetch-User = sf-boolean Note: The header is delivered only for navigation requests, and only when its value is true.'
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
-      line: 132
+      line: 143
   - label: sec_fetch_user_value_valid (2)
     section: § 2.4
     snippet: HTTP request header exposes whether or not a navigation request was triggered by user activation.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
-      line: 90
+      line: 101
   - label: sec_fetch_user_value_valid (3)
     section: § 2.4
     snippet: It is a Structured Field whose value is a boolean.
     cited_by:
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
-      line: 120
+      line: 131
 - label: Resource Timing
   url: https://www.w3.org/TR/resource-timing/
   type: text/html
@@ -784,22 +784,22 @@ sources:
     snippet: Disables XSS filtering.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 134
+      line: 145
   - label: x_xss_protection_value_valid (2)
     snippet: Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 140
+      line: 151
   - label: x_xss_protection_value_valid (3)
     snippet: Even though this feature can protect users of older web browsers that don't support CSP, in some cases, X-XSS-Protection can create XSS vulnerabilities in otherwise safe websites.
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 133
+      line: 144
   - label: x_xss_protection_value_valid (4)
     snippet: response header was a feature of Internet Explorer, Chrome and Safari that stopped pages from loading when they detected reflected cross-site scripting
     cited_by:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 98
+      line: 109
 - label: RFC 1035
   url: https://www.rfc-editor.org/rfc/rfc1035.html
   fragments:
@@ -5341,7 +5341,7 @@ sources:
     - file: lint-http-rules/src/rules/cache_coherence.rs
       line: 131
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 33
+      line: 44
   - label: cache_control_directive_valid
     section: § 5.1
     snippet: A field name labels the corresponding field value as having the semantics defined by that name.
@@ -5517,7 +5517,7 @@ sources:
     - file: lint-http-rules/src/rules/conditional_headers_consistent.rs
       line: 218
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 38
+      line: 49
   - label: conditional_request_handling
     section: § 13.1.2
     snippet: An origin server that evaluates an If-None-Match condition MUST NOT perform the requested method if the condition evaluates to false; instead, the origin server MUST respond with either a) the 304 (Not Modified) status code if the request method is GET or HEAD or b) the 412 (Precondition Failed) status code for all other request methods.
@@ -5711,7 +5711,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 220
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 35
+      line: 46
   - label: content_type_present (4)
     section: § 8.3
     snippet: If a Content-Type header field is not present, the recipient MAY either assume a media type of "application/octet-stream" ([RFC2046], Section 4.5.1) or examine the data to determine its type.
@@ -5911,7 +5911,7 @@ sources:
     - file: lint-http-rules/src/rules/etag_syntax.rs
       line: 116
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 34
+      line: 45
   - label: expect_header_valid
     section: § 10.1.1
     snippet: A "100-continue" expectation informs recipients that the client is about to send (presumably large) content in this request
@@ -6207,7 +6207,7 @@ sources:
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
       line: 138
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 39
+      line: 50
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 132
   - label: if_modified_since_date_syntax (2)
@@ -6235,7 +6235,7 @@ sources:
     - file: lint-http-rules/src/rules/if_unmodified_since_date_syntax.rs
       line: 136
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 40
+      line: 51
   - label: keep_alive_header_valid
     section: § 7.6.1
     snippet: Keep-Alive (Section 19.7.1 of [RFC2068])
@@ -6837,7 +6837,7 @@ sources:
     - file: lint-http-rules/src/helpers/content_range.rs
       line: 236
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 36
+      line: 47
     - file: lint-http-rules/src/violations/content_range.rs
       line: 56
     - file: lint-http-rules/src/violations/content_range.rs
@@ -7015,21 +7015,23 @@ sources:
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
       line: 82
     - file: lint-http-rules/src/rules/sec_fetch_dest_value_valid.rs
-      line: 102
+      line: 113
     - file: lint-http-rules/src/rules/sec_fetch_mode_value_valid.rs
-      line: 94
+      line: 105
     - file: lint-http-rules/src/rules/sec_fetch_site_value_valid.rs
-      line: 94
+      line: 105
     - file: lint-http-rules/src/rules/sec_fetch_user_value_valid.rs
-      line: 99
+      line: 110
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 261
+      line: 268
     - file: lint-http-rules/src/rules/vary_header_cache_valid.rs
       line: 133
     - file: lint-http-rules/src/rules/x_frame_options_value_valid.rs
-      line: 106
+      line: 117
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
-      line: 109
+      line: 120
+    - file: lint-http-rules/src/violations/field.rs
+      line: 62
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.5
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
@@ -7069,7 +7071,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 256
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 263
+      line: 270
   - label: lint-http-rules/src/helpers/headers.rs (7)
     section: § 5.5
     snippet: This is true for both list-based and singleton fields, since a singleton field might be erroneously sent with multiple members and detecting such errors improves interoperability.
@@ -7077,7 +7079,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 411
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 264
+      line: 271
   - label: lint-http-rules/src/helpers/headers.rs (8)
     section: § 5.5
     snippet: field-content  = field-vchar [ 1*( SP / HTAB / field-vchar ) field-vchar ]
@@ -8267,7 +8269,7 @@ sources:
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 220
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 37
+      line: 48
   - label: range_request_and_caching
     section: § 13.1.5
     snippet: Note that the If-Range comparison is by exact match, including when the validator is an HTTP-date, and so it differs from the "earlier than or equal to" comparison used when evaluating an If-Unmodified-Since conditional.
@@ -8609,7 +8611,7 @@ sources:
     - file: lint-http-rules/src/rules/retry_after_date_or_delay.rs
       line: 88
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 43
+      line: 54
   - label: retry_after_status_valid
     section: § 10.2.3
     snippet: When sent with a 503 (Service Unavailable) response, Retry-After indicates how long the service is expected to be unavailable to the client.
@@ -8659,37 +8661,37 @@ sources:
     snippet: User-Agent = product *( RWS ( product / comment ) )
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 31
+      line: 42
   - label: singleton_fields_not_repeated (2)
     section: § 10.2.4
     snippet: Server = product *( RWS ( product / comment ) )
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 30
+      line: 41
   - label: singleton_fields_not_repeated (3)
     section: § 11.6.2
     snippet: Authorization = credentials
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 41
+      line: 52
   - label: singleton_fields_not_repeated (4)
     section: § 11.7.2
     snippet: Proxy-Authorization = credentials
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 42
+      line: 53
   - label: the exception's shape
     section: § 5.3
     snippet: 'such as an ABNF rule of #(values) defined in Section 5.6.1'
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 262
+      line: 269
   - label: singleton_fields_not_repeated (5)
     section: § 6.6.1
     snippet: The "Date" header field represents the date and time at which the message was originated, having the same semantics as the Origination Date Field (orig-date) defined in Section 3.6.1 of [RFC5322].
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 32
+      line: 43
   - label: status_101_switching_protocols
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
@@ -9300,7 +9302,7 @@ sources:
     - file: lint-http-rules/src/rules/age_header_numeric.rs
       line: 108
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 45
+      line: 56
   - label: age_header_numeric (2)
     section: § 5.1
     snippet: The Age field value is a non-negative integer, representing time in seconds
@@ -9674,13 +9676,13 @@ sources:
     snippet: The "Age" response header field conveys the sender's estimate of the time since the response was generated or successfully validated at the origin server.
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 44
+      line: 55
   - label: singleton_fields_not_repeated (2)
     section: § 5.3
     snippet: The "Expires" response header field gives the date/time after which the response is considered stale.
     cited_by:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
-      line: 46
+      line: 57
     - file: lint-http-rules/src/rules/status_and_caching_semantics.rs
       line: 120
   - label: status_and_caching_semantics

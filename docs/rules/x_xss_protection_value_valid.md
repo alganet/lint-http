@@ -14,6 +14,7 @@ This rule checks that the `X-XSS-Protection` response header, when present, uses
 
 - [MDN X-XSS-Protection](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection): X-XSS-Protection
 - [OWASP Secure Headers](https://owasp.org/www-project-secure-headers/): OWASP guidance
+- [RFC 9110 §5.3](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.3): Field Order — a sender MUST NOT write multiple field lines of one name, in the headers or the trailers, unless at least one alternative of the field's definition allows the lines to be recombined as a comma-separated list
 
 ## Configuration
 
