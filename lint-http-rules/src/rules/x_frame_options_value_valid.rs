@@ -111,16 +111,17 @@ impl Rule for XFrameOptionsValueValid {
                 ));
             }
 
-            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-            let val = match crate::helpers::headers::get_header_str(headers, "x-frame-options") {
-                Some(v) => v.trim(),
-                None => {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "X-Frame-Options header contains non-ASCII or control characters".into(),
-                    ))
-                }
-            };
+            // Read as the octets the sender wrote. Both conforming spellings are
+            // inside visible US-ASCII, so a value the string reader refuses is a
+            // value that is neither of them — which the unsupported-value finding
+            // at the end says, and it can quote what arrived.
+            let hv = headers
+                .get_all("x-frame-options")
+                .iter()
+                .next()
+                .expect("a field line, since the count above is one");
+            let line = crate::helpers::headers::field_line_as_written(hv);
+            let val = crate::helpers::headers::trim_ows(&line);
 
             // The two conforming values; the match is case-insensitive because the
             // processing model lowercases each value before comparing.
@@ -136,21 +137,30 @@ impl Rule for XFrameOptionsValueValid {
             // sender believes otherwise. Flag it with a targeted message rather than
             // the generic unsupported-value one.
             // cite(HTML Speculative Loading § 7.7): "In particular, HTTP Header Field X-Frame-Options specified an `ALLOW-FROM` variant of the header, but that is not to be implemented."
-            if val.len() >= 10 && val[..10].eq_ignore_ascii_case("ALLOW-FROM") {
+            // `get` rather than `[..10]`: one `char` per octet is not one *byte*
+            // per octet once an `obs-text` octet is in the value, so a byte index
+            // can land inside a code point and the slice would panic.
+            if val
+                .get(..10)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("ALLOW-FROM"))
+            {
                 return Some(self.cited(
                     &HTML_SPECULATIVE_LOADING_7_7,
                     ctx.severity,
                     format!(
                         "X-Frame-Options: ALLOW-FROM is obsolete and not implemented by browsers \
                          (use the Content-Security-Policy frame-ancestors directive instead): '{}'",
-                        val
+                        crate::helpers::shown::shown_in_finding(val)
                     ),
                 ));
             }
 
             Some(self.violation(
                 ctx.severity,
-                format!("X-Frame-Options contains unsupported value: '{}'", val),
+                format!(
+                    "X-Frame-Options contains unsupported value: '{}'",
+                    crate::helpers::shown::shown_in_finding(val)
+                ),
             ))
         };
         Vec::from_iter(finding())
@@ -236,6 +246,40 @@ mod tests {
     }
 
     #[test]
+    fn an_octet_inside_the_obsolete_prefix_is_measured_not_sliced() {
+        use hyper::header::HeaderValue;
+
+        let rule = XFrameOptionsValueValid;
+        let mut tx = make_test_transaction();
+        let mut hdrs = hyper::HeaderMap::new();
+        // The tenth octet is inside a code point that takes two bytes in the
+        // decoded line, which is what a byte-indexed slice would have split.
+        hdrs.insert(
+            "x-frame-options",
+            HeaderValue::from_bytes(b"ALLOW-FRO\xffM https://example.com").expect("a field line"),
+        );
+        tx.response = Some(crate::http_transaction::ResponseInfo {
+            status: 200,
+            version: "HTTP/1.1".into(),
+            headers: hdrs,
+            body_length: None,
+            trailers: None,
+        });
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        );
+        let msg = v.expect("a finding").message;
+        assert!(
+            msg.starts_with("X-Frame-Options contains unsupported value:"),
+            "{msg}"
+        );
+    }
+
+    #[test]
     fn multiple_headers_violation() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
@@ -265,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_header_value_is_violation() {
+    fn an_obs_text_octet_is_a_value_none_of_them_spell() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
 
@@ -291,8 +335,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        assert_eq!(
+            v.expect("a finding").message,
+            "X-Frame-Options contains unsupported value: 'ÿ'"
+        );
     }
 
     #[test]
