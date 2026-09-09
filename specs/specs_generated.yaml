@@ -14,9 +14,15 @@ sources:
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 152
+      line: 172
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
       line: 171
+  - label: CORS check reads the field
+    section: § 4.10
+    snippet: Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list.
+    cited_by:
+    - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
+      line: 154
   - label: access_control_allow_origin_valid
     section: § 3.3.3
     snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.

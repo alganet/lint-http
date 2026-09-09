@@ -45,7 +45,7 @@ severity = "warn"
     }
 
     fn description(&self) -> &'static str {
-        "This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure that `Access-Control-Allow-Credentials` is **not** set to `true` when `Access-Control-Allow-Origin` is `*` (wildcard). Allowing credentials with a wildcard origin is insecure and disallowed by the CORS model."
+        "This rule reads the Cross-Origin Resource Sharing (CORS) response headers that decide whether a response may be shared with credentials, and asks two things.\n\n**The value.** `Access-Control-Allow-Credentials` carries one value and the CORS check compares it as bytes: `true` returns success and every other value falls through to the algorithm's failure. So `TRUE`, `false`, `1` or anything else is a header that is present and shares nothing, and is reported as that. The comparison here used to be case-insensitive, which told an operator that `TRUE` had enabled credentialed sharing.\n\n**The pairing.** A value of `true` must **not** accompany an `Access-Control-Allow-Origin` of `*`: the CORS check only succeeds on the wildcard for a request whose credentials mode is not \"include\", and a credentialed request must match the byte-serialized origin instead, which `*` never is. A server sending both is advertising a sharing it will never get.\n\nThe origin header is only scanned for a `*` here; what its value may be is `access_control_allow_origin_valid`'s finding."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -131,10 +131,7 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             }
 
             // Same reading, same reason: the question is whether this value is
-            // the word `true`, and an octet is not it. No rule owns this field's
-            // syntax today, so a value that is neither `true` nor `false` goes
-            // unreported — which is a gap in the catalogue rather than a verdict
-            // this rule can make from inside a pairing check.
+            // the word `true`, and an octet is not it.
             let acc_line = crate::helpers::headers::field_lines_as_written(
                 headers,
                 "access-control-allow-credentials",
@@ -144,14 +141,36 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
             .expect("a field line, since the count above is non-zero");
             let acc_val = crate::helpers::headers::trim_ows(&acc_line);
 
-            // If credentials is 'true' (case-insensitive) and any AC-Allow-Origin header contains '*', violation.
-            // `*` and credentials are mutually exclusive by construction: the CORS check only
-            // returns success on `*` for a request whose credentials mode is *not* "include",
-            // and a credentialed request must instead match the byte-serialized origin — which
-            // `*` is not. A server sending both is advertising a sharing it will never get.
-            // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
+            // The field carries one value and the CORS check compares it as
+            // bytes: `true` returns success and everything else falls through to
+            // the failure at the end of the algorithm. So `TRUE`, `false`, `1`
+            // and an octet are all one finding — the header is present and
+            // shares nothing — and the rule that reads this field is the one to
+            // say so. **The comparison used to be case-insensitive**, which told
+            // an operator that `TRUE` had turned credentialed sharing on, and
+            // reported the `*` pairing for a combination no user agent ever
+            // reaches.
             // cite(Fetch § 4.10): "If credentials is `true`, then return success."
-            if acc_val.eq_ignore_ascii_case("true") && acao_has_star {
+            // cite(Fetch § 4.10, label: CORS check reads the field): "Let credentials be the result of getting `Access-Control-Allow-Credentials` from response’s header list."
+            if acc_val != "true" {
+                return Some(self.cited(
+                    &FETCH_4_10,
+                    ctx.severity,
+                    format!(
+                        "Access-Control-Allow-Credentials is '{}', which is not the byte sequence `true`: the CORS check shares nothing with credentials for any other value",
+                        crate::helpers::shown::shown_in_finding(acc_val)
+                    ),
+                ));
+            }
+
+            // The value is `true`. `*` and credentials are mutually exclusive by
+            // construction: the CORS check only returns success on `*` for a
+            // request whose credentials mode is *not* "include", and a
+            // credentialed request must instead match the byte-serialized origin
+            // — which `*` is not. A server sending both is advertising a sharing
+            // it will never get.
+            // cite(Fetch § 4.10): "If request’s credentials mode is not "include" and origin is `*`, then return success."
+            if acao_has_star {
                 return Some(self.cited(&FETCH_4_10, ctx.severity, "Access-Control-Allow-Credentials must not be 'true' when Access-Control-Allow-Origin is '*'".into()));
             }
 
@@ -174,7 +193,9 @@ mod tests {
 
     #[rstest]
     #[case(Some("*"), Some("true"), true)]
-    #[case(Some("*"), Some("false"), false)]
+    // `false` is not the byte sequence `true`, so the header shares nothing —
+    // a finding about the value rather than about the pairing.
+    #[case(Some("*"), Some("false"), true)]
     #[case(Some("https://a.example"), Some("true"), false)]
     #[case(Some("https://a.example"), None, false)]
     #[case(Some("https://a.example, *"), Some("true"), true)]
@@ -250,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn an_obs_text_octet_in_the_credentials_is_not_the_word_true() {
+    fn an_obs_text_octet_in_the_credentials_is_a_value_that_is_not_true() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
 
@@ -275,10 +296,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(
-            v.is_none(),
-            "a credentials value that is not `true` pairs with nothing, whatever it holds: {:?}",
-            v
+        // The octet reaches the value check, which is where the field's one
+        // finding lives; nothing here is a claim about an encoding.
+        assert_eq!(
+            v.expect("a finding").message,
+            "Access-Control-Allow-Credentials is 'ÿ', which is not the byte sequence `true`: the CORS check shares nothing with credentials for any other value"
         );
     }
 
@@ -331,7 +353,7 @@ mod tests {
     }
 
     #[test]
-    fn star_with_uppercase_true_is_violation() {
+    fn uppercase_true_is_not_the_byte_sequence() {
         let rule = AccessControlAllowCredentialsWhenOrigin;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -346,7 +368,13 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
+        // Not the pairing finding: a user agent never reads `TRUE` as credentials
+        // at all, so what is wrong is the value.
+        let message = v.expect("a finding").message;
+        assert!(
+            message.starts_with("Access-Control-Allow-Credentials is 'TRUE'"),
+            "{message}"
+        );
     }
 
     #[test]
@@ -401,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn acao_star_with_non_true_credentials_not_violation() {
+    fn a_credentials_value_that_is_not_true_is_its_own_finding() {
         let rule = AccessControlAllowCredentialsWhenOrigin;
         let tx = crate::test_helpers::make_test_transaction_with_response(
             200,
@@ -416,7 +444,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_none());
+        let message = v.expect("a finding").message;
+        assert!(
+            message.starts_with("Access-Control-Allow-Credentials is '1'"),
+            "{message}"
+        );
     }
 
     #[test]

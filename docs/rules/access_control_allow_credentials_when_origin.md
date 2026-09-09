@@ -8,7 +8,13 @@ SPDX-License-Identifier: ISC
 
 ## Description
 
-This rule checks Cross-Origin Resource Sharing (CORS) response headers to ensure that `Access-Control-Allow-Credentials` is **not** set to `true` when `Access-Control-Allow-Origin` is `*` (wildcard). Allowing credentials with a wildcard origin is insecure and disallowed by the CORS model.
+This rule reads the Cross-Origin Resource Sharing (CORS) response headers that decide whether a response may be shared with credentials, and asks two things.
+
+**The value.** `Access-Control-Allow-Credentials` carries one value and the CORS check compares it as bytes: `true` returns success and every other value falls through to the algorithm's failure. So `TRUE`, `false`, `1` or anything else is a header that is present and shares nothing, and is reported as that. The comparison here used to be case-insensitive, which told an operator that `TRUE` had enabled credentialed sharing.
+
+**The pairing.** A value of `true` must **not** accompany an `Access-Control-Allow-Origin` of `*`: the CORS check only succeeds on the wildcard for a request whose credentials mode is not "include", and a credentialed request must match the byte-serialized origin instead, which `*` never is. A server sending both is advertising a sharing it will never get.
+
+The origin header is only scanned for a `*` here; what its value may be is `access_control_allow_origin_valid`'s finding.
 
 ## Specifications
 
