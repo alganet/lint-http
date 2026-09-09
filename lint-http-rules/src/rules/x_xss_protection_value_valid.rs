@@ -114,16 +114,17 @@ impl Rule for XXssProtectionValueValid {
                 ));
             }
 
-            // cite(RFC 9110 § 5.5): "newly defined fields SHOULD limit their values to visible US-ASCII octets (VCHAR), SP, and HTAB"
-            let val = match crate::helpers::headers::get_header_str(headers, "x-xss-protection") {
-                Some(v) => v.trim(),
-                None => {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "X-XSS-Protection header contains non-ASCII or control characters".into(),
-                    ))
-                }
-            };
+            // Read as the octets the sender wrote. Every spelling this rule
+            // accepts is inside visible US-ASCII, so a value the string reader
+            // refuses is a value none of them spell — which the unsupported-value
+            // finding at the end says, and it can quote what arrived.
+            let hv = headers
+                .get_all("x-xss-protection")
+                .iter()
+                .next()
+                .expect("a field line, since the count above is one");
+            let line = crate::helpers::headers::field_line_as_written(hv);
+            let val = crate::helpers::headers::trim_ows(&line);
 
             // Accept exactly "0" or "1;mode=block" (allow whitespace around separators, case-insensitive)
             // `1` and `1; report=<uri>` are documented values that this rule rejects anyway.
@@ -137,7 +138,10 @@ impl Rule for XXssProtectionValueValid {
 
             // Split on ';' and validate structure: exactly two parts, first is '1', second is 'mode=block'
             // cite(MDN X-XSS-Protection): "Enables XSS filtering. Rather than sanitizing the page, the browser will prevent rendering of the page if an attack is detected."
-            let parts: Vec<&str> = val.split(';').map(|s| s.trim()).collect();
+            let parts: Vec<&str> = val
+                .split(';')
+                .map(crate::helpers::headers::trim_ows)
+                .collect();
             if parts.len() == 2
                 && parts[0].eq_ignore_ascii_case("1")
                 && parts[1].eq_ignore_ascii_case("mode=block")
@@ -148,7 +152,10 @@ impl Rule for XXssProtectionValueValid {
             Some(self.cited(
                 &MDN_X_XSS_PROTECTION,
                 ctx.severity,
-                format!("X-XSS-Protection contains unsupported value: '{}'", val),
+                format!(
+                    "X-XSS-Protection contains unsupported value: '{}'",
+                    crate::helpers::shown::shown_in_finding(val)
+                ),
             ))
         };
         Vec::from_iter(finding())
@@ -236,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_header_value_is_violation() {
+    fn an_obs_text_octet_is_a_value_none_of_them_spell() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
 
@@ -262,8 +269,10 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        assert_eq!(
+            v.expect("a finding").message,
+            "X-XSS-Protection contains unsupported value: 'ÿ'"
+        );
     }
 
     #[test]
