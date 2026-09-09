@@ -105,25 +105,22 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
                 return None;
             }
 
-            // Validate Access-Control-Allow-Origin header values (ensure UTF-8, and detect any '*')
-            let mut acao_has_star = false;
-            for hv in headers.get_all("access-control-allow-origin").iter() {
-                let s = match hv.to_str() {
-                    Ok(v) => v.trim(),
-                    Err(_) => {
-                        return Some(self.violation(ctx.severity, "Access-Control-Allow-Origin header contains non-ASCII or control characters".into()))
-                    }
-                };
-                for token in crate::helpers::list::list_members(s) {
-                    if token == "*" {
-                        acao_has_star = true;
-                        break;
-                    }
-                }
-                if acao_has_star {
-                    break;
-                }
-            }
+            // The only question asked of Access-Control-Allow-Origin here is
+            // whether a `*` is among its members, so the lines are read as the
+            // octets the sender wrote and nothing is said about what they hold:
+            // an octet is not a `*`, and the value belongs to
+            // `access_control_allow_origin_valid`, which measures it against the
+            // three alternatives. Reporting it from inside a reading this narrow
+            // was a claim about a field this rule only scans.
+            let acao_has_star = crate::helpers::headers::field_lines_as_written(
+                headers,
+                "access-control-allow-origin",
+            )
+            .iter()
+            .any(|line| {
+                crate::helpers::list::list_members(crate::helpers::headers::trim_ows(line))
+                    .any(|member| member == "*")
+            });
 
             let acc_count = headers
                 .get_all("access-control-allow-credentials")
@@ -133,12 +130,19 @@ impl Rule for AccessControlAllowCredentialsWhenOrigin {
                 return None; // nothing to check
             }
 
-            let acc_val = match crate::helpers::headers::get_header_str(headers, "access-control-allow-credentials") {
-                Some(v) => v.trim(),
-                None => {
-                    return Some(self.violation(ctx.severity, "Access-Control-Allow-Credentials header contains non-ASCII or control characters".into()))
-                }
-            };
+            // Same reading, same reason: the question is whether this value is
+            // the word `true`, and an octet is not it. No rule owns this field's
+            // syntax today, so a value that is neither `true` nor `false` goes
+            // unreported — which is a gap in the catalogue rather than a verdict
+            // this rule can make from inside a pairing check.
+            let acc_line = crate::helpers::headers::field_lines_as_written(
+                headers,
+                "access-control-allow-credentials",
+            )
+            .into_iter()
+            .next()
+            .expect("a field line, since the count above is non-zero");
+            let acc_val = crate::helpers::headers::trim_ows(&acc_line);
 
             // If credentials is 'true' (case-insensitive) and any AC-Allow-Origin header contains '*', violation.
             // `*` and credentials are mutually exclusive by construction: the CORS check only
@@ -212,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn non_utf8_acao_is_violation() {
+    fn an_obs_text_octet_in_the_origin_is_not_a_wildcard() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
 
@@ -237,12 +241,16 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        assert!(
+            v.is_none(),
+            "the value is this rule's business only if it is `*`, and the octet's own \
+             finding is access_control_allow_origin_valid's: {:?}",
+            v
+        );
     }
 
     #[test]
-    fn non_utf8_acc_is_violation() {
+    fn an_obs_text_octet_in_the_credentials_is_not_the_word_true() {
         use crate::test_helpers::make_headers_from_pairs;
         use hyper::header::HeaderValue;
 
@@ -267,8 +275,11 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains("non-ASCII"));
+        assert!(
+            v.is_none(),
+            "a credentials value that is not `true` pairs with nothing, whatever it holds: {:?}",
+            v
+        );
     }
 
     #[test]

@@ -8,15 +8,15 @@ sources:
     snippet: If credentials is `true`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 149
+      line: 153
   - label: access_control_allow_credentials_when_origin (2)
     section: § 4.10
     snippet: If request’s credentials mode is not "include" and origin is `*`, then return success.
     cited_by:
     - file: lint-http-rules/src/rules/access_control_allow_credentials_when_origin.rs
-      line: 148
+      line: 152
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 161
+      line: 171
   - label: access_control_allow_origin_valid
     section: § 3.3.3
     snippet: Indicates whether the response can be shared, via returning the literal value of the `Origin` request header (which can be `null`) or `*` in a response.
@@ -24,7 +24,7 @@ sources:
     - file: lint-http-rules/src/rules/access_control_allow_origin_valid.rs
       line: 136
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 137
+      line: 146
   - label: cross_origin_resource_policy_valid
     section: § 3.7
     snippet: Cross-Origin-Resource-Policy = %s"same-origin" / %s"same-site" / %s"cross-origin" ; case-sensitive
@@ -60,7 +60,7 @@ sources:
     snippet: If the result of byte-serializing a request origin with request is not origin, then return failure.
     cited_by:
     - file: lint-http-rules/src/rules/origin_matching_for_cors.rs
-      line: 177
+      line: 187
   - label: refresh_header_syntax
     section: § 2.2.2
     snippet: Return the values of all headers in list whose name is a byte-case-insensitive match for name, separated from each other by 0x2C 0x20
@@ -78,7 +78,7 @@ sources:
     snippet: The `Origin` request header indicates where a fetch originates from.
     cited_by:
     - file: lint-http-rules/src/rules/request_origin_header_present_for_cors.rs
-      line: 138
+      line: 147
   - label: sec_fetch_dest_value_valid
     section: § 2.2.5
     snippet: 'A destination type is one of: the empty string, "audio", "audioworklet", "document", "embed", "font", "frame", "iframe", "image", "json", "manifest", "object", "paintworklet", "report", "script", "serviceworker", "sharedworker", "style", "text", "track", "video", "webidentity", "worker", or "xslt".'
