@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::delta_seconds::{DELTA_SECONDS_CHARACTER_FORBIDDEN, RFC_9111_1_2_2};
 use crate::violations::list::{cache_directive_member, LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -20,14 +21,20 @@ pub struct CacheControlDirectiveValid;
 
 /// The eight defects `cache_control_token_valid` declares, declared here for a
 /// second time and by a rule that reads a *different* question of the same
-/// members.
+/// members — plus the one this rule reaches on its own.
 ///
-/// § 1.2.1 is why the ids transfer with nothing to decide: RFC 9111 imports
-/// `token`, `quoted-string` and `field-name` from RFC 9110 by reference and
-/// takes the `#` list construct from § 5.6.1, so every production this rule
-/// measures is one another field already reports through. What stays unnamed is
-/// the part its neighbour does not read — what each *named* directive means by
-/// its argument — which is the only thing left here that no production says.
+/// § 1.2.1 is why the first eight transfer with nothing to decide: RFC 9111
+/// imports `token`, `quoted-string` and `field-name` from RFC 9110 by reference
+/// and takes the `#` list construct from § 5.6.1, so every production this rule
+/// measures is one another field already reports through.
+///
+/// The ninth is the one this rule is *named* for and it is a production too,
+/// which took a second reading to see. A `max-age` argument that is a
+/// well-formed `token` and not a number breaks nothing about the
+/// `cache-directive` — but § 5.2.2.1 gives that directive's argument the syntax
+/// `delta-seconds`, so the name commits the value to a second production and
+/// the value failed it. What stays unnamed is the sentence with no production
+/// behind it at all: a qualified directive whose argument lists no field.
 static DECLARED: &[&ViolationDef] = &[
     &LIST_MEMBER_EMPTY,
     &TOKEN_EMPTY,
@@ -37,6 +44,7 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_PAIR_MALFORMED,
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
+    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -61,11 +69,10 @@ const RFC_9111_1_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
 /// catalogue names that defect.
 ///
 /// The shape `expect_header_valid` settled: a judge that is half converted says
-/// so in its type. The unnamed half here is what the rule is *named* for — a
-/// `max-age` argument that is a token but not `delta-seconds`, and a qualified
-/// directive whose argument lists no field at all — both of which are RFC 9111
-/// saying what a particular directive means by its argument, which is a
-/// statement no production carries.
+/// so in its type. The unnamed half here is now one sentence rather than two — a
+/// qualified directive whose argument lists no field at all, which is RFC 9111
+/// saying what a particular directive means by its argument and is a statement
+/// no production carries.
 struct Defect {
     def: Option<&'static ViolationDef>,
     message: String,
@@ -143,6 +150,7 @@ severity = "warn"
             RFC_9110_5_6_1_1,
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
+            RFC_9111_1_2_2,
         ]
     }
 
@@ -236,15 +244,23 @@ fn member_defect(member: &str) -> Option<Defect> {
                     format!("{} value contains invalid character: '{}'", name, c),
                 ));
             }
-            if argument.chars().any(|ch| !ch.is_ascii_digit()) {
-                // A well-formed token that is not a number. `delta-seconds` is
-                // this directive's own argument syntax and no shared production
-                // is broken by `-1` or `1.5` — both are tokens — so the finding
-                // stays the rule's.
-                return Some(Defect::unnamed(format!(
-                    "{} must be a non-negative integer",
-                    name
-                )));
+            if let Some(c) = argument.chars().find(|ch| !ch.is_ascii_digit()) {
+                // A well-formed token that is not a number, which used to be
+                // read as this rule's own finding on the reasoning that no
+                // shared production is broken by `-1` — both it and `1.5` are
+                // tokens. What that reasoning missed is that the *name* commits
+                // the argument to a second production: § 5.2.2.1 gives
+                // `max-age` the argument syntax `delta-seconds`, so the value
+                // has said which grammar it meant and failed that one.
+                // cite(RFC 9111 § 5.2.2.1, label: max-age argument syntax): "delta-seconds (see Section 1.2.2)"
+                return Some(Defect::named(
+                    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
+                    format!(
+                        "{} must be a non-negative integer: {} is no `DIGIT`",
+                        name,
+                        crate::helpers::shown::describe_char(c),
+                    ),
+                ));
             }
             // A digit run too large for any particular integer type is still
             // syntactically valid `1*DIGIT`, and the spec says what to do about
@@ -834,16 +850,31 @@ mod tests {
         }
     }
 
-    /// What this rule is named for keeps its own severity and no id: RFC 9111
-    /// saying what a *particular* directive means by its argument is a
-    /// statement none of the productions carries.
+    /// What this rule is named for turned out to be a production after all, and
+    /// the reason is the directive's *name*. `-1` and `1.5` are well-formed
+    /// tokens, so the `cache-directive` is intact — but § 5.2.2.1 gives
+    /// `max-age`'s argument the syntax `delta-seconds`, which is where the value
+    /// says which grammar it meant. `Age` reports the same id for the same
+    /// octet with no directive in front of it.
     #[rstest]
     #[case("max-age=-1")]
     #[case("max-age=1.5")]
     #[case("s-maxage=1.5")]
     #[case("max-age=abc")]
-    fn what_a_directive_counts_is_not_a_productions_defect(#[case] value: &str) {
-        assert_eq!(judge(value).violation, "", "{value}");
+    fn a_directives_argument_syntax_is_a_production_the_name_commits_it_to(#[case] value: &str) {
+        assert_eq!(
+            judge(value).violation,
+            "delta_seconds_character_forbidden",
+            "{value}"
+        );
+    }
+
+    /// The one statement left with no production behind it: § 5.2.2.7 defines
+    /// the qualified form as listing *one or more* field names, and no imported
+    /// grammar says a `#field-name` may not be empty — `#` generates it.
+    #[test]
+    fn an_argument_listing_no_field_is_the_rules_own_and_keeps_no_id() {
+        assert_eq!(judge("private=\"\"").violation, "");
     }
 
     /// One line, two statements, and the argument syntax is what separates

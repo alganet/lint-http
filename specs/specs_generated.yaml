@@ -5341,7 +5341,7 @@ sources:
     snippet: A field name labels the corresponding field value as having the semantics defined by that name.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 304
+      line: 320
   - label: cache_validation_chain
     section: § 13.1.2
     snippet: The "If-None-Match" header field makes the request method conditional on a recipient cache or origin server either not having any current representation of the target resource, when the field value is "*"
@@ -6701,7 +6701,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 112
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 331
+      line: 347
   - label: lint-http-rules/src/helpers/comment.rs
     section: § 5.6.4
     snippet: The backslash octet ("\") can be used as a single-octet quoting mechanism within quoted-string and comment constructs.
@@ -9322,7 +9322,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 315
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 253
+      line: 269
     - file: lint-http-rules/src/violations/delta_seconds.rs
       line: 23
   - label: alt_svc_h3_advertisement_valid (2)
@@ -9332,7 +9332,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 304
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 227
+      line: 235
   - label: alt_svc_h3_advertisement_valid (3)
     section: § 1.2.2
     snippet: or the greatest positive integer it can conveniently represent.
@@ -9340,7 +9340,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_h3_advertisement_valid.rs
       line: 316
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 254
+      line: 270
   - label: cache_coherence
     section: § 4.2.4
     snippet: A cache MUST NOT generate a stale response unless it is disconnected or doing so is explicitly permitted by the client or origin server
@@ -9366,21 +9366,27 @@ sources:
     snippet: The "Cache-Control" header field is used to list directives for caches along the request/response chain.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 186
+      line: 194
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
       line: 145
+  - label: max-age argument syntax
+    section: § 5.2.2.1
+    snippet: delta-seconds (see Section 1.2.2)
+    cited_by:
+    - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
+      line: 255
   - label: cache_control_directive_valid (2)
     section: § 5.2.2.7
     snippet: If a qualified private response directive is present, with an argument that lists one or more field names
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 261
+      line: 277
   - label: private argument syntax
     section: § 5.2.2.7
     snippet: This directive uses the quoted-string form of the argument syntax.
     cited_by:
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 303
+      line: 319
   - label: cache_control_present
     section: § 4.2.2
     snippet: Since origin servers do not always provide explicit expiration times, a cache MAY assign a heuristic expiration time when an explicit time is not specified, employing algorithms that use other field values (such as the Last-Modified time) to estimate a plausible expiration time.
@@ -9536,7 +9542,7 @@ sources:
     - file: lint-http-rules/src/helpers/cache_control.rs
       line: 151
     - file: lint-http-rules/src/rules/cache_control_directive_valid.rs
-      line: 203
+      line: 211
     - file: lint-http-rules/src/rules/cache_control_token_valid.rs
       line: 162
   - label: lint-http-rules/src/helpers/cache_control.rs (8)
