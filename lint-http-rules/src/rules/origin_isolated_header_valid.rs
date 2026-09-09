@@ -5,24 +5,30 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::origin_agent_cluster::{
+    HTML_7_1_2, ORIGIN_AGENT_CLUSTER_EMPTY, ORIGIN_AGENT_CLUSTER_INVALID,
+    ORIGIN_AGENT_CLUSTER_MALFORMED,
+};
 use crate::violations::ViolationDef;
 
-/// The one entry a field with no list form always has available: its own
-/// repetition. The value on each line here is measured by the checks below;
-/// what § 5.3 forbids is there being two lines at all.
-static DECLARED: &[&ViolationDef] = &[&FIELD_LINE_DUPLICATED];
+/// One entry every field has available — its own repetition, which § 5.3
+/// forbids a field with no list form — and the three the value itself can
+/// reach: nothing written, more than one thing written, and one thing written
+/// that is not the boolean the header exists to carry.
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_LINE_DUPLICATED,
+    &ORIGIN_AGENT_CLUSTER_EMPTY,
+    &ORIGIN_AGENT_CLUSTER_MALFORMED,
+    &ORIGIN_AGENT_CLUSTER_INVALID,
+];
 
 pub struct OriginIsolatedHeaderValid;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const HTML_7_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "HTML",
-    section: Some("7.1.2"),
-    url: "https://html.spec.whatwg.org/multipage/browsers.html#origin-keyed-agent-clusters",
-    note: "`Origin-Agent-Cluster` — a structured-header boolean; only the `?1` true value requests an origin-keyed agent cluster",
-};
+/// The one reference this rule still owns, and it is the further reading
+/// `specifications()` is deliberately wider by: it defines the boolean the
+/// header's value is, and no finding is measured against it directly. The two
+/// that a finding does enforce belong to the catalogue — `HTML § 7.1.2` beside
+/// the defects it condemns, RFC 9110 § 5.3 beside the repeated line.
 const RFC_9651_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9651",
     section: Some("3"),
@@ -100,6 +106,10 @@ impl Rule for OriginIsolatedHeaderValid {
                 return None;
             };
 
+            // The response is where this header is read, and the field name is
+            // the shipped one: `Origin-Isolation`, which this rule is named
+            // after, was the proposal and never arrived.
+            // cite(HTML § 7.1.2): "A Document delivered over a secure context can request that it be placed in an origin-keyed agent cluster, by using the `Origin-Agent-Cluster` HTTP response header."
             let count = resp.headers.get_all("origin-agent-cluster").iter().count();
             if count == 0 {
                 return None;
@@ -125,26 +135,28 @@ impl Rule for OriginIsolatedHeaderValid {
             let line = crate::helpers::headers::field_line_as_written(hv);
             let val = crate::helpers::headers::trim_ows(&line);
 
-            // Must not be a comma-separated list
-            // cite(HTML § 7.1.2): "This header is a structured header whose value must be a boolean."
-            if crate::helpers::list::list_members(val).count() != 1 {
-                return Some(self.cited(
-                    &HTML_7_1_2,
-                    ctx.severity,
-                    "Origin-Agent-Cluster must be a single value".into(),
-                ));
+            // How many things the sender wrote, which is the question the
+            // field's value being a single Item asks. None and several are
+            // separate defects: a line with nothing on it states no
+            // preference, a line with two states one the recipient may not
+            // resolve.
+            let members = crate::helpers::list::list_members(val).count();
+            if members == 0 {
+                return Some(ctx.report(&ORIGIN_AGENT_CLUSTER_EMPTY));
+            }
+            if members > 1 {
+                return Some(ctx.report(&ORIGIN_AGENT_CLUSTER_MALFORMED));
             }
 
             // `?1` is the structured-header boolean true value that requests an
             // origin-keyed agent cluster. The spec *ignores* any other value; this
             // rule is deliberately stricter and reports it, since a non-`?1` value
             // (`?0`, `unsafe-none`, …) is almost always a server misconfiguration.
-            // cite(HTML § 7.1.2): "values that are not the structured header boolean true value (i.e., `?1`) will be ignored."
             if val.eq("?1") {
                 return None;
             }
 
-            Some(self.cited(&HTML_7_1_2, ctx.severity, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", crate::helpers::shown::shown_in_finding(val))))
+            Some(ctx.report_with(&ORIGIN_AGENT_CLUSTER_INVALID, format!("Origin-Agent-Cluster header value '{}' is invalid: expected '?1' to request an origin-keyed agent cluster", crate::helpers::shown::shown_in_finding(val))))
         };
         Vec::from_iter(finding())
     }
@@ -194,6 +206,37 @@ mod tests {
                 val,
                 v
             );
+        }
+    }
+
+    /// Three ways to write a value that is not the boolean, and each answers
+    /// under its own id — a line with nothing on it is a different defect from
+    /// a line with two things on it, and both are different from a `?0`. The
+    /// commas-only value is the one worth pinning: it holds octets and no
+    /// member, which is the same reading `Content-Length` makes of `,,`.
+    #[test]
+    fn each_shape_of_wrong_value_reports_its_own_id() {
+        for (value, id) in [
+            ("", "origin_agent_cluster_empty"),
+            (",,", "origin_agent_cluster_empty"),
+            ("?1, ?1", "origin_agent_cluster_malformed"),
+            ("?0", "origin_agent_cluster_invalid"),
+            ("unsafe-none", "origin_agent_cluster_invalid"),
+        ] {
+            let tx = crate::test_helpers::make_test_transaction_with_response(
+                200,
+                &[("origin-agent-cluster", value)],
+            );
+            let found = crate::test_helpers::run_rule(
+                &OriginIsolatedHeaderValid,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "origin_isolated_header_valid",
+                ]),
+            )
+            .expect("a finding");
+            assert_eq!(found.violation, id, "{value}");
         }
     }
 

@@ -137,18 +137,26 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cross_origin_opener_policy_valid.rs
       line: 164
-  - label: origin_isolated_header_valid
+  - label: Origin-Agent-Cluster is a boolean
     section: § 7.1.2
     snippet: This header is a structured header whose value must be a boolean.
     cited_by:
-    - file: lint-http-rules/src/rules/origin_isolated_header_valid.rs
-      line: 129
-  - label: origin_isolated_header_valid (2)
+    - file: lint-http-rules/src/violations/origin_agent_cluster.rs
+      line: 60
+    - file: lint-http-rules/src/violations/origin_agent_cluster.rs
+      line: 75
+  - label: origin_agent_cluster
     section: § 7.1.2
     snippet: values that are not the structured header boolean true value (i.e., `?1`) will be ignored.
     cited_by:
+    - file: lint-http-rules/src/violations/origin_agent_cluster.rs
+      line: 94
+  - label: origin_isolated_header_valid
+    section: § 7.1.2
+    snippet: A Document delivered over a secure context can request that it be placed in an origin-keyed agent cluster, by using the `Origin-Agent-Cluster` HTTP response header.
+    cited_by:
     - file: lint-http-rules/src/rules/origin_isolated_header_valid.rs
-      line: 142
+      line: 112
 - label: HTML Links
   url: https://html.spec.whatwg.org/multipage/links.html
   type: text/html
