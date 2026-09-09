@@ -4,6 +4,22 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::uri::{
+    origin_defect, RFC_3986_2, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN,
+    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+};
+use crate::violations::ViolationDef;
+
+/// The same four `origin_matching_for_cors` declares, read from the other side
+/// of the exchange: one rule asks whether the response echoed the `Origin`, the
+/// other whether the request carried one, and both measure the same value
+/// against the same two RFC 3986 productions.
+static DECLARED: &[&ViolationDef] = &[
+    &URI_SCHEME_EMPTY,
+    &URI_SCHEME_LEADING_LETTER_MISSING,
+    &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &URI_CHARACTER_FORBIDDEN,
+];
 
 pub struct RequestOriginHeaderPresentForCors;
 
@@ -50,7 +66,17 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_6454_7_1, FETCH_3_2, MDN_ORIGIN]
+        &[
+            RFC_6454_7_1,
+            FETCH_3_2,
+            MDN_ORIGIN,
+            RFC_3986_2,
+            RFC_3986_3_1,
+        ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -115,13 +141,14 @@ impl Rule for RequestOriginHeaderPresentForCors {
                     .next()
                 {
                     Some(origin_val) => {
-                        if let Some(err) = crate::helpers::uri::validate_origin_value(
+                        if let Err(defect) = crate::helpers::uri::validate_origin_value(
                             crate::helpers::headers::trim_ows(&origin_val),
                         ) {
-                            return Some(self.violation(
-                                ctx.severity,
-                                format!("Origin header invalid: {}", err),
-                            ));
+                            let message = format!("Origin header invalid: {}", defect.message());
+                            return Some(match origin_defect(defect) {
+                                Some(def) => ctx.report_with(def, message),
+                                None => self.violation(ctx.severity, message),
+                            });
                         }
                     }
                     None => {

@@ -357,16 +357,60 @@ pub fn extract_origin_if_absolute(s: &str) -> Option<String> {
     Some(origin)
 }
 
+/// Why an `Origin` field value derives from neither alternative of
+/// `origin-list-or-null`.
+///
+/// The rendered `Option<String>` this replaced carried four sentences, and one
+/// of them — *"Invalid scheme in Origin"* — was a [`SchemeNameDefect`] that had
+/// already been typed and was then thrown away at the door. That is 2.5's
+/// correction in miniature: a `String` between a typed reader and its two
+/// callers hides which production was broken, and the catalogue cannot name
+/// what it cannot see.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OriginDefect<'a> {
+    /// A `/` after the authority. `serialized-origin = scheme "://" host [ ":"
+    /// port ]` has no path component at all, which is the whole point of the
+    /// field: an origin says where a request came from without saying what it
+    /// was reading. No production is broken by the slash — the value simply
+    /// derives from a different rule of RFC 3986 — so this stays the field's own
+    /// finding.
+    PathPresent,
+    /// The characters before the `://` are not a scheme name.
+    Scheme(SchemeNameDefect<'a>),
+    /// A character no part of a URI is composed from.
+    Character(char),
+    /// Neither `null` nor anything a `serialized-origin` generates: no `://`
+    /// at all, or an authority the shared predicate refuses. **Deriving from
+    /// none of my alternatives is what the catalogue cannot name**, which is why
+    /// this variant carries no id and the two callers word it themselves.
+    NotSerialized,
+}
+
+impl OriginDefect<'_> {
+    /// The finding fragment.
+    pub fn message(self) -> String {
+        match self {
+            Self::PathPresent => "Origin must not include a path".to_string(),
+            Self::Scheme(defect) => format!("Invalid scheme in Origin: {}", defect.message()),
+            Self::Character(c) => format!(
+                "Origin holds {}, which no part of a URI is composed from",
+                crate::helpers::shown::describe_char(c)
+            ),
+            Self::NotSerialized => "Origin is not a valid serialized origin".to_string(),
+        }
+    }
+}
+
 /// Validate an `Origin` header value. Accepts `null` or a serialized origin
-/// of the form `scheme://host[:port]`. Returns `None` if valid or
-/// `Some(msg)` describing the problem.
-pub fn validate_origin_value(s: &str) -> Option<String> {
+/// of the form `scheme://host[:port]`, and answers with the typed defect
+/// otherwise.
+pub fn validate_origin_value(s: &str) -> Result<(), OriginDefect<'_>> {
     let s_trim = trim_ows(s);
     // The `%x6E %x75 %x6C %x6C` hex literals spell lowercase `null` byte-for-byte,
     // so the comparison is case-sensitive.
     // cite(RFC 6454 § 7.1): "origin-list-or-null = %x6E %x75 %x6C %x6C / origin-list"
     if s_trim == "null" {
-        return None;
+        return Ok(());
     }
     // Must be an origin (absolute with no path). The grammar has no path component,
     // which is the whole point of the header: an origin reveals where a request came
@@ -375,10 +419,10 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
     if let Some(colon_pos) = scheme_authority_marker(s_trim) {
         // no path allowed
         if s_trim[colon_pos + 3..].contains('/') {
-            return Some("Origin must not include a path".into());
+            return Err(OriginDefect::PathPresent);
         }
-        if scheme_if_present(s_trim).is_some() {
-            return Some("Invalid scheme in Origin".into());
+        if let Some(defect) = scheme_if_present(s_trim) {
+            return Err(OriginDefect::Scheme(defect));
         }
         // The alphabet, before the authority question below it. This was
         // `contains_whitespace`, one sixth of the same set, so an `Origin` value
@@ -392,10 +436,7 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
         //
         // cite(RFC 3986 § 2): "A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols."
         if let Some(c) = find_non_uri_char(s_trim) {
-            return Some(format!(
-                "Origin holds {}, which no part of a URI is composed from",
-                crate::helpers::shown::describe_char(c)
-            ));
+            return Err(OriginDefect::Character(c));
         }
         // The authority itself — host present, bracketed IPv6 well formed, port
         // numeric and in range, no userinfo — is checked by the shared
@@ -404,12 +445,12 @@ pub fn validate_origin_value(s: &str) -> Option<String> {
         // host reports the same generic reason, so callers that inspect the
         // string do not need to handle multiple error forms.
         if !crate::helpers::uri::is_valid_serialized_origin(s_trim) {
-            return Some("Origin is not a valid serialized origin".into());
+            return Err(OriginDefect::NotSerialized);
         }
-        return None;
+        return Ok(());
     }
 
-    Some("Origin is not a valid serialized origin".into())
+    Err(OriginDefect::NotSerialized)
 }
 
 /// The authority component of the **target URI**, which is not always in the
@@ -2354,30 +2395,40 @@ mod tests {
         let padded: String = std::iter::once('\u{a0}')
             .chain("https://example.com".chars())
             .collect();
-        assert!(validate_origin_value(&padded).is_some());
+        assert!(validate_origin_value(&padded).is_err());
         assert!(!is_valid_serialized_origin(&padded));
         // The `OWS` a field value may carry beside its content is still taken.
-        assert!(validate_origin_value(" https://example.com\t").is_none());
+        assert!(validate_origin_value(" https://example.com\t").is_ok());
     }
 
     #[test]
     fn validate_origin_value_cases() {
-        assert!(validate_origin_value("null").is_none());
-        assert!(validate_origin_value("NULL").is_some());
-        assert!(validate_origin_value("https://example.com").is_none());
-        assert!(validate_origin_value("http:///bad").is_some());
-        assert!(validate_origin_value("https://exa mple").is_some());
-        assert!(validate_origin_value("invalid-origin").is_some());
+        assert!(validate_origin_value("null").is_ok());
+        assert!(validate_origin_value("NULL").is_err());
+        assert!(validate_origin_value("https://example.com").is_ok());
+        assert!(validate_origin_value("http:///bad").is_err());
+        assert!(validate_origin_value("https://exa mple").is_err());
+        assert!(validate_origin_value("invalid-origin").is_err());
         // The authority is validated too, not merely required to be non-empty.
-        assert!(validate_origin_value("http://host:notaport").is_some());
-        assert!(validate_origin_value("https://user@example.com").is_some());
+        assert!(validate_origin_value("http://host:notaport").is_err());
+        assert!(validate_origin_value("https://user@example.com").is_err());
         // A port outside the sixteen-bit namespace is the finding; `0` is
         // inside it, reserved rather than invalid.
-        assert!(validate_origin_value("http://example.com:65536").is_some());
-        assert!(validate_origin_value("http://example.com:0").is_none());
-        // invalid scheme in Origin
-        let m = validate_origin_value("1http://example.com").unwrap();
-        assert!(m.contains("Invalid scheme"));
+        assert!(validate_origin_value("http://example.com:65536").is_err());
+        assert!(validate_origin_value("http://example.com:0").is_ok());
+    }
+
+    /// The four variants, each named and each rendered — the split between them
+    /// is a decision rather than a coincidence, which is why the messages are
+    /// pinned beside the variants.
+    #[test]
+    fn each_origin_defect_names_the_production_it_broke() {
+        // The scheme half was already typed and the rendered `String` this
+        // enum replaced threw the type away at the door.
+        let m = validate_origin_value("1http://example.com")
+            .expect_err("a leading digit is no scheme name");
+        assert!(matches!(m, OriginDefect::Scheme(_)), "{m:?}");
+        assert!(m.message().contains("Invalid scheme"), "{}", m.message());
 
         // This function names the path itself, because § 3.2's *first*
         // terminator is the one an `Origin` sender most plausibly wrote by
@@ -2389,9 +2440,10 @@ mod tests {
         // running at. Neither could see a character outside the URI set that was
         // not whitespace, so `<` reached the serialized-origin predicate — which
         // asks where the authority *ends*, not what it may hold — and passed.
-        let angle = validate_origin_value("https://exa<mple.com").unwrap();
+        let angle = validate_origin_value("https://exa<mple.com").expect_err("no URI holds '<'");
+        assert_eq!(angle, OriginDefect::Character('<'));
         assert_eq!(
-            angle,
+            angle.message(),
             "Origin holds '<', which no part of a URI is composed from"
         );
         assert_eq!(extract_origin_if_absolute("http://exa<mple.com/p"), None);
@@ -2400,12 +2452,14 @@ mod tests {
             None
         );
 
-        let path = validate_origin_value("https://example.com/p").unwrap();
-        assert_eq!(path, "Origin must not include a path");
+        let path = validate_origin_value("https://example.com/p")
+            .expect_err("a serialized origin has no path component");
+        assert_eq!(path, OriginDefect::PathPresent);
+        assert_eq!(path.message(), "Origin must not include a path");
         for after in ["https://example.com?x=1", "https://example.com#frag"] {
             assert_eq!(
-                validate_origin_value(after).unwrap(),
-                "Origin is not a valid serialized origin",
+                validate_origin_value(after).expect_err("neither alternative"),
+                OriginDefect::NotSerialized,
                 "for {after}"
             );
         }
@@ -2511,11 +2565,12 @@ mod tests {
 
     #[test]
     fn validate_origin_missing_host_reports_missing() {
-        let m = validate_origin_value("http://").unwrap();
-        // we now return the generic "not a valid serialized origin" message for
-        // missing authority, rather than a specialized one; callers that care
-        // about details should inspect the string content appropriately.
-        assert!(m.contains("not a valid serialized origin"));
+        // An authority the shared predicate refuses is the same verdict as no
+        // `://` at all: the value derives from neither alternative, and that is
+        // one variant rather than a specialized sentence per way of failing.
+        let m = validate_origin_value("http://").expect_err("an origin needs a host");
+        assert_eq!(m, OriginDefect::NotSerialized);
+        assert!(m.message().contains("not a valid serialized origin"));
     }
 
     #[test]
