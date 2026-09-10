@@ -1127,6 +1127,14 @@ severity = "warn"
 # Authentication token68 is indistinguishable from a parameter
 severity = "info"
 
+[violations.charset_empty]
+# Charset parameter carries no name
+severity = "warn"
+
+[violations.charset_unregistered]
+# Charset name is not one the deployment recognises
+severity = "warn"
+
 [violations.comment_character_forbidden]
 # Comment holds a character ctext does not admit
 severity = "warn"
