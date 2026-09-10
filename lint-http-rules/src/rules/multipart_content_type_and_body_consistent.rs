@@ -3,6 +3,21 @@
 // SPDX-License-Identifier: ISC
 
 use crate::lint::Violation;
+use crate::violations::multipart_body::{
+    MULTIPART_BODY_DELIMITER_MISSING, MULTIPART_BODY_PART_MISSING,
+    MULTIPART_BODY_TERMINATOR_MISSING, RFC_2046_5_1_1,
+};
+use crate::violations::ViolationDef;
+
+/// Three entries, and a body reaches at most one: it carries no delimiter line,
+/// or its only one is the terminator, or it never terminates. The boundary
+/// *value* is `multipart_boundary_syntax`'s question and answers under the
+/// `boundary` subject.
+static DECLARED: &[&ViolationDef] = &[
+    &MULTIPART_BODY_DELIMITER_MISSING,
+    &MULTIPART_BODY_PART_MISSING,
+    &MULTIPART_BODY_TERMINATOR_MISSING,
+];
 use crate::rules::{Rule, RuleMeta};
 
 pub struct MultipartContentTypeAndBodyConsistent;
@@ -10,12 +25,6 @@ pub struct MultipartContentTypeAndBodyConsistent;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_2046_5_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 2046",
-    section: Some("5.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
-    note: "Multipart common syntax: `dash-boundary`, `delimiter` and `close-delimiter`, the requirement that a delimiter begin a line, the instruction to compare against the beginning of a candidate line rather than the whole of it, and the ignoring of preamble and epilogue",
-};
 const RFC_9110_8_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("8.3.3"),
@@ -50,6 +59,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_2046_5_1_1, RFC_9110_8_3_3, RFC_9110_8_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -153,8 +166,7 @@ impl Rule for MultipartContentTypeAndBodyConsistent {
                     if let Some(boundary) =
                         crate::helpers::media_type::extract_multipart_boundary(&s)
                     {
-                        if let Some(v) =
-                            check_body_delimiters(which, &boundary, body.as_ref(), ctx.severity)
+                        if let Some(v) = check_body_delimiters(which, &boundary, body.as_ref(), ctx)
                         {
                             return Some(v);
                         }
@@ -277,7 +289,6 @@ fn scan_delimiter_lines(body: &[u8], boundary: &[u8]) -> DelimiterScan {
         // only thing distinguishing the closing line from one that opens a
         // part, so this comparison is the whole classification.
         // cite(RFC 2046 § 5.1.1): "close-delimiter := delimiter "--""
-        // cite(RFC 2046 § 5.1.1): "Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value."
         if body[i + db.len()..].starts_with(b"--") {
             scan.closes = true;
         } else if !scan.closes {
@@ -296,7 +307,7 @@ fn check_body_delimiters(
     which: &str,
     boundary: &str,
     body: &[u8],
-    severity: crate::lint::Severity,
+    ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     // The boundary is text for the three findings below and octets for the scan,
     // and the two are not the same string. `boundary` is the as-written reading —
@@ -312,7 +323,6 @@ fn check_body_delimiters(
     // instruction rather than this rule's convenience: the preamble and the
     // epilogue are to be ignored, so their content can neither satisfy a check
     // nor fail one.
-    // cite(RFC 2046 § 5.1.1): "implementations must ignore anything that appears before the first boundary delimiter line or after the last one."
     if !scan.opens_a_part && !scan.closes {
         let detail = if scan.appears_off_line {
             format!(
@@ -322,8 +332,8 @@ fn check_body_delimiters(
         } else {
             format!("body does not contain boundary marker '--{}'", shown)
         };
-        return Some(MultipartContentTypeAndBodyConsistent.violation(
-            severity,
+        return Some(ctx.report_with(
+            &MULTIPART_BODY_DELIMITER_MISSING,
             format!("Invalid multipart Content-Type in {}: {}", which, detail),
         ));
     }
@@ -332,10 +342,9 @@ fn check_body_delimiters(
     // a body in which it is the only delimiter line has no part for it to
     // follow. §5.1.1 calls a single body part the useful minimum, not zero.
     // cite(RFC 2046 § 5.1.1): "The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow."
-    // cite(RFC 2046 § 5.1.1): "The use of the "multipart" media type with only a single body part may be useful in certain contexts, and is explicitly permitted."
     if !scan.opens_a_part {
-        return Some(MultipartContentTypeAndBodyConsistent.violation(
-            severity,
+        return Some(ctx.report_with(
+            &MULTIPART_BODY_PART_MISSING,
             format!(
                 "Invalid multipart Content-Type in {}: the only boundary delimiter line is the terminating '--{}--', so the body encapsulates no part",
                 which, shown
@@ -347,8 +356,8 @@ fn check_body_delimiters(
     // which is the whole function §5.1.1 gives it.
     // cite(RFC 2046 § 5.1.1): "Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value."
     if !scan.closes {
-        return Some(MultipartContentTypeAndBodyConsistent.violation(
-            severity,
+        return Some(ctx.report_with(
+            &MULTIPART_BODY_TERMINATOR_MISSING,
             format!(
                 "Invalid multipart Content-Type in {}: body missing terminating boundary '--{}--'",
                 which, boundary

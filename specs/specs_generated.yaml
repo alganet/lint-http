@@ -912,6 +912,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/violations/boundary.rs
       line: 61
+  - label: multipart_body
+    section: § 5.1.1
+    snippet: The use of the "multipart" media type with only a single body part may be useful in certain contexts, and is explicitly permitted.
+    cited_by:
+    - file: lint-http-rules/src/violations/multipart_body.rs
+      line: 68
+  - label: preamble and epilogue
+    section: § 5.1.1
+    snippet: implementations must ignore anything that appears before the first boundary delimiter line or after the last one.
+    cited_by:
+    - file: lint-http-rules/src/violations/multipart_body.rs
+      line: 51
   - label: multipart_boundary_syntax
     section: § 5.1.1
     snippet: All subtypes of "multipart" must use this syntax.
@@ -925,7 +937,7 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 431
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 222
+      line: 234
   - label: multipart_boundary_syntax (3)
     section: § 5.1.1
     snippet: The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line.
@@ -949,65 +961,53 @@ sources:
     snippet: An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 268
+      line: 280
   - label: multipart_content_type_and_body_consistent (2)
     section: § 5.1.1
     snippet: Boundary string comparisons must compare the boundary value with the beginning of each candidate line.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 267
-  - label: multipart_content_type_and_body_consistent (3)
+      line: 279
+  - label: close-delimiter
     section: § 5.1.1
     snippet: Such a delimiter line is identical to the previous delimiter lines, with the addition of two more hyphens after the boundary parameter value.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 280
-    - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 348
-  - label: multipart_content_type_and_body_consistent (4)
+      line: 357
+    - file: lint-http-rules/src/violations/multipart_body.rs
+      line: 82
+  - label: multipart_content_type_and_body_consistent (3)
     section: § 5.1.1
     snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 121
+      line: 134
     - file: lint-http-rules/src/violations/boundary.rs
       line: 45
-  - label: multipart_content_type_and_body_consistent (5)
+  - label: multipart_content_type_and_body_consistent (4)
     section: § 5.1.1
     snippet: The boundary delimiter MUST occur at the beginning of a line, i.e., following a CRLF, and the initial CRLF is considered to be attached to the boundary delimiter line rather than part of the preceding part.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 242
-  - label: multipart_content_type_and_body_consistent (6)
+      line: 254
+  - label: multipart_content_type_and_body_consistent (5)
     section: § 5.1.1
     snippet: The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 334
-  - label: multipart_content_type_and_body_consistent (7)
-    section: § 5.1.1
-    snippet: The use of the "multipart" media type with only a single body part may be useful in certain contexts, and is explicitly permitted.
-    cited_by:
-    - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 335
-  - label: multipart_content_type_and_body_consistent (8)
+      line: 344
+  - label: multipart_content_type_and_body_consistent (6)
     section: § 5.1.1
     snippet: close-delimiter := delimiter "--"
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 279
-  - label: multipart_content_type_and_body_consistent (9)
+      line: 291
+  - label: multipart_content_type_and_body_consistent (7)
     section: § 5.1.1
     snippet: dash-boundary := "--" boundary
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 221
-  - label: multipart_content_type_and_body_consistent (10)
-    section: § 5.1.1
-    snippet: implementations must ignore anything that appears before the first boundary delimiter line or after the last one.
-    cited_by:
-    - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 315
+      line: 233
 - label: RFC 2068
   url: https://www.rfc-editor.org/rfc/rfc2068.html
   fragments:
@@ -5411,7 +5411,7 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 160
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 98
+      line: 111
   - label: charset_registered (2)
     section: § 8.3.2
     snippet: In both cases, charset names are matched case-insensitively.
@@ -7065,7 +7065,7 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 191
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 151
+      line: 164
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 242
     - file: lint-http-rules/src/rules/server_header_product_valid.rs
@@ -7845,19 +7845,19 @@ sources:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 241
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 119
+      line: 132
   - label: multipart_content_type_and_body_consistent
     section: § 8.3.3
     snippet: HTTP message framing does not use the multipart boundary as an indicator of message body length, though it might be used by implementations that generate or process the content.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 120
+      line: 133
   - label: multipart_content_type_and_body_consistent (2)
     section: § 8.3.3
     snippet: The message body is itself a protocol element; a sender MUST generate only CRLF to represent line breaks between body parts.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 243
+      line: 255
   - label: no_body_for_1xx_204_304
     section: § 15.3.5
     snippet: A 204 response is terminated by the end of the header section; it cannot contain content or trailers.
