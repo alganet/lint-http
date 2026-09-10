@@ -4,10 +4,19 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::delta_seconds::{
+    DELTA_SECONDS_CHARACTER_FORBIDDEN, DELTA_SECONDS_EMPTY, RFC_9111_1_2_2,
+};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
     quoted_string_defect, QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
+};
+use crate::violations::strict_transport_security::{
+    RFC_6797_6_1, RFC_6797_6_1_1, RFC_6797_6_1_2, STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
+    STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY, STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
+    STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING, STRICT_TRANSPORT_SECURITY_EMPTY,
+    STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING,
 };
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
@@ -46,6 +55,14 @@ pub struct StrictTransportSecurityValid;
 /// one reason that survives an octet-wise read: a control octet cannot enter a
 /// `hyper::HeaderValue`, whatever the rule does with it afterwards.
 static DECLARED: &[&ViolationDef] = &[
+    &STRICT_TRANSPORT_SECURITY_EMPTY,
+    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY,
+    &STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING,
+    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
+    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
+    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN,
+    &DELTA_SECONDS_EMPTY,
+    &DELTA_SECONDS_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -54,28 +71,6 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_QUOTE_ESCAPE_MISSING,
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
-
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_6797_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6797",
-    section: Some("6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1",
-    note: "Strict-Transport-Security header",
-};
-const RFC_6797_6_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6797",
-    section: Some("6.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.1",
-    note: "The max-age Directive",
-};
-const RFC_6797_6_1_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6797",
-    section: Some("6.1.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc6797.html#section-6.1.2",
-    note: "The includeSubDomains Directive",
-};
 
 impl RuleMeta for StrictTransportSecurityValid {
     fn id(&self) -> &'static str {
@@ -97,6 +92,7 @@ severity = "warn"
             RFC_6797_6_1,
             RFC_6797_6_1_1,
             RFC_6797_6_1_2,
+            RFC_9111_1_2_2,
             RFC_9110_5_6_2,
             RFC_9110_5_6_4,
         ]
@@ -175,10 +171,7 @@ impl Rule for StrictTransportSecurityValid {
                 // declares nothing is not a policy, which is a statement about
                 // this field and not about a production it broke.
                 if v.is_empty() {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Strict-Transport-Security header must not be empty".into(),
-                    ));
+                    return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_EMPTY));
                 }
 
                 let mut saw_max_age = false;
@@ -195,10 +188,7 @@ impl Rule for StrictTransportSecurityValid {
                     // `Sec-WebSocket-Extensions` made about RFC 2616's list.
                     if member.is_empty() {
                         // skip stray semicolons but flag as violation
-                        return Some(self.violation(
-                            ctx.severity,
-                            "Empty directive in Strict-Transport-Security header".into(),
-                        ));
+                        return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_EMPTY));
                     }
 
                     // directive = token [ "=" token ]
@@ -225,7 +215,6 @@ impl Rule for StrictTransportSecurityValid {
                     match lname.as_str() {
                         // max-age is REQUIRED (enforced by the `saw_max_age` check after the loop)
                         // and its value is a count of seconds, i.e. all-digits (checked below).
-                        // cite(RFC 6797 § 6.1.1): "The REQUIRED "max-age" directive specifies the number of seconds, after the reception of the STS header field, during which the UA regards the host (from whom the message was received) as a Known HSTS Host."
                         "max-age" => {
                             max_age_count += 1;
                             saw_max_age = true;
@@ -233,7 +222,7 @@ impl Rule for StrictTransportSecurityValid {
                             if let Some(vpart) = kv.next() {
                                 let vpart = crate::helpers::headers::trim_ows(vpart);
                                 if vpart.is_empty() {
-                                    return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' must have a numeric value".into()));
+                                    return Some(ctx.report_with(&DELTA_SECONDS_EMPTY, "Strict-Transport-Security 'max-age' must have a numeric value".into()));
                                 }
                                 // Asked before the digits, and answered by the
                                 // catalogue: a `directive-value` is a `token` or
@@ -245,25 +234,33 @@ impl Rule for StrictTransportSecurityValid {
                                 {
                                     return Some(ctx.report_with(token_character(c), format!("Strict-Transport-Security 'max-age' contains invalid character: {}", crate::helpers::shown::describe_char(c))));
                                 }
+                                // The sign of `-1` and the point of `1.5` are the
+                                // production's defect and answer under its id,
+                                // whichever field imported it.
                                 if vpart.chars().any(|ch| !ch.is_ascii_digit()) {
-                                    return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' must be a non-negative integer".into()));
+                                    return Some(ctx.report_with(&DELTA_SECONDS_CHARACTER_FORBIDDEN, "Strict-Transport-Security 'max-age' must be a non-negative integer".into()));
                                 }
-                                if vpart.parse::<u64>().is_err() {
-                                    return Some(self.violation(ctx.severity, "Strict-Transport-Security 'max-age' value is not a valid integer".into()));
-                                }
+                                // A run of digits too long for a `u64` used to be
+                                // reported here as "not a valid integer", and it is
+                                // not a defect at all: `delta-seconds` sets no
+                                // ceiling and a recipient meeting a value it cannot
+                                // hold is told to clamp it, so such a policy is
+                                // conforming and what could not hold it was this
+                                // reader. The `delta_seconds` subject records the
+                                // same reading, and refuses the entry for the same
+                                // reason.
                             } else {
-                                return Some(self.violation(
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    &STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_MISSING,
                                     "Strict-Transport-Security 'max-age' must have a value".into(),
                                 ));
                             }
                         }
-                        // cite(RFC 6797 § 6.1.2): "The OPTIONAL "includeSubDomains" directive is a valueless directive which, if present (i.e., it is "asserted"), signals the UA that the HSTS Policy applies to this HSTS Host as well as any subdomains of the host's domain name."
                         "includesubdomains" => {
                             // canonical name is includeSubDomains, but accept case-insensitively
                             // must NOT have a value (it is "valueless" per §6.1.2)
                             if kv.next().is_some() {
-                                return Some(self.violation(ctx.severity, "Strict-Transport-Security 'includeSubDomains' directive must not have a value".into()));
+                                return Some(ctx.report_with(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN, "Strict-Transport-Security 'includeSubDomains' directive must not have a value".into()));
                             }
                         }
                         // `preload` is not an RFC 6797 directive — it is a de-facto extension (the
@@ -272,7 +269,7 @@ impl Rule for StrictTransportSecurityValid {
                         // governs this branch; it is validated like a known valueless directive.
                         "preload" => {
                             if kv.next().is_some() {
-                                return Some(self.violation(ctx.severity, "Strict-Transport-Security 'preload' directive must not have a value".into()));
+                                return Some(ctx.report_with(&STRICT_TRANSPORT_SECURITY_DIRECTIVE_VALUE_FORBIDDEN, "Strict-Transport-Security 'preload' directive must not have a value".into()));
                             }
                         }
                         _ => {
@@ -296,21 +293,16 @@ impl Rule for StrictTransportSecurityValid {
                     }
                 }
 
-                // cite(RFC 6797 § 6.1): "All directives MUST appear only once in an STS header field."
                 if max_age_count > 1 {
-                    return Some(self.cited(&RFC_6797_6_1, ctx.severity, "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
-                                .into()));
+                    return Some(ctx.report_with(
+                        &STRICT_TRANSPORT_SECURITY_DIRECTIVE_DUPLICATED,
+                        "Strict-Transport-Security MUST NOT contain multiple 'max-age' directives"
+                            .into(),
+                    ));
                 }
 
                 if !saw_max_age {
-                    return Some(
-                        self.cited(
-                            &RFC_6797_6_1,
-                            ctx.severity,
-                            "Strict-Transport-Security header missing required 'max-age' directive"
-                                .into(),
-                        ),
-                    );
+                    return Some(ctx.report(&STRICT_TRANSPORT_SECURITY_MAX_AGE_MISSING));
                 }
             }
 
@@ -379,8 +371,12 @@ mod tests {
     /// required, that two directives are valueless, and that a directive
     /// appears once.
     #[rstest]
-    #[case::empty_value("", "must not be empty", "")]
-    #[case::empty_directive("max-age=1;;preload", "Empty directive in", "")]
+    #[case::empty_value("", "must not be empty", "strict_transport_security_empty")]
+    #[case::empty_directive(
+        "max-age=1;;preload",
+        "Empty directive in",
+        "strict_transport_security_directive_empty"
+    )]
     #[case::empty_name("max-age=1; =2", "Empty directive name", "token_empty")]
     #[case::name_character(
         "max-age=1; pre@load",
@@ -392,15 +388,27 @@ mod tests {
         "'max-age' contains invalid",
         "token_character_forbidden"
     )]
-    #[case::max_age_not_a_number("max-age=1.5", "non-negative integer", "")]
-    #[case::max_age_empty("max-age=", "must have a numeric value", "")]
-    #[case::max_age_valueless("max-age", "must have a value", "")]
+    #[case::max_age_not_a_number(
+        "max-age=1.5",
+        "non-negative integer",
+        "delta_seconds_character_forbidden"
+    )]
+    #[case::max_age_empty("max-age=", "must have a numeric value", "delta_seconds_empty")]
+    #[case::max_age_valueless(
+        "max-age",
+        "must have a value",
+        "strict_transport_security_directive_value_missing"
+    )]
     #[case::include_subdomains_valued(
         "max-age=1; includeSubDomains=1",
         "must not have a value",
-        ""
+        "strict_transport_security_directive_value_forbidden"
     )]
-    #[case::preload_valued("max-age=1; preload=1", "must not have a value", "")]
+    #[case::preload_valued(
+        "max-age=1; preload=1",
+        "must not have a value",
+        "strict_transport_security_directive_value_forbidden"
+    )]
     #[case::value_character(
         "max-age=1; foo=b@r",
         "value contains invalid",
@@ -421,8 +429,16 @@ mod tests {
         "Invalid quoted-string",
         "quoted_pair_malformed"
     )]
-    #[case::repeated_max_age("max-age=1; max-age=2", "multiple 'max-age'", "")]
-    #[case::missing_max_age("includeSubDomains", "missing required 'max-age'", "")]
+    #[case::repeated_max_age(
+        "max-age=1; max-age=2",
+        "multiple 'max-age'",
+        "strict_transport_security_directive_duplicated"
+    )]
+    #[case::missing_max_age(
+        "includeSubDomains",
+        "missing required 'max-age'",
+        "strict_transport_security_max_age_missing"
+    )]
     fn each_finding_reports_the_production_it_belongs_to(
         #[case] value: &str,
         #[case] expected: &str,

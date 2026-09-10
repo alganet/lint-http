@@ -1587,6 +1587,30 @@ severity = "warn"
 # Weight is not a qvalue
 severity = "warn"
 
+[violations.strict_transport_security_directive_duplicated]
+# A directive is written more than once in one policy
+severity = "warn"
+
+[violations.strict_transport_security_directive_empty]
+# The policy holds a separator with no directive
+severity = "warn"
+
+[violations.strict_transport_security_directive_value_forbidden]
+# A valueless directive is written with a value
+severity = "warn"
+
+[violations.strict_transport_security_directive_value_missing]
+# A directive that requires a value carries none
+severity = "warn"
+
+[violations.strict_transport_security_empty]
+# The policy is written with nothing in it
+severity = "warn"
+
+[violations.strict_transport_security_max_age_missing]
+# The policy states no max-age
+severity = "warn"
+
 [violations.te_chunked_forbidden]
 # TE names the chunked coding, which cannot be declined
 severity = "warn"
