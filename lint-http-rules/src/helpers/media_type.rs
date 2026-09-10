@@ -29,6 +29,24 @@ pub struct ParsedMediaType<'a> {
     pub params: Option<&'a str>,
 }
 
+/// Why a value is not a `media-type` at all, as data rather than as prose.
+///
+/// Three shapes, and every caller but one treats all three the same way: the
+/// rules that *read* a media type use this reader as a gate and return `None`
+/// on any of them, because a value that is not a media type is
+/// `content_type_valid`'s finding and not theirs. That one caller is why the
+/// verdict is typed — the wording belongs where the field name is known, and
+/// the id belongs to the catalogue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaTypeError {
+    /// Nothing there once the field's own `OWS` comes off.
+    Empty,
+    /// No `/` at all, so there is no place where the type ends.
+    SlashMissing,
+    /// A `/` with nothing on one side of it.
+    PartEmpty,
+}
+
 /// Parse a Media Type string into type, subtype, and optional params.
 ///
 /// This does NOT fully validate the tokens (e.g. wildcards or invalid chars),
@@ -53,10 +71,10 @@ pub struct ParsedMediaType<'a> {
 ///
 // cite(RFC 9110 § 5.6.6): "parameters      = *( OWS ";" OWS [ parameter ] )"
 // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
-pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
+pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, MediaTypeError> {
     let trimmed = trim_ows(val);
     if trimmed.is_empty() {
-        return Err("Empty media-type".into());
+        return Err(MediaTypeError::Empty);
     }
 
     let mut parts = trimmed.splitn(2, ';');
@@ -69,10 +87,7 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
 
     // cite(RFC 9110 § 8.3.1, label: media-type grammar): "media-type = type "/" subtype parameters"
     if !media.contains('/') {
-        return Err(format!(
-            "Invalid media-type '{}': missing '/' between type and subtype",
-            val
-        ));
+        return Err(MediaTypeError::SlashMissing);
     }
 
     let mut ts = media.splitn(2, '/');
@@ -80,10 +95,7 @@ pub fn parse_media_type(val: &str) -> Result<ParsedMediaType<'_>, String> {
     let subtype = ts.next().unwrap_or("");
 
     if type_.is_empty() || subtype.is_empty() {
-        return Err(format!(
-            "Invalid media-type '{}': empty type or subtype",
-            val
-        ));
+        return Err(MediaTypeError::PartEmpty);
     }
 
     Ok(ParsedMediaType {

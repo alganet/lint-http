@@ -4716,10 +4716,10 @@ sources:
       line: 239
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 252
-    - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 306
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 277
+    - file: lint-http-rules/src/violations/media_type.rs
+      line: 96
   - label: accept_and_content_type_negotiation (11)
     section: § 12.5.1
     snippet: The media-range can include media type parameters that are applicable to that range.
@@ -4747,7 +4747,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 161
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 218
+      line: 214
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 226
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
@@ -5401,7 +5401,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 148
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 177
+      line: 173
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 142
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -5723,7 +5723,7 @@ sources:
     - file: lint-http-rules/src/rules/content_type_present.rs
       line: 179
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 216
+      line: 212
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 46
   - label: content_type_present (4)
@@ -5757,7 +5757,7 @@ sources:
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 217
+      line: 213
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 225
   - label: context_fields_direction
@@ -7011,7 +7011,7 @@ sources:
     - file: lint-http-rules/src/rules/content_disposition_token_valid.rs
       line: 253
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 219
+      line: 215
     - file: lint-http-rules/src/rules/deprecation_header_syntax.rs
       line: 101
     - file: lint-http-rules/src/rules/etag_syntax.rs
@@ -7055,7 +7055,7 @@ sources:
     - file: lint-http-rules/src/rules/content_location_and_uri_consistent.rs
       line: 252
     - file: lint-http-rules/src/rules/content_type_valid.rs
-      line: 240
+      line: 236
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 260
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
@@ -7259,7 +7259,7 @@ sources:
     snippet: A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 55
+      line: 73
     - file: lint-http-rules/src/helpers/websocket.rs
       line: 209
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
@@ -7291,7 +7291,7 @@ sources:
     snippet: Parameter names are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 355
+      line: 367
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 251
     - file: lint-http-rules/src/rules/charset_registered.rs
@@ -7303,7 +7303,7 @@ sources:
     snippet: parameter-name  = token
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 295
+      line: 307
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 81
     - file: lint-http-rules/src/helpers/parameter.rs
@@ -7317,7 +7317,7 @@ sources:
     snippet: parameter-value = ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 308
+      line: 320
     - file: lint-http-rules/src/helpers/word.rs
       line: 26
     - file: lint-http-rules/src/rules/expect_header_valid.rs
@@ -7331,7 +7331,7 @@ sources:
     snippet: parameters      = *( OWS ";" OWS [ parameter ] )
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 54
+      line: 72
     - file: lint-http-rules/src/helpers/parameter.rs
       line: 20
     - file: lint-http-rules/src/helpers/parameter.rs
@@ -7347,7 +7347,7 @@ sources:
     snippet: The type and subtype tokens are case-insensitive.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 246
+      line: 258
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 299
     - file: lint-http-rules/src/rules/charset_present.rs
@@ -7373,7 +7373,7 @@ sources:
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 262
+      line: 274
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 88
   - label: media-type grammar
@@ -7381,17 +7381,21 @@ sources:
     snippet: media-type = type "/" subtype parameters
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 70
+      line: 88
     - file: lint-http-rules/src/rules/accept_patch_header_valid.rs
       line: 150
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 172
+    - file: lint-http-rules/src/violations/media_type.rs
+      line: 55
+    - file: lint-http-rules/src/violations/media_type.rs
+      line: 75
   - label: lint-http-rules/src/helpers/media_type.rs (7)
     section: § 8.3.1
     snippet: type       = token subtype    = token
     cited_by:
     - file: lint-http-rules/src/helpers/media_type.rs
-      line: 245
+      line: 257
   - label: lint-http-rules/src/helpers/parameter.rs
     section: § 5.6.6
     snippet: parameter       = parameter-name "=" parameter-value
@@ -7811,7 +7815,7 @@ sources:
     snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
     cited_by:
     - file: lint-http-rules/src/violations/media_type.rs
-      line: 53
+      line: 121
   - label: multipart_boundary_syntax
     section: § 5.6.6
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
