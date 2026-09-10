@@ -1143,6 +1143,10 @@ severity = "error"
 # Content-Length declares no length
 severity = "error"
 
+[violations.content_length_forbidden]
+# Content-Length is sent in a message that is transfer-coded
+severity = "error"
+
 [violations.content_length_members_conflicting]
 # Content-Length is declared twice with different numbers
 severity = "error"
