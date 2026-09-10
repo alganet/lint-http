@@ -1171,6 +1171,10 @@ severity = "warn"
 # The identity coding is named where a coding belongs
 severity = "warn"
 
+[violations.content_coding_redundant]
+# One coding is named twice in one field
+severity = "info"
+
 [violations.content_coding_unregistered]
 # Content coding is not one the deployment recognises
 severity = "warn"

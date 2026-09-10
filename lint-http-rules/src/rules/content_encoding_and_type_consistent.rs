@@ -4,8 +4,11 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_coding::{
+    CONTENT_CODING_REDUNDANT, CONTENT_CODING_WILDCARD_FORBIDDEN, RFC_9110_12_5_3, RFC_9110_8_4,
+};
 use crate::violations::token::{
-    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
+    token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
 use crate::violations::ViolationDef;
@@ -30,17 +33,14 @@ pub struct ContentEncodingAndTypeConsistent;
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+    &TOKEN_EMPTY,
+    &CONTENT_CODING_WILDCARD_FORBIDDEN,
+    &CONTENT_CODING_REDUNDANT,
 ];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
-    note: "`Content-Encoding = #content-coding` — the list the member checks walk. Note it does not forbid repeating a coding, so the duplicate check is this rule's judgement",
-};
 const RFC_9110_15_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.4.5"),
@@ -64,7 +64,12 @@ severity = "warn"
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
-        &[RFC_9110_8_4, RFC_9110_15_4_5, RFC_9110_5_6_2]
+        &[
+            RFC_9110_8_4,
+            RFC_9110_12_5_3,
+            RFC_9110_15_4_5,
+            RFC_9110_5_6_2,
+        ]
     }
 
     fn violations(&self) -> &'static [&'static ViolationDef] {
@@ -122,18 +127,19 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // "member".** The walk above drops the list's empty members
                     // before this sees them, so what reaches here is a member
                     // that is *present* and whose coding half is missing --
-                    // `;q=1` and the like. That is `#content-coding`'s element
-                    // saying it is not optional, which is a statement about the
-                    // member's assembly and belongs to no subject.
+                    // `;q=1` and the like. `content-coding = token` and `1*tchar`
+                    // has a floor, so the name that is not there is the token's
+                    // own defect: the mirror rule on `Transfer-Encoding` reached
+                    // the same id from the same member shape.
                     if token.is_empty() {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &TOKEN_EMPTY,
                             format!("{} header contains empty member", hdr_name),
                         ));
                     }
                     if token == "*" && hdr_name.eq_ignore_ascii_case("Content-Encoding") {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &CONTENT_CODING_WILDCARD_FORBIDDEN,
                             format!("Wildcard '*' is not valid in {} header", hdr_name),
                         ));
                     }
@@ -157,11 +163,12 @@ impl Rule for ContentEncodingAndTypeConsistent {
                     // `gzip, gzip` a well-formed way to say gzip was applied twice. Flagging
                     // it is this rule's judgement that a repeat is far more often a
                     // configuration accident (two layers each adding the header) than a
-                    // deliberate double-encoding. Uncited, since no sentence licenses it.
+                    // deliberate double-encoding -- and the document's own aside about a
+                    // coding listed a second time is what the entry quotes.
                     let key = token.to_ascii_lowercase();
                     if !seen.insert(key.clone()) {
-                        return Some(self.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &CONTENT_CODING_REDUNDANT,
                             format!("Duplicate content-coding '{}' in {} header", key, hdr_name),
                         ));
                     }
@@ -305,13 +312,16 @@ mod tests {
         assert_eq!(here.message, registered.message);
     }
 
-    /// What this rule is named for keeps its own severity and no id: a coding
-    /// repeated and a wildcard where none is defined are both well-formed
-    /// tokens in a well-formed list, saying something § 8.4 does not license.
+    /// Every finding here names the production the failing part is written in.
+    /// A coding repeated and a wildcard where none is defined are both
+    /// well-formed tokens in a well-formed list, so their ids are the
+    /// `content_coding` subject's rather than this field's — and a member that
+    /// is nothing but a parameter has no name at all, which is the `token`
+    /// floor and the id the mirror rule reaches from the same shape.
     #[rstest]
-    #[case::duplicate("gzip, gzip", "")]
-    #[case::wildcard("*", "")]
-    #[case::no_coding("gzip, ;q=1", "")]
+    #[case::duplicate("gzip, gzip", "content_coding_redundant")]
+    #[case::wildcard("*", "content_coding_wildcard_forbidden")]
+    #[case::no_coding("gzip, ;q=1", "token_empty")]
     #[case::bad_octet("x@bad", "token_character_forbidden")]
     #[case::space_inside("g zip", "token_whitespace_or_control_forbidden")]
     fn the_grammars_defects_are_the_grammars(#[case] value: &str, #[case] violation: &str) {

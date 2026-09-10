@@ -86,6 +86,27 @@ defects! {
         spec: Some(RFC_9110_8_4),
     }
 
+    /// One coding named twice in one field: `Content-Encoding: gzip, gzip`.
+    /// Nothing forbids it — § 8.4 has the sender list the codings in the order
+    /// they were applied, so a repeat is a well-formed way to say the same
+    /// transformation ran twice — and the document's own aside is what makes it
+    /// reportable: a coding is listed a second time only *for some bizarre
+    /// reason*.
+    ///
+    /// `info`, with the catalogue's other `_redundant` entry, and for the same
+    /// reason: the message is decodable and the work was avoidable. In practice
+    /// it is two layers of a deployment each adding the field rather than a
+    /// sender meaning it.
+    ///
+    // cite(RFC 9110 § 8.4, label: a coding listed twice): "Such a content coding would only be listed if, for some bizarre reason, it is applied a second time to form the representation."
+    CONTENT_CODING_REDUNDANT = {
+        id: "content_coding_redundant",
+        title: "One coding is named twice in one field",
+        message: "",
+        default_severity: Severity::Info,
+        spec: Some(RFC_9110_8_4),
+    }
+
     /// A coding name the deployment does not recognise, matched
     /// case-insensitively because the names are. Measured against the
     /// operator's `allowed` list and not against IANA's table, the stand-in
