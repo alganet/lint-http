@@ -1095,6 +1095,22 @@ severity = "error"
 # Basic credentials hold no ':' separator
 severity = "warn"
 
+[violations.boundary_character_forbidden]
+# Boundary holds a character outside the delimiter set
+severity = "warn"
+
+[violations.boundary_length_invalid]
+# Boundary is empty or longer than seventy characters
+severity = "warn"
+
+[violations.boundary_missing]
+# A multipart media type carries no boundary parameter
+severity = "warn"
+
+[violations.boundary_trailing_space_forbidden]
+# Boundary ends with a space
+severity = "warn"
+
 [violations.bws_forbidden]
 # Whitespace written where the grammar admits BWS
 severity = "info"

@@ -4,6 +4,10 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::boundary::{
+    BOUNDARY_CHARACTER_FORBIDDEN, BOUNDARY_LENGTH_INVALID, BOUNDARY_MISSING,
+    BOUNDARY_TRAILING_SPACE_FORBIDDEN, RFC_2046_5_1_1,
+};
 use crate::violations::parameter::{PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -32,6 +36,10 @@ pub struct MultipartBoundarySyntax;
 /// all, and whether it is a boundary — and only the first has a subject
 /// written.
 static DECLARED: &[&ViolationDef] = &[
+    &BOUNDARY_MISSING,
+    &BOUNDARY_CHARACTER_FORBIDDEN,
+    &BOUNDARY_LENGTH_INVALID,
+    &BOUNDARY_TRAILING_SPACE_FORBIDDEN,
     &PARAMETER_VALUE_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -44,12 +52,6 @@ static DECLARED: &[&ViolationDef] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_2046_5_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 2046",
-    section: Some("5.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc2046.html#section-5.1.1",
-    note: "Multipart common syntax: the required `boundary` parameter, the `boundary`/`bchars`/`bcharsnospace` grammar, the 1-to-70-character limit and the ban on a trailing space, and the warning that a boundary often has to be quoted",
-};
 const RFC_9110_8_3_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("8.3.3"),
@@ -353,8 +355,6 @@ fn check_multipart_boundary(
                     // case — a boundary is matched against the delimiter
                     // lines in the content literally, which is the case-
                     // sensitive end of what §5.6.6 leaves to each parameter.
-                    // cite(RFC 2046 § 5.1.1): "bchars := bcharsnospace / " ""
-                    // cite(RFC 2046 § 5.1.1): "bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" / "," / "-" / "." / "/" / ":" / "=" / "?""
                     // cite(RFC 9110 § 5.6.6): "Parameter values might or might not be case-sensitive, depending on the semantics of the parameter name."
                     for ch in boundary_unquoted.chars() {
                         if ch.is_ascii_alphanumeric()
@@ -376,8 +376,8 @@ fn check_multipart_boundary(
                         {
                             continue;
                         }
-                        return Some(MultipartBoundarySyntax.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &BOUNDARY_CHARACTER_FORBIDDEN,
                             format!(
                                 "Invalid multipart Content-Type in {}: boundary contains invalid character '{}'",
                                 which, ch
@@ -391,11 +391,10 @@ fn check_multipart_boundary(
                     // what `boundary=""` leaves after unquoting, and the
                     // grammar has no empty alternative.
                     // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
-                    // cite(RFC 2046 § 5.1.1): "The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space."
                     let len = boundary_unquoted.chars().count();
                     if len == 0 || len > 70 {
-                        return Some(MultipartBoundarySyntax.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &BOUNDARY_LENGTH_INVALID,
                             format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must be between 1 and 70 characters",
                                 which
@@ -413,8 +412,8 @@ fn check_multipart_boundary(
                     // recipient cannot tell it from the delimiter's own.
                     // cite(RFC 2046 § 5.1.1): "boundary := 0*69<bchars> bcharsnospace"
                     if boundary_unquoted.ends_with(' ') {
-                        return Some(MultipartBoundarySyntax.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &BOUNDARY_TRAILING_SPACE_FORBIDDEN,
                             format!(
                                 "Invalid multipart Content-Type in {}: 'boundary' must not end with whitespace",
                                 which
@@ -429,7 +428,6 @@ fn check_multipart_boundary(
         // default: without a boundary there is no delimiter line, so nothing in
         // the content can be told from anything else. RFC 2046 states it as a
         // requirement of the field and RFC 9110 repeats it for HTTP.
-        // cite(RFC 2046 § 5.1.1): "The Content-Type field for multipart entities requires one parameter, "boundary"."
         // cite(RFC 2046 § 5.1.1): "The boundary delimiter line is then defined as a line consisting entirely of two hyphen characters ("-", decimal value 45) followed by the boundary parameter value from the Content-Type header field, optional linear whitespace, and a terminating CRLF."
         //
         // Not reported when the quoting never closed, because then this is a
@@ -438,8 +436,8 @@ fn check_multipart_boundary(
         // what the broken quoting makes unknowable. An unreadable parameter
         // list is `content_type_valid`'s finding.
         if !found && !unreadable {
-            return Some(MultipartBoundarySyntax.violation(
-                ctx.severity,
+            return Some(ctx.report_with(
+                &BOUNDARY_MISSING,
                 format!(
                     "Invalid multipart Content-Type in {}: missing required 'boundary' parameter",
                     which
