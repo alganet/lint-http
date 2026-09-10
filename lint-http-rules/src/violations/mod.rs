@@ -55,6 +55,7 @@ pub mod quoted_string;
 pub mod qvalue;
 pub mod token;
 pub mod token68;
+pub mod transfer_encoding;
 pub mod uri;
 
 /// One reportable defect.
@@ -365,7 +366,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 124;
+        const FLOOR: usize = 127;
         let cited = VIOLATIONS.iter().filter(|d| d.spec.is_some()).count();
         assert!(
             cited >= FLOOR,

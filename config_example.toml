@@ -1527,6 +1527,18 @@ severity = "warn"
 # Token holds whitespace or a control character
 severity = "error"
 
+[violations.transfer_encoding_chunked_duplicated]
+# The chunked transfer coding is applied more than once
+severity = "warn"
+
+[violations.transfer_encoding_chunked_missing]
+# A coding is applied and chunked never is
+severity = "warn"
+
+[violations.transfer_encoding_chunked_position_invalid]
+# The chunked transfer coding is not the final one
+severity = "warn"
+
 [violations.uri_character_forbidden]
 # Value holds a character no URI is written with
 severity = "warn"
