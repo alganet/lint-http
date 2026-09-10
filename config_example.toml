@@ -1495,6 +1495,18 @@ severity = "warn"
 # A media range is written where one media type belongs
 severity = "warn"
 
+[violations.multipart_body_delimiter_missing]
+# The body carries no delimiter line for its boundary
+severity = "warn"
+
+[violations.multipart_body_part_missing]
+# The only delimiter line is the terminating one
+severity = "warn"
+
+[violations.multipart_body_terminator_missing]
+# The body never closes its last part
+severity = "warn"
+
 [violations.node_ipv4_address_malformed]
 # Node identifier is digits and dots that are not an IPv4 address
 severity = "warn"
