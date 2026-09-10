@@ -4,6 +4,13 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::transfer_encoding::{RFC_9112_7_3, TRANSFER_ENCODING_CODING_REDUNDANT};
+use crate::violations::ViolationDef;
+
+/// One observation, and it is about the transit layer: a coding applied there
+/// that the representation already carries. The rule reports it once per
+/// message, and the message names which side and which codings.
+static DECLARED: &[&ViolationDef] = &[&TRANSFER_ENCODING_CODING_REDUNDANT];
 
 pub struct CompressionAndTransferEncodingConsistent;
 
@@ -33,12 +40,6 @@ const RFC_9112_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("7.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2",
     note: "The compression transfer codings, defined by the same algorithm as the content coding of the same name",
-};
-const RFC_9112_7_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("7.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.3",
-    note: "Transfer and content coding names may only overlap where the transformation is identical — so a shared name is unambiguous, and coding twice is coherent rather than malformed",
 };
 const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -71,6 +72,10 @@ severity = "warn"
             RFC_9112_7_3,
             RFC_9110_10_1_4,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -218,8 +223,9 @@ impl Rule for CompressionAndTransferEncodingConsistent {
             // transit, which is well defined rather than ambiguous: the two
             // namespaces may share a name only where the transformation is
             // identical, and the compression transfer codings are defined by
-            // the algorithm of the content coding they are named after.
-            // cite(RFC 9112 § 7.3): "Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2."
+            // the algorithm of the content coding they are named after. The
+            // overlap sentence is quoted on
+            // `transfer_encoding_coding_redundant`, which is what this reports.
             // cite(RFC 9112 § 7.2): "The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:"
             //
             // § 8.4 goes further and contemplates a coding applied twice,
@@ -242,7 +248,7 @@ impl Rule for CompressionAndTransferEncodingConsistent {
             overlap.sort();
 
             if !overlap.is_empty() {
-                return Some(self.violation(ctx.severity, format!(
+                return Some(ctx.report_with(&TRANSFER_ENCODING_CODING_REDUNDANT, format!(
                         "Compression coding(s) '{}' appear in both Content-Encoding and Transfer-Encoding of the {}; the representation is coded once and then coded again in transit, which is decodable but almost never intended",
                         overlap.join(", "),
                         side
@@ -298,6 +304,26 @@ mod tests {
             tx.response.as_mut().unwrap().headers = hm;
         }
         tx
+    }
+
+    /// The advisory reports as one, and the id says which layer is the
+    /// removable one. `info` is the entry's own ranking: nothing is broken, so
+    /// it sits below the framing entries of the same subject rather than beside
+    /// them.
+    #[test]
+    fn the_overlap_is_the_transit_layers_redundancy() {
+        let tx = make_tx_with_headers(Some("gzip"), Some("gzip, chunked"));
+        let v = crate::test_helpers::run_rule(
+            &CompressionAndTransferEncodingConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "compression_and_transfer_encoding_consistent",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "transfer_encoding_coding_redundant");
+        assert_eq!(v.severity, crate::lint::Severity::Info);
     }
 
     #[rstest]

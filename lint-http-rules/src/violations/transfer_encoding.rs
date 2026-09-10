@@ -22,6 +22,13 @@
 //! quotes the direction of § 6.1 that states it most plainly and the other
 //! direction is the sibling entry's quote.
 //!
+//! **One entry here is not a defect of the sequence at all**, and it is the
+//! only advisory one: a coding written in this field that the representation
+//! already carries in its `Content-Encoding`. Nothing forbids it, and the
+//! reason it can be reported at all is that the two namespaces may share a name
+//! only where the transformation is identical — so `gzip` at both layers is the
+//! same algorithm run twice and not two things that happen to be spelled alike.
+//!
 //! **What is deliberately not here.** Whether a coding name is registered, and
 //! whether a member parses at all, are `transfer_coding_registered`'s findings
 //! and the `token` subject's ids; a value whose quoting never closes is declined
@@ -40,6 +47,15 @@ pub const RFC_9112_6_1: SpecRef = SpecRef {
     section: Some("6.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
     note: "Transfer-Encoding — every requirement this rule enforces is here: chunked at most once, and chunked last (unconditionally for requests, or the connection closes for responses)",
+};
+
+/// Why a name in both fields is one algorithm applied twice rather than a
+/// collision between two registries.
+pub const RFC_9112_7_3: SpecRef = SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.3"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.3",
+    note: "Transfer and content coding names may only overlap where the transformation is identical — so a shared name is unambiguous, and coding twice is coherent rather than malformed",
 };
 
 defects! {
@@ -98,6 +114,32 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: Some(RFC_9112_6_1),
+    }
+
+    /// A coding applied in transit that the representation already carries:
+    /// `Content-Encoding: gzip` with `Transfer-Encoding: gzip, chunked`. The
+    /// bytes are compressed, compressed again, and decompressed twice by a
+    /// recipient that has been told exactly what to do — so nothing here is
+    /// broken, and nothing in either document forbids it.
+    ///
+    /// `info`, and it is the only entry in this subject below `warn`: the other
+    /// three are a message stating where it ends wrongly, and this one is a
+    /// message doing avoidable work. It is the transit layer that is named
+    /// because the transit layer is the removable one — the representation's
+    /// coding is what the resource *is*, and an intermediary re-coding it in
+    /// flight is the party with something to change.
+    ///
+    /// The quoted sentence is what licenses reading the two names as one
+    /// algorithm; without it a shared name could be two registries colliding,
+    /// and the finding would be a guess about a spelling.
+    ///
+    // cite(RFC 9112 § 7.3): "Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2."
+    TRANSFER_ENCODING_CODING_REDUNDANT = {
+        id: "transfer_encoding_coding_redundant",
+        title: "A coding is applied in transit that the representation already carries",
+        message: "",
+        default_severity: Severity::Info,
+        spec: Some(RFC_9112_7_3),
     }
 }
 
