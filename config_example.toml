@@ -1431,6 +1431,10 @@ severity = "warn"
 # Mailbox is followed by something else
 severity = "warn"
 
+[violations.media_type_unregistered]
+# Media type is not one the deployment recognises
+severity = "warn"
+
 [violations.node_ipv4_address_malformed]
 # Node identifier is digits and dots that are not an IPv4 address
 severity = "warn"

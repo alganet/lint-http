@@ -4,18 +4,20 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::media_type::{MEDIA_TYPE_UNREGISTERED, RFC_9110_8_3_1};
+use crate::violations::ViolationDef;
+
+/// One entry, and it is the pair's own: everything this rule reports is a
+/// well-formed `media-type` that the operator's list does not hold. A value
+/// that does not parse is declined here and is the syntax rules' finding.
+static DECLARED: &[&ViolationDef] = &[&MEDIA_TYPE_UNREGISTERED];
 
 pub struct ContentTypeRegistered;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-    note: "`media-type` syntax, the case-insensitivity of its tokens, and the \"ought to be registered with IANA\" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies",
-};
+/// The specification references this rule declares beyond the catalogue's
+/// § 8.3.1, each named so a finding site can cite the one it enforces.
+/// `specifications()` below is built from exactly these, so the docs and the
+/// citations cannot name different text.
 const RFC_6838_4_2_8: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 6838",
     section: Some("4.2.8"),
@@ -104,6 +106,10 @@ allowed = [
         &[RFC_9110_8_3_1, RFC_6838_4_2_8, IANA_MEDIA_TYPES]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -162,8 +168,12 @@ impl Rule for ContentTypeRegistered {
                 // for it: entries can be exact (`text/plain`), a type wildcard
                 // (`image/*`), `*/*`, or a structured-syntax suffix (`+json`). The
                 // wildcard and suffix forms are configuration conveniences with no
-                // basis in any specification.
-                // cite(RFC 9110 § 8.3.1): "Media types ought to be registered with IANA according to the procedures defined in [BCP13]."
+                // basis in any specification. The sentence that motivates the
+                // whole check is quoted on `media_type_unregistered`, which is
+                // what a value reaching the end of this loop reports as — and
+                // it was RFC 6838 § 4.2.8's suffix sentence that sat on the
+                // finding before, a sentence about how one *allowlist entry*
+                // is matched rather than about registration at all.
 
                 for pat in allowed {
                     if pat == "*/*" || pat == &full {
@@ -194,9 +204,8 @@ impl Rule for ContentTypeRegistered {
                     }
                 }
 
-                Some(self.cited(
-                    &RFC_6838_4_2_8,
-                    ctx.severity,
+                Some(ctx.report_with(
+                    &MEDIA_TYPE_UNREGISTERED,
                     format!("Unrecognized media type '{}' in {} header", full, hdr_name),
                 ))
             };
@@ -257,6 +266,28 @@ mod tests {
             }),
         );
         cfg
+    }
+
+    /// The finding is the pair's registry entry, and it carries the
+    /// registration sentence. It used to carry RFC 6838 § 4.2.8's — the
+    /// definition of a structured syntax suffix, which is how a `+json`
+    /// allowlist entry is *matched* and is not what the finding claims.
+    #[test]
+    fn an_unlisted_type_reports_the_registry_entry_and_cites_registration() {
+        let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
+        tx.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("content-type", "text/x-custom")]);
+        let found = crate::test_helpers::run_rule(
+            &ContentTypeRegistered,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &make_cfg(),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, "media_type_unregistered");
+        let cite = found.cite.expect("the entry's citation");
+        assert_eq!(cite.spec, "RFC 9110");
+        assert_eq!(cite.section.as_deref(), Some("8.3.1"));
     }
 
     #[rstest]
