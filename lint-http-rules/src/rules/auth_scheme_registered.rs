@@ -4,7 +4,9 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::auth_scheme::{AUTH_SCHEME_CHARACTER_FORBIDDEN, RFC_9110_11_2};
+use crate::violations::auth_scheme::{
+    AUTH_SCHEME_CHARACTER_FORBIDDEN, AUTH_SCHEME_UNREGISTERED, RFC_9110_11_1, RFC_9110_11_2,
+};
 use crate::violations::challenge::{
     challenge_defect, CHALLENGE_MEMBER_EMPTY, CHALLENGE_SCHEME_MISSING, RFC_9110_11_3,
     RFC_9110_11_6_1,
@@ -28,14 +30,17 @@ pub struct AuthSchemeRegistered;
 /// `credentials_*` entries are what an `Authorization` value fails to be before
 /// any scheme is looked up.
 ///
-/// **What stays this rule's own is the registry question**, which is the whole
-/// of what its name is about: a scheme spelled correctly and absent from the
-/// operator's `allowed` list is not a defect of any production, and no sentence
-/// in RFC 9110 makes it one — § 11.1 says schemes *ought to* be registered.
+/// **The registry question is the whole of what this rule is named for**, and
+/// it is now an entry of the scheme's own subject rather than a sentence this
+/// file words: a scheme spelled correctly and absent from the operator's
+/// `allowed` list is not a defect of any production, and no sentence in
+/// RFC 9110 makes it one — § 11.1 says schemes *ought to* be registered, which
+/// is exactly what the entry carries.
 static DECLARED: &[&ViolationDef] = &[
     &CHALLENGE_MEMBER_EMPTY,
     &CHALLENGE_SCHEME_MISSING,
     &AUTH_SCHEME_CHARACTER_FORBIDDEN,
+    &AUTH_SCHEME_UNREGISTERED,
     &CREDENTIALS_EMPTY,
     &CREDENTIALS_MISSING,
     &CREDENTIALS_CONTROL_CHARACTER_FORBIDDEN,
@@ -44,12 +49,6 @@ static DECLARED: &[&ViolationDef] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_11_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("11.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-11.1",
-    note: "Authentication Scheme — `auth-scheme = token`, and where new schemes are registered",
-};
 const RFC_9110_16_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("16.4.1"),
@@ -170,11 +169,10 @@ impl Rule for AuthSchemeRegistered {
                     // list, not the live IANA registry — the allowlist is the operator's chosen
                     // subset of acceptable (typically registered) schemes, and §16.4.1 is where
                     // registered ones live.
-                    // cite(RFC 9110 § 11.1): "New and existing authentication schemes are specified independently and ought to be registered"
                     // cite(RFC 9110 § 16.4.1): "The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials."
                     if !allowed.contains(&scheme.to_ascii_lowercase()) {
-                        return Some(AuthSchemeRegistered.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &AUTH_SCHEME_UNREGISTERED,
                             format!("Unrecognized auth-scheme '{}' in {}", scheme, hdr_name),
                         ));
                     }
@@ -270,6 +268,31 @@ mod tests {
             }),
         );
         cfg
+    }
+
+    /// The registry question and the grammar question are two entries, and a
+    /// well-formed unknown name reaches the first: `NewScheme` is a `token`, so
+    /// nothing is wrong with it except that this deployment has never heard of
+    /// it. Both directions of the framework answer the same way.
+    #[test]
+    fn a_well_formed_unknown_scheme_is_the_registry_entry() {
+        let mut response = crate::test_helpers::make_test_transaction_with_response(401, &[]);
+        response.response.as_mut().expect("a response").headers =
+            crate::test_helpers::make_headers_from_pairs(&[("www-authenticate", "NewScheme abc=")]);
+        let mut request = crate::test_helpers::make_test_transaction();
+        request.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("authorization", "X-MyAuth abc")]);
+
+        for tx in [response, request] {
+            let found = crate::test_helpers::run_rule(
+                &AuthSchemeRegistered,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &make_cfg(),
+            )
+            .expect("a finding");
+            assert_eq!(found.violation, "auth_scheme_unregistered");
+        }
     }
 
     #[rstest]
