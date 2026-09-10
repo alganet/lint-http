@@ -3150,7 +3150,7 @@ sources:
     snippet: it specified a suffix (in that case, "+xml") to be appended to the base subtype name.
     cited_by:
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 190
+      line: 200
   - label: link_header_valid
     section: § 4.2
     snippet: 'Type and subtype names MUST conform to the following ABNF:'
@@ -5746,12 +5746,6 @@ sources:
       line: 255
     - file: lint-http-rules/src/rules/status_200_vs_204_body_consistent.rs
       line: 171
-  - label: content_type_registered
-    section: § 8.3.1
-    snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
-    cited_by:
-    - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 166
   - label: content_type_valid
     section: § 8.3
     snippet: Although Content-Type is defined as a singleton field, it is sometimes incorrectly generated multiple times, resulting in a combined field value that appears to be a list.
@@ -7355,7 +7349,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_present.rs
       line: 97
     - file: lint-http-rules/src/rules/content_type_registered.rs
-      line: 152
+      line: 158
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 62
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -7808,6 +7802,12 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 220
+  - label: media_type
+    section: § 8.3.1
+    snippet: Media types ought to be registered with IANA according to the procedures defined in [BCP13].
+    cited_by:
+    - file: lint-http-rules/src/violations/media_type.rs
+      line: 53
   - label: multipart_boundary_syntax
     section: § 5.6.6
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
