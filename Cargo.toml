@@ -107,5 +107,5 @@ rustls-native-certs = "0.8"
 
 # Dev
 wiremock = "0.6"
-rstest = "0.26.1"
+rstest = "0.27.0"
 http = "1"
