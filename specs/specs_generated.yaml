@@ -894,60 +894,56 @@ sources:
 - label: RFC 2046
   url: https://www.rfc-editor.org/rfc/rfc2046.html
   fragments:
+  - label: boundary
+    section: § 5.1.1
+    snippet: The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space.
+    cited_by:
+    - file: lint-http-rules/src/violations/boundary.rs
+      line: 77
+  - label: bchars with space
+    section: § 5.1.1
+    snippet: bchars := bcharsnospace / " "
+    cited_by:
+    - file: lint-http-rules/src/violations/boundary.rs
+      line: 60
+  - label: bcharsnospace
+    section: § 5.1.1
+    snippet: bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" / "," / "-" / "." / "/" / ":" / "=" / "?"
+    cited_by:
+    - file: lint-http-rules/src/violations/boundary.rs
+      line: 61
   - label: multipart_boundary_syntax
     section: § 5.1.1
     snippet: All subtypes of "multipart" must use this syntax.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 240
+      line: 242
   - label: multipart_boundary_syntax (2)
-    section: § 5.1.1
-    snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
-    cited_by:
-    - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 432
-    - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
-      line: 121
-  - label: multipart_boundary_syntax (3)
     section: § 5.1.1
     snippet: The boundary delimiter line is then defined as a line consisting entirely of two hyphen characters ("-", decimal value 45) followed by the boundary parameter value from the Content-Type header field, optional linear whitespace, and a terminating CRLF.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 433
+      line: 431
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 222
-  - label: multipart_boundary_syntax (4)
+  - label: multipart_boundary_syntax (3)
     section: § 5.1.1
     snippet: The grammar for parameters on the Content-type field is such that it is often necessary to enclose the boundary parameter values in quotes on the Content-type line.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 305
-  - label: multipart_boundary_syntax (5)
-    section: § 5.1.1
-    snippet: The only mandatory global parameter for the "multipart" media type is the boundary parameter, which consists of 1 to 70 characters from a set of characters known to be very robust through mail gateways, and NOT ending with white space.
-    cited_by:
-    - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 394
-  - label: multipart_boundary_syntax (6)
-    section: § 5.1.1
-    snippet: bchars := bcharsnospace / " "
-    cited_by:
-    - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 356
-  - label: multipart_boundary_syntax (7)
-    section: § 5.1.1
-    snippet: bcharsnospace := DIGIT / ALPHA / "'" / "(" / ")" / "+" / "_" / "," / "-" / "." / "/" / ":" / "=" / "?"
-    cited_by:
-    - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 357
-  - label: multipart_boundary_syntax (8)
+      line: 307
+  - label: boundary production
     section: § 5.1.1
     snippet: boundary := 0*69<bchars> bcharsnospace
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 393
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 414
+      line: 413
+    - file: lint-http-rules/src/violations/boundary.rs
+      line: 76
+    - file: lint-http-rules/src/violations/boundary.rs
+      line: 96
   - label: multipart_content_type_and_body_consistent
     section: § 5.1.1
     snippet: An exact match of the entire candidate line is not required; it is sufficient that the boundary appear in its entirety following the CRLF.
@@ -970,35 +966,43 @@ sources:
       line: 348
   - label: multipart_content_type_and_body_consistent (4)
     section: § 5.1.1
+    snippet: The Content-Type field for multipart entities requires one parameter, "boundary".
+    cited_by:
+    - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
+      line: 121
+    - file: lint-http-rules/src/violations/boundary.rs
+      line: 45
+  - label: multipart_content_type_and_body_consistent (5)
+    section: § 5.1.1
     snippet: The boundary delimiter MUST occur at the beginning of a line, i.e., following a CRLF, and the initial CRLF is considered to be attached to the boundary delimiter line rather than part of the preceding part.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 242
-  - label: multipart_content_type_and_body_consistent (5)
+  - label: multipart_content_type_and_body_consistent (6)
     section: § 5.1.1
     snippet: The boundary delimiter line following the last body part is a distinguished delimiter that indicates that no further body parts will follow.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 334
-  - label: multipart_content_type_and_body_consistent (6)
+  - label: multipart_content_type_and_body_consistent (7)
     section: § 5.1.1
     snippet: The use of the "multipart" media type with only a single body part may be useful in certain contexts, and is explicitly permitted.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 335
-  - label: multipart_content_type_and_body_consistent (7)
+  - label: multipart_content_type_and_body_consistent (8)
     section: § 5.1.1
     snippet: close-delimiter := delimiter "--"
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 279
-  - label: multipart_content_type_and_body_consistent (8)
+  - label: multipart_content_type_and_body_consistent (9)
     section: § 5.1.1
     snippet: dash-boundary := "--" boundary
     cited_by:
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 221
-  - label: multipart_content_type_and_body_consistent (9)
+  - label: multipart_content_type_and_body_consistent (10)
     section: § 5.1.1
     snippet: implementations must ignore anything that appears before the first boundary delimiter line or after the last one.
     cited_by:
@@ -5405,7 +5409,7 @@ sources:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 142
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 158
+      line: 160
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 98
   - label: charset_registered (2)
@@ -7059,7 +7063,7 @@ sources:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 260
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 189
+      line: 191
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 151
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -7297,7 +7301,7 @@ sources:
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 193
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 274
+      line: 276
   - label: lint-http-rules/src/helpers/media_type.rs (3)
     section: § 5.6.6
     snippet: parameter-name  = token
@@ -7341,7 +7345,7 @@ sources:
     - file: lint-http-rules/src/rules/expect_header_valid.rs
       line: 500
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 264
+      line: 266
   - label: lint-http-rules/src/helpers/media_type.rs (5)
     section: § 8.3.1
     snippet: The type and subtype tokens are case-insensitive.
@@ -7359,7 +7363,7 @@ sources:
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
       line: 211
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 241
+      line: 243
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
       line: 44
     - file: lint-http-rules/src/rules/problem_details_content_type.rs
@@ -7821,7 +7825,7 @@ sources:
     snippet: A parameter value that matches the token production can be transmitted either as a token or within a quoted-string.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 303
+      line: 305
   - label: multipart_boundary_syntax (2)
     section: § 5.6.6
     snippet: Parameter values might or might not be case-sensitive, depending on the semantics of the parameter name.
@@ -7833,13 +7837,13 @@ sources:
     snippet: The quoted and unquoted values are equivalent.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 304
+      line: 306
   - label: multipart_boundary_syntax (4)
     section: § 8.3.3
     snippet: All multipart types share a common syntax, as defined in Section 5.1.1 of [RFC2046], and include a boundary parameter as part of the media type value.
     cited_by:
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
-      line: 239
+      line: 241
     - file: lint-http-rules/src/rules/multipart_content_type_and_body_consistent.rs
       line: 119
   - label: multipart_content_type_and_body_consistent
