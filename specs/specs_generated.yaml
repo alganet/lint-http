@@ -5419,7 +5419,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 260
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 152
+      line: 166
   - label: compression_and_transfer_encoding_consistent (2)
     section: § 10.1.4
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
@@ -5429,7 +5429,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 241
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 134
+      line: 148
   - label: compression_and_transfer_encoding_consistent (3)
     section: § 8.4
     snippet: An origin server MAY respond with a status code of 415 (Unsupported Media Type) if a representation in the request message has a content coding that is not acceptable.
@@ -5563,7 +5563,7 @@ sources:
     - file: lint-http-rules/src/rules/connection_header_tokens_valid.rs
       line: 46
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 166
+      line: 180
   - label: connection_header_tokens_valid (2)
     section: § 7.6.1
     snippet: The "Connection" header field allows the sender to list desired control options for the current connection.
@@ -6549,7 +6549,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 246
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 136
+      line: 150
   - label: lint-http-rules/src/helpers/accept_ranges.rs (5)
     section: § 5.6.1.2
     snippet: In contrast, the following values would be invalid, since at least one non-empty element is required by the example-list production
@@ -7139,7 +7139,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 261
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 153
+      line: 167
     - file: lint-http-rules/src/rules/x_forwarded_consistent.rs
       line: 80
   - label: lint-http-rules/src/helpers/headers.rs (9)
@@ -7245,7 +7245,7 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 443
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 116
+      line: 130
     - file: lint-http-rules/src/violations/quoted_string.rs
       line: 43
   - label: lint-http-rules/src/helpers/mailbox.rs
@@ -9714,21 +9714,21 @@ sources:
 - label: RFC 9112
   url: https://www.rfc-editor.org/rfc/rfc9112.html
   fragments:
-  - label: compression_and_transfer_encoding_consistent
+  - label: chunked last, unconditionally
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 115
-    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 258
-  - label: compression_and_transfer_encoding_consistent (2)
+    - file: lint-http-rules/src/violations/transfer_encoding.rs
+      line: 94
+  - label: compression_and_transfer_encoding_consistent
     section: § 6.1
     snippet: Unlike Content-Encoding (Section 8.4.1 of [HTTP]), Transfer-Encoding is a property of the message, not of the representation.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 213
-  - label: compression_and_transfer_encoding_consistent (3)
+  - label: compression_and_transfer_encoding_consistent (2)
     section: § 7
     snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
     cited_by:
@@ -9741,14 +9741,14 @@ sources:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 404
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 158
-  - label: compression_and_transfer_encoding_consistent (4)
+      line: 172
+  - label: compression_and_transfer_encoding_consistent (3)
     section: § 7.2
     snippet: 'The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:'
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 223
-  - label: compression_and_transfer_encoding_consistent (5)
+  - label: compression_and_transfer_encoding_consistent (4)
     section: § 7.3
     snippet: Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2.
     cited_by:
@@ -9837,7 +9837,7 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 298
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 298
+      line: 311
   - label: host_and_authority_consistent
     section: § 3.2.2
     snippet: When an origin server receives a request with an absolute-form of request-target, the origin server MUST ignore the received Host header field (if any) and instead use the host information of the request-target.
@@ -10278,30 +10278,30 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 270
-  - label: transfer_encoding_chunked_final
+  - label: transfer_encoding
     section: § 6.1
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).
     cited_by:
-    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 197
-  - label: transfer_encoding_chunked_final (2)
+    - file: lint-http-rules/src/violations/transfer_encoding.rs
+      line: 55
+  - label: chunked last or the connection closes
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.
     cited_by:
-    - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 213
-  - label: transfer_encoding_chunked_final (3)
+    - file: lint-http-rules/src/violations/transfer_encoding.rs
+      line: 74
+  - label: transfer_encoding_chunked_final
     section: § 9.6
     snippet: A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 233
-  - label: transfer_encoding_chunked_final (4)
+      line: 246
+  - label: transfer_encoding_chunked_final (2)
     section: § 9.6
     snippet: The "close" connection option is defined as a signal that the sender will close this connection after completion of the response.
     cited_by:
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
-      line: 167
+      line: 181
 - label: RFC 9113
   url: https://www.rfc-editor.org/rfc/rfc9113.html
   fragments:

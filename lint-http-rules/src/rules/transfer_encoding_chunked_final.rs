@@ -4,18 +4,28 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::transfer_encoding::{
+    RFC_9112_6_1, TRANSFER_ENCODING_CHUNKED_DUPLICATED, TRANSFER_ENCODING_CHUNKED_MISSING,
+    TRANSFER_ENCODING_CHUNKED_POSITION_INVALID,
+};
+use crate::violations::ViolationDef;
+
+/// § 6.1's paragraph, one entry per way of getting the sequence wrong: the
+/// coding applied twice, the coding applied and not last, and the coding never
+/// applied where something else was. The section itself is the catalogue's, so
+/// the quotes sit on the defs and this rule cites the readings it makes.
+static DECLARED: &[&ViolationDef] = &[
+    &TRANSFER_ENCODING_CHUNKED_DUPLICATED,
+    &TRANSFER_ENCODING_CHUNKED_POSITION_INVALID,
+    &TRANSFER_ENCODING_CHUNKED_MISSING,
+];
 
 pub struct TransferEncodingChunkedFinal;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("6.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
-    note: "Transfer-Encoding — every requirement this rule enforces is here: chunked at most once, and chunked last (unconditionally for requests, or the connection closes for responses)",
-};
+/// The specification references this rule declares beyond the catalogue's
+/// § 6.1, each named so a finding site can cite the one it enforces.
+/// `specifications()` below is built from exactly these, so the docs and the
+/// citations cannot name different text.
 const RFC_9112_9_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
     section: Some("9.6"),
@@ -56,6 +66,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9112_6_1, RFC_9112_9_6, RFC_9112_7_1, RFC_9110_10_1_4]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -194,12 +208,10 @@ impl Rule for TransferEncodingChunkedFinal {
             // specific defect wins -- and ahead of the response's close
             // exemption, because this sentence offers no alternative. Nothing
             // in § 6.1 lets a closed connection excuse chunking twice.
-            // cite(RFC 9112 § 6.1): "A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed)."
             let chunked_count = codings.iter().filter(|c| *c == "chunked").count();
             if chunked_count > 1 {
-                return Some(self.cited(
-                    &RFC_9112_6_1,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &TRANSFER_ENCODING_CHUNKED_DUPLICATED,
                     format!(
                         "The chunked transfer coding must not be applied more than once: \
                              codings found '{}'",
@@ -209,8 +221,9 @@ impl Rule for TransferEncodingChunkedFinal {
             }
 
             // § 6.1 gives a response two ways to satisfy the same requirement,
-            // and the rule knew only one of them:
-            // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection."
+            // and the rule knew only one of them — the sentence is quoted on
+            // `transfer_encoding_chunked_position_invalid`, which is the defect
+            // this exemption stands in front of.
             //
             // So `Transfer-Encoding: chunked, gzip` on a response was reported
             // as a violation of a requirement the sender may have met the other
@@ -238,7 +251,7 @@ impl Rule for TransferEncodingChunkedFinal {
             // If 'chunked' appears anywhere other than the final coding it's a violation
             if let Some(pos) = codings.iter().position(|c| c == "chunked") {
                 if pos != codings.len() - 1 {
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&TRANSFER_ENCODING_CHUNKED_POSITION_INVALID, format!(
                             "Transfer-Encoding 'chunked' must be the final coding: codings found '{}'",
                             codings.join(", ")
                         )));
@@ -253,19 +266,19 @@ impl Rule for TransferEncodingChunkedFinal {
             //     Transfer-Encoding: gzip
             //
             // passed. It applies a transfer coding other than chunked and never
-            // frames the result, which is the case the sentence exists for.
+            // frames the result, which is the case the sentence exists for —
+            // and the sentence is quoted on
+            // `transfer_encoding_chunked_missing`, which is what this reports.
             // (A test asserted this was fine.)
-            // cite(RFC 9112 § 6.1): "If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed."
             //
             // Requests only. The response form of the sentence offers a second
-            // way to satisfy it, handled below.
+            // way to satisfy it, handled above.
             if is_request
                 && codings.iter().any(|c| c != "chunked")
                 && codings.last().map(String::as_str) != Some("chunked")
             {
-                return Some(self.cited(
-                    &RFC_9112_6_1,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &TRANSFER_ENCODING_CHUNKED_MISSING,
                     format!(
                         "A request that applies any transfer coding other than chunked must apply \
                              chunked as the final coding: codings found '{}'",
@@ -354,6 +367,31 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    /// One paragraph, three ids, and the sequence decides which — not the
+    /// message direction. `chunked, gzip` answers the same way whether a
+    /// request or a response wrote it, which is the whole argument for the
+    /// entries being named after the sequence.
+    #[rstest]
+    #[case("chunked, chunked", "transfer_encoding_chunked_duplicated")]
+    #[case("chunked, gzip", "transfer_encoding_chunked_position_invalid")]
+    #[case("gzip", "transfer_encoding_chunked_missing")]
+    fn each_sequence_reports_its_own_id(#[case] value: &str, #[case] id: &str) {
+        let tx = crate::test_helpers::make_test_transaction_with_headers(&[(
+            "transfer-encoding",
+            value,
+        )]);
+        let found = crate::test_helpers::run_rule(
+            &TransferEncodingChunkedFinal,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "transfer_encoding_chunked_final",
+            ]),
+        )
+        .expect("a finding");
+        assert_eq!(found.violation, id, "{value}");
     }
 
     #[test]
