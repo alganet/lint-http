@@ -4,6 +4,10 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_coding::{
+    CONTENT_CODING_IDENTITY_FORBIDDEN, CONTENT_CODING_UNREGISTERED,
+    CONTENT_CODING_WILDCARD_FORBIDDEN, RFC_9110_12_5_3, RFC_9110_8_4, RFC_9110_8_4_1,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -27,29 +31,15 @@ pub struct ContentEncodingRegistered;
 static DECLARED: &[&ViolationDef] = &[
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
+    &CONTENT_CODING_WILDCARD_FORBIDDEN,
+    &CONTENT_CODING_IDENTITY_FORBIDDEN,
+    &CONTENT_CODING_UNREGISTERED,
 ];
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
+/// The registry this rule is named after, and the only reference here the
+/// catalogue does not hold: the three RFC 9110 sections a finding cites live
+/// on the `content_coding` defects. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4",
-    note: "`Content-Encoding = #content-coding`, and the reservation of `identity` for Accept-Encoding — the reason it is flagged here",
-};
-const RFC_9110_8_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.4.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.4.1",
-    note: "`content-coding = token`, case-insensitive, and the \"ought to be registered\" guidance that motivates the rule without being what it checks",
-};
-const RFC_9110_12_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.5.3"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.3",
-    note: "The wider Accept-Encoding grammar (`codings = content-coding / \"identity\" / \"*\"`), which is why the two headers are checked against different vocabularies",
-};
 const IANA_HTTP_PARAMETERS: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "IANA HTTP Parameters",
     section: None,
@@ -157,11 +147,10 @@ impl Rule for ContentEncodingRegistered {
                         // preferences are expressed. In Content-Encoding there is
                         // nothing for it to match: that field states what was actually
                         // applied.
-                        // cite(RFC 9110 § 12.5.3): "The asterisk "*" symbol in an Accept-Encoding field matches any available content coding not explicitly listed in the field."
                         if is_accept {
                             continue;
                         }
-                        return Some(ContentEncodingRegistered.violation(ctx.severity, format!(
+                        return Some(ctx.report_with(&CONTENT_CODING_WILDCARD_FORBIDDEN, format!(
                                     "'*' is not a content-coding and is only meaningful in Accept-Encoding, not in {}",
                                     hdr_name
                                 )));
@@ -169,9 +158,8 @@ impl Rule for ContentEncodingRegistered {
                     // `identity` is likewise Accept-Encoding vocabulary — the way to say
                     // "no encoding". Naming it in Content-Encoding claims a transformation
                     // that by definition does nothing, so the spec reserves it away.
-                    // cite(RFC 9110 § 8.4): "Note that the coding named "identity" is reserved for its special role in Accept-Encoding and thus SHOULD NOT be included."
                     if !is_accept && token.eq_ignore_ascii_case("identity") {
-                        return Some(ContentEncodingRegistered.violation(ctx.severity, format!(
+                        return Some(ctx.report_with(&CONTENT_CODING_IDENTITY_FORBIDDEN, format!(
                                     "'identity' is reserved for Accept-Encoding and SHOULD NOT be sent in {}",
                                     hdr_name
                                 )));
@@ -196,10 +184,9 @@ impl Rule for ContentEncodingRegistered {
                     // in the media-type sibling, "registered" here means "in the
                     // operator's list": nothing consults the registry the rule is named
                     // after, and the sentence below is an "ought to" in any case.
-                    // cite(RFC 9110 § 8.4.1): "All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry","
                     if !allowed.contains(&token.to_ascii_lowercase()) {
-                        return Some(ContentEncodingRegistered.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &CONTENT_CODING_UNREGISTERED,
                             format!(
                                 "Unrecognized content-coding '{}' in {} header",
                                 token, hdr_name
@@ -916,13 +903,30 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        let v = v.unwrap();
-        assert_eq!(v.severity, crate::lint::Severity::Error);
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "content_coding_unregistered");
         assert_eq!(
             v.message,
             "Unrecognized content-coding 'x-foo' in Content-Encoding header"
         );
+        // The rule's own `severity = "error"` above is no longer what this
+        // finding reports at: a converted site takes the entry's default, and
+        // an operator who wants it louder says so under the id.
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
+
+        crate::test_helpers::override_violation_severity(
+            &mut cfg,
+            "content_coding_unregistered",
+            "error",
+        );
+        let raised = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &cfg,
+        )
+        .expect("a finding");
+        assert_eq!(raised.severity, crate::lint::Severity::Error);
         Ok(())
     }
 
