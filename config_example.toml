@@ -1535,6 +1535,10 @@ severity = "warn"
 # Weight is not a qvalue
 severity = "warn"
 
+[violations.te_chunked_forbidden]
+# TE names the chunked coding, which cannot be declined
+severity = "warn"
+
 [violations.te_member_forbidden]
 # A request's TE holds a member other than trailers
 severity = "error"
@@ -1566,6 +1570,14 @@ severity = "warn"
 [violations.token_whitespace_or_control_forbidden]
 # Token holds whitespace or a control character
 severity = "error"
+
+[violations.transfer_coding_parameter_forbidden]
+# A coding that defines no parameters carries one
+severity = "warn"
+
+[violations.transfer_coding_unregistered]
+# Transfer coding is not one the deployment recognises
+severity = "warn"
 
 [violations.transfer_encoding_chunked_duplicated]
 # The chunked transfer coding is applied more than once

@@ -15,6 +15,13 @@
 //! and it exists only on those versions: over HTTP/1.1 a `TE: gzip` is an
 //! ordinary well-formed value.
 //!
+//! **A second entry arrived from a different direction**: RFC 9112 § 7.4
+//! forbids a client from naming `chunked` here, on every version, because
+//! chunked is not something a recipient may decline. Both entries are about
+//! what this field may say rather than about the productions it says it in —
+//! which is what makes them the field's and not
+//! [`transfer_coding`](crate::violations::transfer_coding)'s.
+//!
 //! **The subject is the field, and only the part of it those two documents
 //! narrow.** Whether a member derives from `t-codings` at all — its `token`, its
 //! `weight`, its `transfer-parameter` — is `te_header_valid`'s reading and is
@@ -28,7 +35,17 @@
 // cite(RFC 9114 § 4.2, label: the TE exception): "The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers"."
 
 use crate::lint::Severity;
+use crate::rules::SpecRef;
 use crate::violations::defects;
+
+/// The field's own section in RFC 9112: what it is for, the ranking `q` it
+/// admits, and the one coding name it may not carry.
+pub const RFC_9112_7_4: SpecRef = SpecRef {
+    spec: "RFC 9112",
+    section: Some("7.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4",
+    note: "TE — the codings a client will accept, the `q` pseudo-parameter that ranks them, and the MUST NOT on naming `chunked`",
+};
 
 defects! {
     /// A member of a request's `TE` that is not `trailers`, on a version whose
@@ -56,6 +73,26 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: None,
+    }
+
+    /// `chunked` named in a `TE`. The name is a real transfer coding and is
+    /// ordinary in `Transfer-Encoding`; what makes it wrong here is that the
+    /// field states what a client is *willing* to accept, and chunked is not
+    /// something a client may decline — so naming it states nothing and
+    /// occupies a list a recipient reads for preferences.
+    ///
+    /// The entry is the field's rather than the coding's, which is the line
+    /// [`crate::violations::transfer_coding`] draws: a coding that defines no
+    /// parameters defines none in either field, but this word is admissible in
+    /// one field and forbidden in the other.
+    ///
+    // cite(RFC 9112 § 7.4): "A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients."
+    TE_CHUNKED_FORBIDDEN = {
+        id: "te_chunked_forbidden",
+        title: "TE names the chunked coding, which cannot be declined",
+        message: "A client must not send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9112_7_4),
     }
 }
 

@@ -25,11 +25,12 @@ Validate `Transfer-Encoding` and `TE` header values: transfer-coding names must 
 ## Specifications
 
 - [RFC 9112 §6.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1): Transfer-Encoding = #transfer-coding, and the 501 a recipient owes a coding it does not understand
-- [RFC 9112 §7](https://www.rfc-editor.org/rfc/rfc9112.html#section-7): Transfer codings: the names are case-insensitive and 'ought to be' registered — the whole of this rule's strength
+- [RFC 9112 §7](https://www.rfc-editor.org/rfc/rfc9112.html#section-7): Transfer Codings — names are case-insensitive and ought to be registered; §7.3 puts registration behind IETF Review, which is why an unrecognised name is a configuration question
 - [RFC 9112 §7.1](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1): Chunked, which likewise defines no parameters
-- [RFC 9112 §7.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2): The five compression codings, which define no parameters — §7.1 says the same of chunked
-- [RFC 9112 §7.4](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4): Negotiating transfer codings: chunked is forbidden in TE, an empty TE is conforming, and the q is a rank
+- [RFC 9112 §7.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2): The compression transfer codings, and the sentence saying they define no parameters and that a parameter's presence SHOULD be treated as an error
+- [RFC 9112 §7.4](https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4): TE — the codings a client will accept, the `q` pseudo-parameter that ranks them, and the MUST NOT on naming `chunked`
 - [RFC 9110 §10.1.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4): TE, and the grammar both fields share — including the quoted-string a transfer-parameter may carry
+- [RFC 9110 §5.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.4): `quoted-string = DQUOTE *( qdtext / quoted-pair ) DQUOTE` — the two delimiters, the class between them, and the backslash escape
 - [IANA HTTP Parameters](https://www.iana.org/assignments/http-parameters/http-parameters.xhtml#transfer-coding): The registry this rule is named after and does not read: names are checked against the configured 'allowed' list instead
 - [RFC 9110 §5.6.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2): Tokens — `token = 1*tchar`, and the fifteen punctuation marks besides the digits and letters that `tchar` admits
 
