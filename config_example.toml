@@ -1299,6 +1299,10 @@ severity = "warn"
 # Weakness indicator is not written W/
 severity = "warn"
 
+[violations.field_connection_specific_forbidden]
+# A connection-specific field is written on a version that has none
+severity = "error"
+
 [violations.field_line_duplicated]
 # A field is written on more lines than its definition allows
 severity = "warn"

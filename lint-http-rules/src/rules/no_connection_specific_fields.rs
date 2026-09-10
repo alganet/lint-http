@@ -5,6 +5,13 @@
 use crate::helpers::headers::combined_field_value_as_written;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::FIELD_CONNECTION_SPECIFIC_FORBIDDEN;
+use crate::violations::ViolationDef;
+
+/// Presence, and nothing else: every field this rule reports is reported for
+/// being written at all. The `TE` a request may carry is the one field whose
+/// *value* is measured, and that half is not this entry's — see `check_te`.
+static DECLARED: &[&ViolationDef] = &[&FIELD_CONNECTION_SPECIFIC_FORBIDDEN];
 
 /// The connection-specific field names, as the two governing documents reach
 /// them.
@@ -139,7 +146,7 @@ impl NoConnectionSpecificFields {
         governing: ConnectionlessVersion,
         direction: Direction,
         headers: &hyper::HeaderMap,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // Presence is the whole defect, so the value is never read: what both
         // documents forbid is generating a message that *contains* the field.
@@ -152,8 +159,8 @@ impl NoConnectionSpecificFields {
         // cite(RFC 9114 § 4.2): "An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed."
         for &name in CONNECTION_SPECIFIC_FIELDS {
             if headers.contains_key(name) {
-                return Some(self.violation(
-                    severity,
+                return Some(ctx.report_with(
+                    &FIELD_CONNECTION_SPECIFIC_FORBIDDEN,
                     format!(
                         "{} {} carries the connection-specific header field '{}'; \
                          {} makes such a message malformed",
@@ -166,7 +173,7 @@ impl NoConnectionSpecificFields {
             }
         }
 
-        self.check_te(governing, direction, headers, severity)
+        self.check_te(governing, direction, headers, ctx)
     }
 
     /// The one field both documents take back out of the set, and only for one
@@ -179,7 +186,7 @@ impl NoConnectionSpecificFields {
         governing: ConnectionlessVersion,
         direction: Direction,
         headers: &hyper::HeaderMap,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // A response is not the request the exception is written for, so the
         // field is connection-specific there like the five above it and the
@@ -191,9 +198,8 @@ impl NoConnectionSpecificFields {
         // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
         if direction == Direction::Response {
             if headers.contains_key("te") {
-                return Some(self.cited(
-                    &RFC_9110_10_1_4,
-                    severity,
+                return Some(ctx.report_with(
+                    &FIELD_CONNECTION_SPECIFIC_FORBIDDEN,
                     format!(
                         "{} response carries a TE header field; the exception {} makes is \
                          for a request, so in a response TE is a connection-specific field \
@@ -246,7 +252,7 @@ impl NoConnectionSpecificFields {
             .find(|member| !member.eq_ignore_ascii_case("trailers"))?;
 
         Some(self.violation(
-            severity,
+            ctx.severity,
             format!(
                 "{} request's TE header field holds '{}'; the only value {} permits it \
                  to contain is 'trailers'",
@@ -320,6 +326,10 @@ severity = "error"
             RFC_9110_10_1_4,
             RFC_5234_2_3,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -399,19 +409,16 @@ impl Rule for NoConnectionSpecificFields {
                     governing,
                     Direction::Request,
                     &tx.request.headers,
-                    ctx.severity,
+                    ctx,
                 ) {
                     return Some(violation);
                 }
             }
 
             if let Some((governing, resp)) = response {
-                if let Some(violation) = self.check_field_section(
-                    governing,
-                    Direction::Response,
-                    &resp.headers,
-                    ctx.severity,
-                ) {
+                if let Some(violation) =
+                    self.check_field_section(governing, Direction::Response, &resp.headers, ctx)
+                {
                     return Some(violation);
                 }
             }
@@ -739,6 +746,23 @@ mod tests {
                  connection-specific field like any other and the message is malformed"
             )
         );
+    }
+
+    /// One id for both shapes of presence, because both are one defect: a
+    /// field the version has no use for, written anyway. The `TE` of a response
+    /// joins the five names rather than getting an entry of its own — what
+    /// separates it in the *message* is which sentence explains it, not what is
+    /// wrong.
+    #[test]
+    fn presence_is_one_id_however_the_field_reached_the_section() {
+        for v in [
+            request("HTTP/2.0", &[("connection", "keep-alive")]).expect("violation"),
+            exchange("HTTP/3.0", "HTTP/3.0", &[("te", "trailers")]).expect("violation"),
+        ] {
+            assert_eq!(v.violation, "field_connection_specific_forbidden");
+            assert_eq!(v.severity, crate::lint::Severity::Error);
+            assert!(v.cite.is_none(), "the governing section is per version");
+        }
     }
 
     // --- Order, scope, config ---
