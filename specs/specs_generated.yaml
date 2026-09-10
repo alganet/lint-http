@@ -4839,7 +4839,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_encoding_parameter_valid.rs
       line: 220
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 142
+      line: 147
   - label: accept_encoding_present
     section: § 12.5.3
     snippet: 'Accept-Encoding = #( codings [ weight ] )'
@@ -5415,7 +5415,7 @@ sources:
     snippet: transfer-coding    = token *( OWS ";" OWS transfer-parameter )
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 182
+      line: 187
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 260
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -5425,7 +5425,7 @@ sources:
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 183
+      line: 188
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 241
     - file: lint-http-rules/src/rules/transfer_encoding_chunked_final.rs
@@ -5435,13 +5435,13 @@ sources:
     snippet: An origin server MAY respond with a status code of 415 (Unsupported Media Type) if a representation in the request message has a content coding that is not acceptable.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 114
+      line: 119
   - label: compression_and_transfer_encoding_consistent (4)
     section: § 8.4
     snippet: 'Content-Encoding = #content-coding'
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 141
+      line: 146
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
       line: 117
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
@@ -5451,25 +5451,25 @@ sources:
     snippet: If one or more encodings have been applied to a representation, the sender that applied the encodings MUST generate a Content-Encoding header field that lists the content codings in the order in which they were applied.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 237
+      line: 243
   - label: compression_and_transfer_encoding_consistent (6)
     section: § 8.4
     snippet: Such a content coding would only be listed if, for some bizarre reason, it is applied a second time to form the representation.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 230
+      line: 236
   - label: compression_and_transfer_encoding_consistent (7)
     section: § 8.4
     snippet: Unlike Transfer-Encoding (Section 6.1 of [HTTP/1.1]), the codings listed in Content-Encoding are a characteristic of the representation; the representation is defined in terms of the coded form, and all other metadata about the representation is about the coded form unless otherwise noted in the metadata definition.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 214
+      line: 219
   - label: compression_and_transfer_encoding_consistent (8)
     section: § 8.4.1
     snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 161
+      line: 166
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 199
   - label: conditional_headers_consistent
@@ -7121,9 +7121,9 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 147
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 160
+      line: 165
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 191
+      line: 196
     - file: lint-http-rules/src/rules/host_header.rs
       line: 228
     - file: lint-http-rules/src/rules/if_modified_since_date_syntax.rs
@@ -9719,21 +9719,21 @@ sources:
     snippet: If any transfer coding other than chunked is applied to a request's content, the sender MUST apply chunked as the final transfer coding to ensure that the message is properly framed.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 115
+      line: 120
     - file: lint-http-rules/src/violations/transfer_encoding.rs
-      line: 94
+      line: 110
   - label: compression_and_transfer_encoding_consistent
     section: § 6.1
     snippet: Unlike Content-Encoding (Section 8.4.1 of [HTTP]), Transfer-Encoding is a property of the message, not of the representation.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 213
+      line: 218
   - label: compression_and_transfer_encoding_consistent (2)
     section: § 7
     snippet: All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 192
+      line: 197
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 115
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -9747,13 +9747,7 @@ sources:
     snippet: 'The following transfer coding names for compression are defined by the same algorithm as their corresponding content coding:'
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 223
-  - label: compression_and_transfer_encoding_consistent (4)
-    section: § 7.3
-    snippet: Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2.
-    cited_by:
-    - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
-      line: 222
+      line: 229
   - label: content_length_vs_transfer_encoding
     section: § 6.3
     snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding
@@ -10283,13 +10277,19 @@ sources:
     snippet: A sender MUST NOT apply the chunked transfer coding more than once to a message body (i.e., chunking an already chunked message is not allowed).
     cited_by:
     - file: lint-http-rules/src/violations/transfer_encoding.rs
-      line: 55
+      line: 71
   - label: chunked last or the connection closes
     section: § 6.1
     snippet: If any transfer coding other than chunked is applied to a response's content, the sender MUST either apply chunked as the final transfer coding or terminate the message by closing the connection.
     cited_by:
     - file: lint-http-rules/src/violations/transfer_encoding.rs
-      line: 74
+      line: 90
+  - label: transfer_encoding (2)
+    section: § 7.3
+    snippet: Names of transfer codings MUST NOT overlap with names of content codings (Section 8.4.1 of [HTTP]) unless the encoding transformation is identical, as is the case for the compression codings defined in Section 7.2.
+    cited_by:
+    - file: lint-http-rules/src/violations/transfer_encoding.rs
+      line: 136
   - label: transfer_encoding_chunked_final
     section: § 9.6
     snippet: A sender SHOULD send a Connection header field (Section 7.6.1 of [HTTP]) containing the "close" connection option when it intends to close a connection.
