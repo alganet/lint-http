@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::charset::{CHARSET_EMPTY, CHARSET_UNREGISTERED, RFC_9110_8_3_2};
 use crate::violations::parameter::{PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6};
 use crate::violations::quoted_pair::QUOTED_PAIR_MALFORMED;
 use crate::violations::quoted_string::{
@@ -32,6 +33,8 @@ pub struct CharsetRegistered;
 /// charset name of nothing. One is § 5.6.6's defect and the other is § 8.3.2's,
 /// and the `charset` subject that owns the second is unwritten.
 static DECLARED: &[&ViolationDef] = &[
+    &CHARSET_EMPTY,
+    &CHARSET_UNREGISTERED,
     &PARAMETER_VALUE_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
@@ -41,15 +44,10 @@ static DECLARED: &[&ViolationDef] = &[
     &QUOTED_STRING_CONTROL_CHARACTER_FORBIDDEN,
 ];
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_8_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.3.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.2",
-    note: "Charset: what the parameter means, that names are matched case-insensitively, and the \"ought to be registered\" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies",
-};
+/// The specification references this rule declares beyond the catalogue's
+/// § 8.3.2, each named so a finding site can cite the one it enforces.
+/// `specifications()` below is built from exactly these, so the docs and the
+/// citations cannot name different text.
 const RFC_2978_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 2978",
     section: Some("2.3"),
@@ -270,8 +268,8 @@ impl Rule for CharsetRegistered {
                             // waits for a `charset` subject — the two look like
                             // one finding and are two.
                             if value.is_empty() {
-                                return Some(CharsetRegistered.violation(
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    &CHARSET_EMPTY,
                                     format!(
                                         "Invalid Content-Type in {}: empty 'charset' parameter",
                                         which
@@ -281,15 +279,17 @@ impl Rule for CharsetRegistered {
 
                             // The rule's name says IANA; the code says the
                             // operator's `allowed` array. The registry is never
-                            // consulted — there is no lookup — so this cite is
-                            // the *motivation*, and "ought to" is why the whole
-                            // rule is a policy rather than a conformance check.
-                            // The fold is the matching rule, not a convenience.
-                            // cite(RFC 9110 § 8.3.2): "Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978]."
+                            // consulted — there is no lookup — and the "ought
+                            // to" that motivates the whole rule is quoted on
+                            // `charset_unregistered`, which is what this
+                            // reports. The fold is the matching rule, not a
+                            // convenience, and that sentence stays here because
+                            // it is what this comparison does rather than what
+                            // the defect is.
                             // cite(RFC 9110 § 8.3.2): "In both cases, charset names are matched case-insensitively."
                             if !config.allowed.contains(&value.to_ascii_lowercase()) {
-                                return Some(CharsetRegistered.violation(
-                                    ctx.severity,
+                                return Some(ctx.report_with(
+                                    &CHARSET_UNREGISTERED,
                                     format!("Unrecognized charset '{}' in {} header", value, which),
                                 ));
                             }
@@ -430,9 +430,8 @@ mod tests {
 
     /// `charset=""` is the pair that must not collapse into the one above: the
     /// value is a `quoted-string` and derives exactly as § 5.6.6 says, so what
-    /// is empty is the charset name and the defect is this rule's own — still
-    /// on the older API, and reported at the rule's severity rather than the
-    /// parameter def's.
+    /// is empty is the charset name — a defect of the name and not of the
+    /// parameter carrying it, which is why the two answer under different ids.
     #[test]
     fn a_quoted_empty_charset_is_not_the_parameters_defect() {
         let mut tx = crate::test_helpers::make_test_transaction_with_response(200, &[]);
@@ -448,10 +447,8 @@ mod tests {
             &make_cfg(),
         )
         .expect("a finding");
-        assert!(
-            found.violation.is_empty(),
-            "unconverted sites carry no defect id"
-        );
+        assert_eq!(found.violation, "charset_empty");
+        assert_ne!(found.violation, "parameter_value_empty");
     }
 
     #[rstest]

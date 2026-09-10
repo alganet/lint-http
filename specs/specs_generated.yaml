@@ -5376,6 +5376,18 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/cached_validators_reused.rs
       line: 138
+  - label: charset
+    section: § 8.3.2
+    snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
+    cited_by:
+    - file: lint-http-rules/src/violations/charset.rs
+      line: 67
+  - label: charset (2)
+    section: § 8.3.2
+    snippet: In the fields defined by this document, charset names appear either in parameters (Content-Type), or, for Accept-Encoding, in the form of a plain token.
+    cited_by:
+    - file: lint-http-rules/src/violations/charset.rs
+      line: 48
   - label: charset_present
     section: § 8.3.2
     snippet: HTTP uses "charset" names to indicate or negotiate the character encoding scheme
@@ -5387,7 +5399,7 @@ sources:
     snippet: 'The "Content-Type" header field indicates the media type of the associated representation: either the representation enclosed in the message content or the selected representation, as determined by the message semantics.'
     cited_by:
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 150
+      line: 148
     - file: lint-http-rules/src/rules/content_type_valid.rs
       line: 177
     - file: lint-http-rules/src/rules/media_type_suffix_valid.rs
@@ -5398,16 +5410,10 @@ sources:
       line: 98
   - label: charset_registered (2)
     section: § 8.3.2
-    snippet: Charset names ought to be registered in the IANA "Character Sets" registry (<https://www.iana.org/assignments/character-sets>) according to the procedures defined in Section 2 of [RFC2978].
-    cited_by:
-    - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 288
-  - label: charset_registered (3)
-    section: § 8.3.2
     snippet: In both cases, charset names are matched case-insensitively.
     cited_by:
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 83
+      line: 81
     - file: lint-http-rules/src/rules/charset_registered.rs
       line: 289
   - label: compression_and_transfer_encoding_consistent
@@ -7291,7 +7297,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_and_content_type_negotiation.rs
       line: 251
     - file: lint-http-rules/src/rules/charset_registered.rs
-      line: 195
+      line: 193
     - file: lint-http-rules/src/rules/multipart_boundary_syntax.rs
       line: 274
   - label: lint-http-rules/src/helpers/media_type.rs (3)
