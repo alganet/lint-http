@@ -9,6 +9,18 @@ use crate::helpers::list::{
 use crate::helpers::shown::{describe_octet, shown_in_finding};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::alpn::{
+    ALPN_PROTOCOL_NAME_LENGTH_INVALID, ALPN_PROTOCOL_NAME_UNREGISTERED, RFC_7301_3_1, RFC_7838_2,
+};
+use crate::violations::ViolationDef;
+
+/// Two entries, and the difference between them is whether the configuration
+/// is consulted: a name too long for its vector is named by nothing at all,
+/// and a name this deployment does not serve is named by nothing *here*.
+static DECLARED: &[&ViolationDef] = &[
+    &ALPN_PROTOCOL_NAME_LENGTH_INVALID,
+    &ALPN_PROTOCOL_NAME_UNREGISTERED,
+];
 
 /// The one alternative of the field's top production that names no alternative
 /// service, and so carries no protocol identifier for this rule to look up.
@@ -18,9 +30,9 @@ const CLEAR: &str = "clear";
 
 /// A `ProtocolName` is a TLS vector with a one-octet length prefix, so
 /// `2^8 - 1` is how many octets one can hold. A name longer than that is not
-/// one a ClientHello or a ServerHello can express, whatever else it is.
-// cite(RFC 7301 § 3.1): "opaque ProtocolName<1..2^8-1>;"
-// cite(RFC 7301 § 3.1): ""ProtocolNameList" contains the list of protocols advertised by the client, in descending order of preference."
+/// one a ClientHello or a ServerHello can express, whatever else it is — the
+/// vector is quoted on `alpn_protocol_name_length_invalid`, which is the
+/// finding this number produces.
 const MAX_ALPN_PROTOCOL_NAME_OCTETS: usize = 255;
 
 /// What the rule reads out of its configuration.
@@ -195,23 +207,11 @@ pub struct AltSvcProtocolRegistered;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_7838_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7838",
-    section: Some("2"),
-    url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-2",
-    note: "Alternative Services Concepts: an alternative service is identified by an ALPN protocol name as per RFC 7301, a host and a port; §2.4 requires a client to treat a connection that does not negotiate the expected protocol as failed",
-};
 const RFC_7838_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7838",
     section: Some("3"),
     url: "https://www.rfc-editor.org/rfc/rfc7838.html#section-3",
     note: "The Alt-Svc HTTP Header Field: `protocol-id = token ; percent-encoded ALPN protocol name`, the escaping table that is its round trip, and the `clear` keyword",
-};
-const RFC_7301_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 7301",
-    section: Some("3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc7301.html#section-3.1",
-    note: "The Application-Layer Protocol Negotiation Extension: protocol names are IANA-registered opaque byte strings, carried in a `ProtocolName` vector of at most 255 octets; §3.2 is the fatal alert a server sends when nothing is in common",
 };
 const RFC_7301_6: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 7301",
@@ -303,6 +303,10 @@ allowed = ["h2", "h3", "h3-29", "h2c", "http/1.1"]
             RFC_9110_5_6_2,
             RFC_3986_2_1,
         ]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -424,8 +428,8 @@ impl Rule for AltSvcProtocolRegistered {
                 // on the wire, so no list has to be consulted to know it names
                 // nothing.
                 if name.len() > MAX_ALPN_PROTOCOL_NAME_OCTETS {
-                    return Some(self.violation(
-                        config.severity,
+                    return Some(ctx.report_with(
+                        &ALPN_PROTOCOL_NAME_LENGTH_INVALID,
                         format!(
                             "Alt-Svc protocol-id '{}' decodes to an ALPN protocol name of {} octets. A `ProtocolName` carries at most {}, so this alternative is named by something no ClientHello or ServerHello can express",
                             shown_in_finding(protocol_id),
@@ -444,7 +448,6 @@ impl Rule for AltSvcProtocolRegistered {
                 // deployment does not serve is an alternative every client will
                 // fail over to and away from.
                 // cite(RFC 7838 § 2): "An Application Layer Protocol Negotiation (ALPN) protocol name, as per [RFC7301]"
-                // cite(RFC 7838 § 2): "The ALPN protocol name is used to identify the application protocol or suite of protocols used by the alternative service."
                 // cite(RFC 7301 § 3.2): "In the event that the server supports no protocols that the client advertises, then the server SHALL respond with a fatal "no_application_protocol" alert."
                 // cite(RFC 7838 § 2.4): "If the connection to the alternative service does not negotiate the expected protocol (for example, ALPN fails to negotiate h2, or an Upgrade request to h2c is not accepted), the connection to the alternative service MUST be considered to have failed."
                 if !config
@@ -452,8 +455,8 @@ impl Rule for AltSvcProtocolRegistered {
                     .iter()
                     .any(|allowed| allowed.as_bytes() == name.as_slice())
                 {
-                    return Some(self.violation(
-                        config.severity,
+                    return Some(ctx.report_with(
+                        &ALPN_PROTOCOL_NAME_UNREGISTERED,
                         format!(
                             "Alt-Svc protocol-id '{}' names the ALPN protocol {}, which is not one this deployment lists as an alternative service it offers. A client taking this alternative negotiates that name in TLS and is required to treat the connection as failed when it is not the one selected",
                             shown_in_finding(protocol_id),

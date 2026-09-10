@@ -1242,7 +1242,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 171
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 138
+      line: 150
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 49
     - file: lint-http-rules/src/violations/uri.rs
@@ -3707,48 +3707,48 @@ sources:
 - label: RFC 7301
   url: https://www.rfc-editor.org/rfc/rfc7301.html
   fragments:
-  - label: alt_svc_protocol_registered
+  - label: alpn
     section: § 3.1
     snippet: '"ProtocolNameList" contains the list of protocols advertised by the client, in descending order of preference.'
     cited_by:
-    - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 23
-  - label: alt_svc_protocol_registered (2)
+    - file: lint-http-rules/src/violations/alpn.rs
+      line: 53
+  - label: alpn (2)
+    section: § 3.1
+    snippet: opaque ProtocolName<1..2^8-1>;
+    cited_by:
+    - file: lint-http-rules/src/violations/alpn.rs
+      line: 52
+  - label: alt_svc_protocol_registered
     section: § 3.1
     snippet: Protocols are named by IANA-registered, opaque, non-empty byte strings, as described further in Section 6 ("IANA Considerations") of this document.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 89
-  - label: alt_svc_protocol_registered (3)
-    section: § 3.1
-    snippet: opaque ProtocolName<1..2^8-1>;
-    cited_by:
-    - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 22
-  - label: alt_svc_protocol_registered (4)
+      line: 101
+  - label: alt_svc_protocol_registered (2)
     section: § 3.2
     snippet: In the event that the server supports no protocols that the client advertises, then the server SHALL respond with a fatal "no_application_protocol" alert.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 448
-  - label: alt_svc_protocol_registered (5)
+      line: 451
+  - label: alt_svc_protocol_registered (3)
     section: § 6
     snippet: 'Identification Sequence: The precise set of octet values that identifies the protocol.'
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 90
-  - label: alt_svc_protocol_registered (6)
+      line: 102
+  - label: alt_svc_protocol_registered (4)
     section: § 6
     snippet: This document establishes a registry for protocol identifiers entitled "Application-Layer Protocol Negotiation (ALPN) Protocol IDs" under the existing "Transport Layer Security (TLS) Extensions" heading.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 46
-  - label: alt_svc_protocol_registered (7)
+      line: 58
+  - label: alt_svc_protocol_registered (5)
     section: § 6
     snippet: This registry operates under the "Expert Review" policy as defined in [RFC5226].
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 47
+      line: 59
 - label: RFC 7303
   url: https://www.rfc-editor.org/rfc/rfc7303.html
   fragments:
@@ -3870,6 +3870,12 @@ sources:
 - label: RFC 7838
   url: https://www.rfc-editor.org/rfc/rfc7838.html
   fragments:
+  - label: alpn
+    section: § 2
+    snippet: The ALPN protocol name is used to identify the application protocol or suite of protocols used by the alternative service.
+    cited_by:
+    - file: lint-http-rules/src/violations/alpn.rs
+      line: 76
   - label: Alt-Svc grammar
     section: § 3
     snippet: Alt-Svc       = clear / 1#alt-value
@@ -3879,7 +3885,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 132
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 15
+      line: 27
   - label: alt_svc_h3_advertisement_valid
     section: § 3
     snippet: An HTTP(S) origin server can advertise the availability of alternative services to clients by adding an Alt-Svc header field to responses.
@@ -3889,7 +3895,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 667
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 328
+      line: 332
   - label: alt_svc_h3_advertisement_valid (2)
     section: § 3
     snippet: Each "alt-value" is followed by an OPTIONAL semicolon-separated list of additional parameters, each such "parameter" comprising a name and a value.
@@ -3917,7 +3923,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 505
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 368
+      line: 372
   - label: alt_svc_h3_advertisement_valid (5)
     section: § 3
     snippet: parameter     = token "=" ( token / quoted-string )
@@ -3959,7 +3965,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 684
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 349
+      line: 353
   - label: alt_svc_header_syntax (5)
     section: § 3
     snippet: Consequently, the octet representing the percent character "%" (hex 25) MUST be percent-encoded as well.
@@ -3991,7 +3997,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 165
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 137
+      line: 149
   - label: alt_svc_header_syntax (10)
     section: § 3
     snippet: The "alt-authority" component consists of an OPTIONAL uri-host ("host" in Section 3.2.2 of [RFC3986]), a colon (":"), and a port number.
@@ -4005,7 +4011,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 134
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 16
+      line: 28
   - label: alt_svc_header_syntax (12)
     section: § 3
     snippet: When using percent-encoding, uppercase hex digits MUST be used.
@@ -4031,7 +4037,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 146
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 389
+      line: 393
   - label: alt_svc_header_syntax (16)
     section: § 3
     snippet: alternative   = protocol-id "=" alt-authority
@@ -4039,7 +4045,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 498
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 400
+      line: 404
   - label: alt_svc_header_syntax (17)
     section: § 3
     snippet: protocol-id   = token ; percent-encoded ALPN protocol name
@@ -4047,7 +4053,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 499
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 135
+      line: 147
   - label: alt_svc_header_syntax (18)
     section: § 3.1
     snippet: Alternative services that are intended to be longer lived (such as those that are not specific to the client access network) can carry the "persist" parameter with a value "1" as a hint that the service is potentially useful beyond a network configuration change.
@@ -4077,25 +4083,19 @@ sources:
     snippet: An Application Layer Protocol Negotiation (ALPN) protocol name, as per [RFC7301]
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 446
+      line: 450
   - label: alt_svc_protocol_registered (2)
-    section: § 2
-    snippet: The ALPN protocol name is used to identify the application protocol or suite of protocols used by the alternative service.
-    cited_by:
-    - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 447
-  - label: alt_svc_protocol_registered (3)
     section: § 2.4
     snippet: If the connection to the alternative service does not negotiate the expected protocol (for example, ALPN fails to negotiate h2, or an Upgrade request to h2c is not accepted), the connection to the alternative service MUST be considered to have failed.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 449
-  - label: alt_svc_protocol_registered (4)
+      line: 452
+  - label: alt_svc_protocol_registered (3)
     section: § 3
     snippet: ALPN protocol names are octet sequences with no additional constraints on format.
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 136
+      line: 148
 - label: RFC 8187
   url: https://www.rfc-editor.org/rfc/rfc8187.html
   fragments:
@@ -4440,7 +4440,7 @@ sources:
     snippet: 'For consistency amongst TLS registries, IANA has prepended "TLS" to the following registries:'
     cited_by:
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 48
+      line: 60
 - label: RFC 8470
   url: https://www.rfc-editor.org/rfc/rfc8470.html
   fragments:
@@ -5271,7 +5271,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 668
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 329
+      line: 333
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 354
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
@@ -7513,7 +7513,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 500
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 407
+      line: 411
     - file: lint-http-rules/src/rules/pragma_token_valid.rs
       line: 197
     - file: lint-http-rules/src/rules/sec_websocket_headers_consistent.rs
@@ -7631,7 +7631,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 701
     - file: lint-http-rules/src/rules/alt_svc_protocol_registered.rs
-      line: 359
+      line: 363
     - file: lint-http-rules/src/rules/server_timing_header_syntax.rs
       line: 396
   - label: lint-http-rules/src/helpers/word.rs
