@@ -1463,8 +1463,20 @@ severity = "warn"
 # Mailbox is followed by something else
 severity = "warn"
 
+[violations.media_type_empty]
+# Media type is written with nothing in it
+severity = "warn"
+
+[violations.media_type_malformed]
+# Media type is not a type/subtype pair
+severity = "warn"
+
 [violations.media_type_unregistered]
 # Media type is not one the deployment recognises
+severity = "warn"
+
+[violations.media_type_wildcard_forbidden]
+# A media range is written where one media type belongs
 severity = "warn"
 
 [violations.node_ipv4_address_malformed]

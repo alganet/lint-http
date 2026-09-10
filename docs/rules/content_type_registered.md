@@ -16,7 +16,7 @@ Entries may be exact (`text/plain`), a type wildcard (`image/*`), `*/*`, or a st
 
 ## Specifications
 
-- [RFC 9110 §8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1): `media-type` syntax, the case-insensitivity of its tokens, and the "ought to be registered with IANA" guidance that motivates this rule — guidance, not a requirement, and not something this rule verifies
+- [RFC 9110 §8.3.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1): Media Type: `media-type = type "/" subtype parameters`, both halves `token` and both case-insensitive, and the "ought to be registered with IANA" guidance — guidance rather than a requirement, and not something this crate verifies
 - [RFC 6838 §4.2.8](https://www.rfc-editor.org/rfc/rfc6838.html#section-4.2.8): Structured syntax suffixes — a suffix is appended to a base subtype after a `+`, which is what a `+json` allowlist entry matches
 - [IANA Media Types](https://www.iana.org/assignments/media-types/media-types.xhtml): The registry this rule is named after but does not read; the configured `allowed` array stands in for it
 

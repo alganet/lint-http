@@ -2,9 +2,14 @@
 //
 // SPDX-License-Identifier: ISC
 
+use crate::helpers::media_type::MediaTypeError;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::{FIELD_LINE_DUPLICATED, RFC_9110_5_3};
+use crate::violations::media_type::{
+    media_type_error, MEDIA_TYPE_EMPTY, MEDIA_TYPE_MALFORMED, MEDIA_TYPE_WILDCARD_FORBIDDEN,
+    RFC_9110_12_5_1, RFC_9110_8_3_1,
+};
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
 };
@@ -28,11 +33,11 @@ pub struct ContentTypeValid;
 /// joins a parameter's halves is § 5.6.6's. `Accept-Patch` declares the same
 /// nine, because `1#media-type` asks the same question of each of its members.
 ///
-/// The rule's own findings stay on the older API and are named here so the
-/// omission is a decision on the page: the duplicated field line, the wildcard,
-/// and the two shapes `parse_media_type` refuses — no `/` and an empty half.
-/// The first two are this field's own reading rather than a production's, and
-/// the last two belong to a `media-type` subject that nothing has written yet.
+/// What is left over is the pair itself, and it has a subject now: the two
+/// shapes `parse_media_type` refuses — no `/` and an empty half — and the
+/// wildcard, which is a `tchar` the grammar admits and a *range* where one
+/// media type belongs. Those three are `media_type`'s, and the duplicated field
+/// line is the `field` subject's, so this rule words none of its findings.
 ///
 /// One of the nine cannot be reached through a field line, and is declared
 /// because the mapping is exhaustive rather than because this rule can report
@@ -42,6 +47,9 @@ pub struct ContentTypeValid;
 /// reading of every body rather than to this list.
 static DECLARED: &[&ViolationDef] = &[
     &FIELD_LINE_DUPLICATED,
+    &MEDIA_TYPE_EMPTY,
+    &MEDIA_TYPE_MALFORMED,
+    &MEDIA_TYPE_WILDCARD_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_EMPTY,
@@ -61,18 +69,6 @@ const RFC_9110_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("8.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3",
     note: "Content-Type: `Content-Type = media-type`, and the paragraph naming duplicated field lines as an error whose recipient handling differs between implementations",
-};
-const RFC_9110_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("8.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-8.3.1",
-    note: "Media Type: `media-type = type \"/\" subtype parameters`, both halves `token`, both case-insensitive",
-};
-const RFC_9110_12_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("12.5.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-12.5.1",
-    note: "Accept: where `*` belongs — `media-range`, which names a set of media types. Cited to explain why a wildcard is reported in Content-Type, which carries a `media-type`",
 };
 
 impl RuleMeta for ContentTypeValid {
@@ -287,13 +283,22 @@ fn check_content_type(
     // two "this is not a media-type at all" shapes: no "/", or an empty half.
     let parsed = match parse_media_type(val) {
         Ok(p) => p,
-        Err(msg) => {
-            let message = if msg == "Empty media-type" {
-                "Empty Content-Type header".into()
-            } else {
-                msg.replace("media-type", "Content-Type")
+        Err(defect) => {
+            // The wording is this rule's because the field name is: the reader
+            // answers about a `media-type` and this caller knows it was read
+            // out of a `Content-Type`. The id is the catalogue's, and the two
+            // structural verdicts share one — see `media_type_error`.
+            let message = match defect {
+                MediaTypeError::Empty => "Empty Content-Type header".into(),
+                MediaTypeError::SlashMissing => format!(
+                    "Invalid Content-Type '{}': missing '/' between type and subtype",
+                    val
+                ),
+                MediaTypeError::PartEmpty => {
+                    format!("Invalid Content-Type '{}': empty type or subtype", val)
+                }
             };
-            return Some(ContentTypeValid.violation(ctx.severity, message));
+            return Some(ctx.report_with(media_type_error(defect), message));
         }
     };
 
@@ -303,10 +308,9 @@ fn check_content_type(
     // representation, while the asterisk exists to name a *range* of them, and
     // ranges belong to the `media-range` production Accept uses. A wildcard
     // here identifies nothing, so the field says nothing.
-    // cite(RFC 9110 § 12.5.1): "The asterisk "*" character is used to group media types into ranges, with "*/*" indicating all media types and "type/*" indicating all subtypes of that type."
     if parsed.type_ == "*" || parsed.subtype == "*" {
-        return Some(ContentTypeValid.violation(
-            ctx.severity,
+        return Some(ctx.report_with(
+            &MEDIA_TYPE_WILDCARD_FORBIDDEN,
             format!(
                 "Content-Type '{}' uses a wildcard, which names a set of media types rather than one; a representation's Content-Type is expected to identify a single media type (wildcards belong to Accept's media-range)",
                 val
