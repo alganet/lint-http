@@ -1731,7 +1731,7 @@ sources:
     - file: lint-http-rules/src/helpers/validator.rs
       line: 153
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 248
+      line: 255
     - file: lint-http-rules/src/rules/prefer_header_valid.rs
       line: 119
   - label: lint-http-rules/src/helpers/mailbox.rs
@@ -5805,7 +5805,7 @@ sources:
     - file: lint-http-rules/src/rules/context_fields_direction.rs
       line: 18
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 198
+      line: 205
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 521
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -6383,7 +6383,7 @@ sources:
     - file: lint-http-core/src/http_version.rs
       line: 155
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 84
+      line: 86
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 230
     - file: lint-http-rules/src/rules/request_target_no_fragment.rs
@@ -6451,7 +6451,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 142
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 47
+      line: 49
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 61
   - label: lint-http-proxy/src/proxy/hop_by_hop.rs (8)
@@ -6715,7 +6715,7 @@ sources:
     - file: lint-http-rules/src/rules/max_forwards_numeric.rs
       line: 153
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 222
+      line: 229
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 134
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
@@ -7895,13 +7895,13 @@ sources:
     snippet: 'This includes but is not limited to:'
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 48
+      line: 50
   - label: t-codings
     section: § A
     snippet: t-codings = "trailers" / ( transfer-coding [ weight ] )
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 246
+      line: 253
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 117
   - label: no_connection_specific_fields (2)
@@ -7909,7 +7909,7 @@ sources:
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 247
+      line: 254
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 77
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -10474,7 +10474,7 @@ sources:
     - file: lint-http-rules/src/helpers/field_placement.rs
       line: 100
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 46
+      line: 48
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 63
   - label: no_body_for_1xx_204_304
@@ -10484,9 +10484,9 @@ sources:
     - file: lint-http-rules/src/rules/no_body_for_1xx_204_304.rs
       line: 307
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 157
+      line: 159
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 381
+      line: 388
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 168
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -10498,27 +10498,19 @@ sources:
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/2 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/2 endpoints as malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 142
+      line: 144
   - label: no_connection_specific_fields (2)
     section: § 8.2.2
     snippet: Any message containing connection-specific header fields MUST be treated as malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 158
+      line: 160
   - label: no_connection_specific_fields (3)
     section: § 8.2.2
     snippet: HTTP/2 does not use the Connection header field (Section 7.6.1 of [HTTP]) to indicate connection-specific header fields; in this protocol, connection-specific metadata is conveyed by other means.
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 65
-  - label: no_connection_specific_fields (4)
-    section: § 8.2.2
-    snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
-    cited_by:
-    - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 182
-    - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 173
+      line: 67
   - label: request_target_form_valid
     section: § 8.3.1
     snippet: Note that request targets for CONNECT or asterisk-form OPTIONS requests never include authority information
@@ -10539,6 +10531,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
       line: 170
+  - label: the TE exception
+    section: § 8.2.2
+    snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
+    cited_by:
+    - file: lint-http-rules/src/rules/te_header_valid.rs
+      line: 173
+    - file: lint-http-rules/src/violations/te.rs
+      line: 27
 - label: RFC 9114
   url: https://www.rfc-editor.org/rfc/rfc9114.html
   fragments:
@@ -10801,7 +10801,7 @@ sources:
     snippet: An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 159
+      line: 161
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 174
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
@@ -10811,19 +10811,13 @@ sources:
     snippet: An intermediary transforming an HTTP/1.x message to HTTP/3 MUST remove connection-specific header fields as discussed in Section 7.6.1 of [HTTP], or their messages will be treated by other HTTP/3 endpoints as malformed.
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 143
+      line: 145
   - label: no_connection_specific_fields (3)
     section: § 4.2
     snippet: HTTP/3 does not use the Connection header field to indicate connection-specific fields; in this protocol, connection-specific metadata is conveyed by other means.
     cited_by:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 66
-  - label: no_connection_specific_fields (4)
-    section: § 4.2
-    snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
-    cited_by:
-    - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
-      line: 183
+      line: 68
   - label: quic_transport_parameters_valid
     section: § 6.1
     snippet: HTTP/3 does not use server-initiated bidirectional streams
@@ -10864,6 +10858,12 @@ sources:
       line: 210
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 161
+  - label: the TE exception
+    section: § 4.2
+    snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
+    cited_by:
+    - file: lint-http-rules/src/violations/te.rs
+      line: 28
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.html
   fragments:

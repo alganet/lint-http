@@ -6,12 +6,14 @@ use crate::helpers::headers::combined_field_value_as_written;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::field::FIELD_CONNECTION_SPECIFIC_FORBIDDEN;
+use crate::violations::te::TE_MEMBER_FORBIDDEN;
 use crate::violations::ViolationDef;
 
-/// Presence, and nothing else: every field this rule reports is reported for
-/// being written at all. The `TE` a request may carry is the one field whose
-/// *value* is measured, and that half is not this entry's — see `check_te`.
-static DECLARED: &[&ViolationDef] = &[&FIELD_CONNECTION_SPECIFIC_FORBIDDEN];
+/// Presence, and then the one value the exception leaves to be measured: every
+/// field this rule reports is reported for being written at all, except the
+/// `TE` a request is permitted to carry, whose members are read against the
+/// keyword the same sentence limits it to.
+static DECLARED: &[&ViolationDef] = &[&FIELD_CONNECTION_SPECIFIC_FORBIDDEN, &TE_MEMBER_FORBIDDEN];
 
 /// The connection-specific field names, as the two governing documents reach
 /// them.
@@ -179,8 +181,13 @@ impl NoConnectionSpecificFields {
     /// The one field both documents take back out of the set, and only for one
     /// direction.
     ///
-    /// cite(RFC 9113 § 8.2.2): "The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers"."
-    /// cite(RFC 9114 § 4.2): "The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers"."
+    /// Each document writes the exception and its limit in one sentence, and
+    /// both sentences are quoted on
+    /// [`te_member_forbidden`](crate::violations::te::TE_MEMBER_FORBIDDEN),
+    /// which is what the limit half reports as. What this function decides is
+    /// the direction: a section that is not a request gets none of the
+    /// exception, and the field is connection-specific there like the five
+    /// names above.
     fn check_te(
         &self,
         governing: ConnectionlessVersion,
@@ -251,8 +258,8 @@ impl NoConnectionSpecificFields {
             .filter(|member| !member.is_empty())
             .find(|member| !member.eq_ignore_ascii_case("trailers"))?;
 
-        Some(self.violation(
-            ctx.severity,
+        Some(ctx.report_with(
+            &TE_MEMBER_FORBIDDEN,
             format!(
                 "{} request's TE header field holds '{}'; the only value {} permits it \
                  to contain is 'trailers'",
@@ -746,6 +753,16 @@ mod tests {
                  connection-specific field like any other and the message is malformed"
             )
         );
+    }
+
+    /// The exception's two halves answer under two ids: a `TE` that should not
+    /// be there at all is presence, and a `TE` that may be there and says the
+    /// wrong thing is the member's own defect.
+    #[test]
+    fn the_permitted_field_saying_the_wrong_thing_is_its_own_id() {
+        let v = request("HTTP/2.0", &[("te", "gzip")]).expect("violation");
+        assert_eq!(v.violation, "te_member_forbidden");
+        assert_eq!(v.severity, crate::lint::Severity::Error);
     }
 
     /// One id for both shapes of presence, because both are one defect: a

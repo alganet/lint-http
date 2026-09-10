@@ -53,6 +53,7 @@ pub mod parameter;
 pub mod quoted_pair;
 pub mod quoted_string;
 pub mod qvalue;
+pub mod te;
 pub mod token;
 pub mod token68;
 pub mod transfer_encoding;
