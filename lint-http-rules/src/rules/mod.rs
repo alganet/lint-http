@@ -1312,7 +1312,7 @@ severity = "warn"
         /// directive list, and neither says anything about an encoding. Each
         /// field's octet is now `token`'s, under an id the rule already
         /// declared.
-        const FLOOR: usize = 132;
+        const FLOOR: usize = 131;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

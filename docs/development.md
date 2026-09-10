@@ -124,6 +124,7 @@ member is malformed".
 | Appears more times than the grammar allows | `_duplicated` | — |
 | Written where the specification prohibits it | `_forbidden` | — |
 | Permitted, and almost certainly not what was meant | `_redundant` | — |
+| Sent in answer to something the other side never asked for | `_unsolicited` | — |
 | Retired by a later specification | `_obsolete` | — |
 
 `_redundant` is the one ending that condemns nothing: it names work a message
@@ -133,6 +134,15 @@ applied to the representation and then again in transit — is not `_duplicated`
 since no definition is being exceeded, and not `_invalid`, since the message is
 perfectly decodable. An entry ending this way defaults to `info` unless there is
 an argument on the page for more.
+
+`_unsolicited` is the one ending whose evidence is in the *other* message.
+`status_206_unsolicited` — a `206 Partial Content` answering a request that
+carried no `Range` — is not `_forbidden`, since no sentence prohibits the status
+code; not `_invalid`, since no value is being measured past its grammar; and not
+`_redundant`, since nothing was done twice. What is wrong is the exchange: the
+status code's definition is written in terms of a request that did not happen. A
+rule reporting one of these has to read both messages, which is why the subject
+is the status code and never the field it is read against.
 
 `_missing` and `_empty` are not alternatives to pick between: `_missing` is a
 sender that never wrote the thing, `_empty` is a sender that wrote it and put

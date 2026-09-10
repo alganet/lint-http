@@ -1591,6 +1591,14 @@ severity = "warn"
 # Weight is not a qvalue
 severity = "warn"
 
+[violations.status_206_unsolicited]
+# 206 Partial Content answers a request that asked for no range
+severity = "warn"
+
+[violations.status_416_unsolicited]
+# 416 Range Not Satisfiable answers a request that named no range
+severity = "warn"
+
 [violations.strict_transport_security_directive_duplicated]
 # A directive is written more than once in one policy
 severity = "warn"
