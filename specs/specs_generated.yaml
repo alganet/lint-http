@@ -5276,18 +5276,18 @@ sources:
       line: 354
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 188
-  - label: auth_scheme_registered
+  - label: auth_scheme
     section: § 11.1
     snippet: New and existing authentication schemes are specified independently and ought to be registered
     cited_by:
-    - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 173
-  - label: auth_scheme_registered (2)
+    - file: lint-http-rules/src/violations/auth_scheme.rs
+      line: 77
+  - label: auth_scheme_registered
     section: § 16.4.1
     snippet: The "Hypertext Transfer Protocol (HTTP) Authentication Scheme Registry" defines the namespace for the authentication schemes in challenges and credentials.
     cited_by:
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 174
+      line: 172
   - label: authentication_challenge_valid
     section: § 11.5
     snippet: Note that a response can have multiple challenges with the same auth-scheme but with different realms.
@@ -6567,7 +6567,7 @@ sources:
     - file: lint-http-rules/src/helpers/auth.rs
       line: 434
     - file: lint-http-rules/src/rules/auth_scheme_registered.rs
-      line: 153
+      line: 152
     - file: lint-http-rules/src/rules/basic_auth_base64_valid.rs
       line: 108
     - file: lint-http-rules/src/rules/bearer_token_syntax.rs
@@ -6575,7 +6575,7 @@ sources:
     - file: lint-http-rules/src/rules/digest_auth_valid.rs
       line: 154
     - file: lint-http-rules/src/violations/auth_scheme.rs
-      line: 42
+      line: 51
   - label: lint-http-rules/src/helpers/auth.rs (2)
     section: § 11.2
     snippet: auth-param     = token BWS "=" BWS ( token / quoted-string )

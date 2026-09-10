@@ -1059,6 +1059,10 @@ severity = "warn"
 # Authentication scheme holds a character outside token
 severity = "warn"
 
+[violations.auth_scheme_unregistered]
+# Authentication scheme is not one the deployment recognises
+severity = "warn"
+
 [violations.base64_character_forbidden]
 # Value holds an octet outside the base64 alphabet
 severity = "warn"
