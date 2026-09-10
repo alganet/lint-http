@@ -30,12 +30,22 @@
 //!
 //! The second entry is the same kind of claim about the same object: a field
 //! line that is there and should not be, because the version carrying it has no
-//! use for the hop-by-hop control the field states. Neither entry ever reads a
-//! value.
+//! use for the hop-by-hop control the field states. The third is the name on
+//! that line being one nobody here expects. **No entry in this subject ever
+//! reads a value** — which is what makes it a subject rather than a drawer.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+
+/// Where field names are defined: case-insensitive, and ought to be
+/// registered.
+pub const RFC_9110_5_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("5.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
+    note: "Field Names (case-insensitive, and registration is an \"ought to\"; the same paragraph makes a proxy forward what it does not recognize)",
+};
 
 /// The MUST NOT, its exception, and the recombination that makes the exception
 /// the whole of the difference.
@@ -104,6 +114,32 @@ defects! {
         message: "",
         default_severity: Severity::Error,
         spec: None,
+    }
+
+    /// A field name the deployment does not expect. The seventh registry entry
+    /// of the catalogue and the widest: every other one asks about a name
+    /// inside a value, and this one asks about the name of the line itself.
+    ///
+    /// **The weakest reading in the family, and deliberately so.** § 5.1 says
+    /// names *ought to* be registered, and the same paragraph tells a proxy to
+    /// forward what it does not recognise and every other recipient to ignore
+    /// it — so an unknown field is the extension mechanism working, not a
+    /// message defect. What the finding buys is the inventory: a deployment
+    /// that has written down the fields it expects gets told when something
+    /// else appears, which is a question about that deployment and answerable
+    /// by nothing else here.
+    ///
+    /// `warn`, and the comparison folds no case at the reading end because it
+    /// cannot: every parser this crate reads through has already lowercased the
+    /// name, and HTTP/3 makes an uppercase one malformed outright.
+    ///
+    // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
+    FIELD_NAME_UNREGISTERED = {
+        id: "field_name_unregistered",
+        title: "Field name is not one the deployment expects",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_5_1),
     }
 }
 

@@ -4,18 +4,18 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{FIELD_NAME_UNREGISTERED, RFC_9110_5_1};
+use crate::violations::ViolationDef;
+
+/// One entry, and it is the field line's own: the name on it is not one this
+/// deployment expects. Nothing about a value is read.
+static DECLARED: &[&ViolationDef] = &[&FIELD_NAME_UNREGISTERED];
 
 pub struct ExtensionHeadersRegistered;
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_5_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("5.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-5.1",
-    note: "Field Names (case-insensitive, and registration is an \"ought to\"; the same paragraph makes a proxy forward what it does not recognize)",
-};
 const RFC_9110_6_5: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("6.5"),
@@ -87,6 +87,10 @@ allowed = ["host", "user-agent", "accept", "content-type", "acme-request-id"]
         "Reports field names this deployment has not listed in the rule's `allowed` array. All four field sections a transaction can carry are walked — the request and response header sections, and their trailer sections when the message framing carried one — and names are compared case-insensitively, which is what RFC 9110 §5.1 says a field name is.\n\n**The `allowed` array is the rule's only authority.** It does not consult the IANA HTTP Field Name Registry: a permanently registered field is reported exactly like a typo when the array omits it, and registering a name with IANA changes nothing about what this rule says. Neither is a finding a protocol error. RFC 9110 §5.1 asks only that field names \"ought to be\" registered — weaker than SHOULD — and the same paragraph requires a proxy to forward unrecognized header fields and tells other recipients they SHOULD ignore them. A finding means \"this deployment did not expect this field\", which is worth a look for typos, forgotten debug headers and injected fields, and is not a claim that the sender did anything wrong.\n\nBecause the array has to name every field the deployment sees, no useful list is deployment-independent and `config_example.toml` ships the rule disabled with an illustrative one. For a private field prefer a short name scoped to its use and no `X-` prefix: RFC 9110 §16.3.2.1 says field names ought not be prefixed with `X-`."
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9110_5_1,
@@ -153,7 +157,7 @@ impl Rule for ExtensionHeadersRegistered {
             // which sections exist at all is the framing's answer, not this rule's.
             // cite(RFC 9110 § 6.5): "Fields (Section 5) that are located within a "trailer section" are referred to as "trailer fields""
             for (section, headers) in crate::helpers::headers::transaction_field_sections(tx) {
-                if let Some(v) = check_section(section, headers, config, ctx.severity) {
+                if let Some(v) = check_section(section, headers, config, ctx) {
                     return Some(v);
                 }
             }
@@ -179,7 +183,7 @@ fn check_section(
     section: &str,
     fields: &hyper::HeaderMap,
     config: &crate::helpers::rule_config::AllowedList,
-    severity: crate::lint::Severity,
+    ctx: &crate::rules::RuleContext<'_>,
 ) -> Option<Violation> {
     // `keys()` rather than `iter()`: what is being judged is the name, and a field
     // repeated across lines is one name that would otherwise be judged once per line.
@@ -196,9 +200,8 @@ fn check_section(
         {
             continue;
         }
-        // cite(RFC 9110 § 5.1): "Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry""
-        return Some(ExtensionHeadersRegistered.violation(
-            severity,
+        return Some(ctx.report_with(
+            &FIELD_NAME_UNREGISTERED,
             format!(
                 "Field name '{}' in the {} is not in the 'allowed' list for '{}'. That list is the rule's only authority: add the name to it if this deployment expects the field",
                 name.as_str(),
