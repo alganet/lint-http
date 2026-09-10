@@ -1339,6 +1339,10 @@ severity = "error"
 # A field is written on more lines than its definition allows
 severity = "warn"
 
+[violations.field_name_unregistered]
+# Field name is not one the deployment expects
+severity = "warn"
+
 [violations.http_date_malformed]
 # Timestamp derives from no HTTP-date format
 severity = "warn"

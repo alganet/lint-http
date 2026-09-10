@@ -6001,37 +6001,37 @@ sources:
     snippet: Most fields are designed with the expectation that a recipient can safely ignore (but forward downstream) any field not recognized
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 177
+      line: 181
   - label: extension_headers_registered (2)
     section: § 16.3.2.1
     snippet: Field names ought not be prefixed with "X-"
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 103
+      line: 107
   - label: extension_headers_registered (3)
     section: § 5.1
     snippet: A proxy MUST forward unrecognized header fields unless the field name is listed in the Connection header field
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 175
+      line: 179
   - label: extension_headers_registered (4)
     section: § 5.1
     snippet: Field names are case-insensitive and ought to be registered within the "Hypertext Transfer Protocol (HTTP) Field Name Registry"
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
       line: 69
-    - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 199
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 166
     - file: lint-http-rules/src/rules/head_response_headers_match_get.rs
       line: 360
+    - file: lint-http-rules/src/violations/field.rs
+      line: 136
   - label: extension_headers_registered (5)
     section: § 5.1
     snippet: Other recipients SHOULD ignore unrecognized header and trailer fields
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 176
+      line: 180
   - label: from_header_email_syntax
     section: § 10.1.2
     snippet: The address ought to be machine-usable, as defined by "mailbox" in Section 3.4 of [RFC5322]
@@ -6977,7 +6977,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 275
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 135
+      line: 139
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
       line: 116
   - label: lint-http-rules/src/helpers/headers.rs (2)
@@ -7039,7 +7039,7 @@ sources:
     - file: lint-http-rules/src/rules/x_xss_protection_value_valid.rs
       line: 120
     - file: lint-http-rules/src/violations/field.rs
-      line: 67
+      line: 77
   - label: lint-http-rules/src/helpers/headers.rs (5)
     section: § 5.5
     snippet: A recipient SHOULD treat other allowed octets in field content (i.e., obs-text) as opaque data.
@@ -7157,7 +7157,7 @@ sources:
     - file: lint-http-rules/src/helpers/headers.rs
       line: 276
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 154
+      line: 158
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
       line: 133
   - label: lint-http-rules/src/helpers/list.rs
@@ -10559,7 +10559,7 @@ sources:
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
     cited_by:
     - file: lint-http-rules/src/rules/extension_headers_registered.rs
-      line: 191
+      line: 195
     - file: lint-http-rules/src/rules/header_field_names_token_valid.rs
       line: 158
   - label: header_field_names_token_valid
