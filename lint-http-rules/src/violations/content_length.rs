@@ -34,12 +34,13 @@ use crate::rules::SpecRef;
 use crate::violations::{defects, ViolationDef};
 
 /// Why a mismatch matters rather than merely differing: the value is what a
-/// recipient frames the message with.
+/// recipient frames the message with — and, in the same section, why the field
+/// may not be written at all where a transfer coding is already framing.
 pub const RFC_9112_6_2: SpecRef = SpecRef {
     spec: "RFC 9112",
     section: Some("6.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-    note: "Content-Length as framing — the declared length is how a recipient determines where the data and the message end",
+    note: "Content-Length as framing — the declared length is how a recipient determines where the data and the message end, and the sender-side prohibition on sending it in a message that carries a Transfer-Encoding",
 };
 
 /// Where `Content-Length = 1*DIGIT` is defined — the grammar every value is
@@ -76,6 +77,33 @@ defects! {
         id: "content_length_conflicting",
         title: "Content-Length disagrees with the octets received",
         message: "",
+        default_severity: Severity::Error,
+        spec: Some(RFC_9112_6_2),
+    }
+
+    /// The field written at all, in a message a transfer coding is already
+    /// framing. Nothing is wrong with the number; what is wrong is that it is
+    /// there, because the message now states where it ends twice and the two
+    /// statements are resolved by different recipients at different times.
+    ///
+    /// **This is the entry with an attack behind it.** § 6.3 tells a recipient
+    /// to let the `Transfer-Encoding` win and an intermediary to strip the
+    /// `Content-Length` before forwarding; where that does not happen
+    /// consistently along a chain, two recipients disagree about where the
+    /// message ends, which is the whole of request smuggling and response
+    /// splitting. Both of those sentences are the reading
+    /// `content_length_vs_transfer_encoding` cites at its own site — what is
+    /// quoted here is the sender's prohibition, which is the defect.
+    ///
+    /// One id for both directions, like the mismatch above: a request that
+    /// frames itself twice and a response that does are the same message
+    /// written at opposite ends of the exchange.
+    ///
+    // cite(RFC 9112 § 6.2, label: Content-Length not in a transfer-coded message): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
+    CONTENT_LENGTH_FORBIDDEN = {
+        id: "content_length_forbidden",
+        title: "Content-Length is sent in a message that is transfer-coded",
+        message: "Both Content-Length and Transfer-Encoding present",
         default_severity: Severity::Error,
         spec: Some(RFC_9112_6_2),
     }
@@ -166,6 +194,7 @@ mod tests {
     fn every_framing_defect_defaults_above_a_grammar_defect() {
         for def in [
             &CONTENT_LENGTH_CONFLICTING,
+            &CONTENT_LENGTH_FORBIDDEN,
             &CONTENT_LENGTH_EMPTY,
             &CONTENT_LENGTH_CHARACTER_FORBIDDEN,
             &CONTENT_LENGTH_MEMBERS_CONFLICTING,

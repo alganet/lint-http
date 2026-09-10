@@ -4,18 +4,19 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::content_length::{CONTENT_LENGTH_FORBIDDEN, RFC_9112_6_2};
+use crate::violations::ViolationDef;
+
+/// One defect, and it is the `Content-Length`'s: § 6.2 forbids sending that
+/// field in a transfer-coded message, so the field that may not be there is the
+/// one the id names. The direction is not part of it — a request and a response
+/// that each frame themselves twice are the same defect.
+static DECLARED: &[&ViolationDef] = &[&CONTENT_LENGTH_FORBIDDEN];
 
 pub struct ContentLengthVsTransferEncoding;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9112_6_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("6.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2",
-    note: "The sender-side prohibition this rule enforces: Content-Length MUST NOT be sent in any message that contains Transfer-Encoding",
-};
+/// The reference this rule owns beyond the catalogue's § 6.2: the recipient
+/// side, which is why the pairing is worth reporting rather than tidying.
 const RFC_9112_6_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
     section: Some("6.3"),
@@ -44,6 +45,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9112_6_2, RFC_9112_6_3]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -78,8 +83,8 @@ impl Rule for ContentLengthVsTransferEncoding {
         // one finding (or none) becomes the vector.
         let finding = || -> Option<Violation> {
             // "in any message" is what puts both directions in scope; the same check runs
-            // over the response below.
-            // cite(RFC 9112 § 6.2): "A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field."
+            // over the response below, and both report the one id — the
+            // prohibition is quoted on `content_length_forbidden`.
             //
             // The recipient side is why this is worth more than a style note. The two
             // fields give conflicting framing, recipients are told to resolve the
@@ -93,10 +98,7 @@ impl Rule for ContentLengthVsTransferEncoding {
             if tx.request.headers.contains_key("content-length")
                 && tx.request.headers.contains_key("transfer-encoding")
             {
-                return Some(self.violation(
-                    ctx.severity,
-                    "Both Content-Length and Transfer-Encoding present".into(),
-                ));
+                return Some(ctx.report(&CONTENT_LENGTH_FORBIDDEN));
             }
 
             // Check response headers if present
@@ -104,10 +106,7 @@ impl Rule for ContentLengthVsTransferEncoding {
                 if resp.headers.contains_key("content-length")
                     && resp.headers.contains_key("transfer-encoding")
                 {
-                    return Some(self.violation(
-                        ctx.severity,
-                        "Both Content-Length and Transfer-Encoding present".into(),
-                    ));
+                    return Some(ctx.report(&CONTENT_LENGTH_FORBIDDEN));
                 }
             }
 
@@ -154,6 +153,31 @@ mod tests {
             assert!(violation.is_none());
         }
         Ok(())
+    }
+
+    /// Both directions report the one id, and it arrives as an `error`: the
+    /// framing entries of the `Content-Length` subject are ranked together,
+    /// and this is the one with request smuggling behind it.
+    #[test]
+    fn either_direction_reports_the_framing_id_as_an_error() {
+        let both = &[("content-length", "10"), ("transfer-encoding", "chunked")];
+        let mut request = crate::test_helpers::make_test_transaction();
+        request.request.headers = crate::test_helpers::make_headers_from_pairs(both);
+        let response = crate::test_helpers::make_test_transaction_with_response(200, both);
+
+        for tx in [request, response] {
+            let found = crate::test_helpers::run_rule(
+                &ContentLengthVsTransferEncoding,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                    "content_length_vs_transfer_encoding",
+                ]),
+            )
+            .expect("a finding");
+            assert_eq!(found.violation, "content_length_forbidden");
+            assert_eq!(found.severity, crate::lint::Severity::Error);
+        }
     }
 
     #[rstest]

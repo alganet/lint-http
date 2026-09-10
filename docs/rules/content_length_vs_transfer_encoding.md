@@ -14,7 +14,7 @@ Recipients are told to let `Transfer-Encoding` win and an intermediary that forw
 
 ## Specifications
 
-- [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): The sender-side prohibition this rule enforces: Content-Length MUST NOT be sent in any message that contains Transfer-Encoding
+- [RFC 9112 §6.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.2): Content-Length as framing — the declared length is how a recipient determines where the data and the message end, and the sender-side prohibition on sending it in a message that carries a Transfer-Encoding
 - [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3): The recipient side and the stakes: Transfer-Encoding overrides, a forwarding intermediary must strip the Content-Length, and such a message may be an attempt at request smuggling or response splitting
 
 ## Configuration

@@ -6783,9 +6783,9 @@ sources:
     - file: lint-http-rules/src/helpers/content_length.rs
       line: 86
     - file: lint-http-rules/src/violations/content_length.rs
-      line: 88
+      line: 116
     - file: lint-http-rules/src/violations/content_length.rs
-      line: 105
+      line: 133
   - label: lint-http-rules/src/helpers/content_length.rs (3)
     section: § 8.6
     snippet: When transferring a representation as content, Content-Length refers specifically to the amount of data enclosed so that it can be used to delimit framing
@@ -9755,27 +9755,17 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 222
   - label: content_length_vs_transfer_encoding
-    section: § 6.2
-    snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
-    cited_by:
-    - file: lint-http-rules/src/rules/content_length_vs_transfer_encoding.rs
-      line: 82
-    - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
-      line: 158
-    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
-      line: 216
-  - label: content_length_vs_transfer_encoding (2)
     section: § 6.3
     snippet: An intermediary that chooses to forward the message MUST first remove the received Content-Length field and process the Transfer-Encoding
     cited_by:
     - file: lint-http-rules/src/rules/content_length_vs_transfer_encoding.rs
-      line: 91
-  - label: content_length_vs_transfer_encoding (3)
+      line: 96
+  - label: content_length_vs_transfer_encoding (2)
     section: § 6.3
     snippet: If a message is received with both a Transfer-Encoding and a Content-Length header field, the Transfer-Encoding overrides the Content-Length.
     cited_by:
     - file: lint-http-rules/src/rules/content_length_vs_transfer_encoding.rs
-      line: 90
+      line: 95
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 254
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
@@ -9947,7 +9937,7 @@ sources:
     - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
       line: 123
     - file: lint-http-rules/src/violations/content_length.rs
-      line: 134
+      line: 162
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 3.2
     snippet: A server MUST respond with a 400 (Bad Request) status code to any HTTP/1.1 request message that lacks a Host header field and to any request message that contains more than one Host header field line or a Host header field with an invalid field value.
@@ -10032,6 +10022,16 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/redirect_chain_valid.rs
       line: 331
+  - label: Content-Length not in a transfer-coded message
+    section: § 6.2
+    snippet: A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field.
+    cited_by:
+    - file: lint-http-rules/src/rules/request_body_length_accuracy.rs
+      line: 158
+    - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
+      line: 216
+    - file: lint-http-rules/src/violations/content_length.rs
+      line: 102
   - label: request_body_length_accuracy
     section: § 6.2
     snippet: For messages that do include content, the Content-Length field value provides the framing information necessary for determining where the data (and message) ends.
@@ -10041,7 +10041,7 @@ sources:
     - file: lint-http-rules/src/rules/response_body_length_accuracy.rs
       line: 226
     - file: lint-http-rules/src/violations/content_length.rs
-      line: 74
+      line: 75
   - label: request_body_length_accuracy (2)
     section: § 6.2
     snippet: When a message does not have a Transfer-Encoding header field, a Content-Length header field (Section 8.6 of [HTTP]) can provide the anticipated size, as a decimal number of octets, for potential content.
