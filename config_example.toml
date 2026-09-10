@@ -1055,6 +1055,14 @@ severity = "warn"
 enabled = true
 severity = "warn"
 
+[violations.alpn_protocol_name_length_invalid]
+# ALPN protocol name is longer than the vector that carries it
+severity = "warn"
+
+[violations.alpn_protocol_name_unregistered]
+# ALPN protocol name is not one this deployment serves
+severity = "warn"
+
 [violations.auth_scheme_character_forbidden]
 # Authentication scheme holds a character outside token
 severity = "warn"
