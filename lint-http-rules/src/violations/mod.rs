@@ -364,6 +364,17 @@ mod tests {
     /// different one worth having beside the first: that value *derives* from
     /// its production — `1*DIGIT` sets no ceiling — and what refuses it is this
     /// crate's inability to represent it, which no document asked for either.
+    ///
+    /// **The third reason is the opposite of the first two: not no sentence,
+    /// but two.** `field_connection_specific_forbidden` and
+    /// `te_member_forbidden` are stated once per version, by RFC 9113 § 8.2.2
+    /// and RFC 9114 § 4.2, and both documents are in force at the same time —
+    /// so a [`ViolationDef`], which holds one [`SpecRef`], would put an HTTP/2
+    /// citation on an HTTP/3 finding half the time. The sentences are quoted in
+    /// the subject file where neither is claimed as *the* one, and each finding
+    /// names its governing section in its own message. Two entries share this
+    /// reason today; a third would be the argument for `spec` becoming a slice,
+    /// which is a schema decision and not something to slide in under a floor.
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
