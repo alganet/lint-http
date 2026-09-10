@@ -27,6 +27,11 @@
 //! own exception says so. The defect is a repetition the field's definition does
 //! not admit, so every declarer is a rule that has read that definition — which
 //! is also why no gate can find the next declarer for you.
+//!
+//! The second entry is the same kind of claim about the same object: a field
+//! line that is there and should not be, because the version carrying it has no
+//! use for the hop-by-hop control the field states. Neither entry ever reads a
+//! value.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -67,6 +72,39 @@ defects! {
         default_severity: Severity::Warn,
         spec: Some(RFC_9110_5_3),
     }
+
+    /// A field stating hop-by-hop control — `Connection` and the fields it
+    /// governs, `TE` among them where no exception restores it — written into a
+    /// field section carried by a version that conveys such metadata by other
+    /// means. Presence is the whole defect: both documents call the message
+    /// malformed without anyone reading the value.
+    ///
+    /// `error`, because malformed is the word the documents use and a recipient
+    /// is entitled to reject the message rather than repair it.
+    ///
+    /// **This is the first entry in the catalogue with no `spec`, whose
+    /// sentence exists.** The requirement is stated once per version — RFC 9113
+    /// § 8.2.2 for HTTP/2, RFC 9114 § 4.2 for HTTP/3 — and the two are not
+    /// copies of one another: HTTP/2 closes the list of names in the sentence
+    /// after its MUST NOT, HTTP/3 enumerates nothing and defers to RFC 9110
+    /// § 7.6.1, whose own list is open. A `ViolationDef` carries one `SpecRef`,
+    /// so naming either document here would put an HTTP/2 citation on an HTTP/3
+    /// finding half the time — the wrong-document trap, arrived at from the
+    /// other side. **The defect is one and the sentence is two**, so the
+    /// citation stays where the version is known: at the rule's sites, and in
+    /// the finding's own message, which names the governing section.
+    ///
+    /// Splitting the entry per version was the alternative and it is refused:
+    /// an operator silencing this is silencing a defect, not a document, and
+    /// two ids for one defect is the duplication this whole campaign exists to
+    /// remove.
+    FIELD_CONNECTION_SPECIFIC_FORBIDDEN = {
+        id: "field_connection_specific_forbidden",
+        title: "A connection-specific field is written on a version that has none",
+        message: "",
+        default_severity: Severity::Error,
+        spec: None,
+    }
 }
 
 #[cfg(test)]
@@ -82,5 +120,22 @@ mod tests {
         assert_eq!(FIELD_LINE_DUPLICATED.id, "field_line_duplicated");
         assert_eq!(FIELD_LINE_DUPLICATED.default_severity, Severity::Warn);
         assert_eq!(FIELD_LINE_DUPLICATED.spec, Some(RFC_9110_5_3));
+    }
+
+    /// The entry with no sentence of its own, and the reason is that it has
+    /// two: one per version document. Pinned so that a later commit adding a
+    /// citation here has to answer which version's finding it would be wrong
+    /// for.
+    #[test]
+    fn the_requirement_written_once_per_version_carries_no_single_spec() {
+        assert_eq!(
+            FIELD_CONNECTION_SPECIFIC_FORBIDDEN.id,
+            "field_connection_specific_forbidden"
+        );
+        assert_eq!(FIELD_CONNECTION_SPECIFIC_FORBIDDEN.spec, None);
+        assert_eq!(
+            FIELD_CONNECTION_SPECIFIC_FORBIDDEN.default_severity,
+            Severity::Error
+        );
     }
 }
