@@ -12,19 +12,29 @@ use crate::violations::content_range::{
     CONTENT_RANGE_SPEC_WHITESPACE_FORBIDDEN, CONTENT_RANGE_UNIT_MALFORMED,
     CONTENT_RANGE_UNSATISFIED_RANGE_MALFORMED, RFC_9110_14_1, RFC_9110_14_1_2, RFC_9110_14_4,
 };
+use crate::violations::status::{
+    RFC_9110_15_3_7, RFC_9110_15_5_17, STATUS_206_UNSOLICITED, STATUS_416_UNSOLICITED,
+};
 use crate::violations::ViolationDef;
 
 pub struct RangeAndContentRangeConsistent;
 
-/// The defects this rule reports so far, and they are all one field's: the
-/// eleven ways `Content-Range = range-unit SP ( range-resp / unsatisfied-range )`
-/// is not that. They are the *field's* rather than this rule's — five other
-/// rules parse the same value, and the four that only ask whether it parsed
-/// will report these same ids when they say why.
+/// The defects this rule reports so far. Eleven of them are one field's: the
+/// ways `Content-Range = range-unit SP ( range-resp / unsatisfied-range )` is
+/// not that. They are the *field's* rather than this rule's — five other rules
+/// parse the same value, and the four that only ask whether it parsed will
+/// report these same ids when they say why.
+///
+/// The last two are not a field's at all. A 206 and a 416 are each defined in
+/// terms of the request's `Range`, so one sent where that field was never
+/// written describes an exchange that did not happen — the status code is the
+/// subject, and both fields it is read against are blameless.
 ///
 /// The rest of what this rule says is about two fields *agreeing*, which is a
 /// different subject and converts with the reading that owns the pair.
 static DECLARED: &[&ViolationDef] = &[
+    &STATUS_206_UNSOLICITED,
+    &STATUS_416_UNSOLICITED,
     &CONTENT_RANGE_EMPTY,
     &CONTENT_RANGE_UNIT_MALFORMED,
     &CONTENT_RANGE_SPEC_MISSING,
@@ -118,23 +128,11 @@ fn response_is_multipart_byteranges(headers: &hyper::HeaderMap) -> bool {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_3_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.3.7"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7",
-    note: "206 Partial Content: single-part 206 responses MUST include a `Content-Range` header describing the enclosed range",
-};
 const RFC_9110_15_3_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("15.3.7.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.2",
     note: "206 Partial Content, multiple parts: the parts carry the `Content-Range` fields and the header section MUST NOT carry one; a request for a single range MUST NOT be answered with a multipart response",
-};
-const RFC_9110_15_5_17: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.5.17"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17",
-    note: "416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`",
 };
 
 impl RuleMeta for RangeAndContentRangeConsistent {
@@ -259,15 +257,12 @@ impl Rule for RangeAndContentRangeConsistent {
                 .and_then(crate::helpers::content_range::split_ranges_specifier);
 
             // A 206 is *defined* as the answer to a range request, so one returned to a
-            // request that asked for no range contradicts its own status code. No MUST
-            // states this, and none is needed: the sentence says what the code
-            // indicates, and here it indicates something that did not happen. This
-            // check used to sit two branches deeper, where only a 206 carrying a
-            // well-formed satisfied Content-Range could reach it.
-            // cite(RFC 9110 § 15.3.7): "The 206 (Partial Content) status code indicates that the server is successfully fulfilling a range request for the target resource by transferring one or more parts of the selected representation."
+            // request that asked for no range contradicts its own status code -- the
+            // status is the defect and neither range field is, which is why the id is
+            // the status code's. This check used to sit two branches deeper, where only
+            // a 206 carrying a well-formed satisfied Content-Range could reach it.
             if status == 206 && !has_range_request {
-                return Some(self.cited(&RFC_9110_15_3_7, config.severity, "206 Partial Content response received but request did not include a Range header"
-                            .into()));
+                return Some(ctx.report(&STATUS_206_UNSOLICITED));
             }
 
             // 206 Partial Content rules
@@ -403,7 +398,8 @@ impl Rule for RangeAndContentRangeConsistent {
             if status == 416 {
                 // The status names the request field it is about, the same way 206's
                 // definition does, so a 416 to a request carrying no Range announces
-                // the rejection of nothing.
+                // the rejection of nothing -- the status code's own defect, and the
+                // entry beside the 206 one.
                 //
                 // Unless the range is in the other field. A partial PUT names the
                 // range it is writing in the request's own Content-Range, so a server
@@ -414,13 +410,11 @@ impl Rule for RangeAndContentRangeConsistent {
                 // it would be supplying one. The 206 side above keeps its finding:
                 // nothing in § 14.5 gives a response to a PUT an enclosed part to
                 // describe, which is the only thing a 206 says.
-                // cite(RFC 9110 § 15.5.17): "The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack)."
                 // cite(RFC 9110 § 14.5): "Some origin servers support PUT of a partial representation when the user agent sends a Content-Range header field (Section 14.4) in the request, though such support is inconsistent and depends on private agreements with user agents."
                 let request_names_a_range_elsewhere =
                     tx.request.headers.get("content-range").is_some();
                 if !has_range_request && !request_names_a_range_elsewhere {
-                    return Some(self.violation(config.severity, "416 Range Not Satisfiable response sent to a request with no Range header"
-                                .into()));
+                    return Some(ctx.report(&STATUS_416_UNSOLICITED));
                 }
 
                 let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");

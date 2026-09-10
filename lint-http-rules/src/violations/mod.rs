@@ -59,6 +59,7 @@ pub mod parameter;
 pub mod quoted_pair;
 pub mod quoted_string;
 pub mod qvalue;
+pub mod status;
 pub mod strict_transport_security;
 pub mod te;
 pub mod token;
@@ -386,7 +387,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 157;
+        const FLOOR: usize = 159;
         let cited = VIOLATIONS.iter().filter(|d| d.spec.is_some()).count();
         assert!(
             cited >= FLOOR,
@@ -410,6 +411,7 @@ mod tests {
         "obsolete",
         "redundant",
         "unregistered",
+        "unsolicited",
     ];
 
     /// Whether `id` is `<subject>[_<part>]_<defect>`: a defect from the list
