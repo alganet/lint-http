@@ -5459,7 +5459,7 @@ sources:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 146
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 117
+      line: 122
     - file: lint-http-rules/src/rules/content_encoding_registered.rs
       line: 135
   - label: compression_and_transfer_encoding_consistent (5)
@@ -5468,26 +5468,28 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 243
-  - label: compression_and_transfer_encoding_consistent (6)
+  - label: a coding listed twice
     section: § 8.4
     snippet: Such a content coding would only be listed if, for some bizarre reason, it is applied a second time to form the representation.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 236
-  - label: compression_and_transfer_encoding_consistent (7)
+    - file: lint-http-rules/src/violations/content_coding.rs
+      line: 101
+  - label: compression_and_transfer_encoding_consistent (6)
     section: § 8.4
     snippet: Unlike Transfer-Encoding (Section 6.1 of [HTTP/1.1]), the codings listed in Content-Encoding are a characteristic of the representation; the representation is defined in terms of the coded form, and all other metadata about the representation is about the coded form unless otherwise noted in the metadata definition.
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 219
-  - label: compression_and_transfer_encoding_consistent (8)
+  - label: compression_and_transfer_encoding_consistent (7)
     section: § 8.4.1
     snippet: All content codings are case-insensitive and ought to be registered within the "HTTP Content Coding Registry",
     cited_by:
     - file: lint-http-rules/src/rules/compression_and_transfer_encoding_consistent.rs
       line: 166
     - file: lint-http-rules/src/violations/content_coding.rs
-      line: 98
+      line: 119
   - label: conditional_headers_consistent
     section: § 13.1.3
     snippet: A recipient MUST ignore If-Modified-Since if the request contains an If-None-Match header field
@@ -5617,7 +5619,7 @@ sources:
     snippet: a sender SHOULD NOT generate representation metadata other than the above listed fields unless said metadata exists for the purpose of guiding cache updates
     cited_by:
     - file: lint-http-rules/src/rules/content_encoding_and_type_consistent.rs
-      line: 201
+      line: 208
   - label: content_encoding_registered
     section: § 12.5.3
     snippet: codings = content-coding / "identity" / "*"
