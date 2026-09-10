@@ -4,9 +4,14 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::quoted_string::{QUOTED_STRING_DELIMITER_MISSING, RFC_9110_5_6_4};
+use crate::violations::te::{RFC_9112_7_4, TE_CHUNKED_FORBIDDEN};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
+};
+use crate::violations::transfer_coding::{
+    RFC_9112_7, RFC_9112_7_2, TRANSFER_CODING_PARAMETER_FORBIDDEN, TRANSFER_CODING_UNREGISTERED,
 };
 use crate::violations::ViolationDef;
 
@@ -42,6 +47,10 @@ static DECLARED: &[&ViolationDef] = &[
     &TOKEN_EMPTY,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
     &TOKEN_CHARACTER_FORBIDDEN,
+    &QUOTED_STRING_DELIMITER_MISSING,
+    &TE_CHUNKED_FORBIDDEN,
+    &TRANSFER_CODING_PARAMETER_FORBIDDEN,
+    &TRANSFER_CODING_UNREGISTERED,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -53,30 +62,11 @@ const RFC_9112_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-6.1",
     note: "Transfer-Encoding = #transfer-coding, and the 501 a recipient owes a coding it does not understand",
 };
-const RFC_9112_7: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("7"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7",
-    note: "Transfer codings: the names are case-insensitive and 'ought to be' registered — the whole of this rule's strength",
-};
 const RFC_9112_7_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
     section: Some("7.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.1",
     note: "Chunked, which likewise defines no parameters",
-};
-const RFC_9112_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("7.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.2",
-    note:
-        "The five compression codings, which define no parameters — §7.1 says the same of chunked",
-};
-const RFC_9112_7_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9112",
-    section: Some("7.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4",
-    note: "Negotiating transfer codings: chunked is forbidden in TE, an empty TE is conforming, and the q is a rank",
 };
 const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -141,6 +131,7 @@ allowed = ["chunked", "compress", "gzip", "deflate"]
             RFC_9112_7_2,
             RFC_9112_7_4,
             RFC_9110_10_1_4,
+            RFC_9110_5_6_4,
             IANA_HTTP_PARAMETERS,
             RFC_9110_5_6_2,
         ]
@@ -220,10 +211,9 @@ impl Rule for TransferCodingRegistered {
                 // owns the field's syntax and will report it; for
                 // `Transfer-Encoding` no such rule exists, and silence here would
                 // be the whole of the answer.
-                // cite(RFC 9110 § 5.6.4): "quoted-string  = DQUOTE *( qdtext / quoted-pair ) DQUOTE"
                 if !crate::helpers::list::quoting_is_balanced(val) {
-                    return Some(TransferCodingRegistered.violation(
-                        ctx.severity,
+                    return Some(ctx.report_with(
+                        &QUOTED_STRING_DELIMITER_MISSING,
                         format!(
                             "Unterminated quoted-string in {} header: '{}'",
                             hdr_name, val
@@ -312,28 +302,18 @@ impl Rule for TransferCodingRegistered {
                     // a reason the second half of the sentence gives: a client
                     // cannot decline it, so naming it says nothing. This is the one
                     // place where a name being *recognized* is not enough.
-                    // cite(RFC 9112 § 7.4): "A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients."
                     //
                     // Case-insensitively, like every other name comparison here.
                     // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
                     if hdr_name.eq_ignore_ascii_case("TE") && token.eq_ignore_ascii_case("chunked")
                     {
-                        return Some(
-                            TransferCodingRegistered.violation(
-                                ctx.severity,
-                                "A client must not send the chunked transfer coding name in TE; \
-                                 chunked is always acceptable for HTTP/1.1 recipients"
-                                    .into(),
-                            ),
-                        );
+                        return Some(ctx.report(&TE_CHUNKED_FORBIDDEN));
                     }
                     // § 7.2 defines exactly these five names by reference to the
                     // content codings of the same name, and then says outright what
                     // follows for their parameters. The rule stripped everything
                     // from the first `;` onward and never looked, so
                     // `Transfer-Encoding: gzip;level=9` passed as an ordinary gzip.
-                    // cite(RFC 9112 § 7.2): "The compression codings do not define any parameters."
-                    // cite(RFC 9112 § 7.2): "The presence of parameters with any of these compression codings SHOULD be treated as an error."
                     //
                     // `chunked` says the same thing about itself, in its own
                     // section and in two sentences rather than one. An earlier pass
@@ -374,8 +354,8 @@ impl Rule for TransferCodingRegistered {
                             {
                                 continue;
                             }
-                            return Some(TransferCodingRegistered.violation(
-                                ctx.severity,
+                            return Some(ctx.report_with(
+                                &TRANSFER_CODING_PARAMETER_FORBIDDEN,
                                 format!(
                                     "Transfer-coding '{}' defines no parameters, but '{}' is \
                                      present in the {} header",
@@ -403,8 +383,8 @@ impl Rule for TransferCodingRegistered {
                     // is the same sentence the config parser folds by.
                     // cite(RFC 9112 § 7): "All transfer-coding names are case-insensitive and ought to be registered within the HTTP Transfer Coding registry, as defined in Section 7.3."
                     if !allowed.contains(&token.to_ascii_lowercase()) {
-                        return Some(TransferCodingRegistered.violation(
-                            ctx.severity,
+                        return Some(ctx.report_with(
+                            &TRANSFER_CODING_UNREGISTERED,
                             format!(
                                 "Unrecognized transfer-coding '{}' in {} header",
                                 token, hdr_name
@@ -1267,13 +1247,16 @@ mod tests {
             &crate::transaction_history::TransactionHistory::empty(),
             &cfg,
         );
-        assert!(v.is_some());
-        let v = v.unwrap();
-        assert_eq!(v.severity, crate::lint::Severity::Error);
+        let v = v.expect("a finding");
+        assert_eq!(v.violation, "transfer_coding_unregistered");
         assert_eq!(
             v.message,
             "Unrecognized transfer-coding 'x-foo' in Transfer-Encoding header"
         );
+        // The rule's `severity = "error"` above no longer reaches a converted
+        // finding: the entry's own default is what arrives, and an operator
+        // raising it says so under the violation id.
+        assert_eq!(v.severity, crate::lint::Severity::Warn);
         Ok(())
     }
 
