@@ -5147,7 +5147,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 118
     - file: lint-http-rules/src/violations/status.rs
-      line: 104
+      line: 114
   - label: accept_ranges_on_partial_content
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
@@ -8737,41 +8737,37 @@ sources:
     snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 151
+      line: 161
   - label: status (2)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 124
+      line: 134
   - label: status (3)
+    section: § 7.8
+    snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
+    cited_by:
+    - file: lint-http-rules/src/violations/status.rs
+      line: 238
+  - label: status (4)
     section: § 7.8
     snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 191
+      line: 201
   - label: status_101_switching_protocols
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 121
+      line: 128
   - label: status_101_switching_protocols (2)
-    section: § 7.8
-    snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
-    cited_by:
-    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 193
-    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 236
-    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 266
-  - label: status_101_switching_protocols (3)
     section: § 7.8
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 225
+      line: 231
   - label: status_103_early_hints_before_final
     section: § 15.2
     snippet: Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client.
@@ -10580,7 +10576,7 @@ sources:
     snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 192
+      line: 202
   - label: the TE exception
     section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
@@ -10771,7 +10767,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 169
     - file: lint-http-rules/src/violations/status.rs
-      line: 193
+      line: 203
   - label: lint-http-core/src/http_version.rs
     section: § 4.3.1
     snippet: HTTP/3 does not define a way to carry the version identifier that is included in the HTTP/1.1 request line.

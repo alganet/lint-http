@@ -4,7 +4,9 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::status::{RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5, STATUS_101_UNSOLICITED};
+use crate::violations::status::{
+    RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5, STATUS_101_PROTOCOL_FORBIDDEN, STATUS_101_UNSOLICITED,
+};
 use crate::violations::upgrade::{RFC_9110_15_2_2, UPGRADE_EMPTY, UPGRADE_MISSING};
 use crate::violations::ViolationDef;
 
@@ -33,7 +35,12 @@ pub struct Status101SwitchingProtocols;
 /// three documents is what a per-version const would otherwise have split.
 /// What is left unconverted is a protocol nobody offered and traffic after the
 /// switch, each a reading of its own.
-static DECLARED: &[&ViolationDef] = &[&UPGRADE_MISSING, &UPGRADE_EMPTY, &STATUS_101_UNSOLICITED];
+static DECLARED: &[&ViolationDef] = &[
+    &UPGRADE_MISSING,
+    &UPGRADE_EMPTY,
+    &STATUS_101_UNSOLICITED,
+    &STATUS_101_PROTOCOL_FORBIDDEN,
+];
 
 impl RuleMeta for Status101SwitchingProtocols {
     fn id(&self) -> &'static str {
@@ -187,17 +194,16 @@ impl Rule for Status101SwitchingProtocols {
             let req_upgrade_combined =
                 crate::helpers::headers::get_all_header_values(&tx.request.headers, "upgrade");
             // No request Upgrade at all: the client indicated no protocol, so the switch
-            // the 101 announces is one it never invited. Same governing sentence as the
-            // empty-token and protocol-mismatch checks below — the three faces of "not
-            // indicated by the client" (nothing / malformed / a different protocol).
-            // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
+            // the 101 announces is one it never invited. Same entry as the empty-token
+            // and protocol-mismatch checks below — the three faces of "not indicated by
+            // the client" (nothing / malformed / a different protocol), and the sentence
+            // is quoted once, on the entry.
             if req_upgrade_combined.is_none() {
                 return Some(
-                    self.cited(
-                        &RFC_9110_7_8,
-                        ctx.severity,
+                    ctx.report_with(
+                        &STATUS_101_PROTOCOL_FORBIDDEN,
                         "Server sent 101 Switching Protocols but the request did not include an \
-                         Upgrade header (RFC 9110 §7.8)"
+                     Upgrade header (RFC 9110 §7.8)"
                             .into(),
                     ),
                 );
@@ -233,14 +239,12 @@ impl Rule for Status101SwitchingProtocols {
                 .collect();
 
             // Upgrade present but no valid tokens (e.g. " , , "): still nothing indicated.
-            // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
             if offered.is_empty() {
                 return Some(
-                    self.cited(
-                        &RFC_9110_7_8,
-                        ctx.severity,
+                    ctx.report_with(
+                        &STATUS_101_PROTOCOL_FORBIDDEN,
                         "Server sent 101 Switching Protocols but the request Upgrade header \
-                         contains no protocol tokens (RFC 9110 §7.8)"
+                     contains no protocol tokens (RFC 9110 §7.8)"
                             .into(),
                     ),
                 );
@@ -262,14 +266,13 @@ impl Rule for Status101SwitchingProtocols {
 
             // The server may choose one or more of the offered protocols, but every
             // chosen protocol must have been offered — `all` fails on the first that
-            // was not, which is exactly "switch to a protocol not indicated".
-            // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
+            // was not, which is exactly "switch to a protocol not indicated" and the
+            // third face of the entry's sentence.
             let all_matched = chosen_list.iter().all(|c| offered.contains(c));
 
             if !all_matched {
-                return Some(self.cited(
-                    &RFC_9110_7_8,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &STATUS_101_PROTOCOL_FORBIDDEN,
                     format!(
                         "101 response Upgrade '{}' was not offered by the client's Upgrade '{}' \
                          (RFC 9110 §7.8)",

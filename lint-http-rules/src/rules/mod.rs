@@ -1329,8 +1329,10 @@ severity = "warn"
         /// § 7.8, RFC 9113 § 8.6 and RFC 9114 § 4.5 at three version gates
         /// reporting one defect; `status_101_unsolicited` names all three, so
         /// the count of *sentences read* is unchanged and the count of sites
-        /// naming one fell by three.
-        const FLOOR: usize = 121;
+        /// naming one fell by three. **Three more of that rule's went the
+        /// ordinary way** — the faces of § 7.8's MUST NOT, which had quoted one
+        /// sentence at three sites and now report one entry.
+        const FLOOR: usize = 118;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
