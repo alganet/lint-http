@@ -26,6 +26,7 @@ use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
 };
+use crate::violations::transfer_coding::TRANSFER_CODING_PARAMETER_MISSING;
 use crate::violations::ViolationDef;
 
 /// The defects this rule reports, and every one of them belongs to a
@@ -47,6 +48,7 @@ use crate::violations::ViolationDef;
 /// of their own.
 static DECLARED: &[&ViolationDef] = &[
     &BWS_FORBIDDEN,
+    &TRANSFER_CODING_PARAMETER_MISSING,
     &TE_TRAILERS_PARAMETER_FORBIDDEN,
     &TE_CONNECTION_OPTION_MISSING,
     &FIELD_REQUEST_CONTEXT_MISDIRECTED,
@@ -78,9 +80,6 @@ impl TeHeaderValid {
     /// cite(RFC 9110 § 5.2): "When a field name is repeated within a section, its combined field value consists of the list of corresponding field line values within that section, concatenated in order, with each field line value separated by a comma."
     /// cite(RFC 9110 § 10.1.4): "The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding."
     fn check_members(&self, value: &str, ctx: &crate::rules::RuleContext<'_>) -> Option<Violation> {
-        let severity = ctx.severity;
-        let violation = |message: String| Some(self.violation(severity, message));
-
         // The field's list construct, expanded for a sender. The outer brackets are
         // why a `TE:` carrying nothing is not reported: `#t-codings` is not
         // `1#t-codings`, so a list of no members is a list this production generates.
@@ -135,9 +134,12 @@ impl TeHeaderValid {
             // cite(RFC 9110 § 12.4.2): "weight = OWS ";" OWS "q=" qvalue"
             for segment in segments.iter().skip(1) {
                 if segment.is_empty() {
-                    return violation(format!(
-                        "TE member '{}' holds a ';' with no parameter after it",
-                        member.escape_debug()
+                    return Some(ctx.report_with(
+                        &TRANSFER_CODING_PARAMETER_MISSING,
+                        format!(
+                            "TE member '{}' holds a ';' with no parameter after it",
+                            member.escape_debug()
+                        ),
                     ));
                 }
             }

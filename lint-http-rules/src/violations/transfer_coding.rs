@@ -24,6 +24,7 @@
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+use crate::violations::te::RFC_9110_A;
 
 /// Where the coding names are registered, and the sentence making them
 /// case-insensitive and asking that they be registered at all.
@@ -44,6 +45,32 @@ pub const RFC_9112_7_2: SpecRef = SpecRef {
 };
 
 defects! {
+    /// A `;` written with nothing after it. The repetition prints the
+    /// delimiter and a `transfer-parameter` together — `*( OWS ";" OWS
+    /// transfer-parameter )` brackets neither half — so a member ending in a
+    /// semicolon, or holding two in a row, generates no `transfer-coding` at
+    /// all.
+    ///
+    /// **This is where the production differs from `parameters`**, and it is
+    /// the reason the defect exists here rather than under
+    /// [`parameter`](crate::violations::parameter): § 5.6.6 writes
+    /// `*( OWS ";" OWS [ parameter ] )`, whose brackets make `text/plain;` a
+    /// conforming zero-parameter repetition. The same three characters are a
+    /// defect after a coding name and are not one after a media type.
+    ///
+    /// The production is written inside `TE`'s section, and RFC 9112 § 7 says
+    /// so in as many words — which is why a defect of `Transfer-Encoding`'s
+    /// grammar quotes a sentence from a field it does not use.
+    ///
+    // cite(RFC 9110 § A, label: transfer-coding): "transfer-coding = token *( OWS ";" OWS transfer-parameter )"
+    TRANSFER_CODING_PARAMETER_MISSING = {
+        id: "transfer_coding_parameter_missing",
+        title: "A coding writes a ';' with no parameter after it",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_A),
+    }
+
     /// A parameter hung off a coding that defines none. § 7.2 says so of the
     /// five compression codings in one sentence and § 7.1 says it of `chunked`
     /// in two, so the six that this crate can check are covered; a coding an
