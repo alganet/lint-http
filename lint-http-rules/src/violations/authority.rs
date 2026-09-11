@@ -271,6 +271,44 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9114_4_3_1],
     }
+
+    /// A request that answered the requirement above with a field written and
+    /// left blank. The same clause states both: the request carries one of the
+    /// two fields, and if it carries either, it is not empty — so a `Host:` with
+    /// nothing on it satisfies the letter of the first half and is named by the
+    /// second.
+    ///
+    /// **Separate from [`AUTHORITY_MISSING`] because the senders differ and so
+    /// do their fixes.** One never wrote the field; this one wrote it and put no
+    /// authority in it, which is a different mistake to make and a different one
+    /// to correct. The closed vocabulary already separates the two, and here the
+    /// evidence supports the separation: an absent field line and a blank one
+    /// are both in the capture, unlike the pseudo-headers whose absence and
+    /// blankness reassemble into one target.
+    ///
+    /// **What it is not is an HTTP/1.1 empty `Host`.** RFC 9112 § 3.2 *requires*
+    /// an empty field value where the target URI's authority is missing or
+    /// undefined, which is why `host_header` reports nothing for one and says so
+    /// in its description. This entry is the other version's sentence, and it is
+    /// read only on a request that version governs.
+    ///
+    /// **Nor is it a `Host` that disagrees with an `:authority`.** The clause's
+    /// third half — both fields present, both naming the same authority — is
+    /// `host_and_authority_consistent`'s, and an empty `Host` beside a target
+    /// that does name an authority is that rule's finding rather than this one.
+    /// This entry is for the request that names an authority *nowhere*.
+    ///
+    /// `error`, with its sibling: the consequence is the recipient's either way,
+    /// and it is that the request names no origin.
+    ///
+    // cite(RFC 9114 § 4.3.1): "If these fields are present, they MUST NOT be empty."
+    AUTHORITY_EMPTY = {
+        id: "authority_empty",
+        title: "A request's authority field is present and empty",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9114_4_3_1],
+    }
 }
 
 #[cfg(test)]
