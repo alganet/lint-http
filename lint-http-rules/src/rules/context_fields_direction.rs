@@ -4,8 +4,22 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::field::{
+    FIELD_REQUEST_CONTEXT_MISDIRECTED, FIELD_RESPONSE_CONTEXT_MISDIRECTED, RFC_9110_10_1,
+    RFC_9110_10_2,
+};
+use crate::violations::ViolationDef;
 
 pub struct ContextFieldsDirection;
+
+/// The two defects, one per direction. They are the *field line's* rather than
+/// this rule's: the claim is about where a line landed and never about the
+/// value on it, which is the whole of the `field` subject — and `te_header_valid`
+/// reports the first of them for its own field from the other end.
+static DECLARED: &[&ViolationDef] = &[
+    &FIELD_REQUEST_CONTEXT_MISDIRECTED,
+    &FIELD_RESPONSE_CONTEXT_MISDIRECTED,
+];
 
 /// RFC 9110 § 10.1's five request context fields, each with the subject its
 /// own section gives it — the clause the finding prints, so the report says
@@ -66,26 +80,6 @@ const RESPONSE_CONTEXT_FIELDS: &[(&str, &str)] = &[
     ),
 ];
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_10_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
-    note: "Request Context Fields — the five fields whose subjects are the user, \
-           user agent and resource behind a request; the section split this rule \
-           reads the direction from",
-};
-const RFC_9110_10_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2",
-    note: "Response Context Fields — the four whose subjects are the server, the \
-           target resource and related resources. No sentence in either section \
-           forbids the misdirection, which is why the finding is advice",
-};
-
 impl RuleMeta for ContextFieldsDirection {
     fn id(&self) -> &'static str {
         "context_fields_direction"
@@ -143,6 +137,10 @@ severity = "info"
         &[RFC_9110_10_1, RFC_9110_10_2]
     }
 
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
+    }
+
     fn examples(&self) -> &'static [crate::rules::Example] {
         use crate::rules::{Compliance, Example};
         &[
@@ -183,13 +181,14 @@ impl Rule for ContextFieldsDirection {
             // in a response. Each table is probed against the *other* direction
             // only — in its own direction the field is what its section says it
             // is, and its value is its own rule's question.
-            let message = misdirected(
+            let (def, message) = misdirected(
                 &tx.request.headers,
                 RESPONSE_CONTEXT_FIELDS,
                 "Request",
                 "response context field",
                 "a request",
             )
+            .map(|message| (&FIELD_RESPONSE_CONTEXT_MISDIRECTED, message))
             .or_else(|| {
                 tx.response.as_ref().and_then(|resp| {
                     misdirected(
@@ -199,10 +198,11 @@ impl Rule for ContextFieldsDirection {
                         "request context field",
                         "a response",
                     )
+                    .map(|message| (&FIELD_REQUEST_CONTEXT_MISDIRECTED, message))
                 })
             })?;
 
-            Some(self.violation(ctx.severity, message))
+            Some(ctx.report_with(def, message))
         };
         Vec::from_iter(finding())
     }

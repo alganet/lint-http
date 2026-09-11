@@ -1379,6 +1379,14 @@ severity = "warn"
 # Field name is not one the deployment expects
 severity = "warn"
 
+[violations.field_request_context_misdirected]
+# A request context field is written in a response
+severity = "info"
+
+[violations.field_response_context_misdirected]
+# A response context field is written in a request
+severity = "info"
+
 [violations.http_date_malformed]
 # Timestamp derives from no HTTP-date format
 severity = "warn"

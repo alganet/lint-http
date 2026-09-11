@@ -125,6 +125,7 @@ member is malformed".
 | Written where the specification prohibits it | `_forbidden` | — |
 | Permitted, and almost certainly not what was meant | `_redundant` | — |
 | Sent in answer to something the other side never asked for | `_unsolicited` | — |
+| Sent in the direction its definition does not describe | `_misdirected` | — |
 | Retired by a later specification | `_obsolete` | — |
 
 `_redundant` is the one ending that condemns nothing: it names work a message
@@ -143,6 +144,15 @@ code; not `_invalid`, since no value is being measured past its grammar; and not
 status code's definition is written in terms of a request that did not happen. A
 rule reporting one of these has to read both messages, which is why the subject
 is the status code and never the field it is read against.
+
+`_misdirected` is the ending for a field that landed on the wrong side of the
+exchange. RFC 9110 §10 sorts nine fields into the ones that say something about
+a request and the ones that say something about a response, and attaches no
+keyword to either arrival — so a `Server` in a request is not `_forbidden`, and
+the line is too well formed to be `_invalid`. What is wrong is that it states
+nothing where it was sent. Entries ending this way default to `info`, and the
+ending is deliberately narrower than "in the wrong place": a field a sentence
+prohibits somewhere is `_forbidden` there, whichever direction it was going.
 
 `_missing` and `_empty` are not alternatives to pick between: `_missing` is a
 sender that never wrote the thing, `_empty` is a sender that wrote it and put

@@ -22,8 +22,8 @@ Reports a message context field arriving in the direction it is not defined for:
 
 ## Specifications
 
-- [RFC 9110 §10.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1): Request Context Fields — the five fields whose subjects are the user, user agent and resource behind a request; the section split this rule reads the direction from
-- [RFC 9110 §10.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2): Response Context Fields — the four whose subjects are the server, the target resource and related resources. No sentence in either section forbids the misdirection, which is why the finding is advice
+- [RFC 9110 §10.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1): Request Context Fields — the five fields whose subjects are the user, user agent and resource behind a request; the section split the direction is read from
+- [RFC 9110 §10.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2): Response Context Fields — the four whose subjects are the server, the target resource and related resources. No sentence in either section forbids the misdirection, which is why both entries are advice
 
 ## Configuration
 

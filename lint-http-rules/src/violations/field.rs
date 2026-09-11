@@ -33,6 +33,18 @@
 //! use for the hop-by-hop control the field states. The third is the name on
 //! that line being one nobody here expects. **No entry in this subject ever
 //! reads a value** — which is what makes it a subject rather than a drawer.
+//!
+//! **The last two are the same claim about a direction rather than a version.**
+//! RFC 9110 § 10 sorts nine fields into the ones that say something about a
+//! request and the ones that say something about a response, and a sender that
+//! writes one in the other direction has written a line that states nothing
+//! where it landed. No sentence in either section forbids it — the split is how
+//! the document says what each field is *about*, not a prohibition — so both
+//! entries are `info`, and the word for them is neither `_forbidden` nor
+//! `_invalid`. They are two entries rather than one because the two sections
+//! are two sentences and a def carries one quote, and because the senders are
+//! two: a client leaking a server's field and a server echoing a client's are
+//! different mistakes with different fixes.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -56,6 +68,24 @@ pub const RFC_9110_5_3: SpecRef = SpecRef {
     note: "Field Order — a sender MUST NOT write multiple field lines of one name, in the \
            headers or the trailers, unless at least one alternative of the field's definition \
            allows the lines to be recombined as a comma-separated list",
+};
+
+/// The request context fields, and what the section says they are about. The
+/// half of § 10 that a response has no use for.
+pub const RFC_9110_10_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
+    note: "Request Context Fields — the five fields whose subjects are the user, user agent and resource behind a request; the section split the direction is read from",
+};
+
+/// The other half, and the same silence: neither section attaches a keyword to
+/// a field arriving in the direction it does not describe.
+pub const RFC_9110_10_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.2",
+    note: "Response Context Fields — the four whose subjects are the server, the target resource and related resources. No sentence in either section forbids the misdirection, which is why both entries are advice",
 };
 
 defects! {
@@ -140,6 +170,48 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: Some(RFC_9110_5_1),
+    }
+
+    /// One of § 10.1's five request context fields — `Expect`, `From`,
+    /// `Referer`, `TE`, `User-Agent` — written into a response. Each of them is
+    /// defined as a fact about the request's side of the exchange: who the user
+    /// is, what the user agent is, where the target URI came from, what the
+    /// client can accept. A server writing one states none of those things
+    /// about itself; it writes a line with no subject.
+    ///
+    /// **`info`, and the reason is the absence of a modal rather than a
+    /// judgment about how much it matters.** § 10.1 says what the fields are
+    /// for and stops. Nothing forbids the arrival, so `_forbidden` would invent
+    /// a prohibition and `_invalid` would condemn a value that is perfectly
+    /// well formed — the line is legible, and what is wrong is that it landed
+    /// where its definition says nothing.
+    ///
+    // cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
+    FIELD_REQUEST_CONTEXT_MISDIRECTED = {
+        id: "field_request_context_misdirected",
+        title: "A request context field is written in a response",
+        message: "",
+        default_severity: Severity::Info,
+        spec: Some(RFC_9110_10_1),
+    }
+
+    /// The mirror: one of § 10.2's four response context fields — `Allow`,
+    /// `Location`, `Retry-After`, `Server` — written into a request. Same
+    /// reading, opposite sender, and the same absent modal.
+    ///
+    /// A separate entry rather than a shared one, for two reasons that agree.
+    /// The sentence is § 10.2's and a def carries one quote, so a single entry
+    /// would cite the wrong section for half its findings; and the sender is
+    /// the other party, so an operator watching what its own clients emit is
+    /// watching this entry and not its sibling.
+    ///
+    // cite(RFC 9110 § 10.2): "The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources."
+    FIELD_RESPONSE_CONTEXT_MISDIRECTED = {
+        id: "field_response_context_misdirected",
+        title: "A response context field is written in a request",
+        message: "",
+        default_severity: Severity::Info,
+        spec: Some(RFC_9110_10_2),
     }
 }
 
