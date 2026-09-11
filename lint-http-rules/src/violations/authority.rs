@@ -46,6 +46,16 @@
 //! What a capture cannot show is *which* of the two the sender wrote, so a
 //! message naming a destination anywhere is not this defect — that is the reading
 //! both rules already made for an origin-form target, applied to every form.
+//!
+//! **The fourth is the same absence outside a CONNECT, and it is one version's
+//! alone.** RFC 9114 § 4.3.1 requires a request whose scheme has a mandatory
+//! authority component to carry either the field or a `Host`; RFC 9113 § 8.3.1
+//! writes the opposite for HTTP/2, telling a client to omit `:authority` where
+//! there is no authority to convey. So this entry names one sentence, cites it,
+//! and is declared by one rule — **where two version documents differ, the
+//! catalogue holds the difference rather than smoothing it**, and the pair of
+//! `_missing` entries here is that line drawn twice: once by the method a request
+//! used and once by the document that asked.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -218,6 +228,49 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9113_8_5, RFC_9114_4_4],
     }
+
+    /// A request whose scheme requires an authority and which carries none —
+    /// neither an `:authority` the transport reassembled into its target nor a
+    /// `Host` field beside it. Every `http` and `https` URI names a host, so a
+    /// request that names none has no origin to be applied to and no way for an
+    /// intermediary to choose one.
+    ///
+    /// **One version writes this and the other does not**, which is why the
+    /// entry names one sentence and one rule declares it. RFC 9114 § 4.3.1 puts
+    /// the requirement as an either-or, and the sibling paragraph in RFC 9113
+    /// § 8.3.1 does the opposite: a client is told to use `:authority` *unless
+    /// there is no authority information to convey*, in which case it may not
+    /// generate one at all. So an HTTP/2 request with no authority anywhere is
+    /// outside any sentence this catalogue could put behind a finding, and the
+    /// HTTP/2 rule reports nothing here — **a version-split pair of rules is not
+    /// obliged to report the same set, and where they differ the difference is
+    /// the documents'.**
+    ///
+    /// **The scheme is the sentence's condition and is not in the capture.** The
+    /// clause gates on a scheme with a mandatory authority component, and a
+    /// capture of a request whose target is in origin form retains no scheme —
+    /// which is exactly the shape this defect arrives in. What stands in for it
+    /// is the transport: HTTP/3 runs over QUIC with TLS, so the request is
+    /// `http` or `https` and both are named in the clause. That reading is the
+    /// rule's, recorded in its `description()`, and it is why the id names no
+    /// scheme.
+    ///
+    /// Separate from [`AUTHORITY_TUNNEL_MISSING`], which is the same absence on
+    /// a CONNECT: there the field is the tunnel destination and both version
+    /// documents require it, so neither the condition nor the sentence is
+    /// shared.
+    ///
+    /// `error`: nothing later in the exchange supplies the host, and a recipient
+    /// that guesses one is choosing an origin the sender never named.
+    ///
+    // cite(RFC 9114 § 4.3.1): "If the :scheme pseudo-header field identifies a scheme that has a mandatory authority component (including "http" and "https"), the request MUST contain either an :authority pseudo-header field or a Host header field."
+    AUTHORITY_MISSING = {
+        id: "authority_missing",
+        title: "A request that owes an authority names none",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9114_4_3_1],
+    }
 }
 
 #[cfg(test)]
@@ -261,6 +314,22 @@ mod tests {
         assert_eq!(
             AUTHORITY_TUNNEL_USERINFO_FORBIDDEN.default_severity,
             AUTHORITY_USERINFO_FORBIDDEN.default_severity,
+        );
+    }
+
+    /// The two absences are two entries and the split is the documents': a
+    /// CONNECT owes its destination under both versions and a scheme's
+    /// mandatory authority is required by one of them, so one entry names two
+    /// sentences and carries none onto a finding while the other names one and
+    /// cites it.
+    #[test]
+    fn the_two_absences_split_on_what_requires_the_field() {
+        assert_eq!(AUTHORITY_TUNNEL_MISSING.spec.len(), 2);
+        assert_eq!(AUTHORITY_MISSING.spec, [RFC_9114_4_3_1]);
+        assert!(AUTHORITY_MISSING.message.is_empty());
+        assert_eq!(
+            AUTHORITY_MISSING.default_severity,
+            AUTHORITY_TUNNEL_MISSING.default_severity,
         );
     }
 
