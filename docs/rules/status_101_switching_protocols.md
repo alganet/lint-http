@@ -17,7 +17,7 @@ Validates that `101 Switching Protocols` responses follow correct HTTP upgrade s
 
 ## Specifications
 
-- [RFC 9110 §15.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2): 101 Switching Protocols
+- [RFC 9110 §15.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2): 101 Switching Protocols — the response MUST generate an `Upgrade` field naming the protocol(s) in effect after it
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade
 - [RFC 9113 §8.6](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6): The Upgrade Header Field (HTTP/2 forbids 101)
 - [RFC 9114 §4.5](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5): HTTP Upgrade — the only place RFC 9114 mentions 101; forbids it alongside the Upgrade mechanism

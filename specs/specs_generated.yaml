@@ -8749,37 +8749,29 @@ sources:
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 130
+      line: 136
   - label: status_101_switching_protocols (2)
-    section: § 15.2.2
-    snippet: The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response.
-    cited_by:
-    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 220
-    - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 265
-  - label: status_101_switching_protocols (3)
     section: § 7.8
     snippet: A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field.
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 205
+      line: 211
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 250
+      line: 254
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 281
-  - label: status_101_switching_protocols (4)
+      line: 284
+  - label: status_101_switching_protocols (3)
     section: § 7.8
     snippet: A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field.
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 155
-  - label: status_101_switching_protocols (5)
+      line: 161
+  - label: status_101_switching_protocols (4)
     section: § 7.8
     snippet: Although protocol names are registered with a preferred case, recipients SHOULD use case-insensitive comparison when matching each protocol-name to supported protocols.
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 239
+      line: 243
   - label: status_103_early_hints_before_final
     section: § 15.2
     snippet: Since HTTP/1.0 did not define any 1xx status codes, a server MUST NOT send a 1xx response to an HTTP/1.0 client.
@@ -9160,6 +9152,14 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 350
+  - label: upgrade
+    section: § 15.2.2
+    snippet: The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response.
+    cited_by:
+    - file: lint-http-rules/src/violations/upgrade.rs
+      line: 43
+    - file: lint-http-rules/src/violations/upgrade.rs
+      line: 62
   - label: upgrade_and_connection_consistent
     section: § 7.6.1
     snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
@@ -10580,7 +10580,7 @@ sources:
     snippet: HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 170
+      line: 176
   - label: the TE exception
     section: § 8.2.2
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
@@ -10769,7 +10769,7 @@ sources:
     - file: lint-http-rules/src/rules/http3_status_code_valid.rs
       line: 125
     - file: lint-http-rules/src/rules/status_101_switching_protocols.rs
-      line: 186
+      line: 192
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 169
   - label: lint-http-core/src/http_version.rs

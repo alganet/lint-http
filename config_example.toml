@@ -1755,6 +1755,14 @@ severity = "warn"
 # A coding is applied in transit that the representation already carries
 severity = "info"
 
+[violations.upgrade_empty]
+# A 101 response names no protocol on its Upgrade field
+severity = "error"
+
+[violations.upgrade_missing]
+# A 101 response carries no Upgrade field
+severity = "error"
+
 [violations.uri_character_forbidden]
 # Value holds a character no URI is written with
 severity = "warn"
