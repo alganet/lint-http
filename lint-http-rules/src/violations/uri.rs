@@ -67,22 +67,25 @@ pub const RFC_3986_3_2_3: SpecRef = SpecRef {
 /// The `http` scheme's definition, and the one requirement it puts on a host
 /// that the generic syntax does not: the identifier may not be empty. Shared
 /// with its `https` twin below, which states the same sentence for the other
-/// scheme HTTP mints identifiers in.
+/// scheme HTTP mints identifiers in, and imported by every rule that declares
+/// the entry — the two sections are the entry's, so they live here rather than
+/// once per reader.
 pub const RFC_9110_4_2_1: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("4.2.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
-    note: "http URI Scheme — `http-URI = \"http\" \"://\" authority path-abempty [ \"?\" query ]`, the default port, and the MUST NOT on an empty host identifier with the recipient's MUST to reject one",
+    note: "http URI Scheme — a TCP connection and no more, `http-URI = \"http\" \"://\" authority path-abempty [ \"?\" query ]`, the default port, and the MUST NOT against an empty host identifier with the recipient's MUST to reject one",
 };
 
 /// The `https` scheme's, differing from the above in the scheme name, the
 /// default port and the security requirement — and stating the empty-host MUST
-/// NOT in the same words.
+/// NOT in the same words. Its other half is read by `referer_uri_valid`, which
+/// asks what a resource named by one was accessed over.
 pub const RFC_9110_4_2_2: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("4.2.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
-    note: "https URI Scheme — the same shape as the http scheme with TLS and port 443, including the MUST NOT on an empty host identifier",
+    note: "https URI Scheme — what \"secured\" means for a resource named by one and the client's MUST to secure its requests for it, the same shape as the http scheme with TLS and port 443, and the MUST NOT against an empty host identifier",
 };
 
 /// The alphabet, which is one set for the whole of a URI reference: a
