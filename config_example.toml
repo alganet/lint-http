@@ -1758,3 +1758,7 @@ severity = "warn"
 [violations.uri_scheme_leading_letter_missing]
 # URI scheme does not begin with a letter
 severity = "warn"
+
+[violations.weight_equals_whitespace_forbidden]
+# Whitespace is written beside the weight's '='
+severity = "warn"
