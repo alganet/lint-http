@@ -1699,6 +1699,10 @@ severity = "error"
 # A coding that defines no parameters carries one
 severity = "warn"
 
+[violations.transfer_coding_parameter_missing]
+# A coding writes a ';' with no parameter after it
+severity = "warn"
+
 [violations.transfer_coding_unregistered]
 # Transfer coding is not one the deployment recognises
 severity = "warn"
