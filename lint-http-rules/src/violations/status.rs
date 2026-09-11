@@ -41,18 +41,26 @@
 //! speak. There is no later message to repair it in, which is the argument
 //! `upgrade_missing` and `upgrade_empty` already make for `error`.
 //!
-//! So four of the five default to `warn`, which is the severity the rules
+//! **The sixth is read out of a third message**, and it is the widest this
+//! subject goes: a `101` announces that the connection has stopped speaking
+//! HTTP, so HTTP in a *later transaction on the same connection* is evidence the
+//! hand-off never took. The other five compare a response with the request it
+//! answers; this one compares a connection with a response earlier on it, which
+//! is why it needs the history and a connection id to be reported at all.
+//!
+//! So five of the six default to `warn`, which is the severity the rules
 //! reporting them had already chosen for themselves: a client handed a response
 //! it did not ask for, or cannot parse, has to notice that on its own, and the
 //! exchange carries on around it. **The question that separates the levels is
 //! not how strong the sentence is but whether the exchange can continue** — two
-//! of the five quote a prohibition, and only one of those two ends the
+//! of the six quote a prohibition, and only one of those two ends the
 //! conversation.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::content_range::RFC_9110_15_3_7_2;
 use crate::violations::defects;
+use crate::violations::upgrade::RFC_9110_15_2_2;
 
 /// What a 206 says it is doing, and the field a single-part one has to carry
 /// while it does.
@@ -243,6 +251,42 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_8],
     }
+
+    /// HTTP spoken on a connection a `101` already handed over. The status code
+    /// is defined as a change in the application protocol *being used on this
+    /// connection*, so a later HTTP transaction on the same connection is
+    /// evidence the change never happened — the response announced a hand-off
+    /// and both endpoints carried on as before.
+    ///
+    /// **`_ignored`, and it is the first entry in this catalogue to use the
+    /// word.** No sentence says "MUST NOT send HTTP after a 101": the defect is
+    /// derived from what the code indicates, which is why it is neither
+    /// `_forbidden` nor a value being measured. And it is not `_conflicting`
+    /// either — that word is for two claims about one thing, and here there is
+    /// one claim that nothing acted on.
+    ///
+    /// **The evidence is a third message, which is new for this subject.** Every
+    /// other entry here is read out of a response and the request it answers;
+    /// this one is read out of a response in *an earlier transaction on the same
+    /// connection*, which is why the rule reporting it needs the history and the
+    /// connection id. A capture with no connection id cannot produce it, and
+    /// that is a limit of the capture rather than a verdict.
+    ///
+    /// **Which endpoint is at fault is not decidable from here**, and the
+    /// message says so by describing the connection rather than a sender: a
+    /// client that kept speaking HTTP and a server that answered it are both
+    /// consistent with what was recorded. `warn`, because everything on the wire
+    /// is legible and the exchange works — what is wrong is that a hand-off was
+    /// announced and did not take.
+    ///
+    // cite(RFC 9110 § 15.2.2): "The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection."
+    STATUS_101_IGNORED = {
+        id: "status_101_ignored",
+        title: "HTTP continues on a connection a 101 handed off",
+        message: "HTTP traffic after 101 Switching Protocols on the same connection; the connection should have been handed off to the upgraded protocol",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_15_2_2],
+    }
 }
 
 #[cfg(test)]
@@ -261,6 +305,7 @@ mod tests {
             &STATUS_206_MULTIPART_FORBIDDEN,
             &STATUS_101_UNSOLICITED,
             &STATUS_101_PROTOCOL_FORBIDDEN,
+            &STATUS_101_IGNORED,
         ] {
             assert!(def.id.starts_with("status_"), "{} is not a status", def.id);
             assert!(!def.id.contains("range"), "{} names a field", def.id);
@@ -319,6 +364,7 @@ mod tests {
             &STATUS_206_UNSOLICITED,
             &STATUS_416_UNSOLICITED,
             &STATUS_206_MULTIPART_FORBIDDEN,
+            &STATUS_101_IGNORED,
         ] {
             assert_eq!(def.spec.len(), 1, "{}", def.id);
             assert!(!def.message.is_empty(), "{} holds no message", def.id);
@@ -342,6 +388,7 @@ mod tests {
             &STATUS_416_UNSOLICITED,
             &STATUS_206_MULTIPART_FORBIDDEN,
             &STATUS_101_UNSOLICITED,
+            &STATUS_101_IGNORED,
         ] {
             assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
         }

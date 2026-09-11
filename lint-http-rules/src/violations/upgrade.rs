@@ -27,12 +27,16 @@ use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
 
-/// The status code's section, where the requirement on the field is written.
+/// The status code's section: what the code indicates, and the requirement on
+/// the field written into the same paragraph. Shared with
+/// [`status`](crate::violations::status), whose entry reads the first half of it
+/// — a connection that changed protocol — where the two entries here read the
+/// second.
 pub const RFC_9110_15_2_2: SpecRef = SpecRef {
     spec: "RFC 9110",
     section: Some("15.2.2"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2",
-    note: "101 Switching Protocols — the response MUST generate an `Upgrade` field naming the protocol(s) in effect after it",
+    note: "101 Switching Protocols — the status code is a change in the application protocol being used on this connection, and the response MUST generate an `Upgrade` field naming the protocol(s) in effect after it",
 };
 
 defects! {

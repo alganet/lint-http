@@ -5,7 +5,8 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::status::{
-    RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5, STATUS_101_PROTOCOL_FORBIDDEN, STATUS_101_UNSOLICITED,
+    RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5, STATUS_101_IGNORED, STATUS_101_PROTOCOL_FORBIDDEN,
+    STATUS_101_UNSOLICITED,
 };
 use crate::violations::upgrade::{RFC_9110_15_2_2, UPGRADE_EMPTY, UPGRADE_MISSING};
 use crate::violations::ViolationDef;
@@ -25,21 +26,22 @@ use crate::violations::ViolationDef;
 ///   should appear (the connection has been handed off to the upgraded protocol).
 pub struct Status101SwitchingProtocols;
 
-/// The `Upgrade` field a 101 owes, the two ways it is not there, and the status
-/// code sent on a version that has no upgrade mechanism to answer.
+/// Everything this rule says, in five entries over two subjects: the `Upgrade`
+/// field a 101 owes and the two ways it is not there; the status code sent on a
+/// version that has no upgrade mechanism to answer; the protocol nobody offered;
+/// and the connection that kept speaking HTTP after being handed off.
 ///
-/// **This rule declares no `SpecRef` of its own any more.** Every sentence it
-/// names is on one of the entries above, in `violations/upgrade.rs` and
-/// `violations/status.rs`, and `specifications()` is assembled from those — the
-/// three sections the version entry holds among them, since one entry naming
-/// three documents is what a per-version const would otherwise have split.
-/// What is left unconverted is a protocol nobody offered and traffic after the
-/// switch, each a reading of its own.
+/// **This rule declares no `SpecRef` of its own.** Every sentence it names is on
+/// one of these entries, in `violations/upgrade.rs` and `violations/status.rs`,
+/// and `specifications()` is assembled from those — the three sections the
+/// version entry holds among them, since one entry naming three documents is
+/// what a per-version const would otherwise have split.
 static DECLARED: &[&ViolationDef] = &[
     &UPGRADE_MISSING,
     &UPGRADE_EMPTY,
     &STATUS_101_UNSOLICITED,
     &STATUS_101_PROTOCOL_FORBIDDEN,
+    &STATUS_101_IGNORED,
 ];
 
 impl RuleMeta for Status101SwitchingProtocols {
@@ -122,17 +124,18 @@ impl Rule for Status101SwitchingProtocols {
             // The operative clause is "for a change in the application protocol being
             // used on this connection": a 101 switches the connection's protocol, so a
             // later HTTP transaction on it means the hand-off did not take. There is no
-            // hard "MUST NOT send HTTP after 101"; this is derived from that switch, and
-            // it is why the earlier cite quoted the wrong (introductory) half of the
-            // sentence — the connection-change clause is what governs here.
-            // cite(RFC 9110 § 15.2.2): "The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection."
+            // hard "MUST NOT send HTTP after 101"; the defect is derived from what the
+            // code indicates, which is the sentence quoted on the entry — and the reason
+            // an earlier cite here quoted the wrong (introductory) half of it.
+            //
+            // The connection id is what makes the reading possible and it is optional:
+            // a capture written without one produces no finding, which is a limit of the
+            // capture rather than a verdict about the traffic.
             if tx.connection_id.is_some() {
                 for prev in history.iter() {
                     if let Some(prev_resp) = &prev.response {
                         if prev_resp.status == 101 {
-                            return Some(self.cited(&RFC_9110_15_2_2, ctx.severity, "HTTP traffic after 101 Switching Protocols on the same connection; \
-                                     the connection should have been handed off to the upgraded protocol"
-                                        .into()));
+                            return Some(ctx.report(&STATUS_101_IGNORED));
                         }
                     }
                 }
