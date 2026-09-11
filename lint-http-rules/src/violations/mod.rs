@@ -32,6 +32,7 @@ use std::sync::LazyLock;
 
 pub mod alpn;
 pub mod auth_scheme;
+pub mod authority;
 pub mod base64;
 pub mod basic_credentials;
 pub mod boundary;
@@ -417,7 +418,7 @@ mod tests {
     #[test]
     fn every_violation_declares_a_spec() {
         /// Raised by the commit that adds defs with specs; never lowered.
-        const FLOOR: usize = 186;
+        const FLOOR: usize = 187;
         let cited = VIOLATIONS.iter().filter(|d| !d.spec.is_empty()).count();
         assert!(
             cited >= FLOOR,

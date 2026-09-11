@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::authority::{AUTHORITY_USERINFO_FORBIDDEN, RFC_9113_8_3_1, RFC_9114_4_3_1};
 use crate::violations::request_target::{REQUEST_TARGET_ASTERISK_FORBIDDEN, RFC_9110_7_1};
 use crate::violations::uri::{
     host_and_port, scheme_name, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3,
@@ -47,6 +48,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &REQUEST_TARGET_ASTERISK_FORBIDDEN,
+    &AUTHORITY_USERINFO_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -57,15 +59,6 @@ const RFC_9114_4_3: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.3"),
     url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3",
     note: "HTTP Control Data",
-};
-const RFC_9114_4_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("4.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.3.1",
-    note: "Request Pseudo-Header Fields — the exactly-one MUST for `:method`, \
-           `:scheme` and `:path`, the `:authority`-or-Host requirement for schemes \
-           with a mandatory authority component, and the MUST NOT on the deprecated \
-           userinfo subcomponent for http and https URIs",
 };
 const RFC_3986_3_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 3986",
@@ -111,6 +104,11 @@ severity = "error"
         &[
             RFC_9114_4_3,
             RFC_9114_4_3_1,
+            // The other version's copy of the userinfo MUST NOT, declared for
+            // the reason the twin declares this one's: the entry both rules
+            // report names both sections, because neither document governs the
+            // other's version.
+            RFC_9113_8_3_1,
             RFC_3986_3_2_1,
             RFC_9114_4_3_2,
             RFC_9114_4_4,
@@ -351,11 +349,11 @@ impl Rule for Http3PseudoHeadersValid {
                 // transport reassembled it into an absolute-form target — and an
                 // absolute-form target is also the one place the scheme the
                 // sentence gates on is on the wire, so the gate and the evidence
-                // arrive together or not at all. The twin sentence for HTTP/2 is
-                // enforced by `http2_pseudo_headers_valid` in the same
-                // shape. The password half is withheld from the finding
-                // (RFC 3986 § 3.2.1, at the shared helper).
-                // cite(RFC 9114 § 4.3.1): "The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https"."
+                // arrive together or not at all. **The twin sentence for HTTP/2
+                // is on the same entry**, which names both documents because
+                // neither governs the other's version, so the message names the
+                // section that governs this one. The password half is withheld
+                // from the finding (RFC 3986 § 3.2.1, at the shared helper).
                 if let Some(marker) = crate::helpers::uri::scheme_authority_marker(uri_trimmed) {
                     // The scheme is the characters before the marker, and the
                     // helper carries the production. Nothing here asks whether it
@@ -381,10 +379,13 @@ impl Rule for Http3PseudoHeadersValid {
                         {
                             let shown = crate::helpers::uri::userinfo_password_withheld(authority)
                                 .unwrap_or_else(|| authority.clone());
-                            return Some(self.cited(&RFC_9114_4_3_1, ctx.severity, format!(
-                                    "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter",
+                            return Some(ctx.report_with(
+                                &AUTHORITY_USERINFO_FORBIDDEN,
+                                format!(
+                                    "HTTP/3 ':authority' '{}' of an '{scheme}' target includes the deprecated userinfo subcomponent and its '@' delimiter (RFC 9114 §4.3.1)",
                                     crate::helpers::shown::shown_in_finding(&shown)
-                                )));
+                                ),
+                            ));
                         }
                     }
 
@@ -602,7 +603,7 @@ mod tests {
         assert_eq!(
             msg,
             "HTTP/3 ':authority' 'user:...@example.com' of an 'https' target includes the \
-             deprecated userinfo subcomponent and its '@' delimiter"
+             deprecated userinfo subcomponent and its '@' delimiter (RFC 9114 §4.3.1)"
         );
         assert!(!msg.contains("s3cret"), "{msg}");
 
