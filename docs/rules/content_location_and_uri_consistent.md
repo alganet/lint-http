@@ -31,6 +31,8 @@ For 2xx responses the rule additionally compares the value against the request t
 - [RFC 3986 §2](https://www.rfc-editor.org/rfc/rfc3986.html#section-2): Characters — the limited set a URI is composed from, every other octet being percent-encoded before the reference is formed
 - [RFC 3986 §2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-2.1): Percent-Encoding — `pct-encoded = "%" HEXDIG HEXDIG`, the two digits every `%` still owes
 - [RFC 3986 §3.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.1): Scheme — `scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )`, the name before the first colon
+- [RFC 9110 §4.2.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1): http URI Scheme — a TCP connection and no more, `http-URI = "http" "://" authority path-abempty [ "?" query ]`, the default port, and the MUST NOT against an empty host identifier with the recipient's MUST to reject one
+- [RFC 9110 §4.2.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2): https URI Scheme — what "secured" means for a resource named by one and the client's MUST to secure its requests for it, the same shape as the http scheme with TLS and port 443, and the MUST NOT against an empty host identifier
 
 ## Configuration
 

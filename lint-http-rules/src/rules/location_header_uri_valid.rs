@@ -8,8 +8,9 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
     scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2,
-    RFC_3986_2_1, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
-    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+    RFC_3986_2_1, RFC_3986_3_1, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
+    URI_HOST_EMPTY, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -22,6 +23,13 @@ pub struct LocationHeaderUriValid;
 /// Note about why it cannot be a list; it writes no grammar of its own, so every
 /// character question this rule asks belongs to RFC 3986. The percent triplet is
 /// the part of it that has a subject today.
+///
+/// **The empty host is the exception that proves it**, and it is the one entry
+/// here whose sentences are RFC 9110's: an `http` or `https` reference names an
+/// origin server in its authority, and neither scheme lets a sender leave that
+/// identifier empty — where the generic syntax happily generates one. A
+/// `Location` naming no host is a redirect to nowhere, which is the same defect
+/// an absolute-form request target and a `Referer` have, under the same id.
 static DECLARED: &[&ViolationDef] = &[
     &URI_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
@@ -29,6 +37,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &URI_HOST_EMPTY,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -94,6 +103,8 @@ severity = "warn"
             RFC_3986_4_1,
             RFC_3986_2_1,
             RFC_3986_3_1,
+            RFC_9110_4_2_1,
+            RFC_9110_4_2_2,
         ]
     }
 
@@ -292,6 +303,31 @@ impl Rule for LocationHeaderUriValid {
                 ));
             }
 
+            // A scheme that *is* one, naming no host after it. Not a grammar
+            // finding — `reg-name` is `*( ... )`, so the generic syntax generates
+            // `https:///p` — but each of the two schemes HTTP mints identifiers in
+            // says a sender may not, because the authority is what identifies the
+            // origin server a redirect would be followed to. The reader carries the
+            // condition and the case fold; the entry names both sentences, so the
+            // message names the one that governs the value read.
+            if let Some(scheme) = crate::helpers::uri::empty_host_scheme(value) {
+                let section = if scheme.eq_ignore_ascii_case("http") {
+                    "4.2.1"
+                } else {
+                    "4.2.2"
+                };
+                return Some(ctx.report_with(
+                    &URI_HOST_EMPTY,
+                    format!(
+                        "Location value '{}' names the scheme '{scheme}' and then an empty host \
+                         identifier, so it redirects to no origin server: a sender MUST NOT \
+                         generate an \"{}\" URI with one (RFC 9110 §{section})",
+                        crate::helpers::shown::shown_in_finding(value),
+                        scheme.to_ascii_lowercase(),
+                    ),
+                ));
+            }
+
             None
         };
         Vec::from_iter(finding())
@@ -329,6 +365,36 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    /// A redirect to a scheme with no host after it. The generic syntax
+    /// generates the value; the two scheme definitions are what refuse it, so a
+    /// reference under any other scheme is outside the sentence and is
+    /// accepted — the same reading the request target's rule and `Referer` make,
+    /// under the same id.
+    #[rstest]
+    #[case(b"https:///page", "4.2.2")]
+    #[case(b"http:///page", "4.2.1")]
+    #[case(b"HTTPS://?q=1", "4.2.2")]
+    #[case(b"https://user@/page", "4.2.2")]
+    fn an_http_redirect_to_no_host_is_reported(#[case] value: &[u8], #[case] section: &str) {
+        let v = judge(&make_tx_with_locs(&[value])).expect("a finding");
+        assert_eq!(v.violation, "uri_host_empty");
+        assert!(v.message.contains(section), "{}", v.message);
+    }
+
+    #[rstest]
+    #[case(b"file:///etc/hosts")]
+    #[case(b"ftp:///pub")]
+    #[case(b"/page")]
+    #[case(b"//example.com/page")]
+    #[case(b"https://example.com/page")]
+    fn a_reference_outside_the_two_schemes_keeps_its_empty_host(#[case] value: &[u8]) {
+        assert!(
+            judge(&make_tx_with_locs(&[value])).is_none(),
+            "{}",
+            String::from_utf8_lossy(value)
+        );
     }
 
     fn judge(tx: &crate::http_transaction::HttpTransaction) -> Option<Violation> {

@@ -295,6 +295,38 @@ pub fn authority_component(value: &str) -> Option<&str> {
     Some(&after_slashes[..end])
 }
 
+/// The scheme of a reference that identifies an origin server and names no
+/// host, if the value is one.
+///
+/// **Not a grammar question, which is why it is a reader of its own.** The
+/// generic syntax admits an empty host — `reg-name` is `*( ... )` and
+/// `authority` is one alternative of a `hier-part` — so `file:///etc/hosts` is a
+/// URI in daily use and nothing in RFC 3986 objects to `https:///p` either. What
+/// objects is each of the two scheme definitions HTTP mints identifiers in: an
+/// `http` or `https` URI names the origin server in its authority, and a sender
+/// may not leave that identifier empty.
+///
+/// So the scheme is the condition. It is matched without regard to case,
+/// because a scheme is compared that way, and it is returned rather than
+/// discarded: the two sentences are written once per scheme, so a caller naming
+/// the one that governs its value needs to know which scheme it read.
+///
+/// A userinfo is stepped over rather than reported — `https://user@/p` names no
+/// host either, and the credential is a separate finding the callers make
+/// first.
+// cite(RFC 9110 § 4.2.1): "A sender MUST NOT generate an "http" URI with an empty host identifier."
+// cite(RFC 9110 § 4.2.2): "A sender MUST NOT generate an "https" URI with an empty host identifier."
+// cite(RFC 9110 § 4.2.3): "The scheme and host are case-insensitive and normally provided in lowercase; all other components are compared in a case-sensitive manner."
+pub fn empty_host_scheme(value: &str) -> Option<&str> {
+    let scheme = scheme_prefix(value)?;
+    if !scheme.eq_ignore_ascii_case("http") && !scheme.eq_ignore_ascii_case("https") {
+        return None;
+    }
+    let (_, host_and_port) = split_userinfo(authority_component(value)?);
+    let (host, _) = split_host_and_port(host_and_port);
+    host.is_empty().then_some(scheme)
+}
+
 /// Byte offset of the `://` that separates a scheme from an authority, or
 /// `None` when the value is not in absolute form.
 ///
