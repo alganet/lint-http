@@ -33,6 +33,19 @@
 //! carry it. **Two entries for one octet, because the conditions differ and the
 //! rule knows which it is in**: an entry naming several sentences gives up its
 //! citation, and giving one up where a site could have named it is a loss.
+//!
+//! **The third is the field's absence, and writing it settled a disagreement
+//! between the two rules that report it.** Each had grown its own account of a
+//! CONNECT that names no destination — three sites on one version's rule, two on
+//! the other's, and they answered differently for the same message. The entry is
+//! one defect and the reading behind it is one question: **does anything in this
+//! request name a host and port?** A capture holds the target the transport
+//! reassembled and the field lines beside it, so there are two places to look and
+//! neither is `:authority` under that name; a `Host` field is the other, which is
+//! where an authority arrives when a library surfaces the pseudo-header as one.
+//! What a capture cannot show is *which* of the two the sender wrote, so a
+//! message naming a destination anywhere is not this defect — that is the reading
+//! both rules already made for an origin-form target, applied to every form.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -70,6 +83,27 @@ pub const RFC_9110_9_3_6: SpecRef = SpecRef {
     section: Some("9.3.6"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
     note: "CONNECT — the host and port number of the tunnel destination, the absence of a default port, and the server's MUST to reject an empty or invalid one. This is where the port requirements come from; the grammar states none.",
+};
+
+/// What a CONNECT's header section is made of over HTTP/2 — the method, the two
+/// omitted pseudo-headers, and the one carrying the host and port — with the
+/// sentence that makes a request missing any of it malformed. Shared with
+/// `http2_pseudo_headers_valid`, which reads the same section for the port
+/// requirements § 9.3.6 states.
+pub const RFC_9113_8_5: SpecRef = SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.5",
+    note: "The CONNECT Method — `:method` is set to CONNECT, `:scheme` and `:path` are omitted, `:authority` carries the host and port, and the proxy opens a TCP connection to them",
+};
+
+/// HTTP/3's account of the same construction, which states the list as a MUST of
+/// its own rather than as differences from the request pseudo-header section.
+pub const RFC_9114_4_4: SpecRef = SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.4",
+    note: "The CONNECT Method — the MUST that a CONNECT request be constructed with `:scheme` and `:path` omitted and `:authority` carrying the host and port to connect to, and the sentence making a request that does not malformed",
 };
 
 defects! {
@@ -140,6 +174,50 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_9_3_6],
     }
+
+    /// A CONNECT request with no host and port anywhere in it. The method asks a
+    /// recipient to open a tunnel and the field is where the far end of that
+    /// tunnel is named, so a request carrying neither an authority in its target
+    /// nor a `Host` field beside it asks for a connection to nothing.
+    ///
+    /// **One defect however the target is shaped.** A capture holds the URI the
+    /// transport reassembled, and three of the four shapes it can take carry no
+    /// authority at all: nothing, a path, an asterisk. Which of them arrived says
+    /// something about what the sender was attempting and nothing about what is
+    /// missing, which is why this is one entry and not three — a recipient's
+    /// position is identical in all of them.
+    ///
+    /// **A `Host` field answers the question.** Both documents write `:authority`
+    /// as the field that carries the destination and neither offers `Host` as an
+    /// alternative *for this method*; what makes one enough here is the capture
+    /// rather than the sentence, since a library that surfaces the pseudo-header
+    /// as a `Host` field leaves a message indistinguishable from one whose sender
+    /// wrote it that way. Reporting the pair apart would be reporting a guess, so
+    /// **the finding is made only where nothing in the message names a
+    /// destination**.
+    ///
+    /// **Two documents, one per version, and neither governing the other**, so no
+    /// finding carries a citation and each rule's message names the section that
+    /// governs the version it read. The HTTP/1.x rule declares neither: over that
+    /// version the destination is the request-line's target, and a CONNECT
+    /// carrying the wrong form of one is
+    /// [`request_target`](crate::violations::request_target)'s question rather
+    /// than this field's.
+    ///
+    /// `error`, with the rest of this subject: there is no tunnel to open and no
+    /// later message in the exchange supplies one.
+    ///
+    // cite(RFC 9113 § 8.5): "The ":authority" pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 3.2.3 of [HTTP/1.1])."
+    // cite(RFC 9113 § 8.5): "A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1)."
+    // cite(RFC 9114 § 4.4): "A CONNECT request MUST be constructed as follows:"
+    // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 7.1 of [HTTP])."
+    AUTHORITY_TUNNEL_MISSING = {
+        id: "authority_tunnel_missing",
+        title: "A CONNECT names no host and port to open a tunnel to",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9113_8_5, RFC_9114_4_4],
+    }
 }
 
 #[cfg(test)]
@@ -183,6 +261,27 @@ mod tests {
         assert_eq!(
             AUTHORITY_TUNNEL_USERINFO_FORBIDDEN.default_severity,
             AUTHORITY_USERINFO_FORBIDDEN.default_severity,
+        );
+    }
+
+    /// The absence is one entry over two version documents and over every shape
+    /// a target with no authority can take, so the id names neither a version
+    /// nor a form. What a finding shows — which shape arrived, and which section
+    /// governs it — is the site's, as it is for every entry here that names more
+    /// than one sentence.
+    #[test]
+    fn the_absent_destination_is_one_entry_for_both_versions() {
+        assert_eq!(AUTHORITY_TUNNEL_MISSING.spec, [RFC_9113_8_5, RFC_9114_4_4]);
+        for spelling in ["http2", "http3", "path", "target"] {
+            assert!(
+                !AUTHORITY_TUNNEL_MISSING.id.contains(spelling),
+                "the id names a version or a form of the target",
+            );
+        }
+        assert!(AUTHORITY_TUNNEL_MISSING.message.is_empty());
+        assert_eq!(
+            AUTHORITY_TUNNEL_MISSING.default_severity,
+            AUTHORITY_TUNNEL_USERINFO_FORBIDDEN.default_severity,
         );
     }
 }
