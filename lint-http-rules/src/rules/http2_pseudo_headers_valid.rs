@@ -13,10 +13,10 @@ use crate::violations::request_target::{
 };
 use crate::violations::uri::{
     host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
-    RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
-    URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING, URI_HOST_IP_LITERAL_MALFORMED,
-    URI_PORT_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
-    URI_SCHEME_LEADING_LETTER_MISSING,
+    RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, RFC_9110_4_2_1, RFC_9110_4_2_2,
+    URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
+    URI_HOST_EMPTY, URI_HOST_IP_LITERAL_MALFORMED, URI_PORT_CHARACTER_FORBIDDEN,
+    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -65,6 +65,7 @@ static DECLARED: &[&ViolationDef] = &[
     &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
     &REQUEST_TARGET_PATH_MISSING,
     &AUTHORITY_TUNNEL_MISSING,
+    &URI_HOST_EMPTY,
 ];
 
 /// One finding from the CONNECT reading, and the defect it reports as where
@@ -262,7 +263,7 @@ severity = "error"
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `:scheme`, `:authority` and `:path` — and this rule reads what each of them conveyed. **It runs on HTTP/2 requests only.** It had no version gate at all until this audit, so every finding below was also made of HTTP/1.1 and HTTP/3 messages, described as HTTP/2, alongside the report from whichever rule owns the question on those versions.\n\n**The fields are not in the captured field section.** A transport that carries control data as pseudo-headers hands its library a method and a target URI reassembled from `:scheme`, `:authority` and `:path`, and that is what a capture records. So each check reads the component the pseudo-header conveyed, and the checks are shaped by which of the request-target forms the reassembly produced.\n\n- **A non-CONNECT request sends exactly one `:path`.** `*` is that value for a server-wide OPTIONS request and for no other method (RFC 9110 §7.1: \"These forms MUST NOT be used with other methods\"). Otherwise a target with no path at all is reported: an `http` or `https` URI without a path component sends `/`.\n- **A basic CONNECT's `:authority` is a host and a port.** `authority-form = uri-host \":\" port` requires neither — both halves are `*`-quantified — so the prose is what asks for them: RFC 9110 §9.3.6 has no default port, requires the client to send one even when the URI reference elided it, and requires a server to reject an empty or invalid port number.\n- **A CONNECT names that destination somewhere or it names nothing.** RFC 9113 §8.5 puts the host and port in `:authority`, and a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field. A request carrying neither is asking for a tunnel to nothing, and is one finding whether its target was empty, a path or an asterisk; a `Host` field answers the question, because nothing in a capture separates one a sender wrote from one a library wrote for it.\n- **A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port = *DIGIT` has none, which is why `host_header` reports no port for being out of range. It is that RFC 9113 §8.5 has the proxy open a *TCP* connection to this host and port and TCP's port namespace is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n- **The reassembled `:scheme` and `:authority` are read when the target is in absolute form**: the scheme against `scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, the authority against `uri-host [ \":\" port ]`, and — for an `http` or `https` target only, because that is how §8.3.1 writes the MUST NOT — a userinfo subcomponent. `:scheme` is deliberately not restricted to `http` and `https`, so nothing here asks whether it is a scheme anybody serves.\n\n**What this rule declines, and why.**\n\n- **Which CONNECT this is, when the target is in absolute form.** RFC 8441's extended CONNECT is marked by a `:protocol` pseudo-header, and on such a request `:scheme` and `:path` MUST be included — exactly what a basic CONNECT MUST omit. A capture records no `:protocol`, so a `CONNECT https://example.com/ws` is a conforming extended CONNECT and a malformed basic one with nothing to choose between them. It is accepted. What *is* reported is a CONNECT naming no destination anywhere — no authority in the target, whatever shape it took, and no `Host` field beside it — which is one finding rather than one per shape.\n- **The method token itself.** `method = token` admits no whitespace and no empty string, and a value failing it names nothing for the branches above to turn on, so the rule stops. `request_method_token_valid` reports it, on every version. The method is compared as written throughout — `connect` is not CONNECT and `options` is not OPTIONS (RFC 9110 §9.1) — where the case-folding this replaced *suppressed* findings.\n- **The characters inside the target.** Whitespace and a malformed percent-encoding triplet were both reported here and by `request_uri_percent_encoding_valid`, which reads the whole target on every version. Both duplicates are gone.\n- **Where the pseudo-headers sat, and how many there were.** RFC 9113 §8.3 requires them to precede every regular field line and forbids a repeated name. The capture holds no pseudo-header fields and no field order, so neither has a representation to check.\n- **Whether a `Host` field agrees with `:authority`.** §8.3.1 forbids a client from generating a request where they differ. `host_and_authority_consistent` asks it, of this version and of HTTP/3, and keeps the two documents apart on what comparing the values means.\n\n**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `status_code_valid_range`."
+        "HTTP/2 carries a request's control data as pseudo-header fields — `:method`, `:scheme`, `:authority` and `:path` — and this rule reads what each of them conveyed. **It runs on HTTP/2 requests only.** It had no version gate at all until this audit, so every finding below was also made of HTTP/1.1 and HTTP/3 messages, described as HTTP/2, alongside the report from whichever rule owns the question on those versions.\n\n**The fields are not in the captured field section.** A transport that carries control data as pseudo-headers hands its library a method and a target URI reassembled from `:scheme`, `:authority` and `:path`, and that is what a capture records. So each check reads the component the pseudo-header conveyed, and the checks are shaped by which of the request-target forms the reassembly produced.\n\n- **A non-CONNECT request sends exactly one `:path`.** `*` is that value for a server-wide OPTIONS request and for no other method (RFC 9110 §7.1: \"These forms MUST NOT be used with other methods\"). Otherwise a target with no path at all is reported: an `http` or `https` URI without a path component sends `/`.\n- **A basic CONNECT's `:authority` is a host and a port.** `authority-form = uri-host \":\" port` requires neither — both halves are `*`-quantified — so the prose is what asks for them: RFC 9110 §9.3.6 has no default port, requires the client to send one even when the URI reference elided it, and requires a server to reject an empty or invalid port number.\n- **A CONNECT names that destination somewhere or it names nothing.** RFC 9113 §8.5 puts the host and port in `:authority`, and a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field. A request carrying neither is asking for a tunnel to nothing, and is one finding whether its target was empty, a path or an asterisk; a `Host` field answers the question, because nothing in a capture separates one a sender wrote from one a library wrote for it.\n- **A port above 65535 is reported; `0` is not.** The bound is not the grammar's — `port = *DIGIT` has none, which is why `host_header` reports no port for being out of range. It is that RFC 9113 §8.5 has the proxy open a *TCP* connection to this host and port and TCP's port namespace is sixteen bits wide (RFC 6335 §6). `0` sits inside that namespace as a reserved edge value, and no sentence here makes a reserved port an invalid one.\n- **An `http` or `https` target names a host.** The generic syntax admits an empty one — `reg-name` is `*( … )`, which is why `file:///etc/hosts` is a URI in daily use — and the two scheme definitions do not: RFC 9110 §4.2.1 and §4.2.2 each forbid a sender from generating a reference with an empty host identifier and tell a recipient to reject one. The scheme is the condition, and `:scheme` is deliberately open, so a target under any other scheme with the same shape is outside the sentence and is not reported.\n- **The reassembled `:scheme` and `:authority` are read when the target is in absolute form**: the scheme against `scheme = ALPHA *( ALPHA / DIGIT / \"+\" / \"-\" / \".\" )`, the authority against `uri-host [ \":\" port ]`, and — for an `http` or `https` target only, because that is how §8.3.1 writes the MUST NOT — a userinfo subcomponent. `:scheme` is deliberately not restricted to `http` and `https`, so nothing here asks whether it is a scheme anybody serves.\n\n**What this rule declines, and why.**\n\n- **Which CONNECT this is, when the target is in absolute form.** RFC 8441's extended CONNECT is marked by a `:protocol` pseudo-header, and on such a request `:scheme` and `:path` MUST be included — exactly what a basic CONNECT MUST omit. A capture records no `:protocol`, so a `CONNECT https://example.com/ws` is a conforming extended CONNECT and a malformed basic one with nothing to choose between them. It is accepted. What *is* reported is a CONNECT naming no destination anywhere — no authority in the target, whatever shape it took, and no `Host` field beside it — which is one finding rather than one per shape.\n- **The method token itself.** `method = token` admits no whitespace and no empty string, and a value failing it names nothing for the branches above to turn on, so the rule stops. `request_method_token_valid` reports it, on every version. The method is compared as written throughout — `connect` is not CONNECT and `options` is not OPTIONS (RFC 9110 §9.1) — where the case-folding this replaced *suppressed* findings.\n- **The characters inside the target.** Whitespace and a malformed percent-encoding triplet were both reported here and by `request_uri_percent_encoding_valid`, which reads the whole target on every version. Both duplicates are gone.\n- **Where the pseudo-headers sat, and how many there were.** RFC 9113 §8.3 requires them to precede every regular field line and forbids a repeated name. The capture holds no pseudo-header fields and no field order, so neither has a representation to check.\n- **Whether a `Host` field agrees with `:authority`.** §8.3.1 forbids a client from generating a request where they differ. `host_and_authority_consistent` asks it, of this version and of HTTP/3, and keeps the two documents apart on what comparing the values means.\n\n**Nothing here reads the response.** RFC 9113 §8.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation to check; and the range that value must fall in is RFC 9110 §15's, which is the same for every HTTP version and is reported by `status_code_valid_range`."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -292,6 +293,11 @@ severity = "error"
             RFC_3986_3_2_2,
             RFC_3986_3_2_3,
             RFC_3986_2_1,
+            // The two scheme definitions, one sentence apiece and one entry
+            // between them: an `http` or `https` reference names an origin
+            // server, and neither may leave the host empty.
+            RFC_9110_4_2_1,
+            RFC_9110_4_2_2,
             RFC_3986_3_1,
         ]
     }
@@ -551,16 +557,36 @@ impl Rule for Http2PseudoHeadersValid {
                 // form, so that is the only `None` reachable — which is what makes
                 // the conflation this rule could not live with elsewhere usable
                 // here as the finding itself.
+                //
+                // **The scheme is the condition**, as it is for the userinfo MUST
+                // NOT below. RFC 3986 admits an empty host — `reg-name` is
+                // `*( … )` — so `file:///etc/hosts` is a URI in daily use, and
+                // `:scheme` is deliberately not restricted to the two schemes
+                // HTTP mints identifiers in. What the entry names is those two
+                // schemes' own sentences, so a target under any other scheme is
+                // outside them and this rule reported it for years anyway.
                 let Some(authority) =
                     crate::helpers::uri::extract_authority_from_request_target(target)
                 else {
-                    return Some(self.violation(
-                        ctx.severity,
-                        format!(
-                            "Request target '{}' names the scheme '{scheme}' and then no authority",
-                            crate::helpers::shown::shown_in_finding(target)
-                        ),
-                    ));
+                    if scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https") {
+                        // The entry names § 4.2.1 and § 4.2.2, one per scheme, so
+                        // the message names the one that governs the value read.
+                        let section = if scheme.eq_ignore_ascii_case("http") {
+                            "4.2.1"
+                        } else {
+                            "4.2.2"
+                        };
+                        return Some(ctx.report_with(
+                            &URI_HOST_EMPTY,
+                            format!(
+                                "Request target '{}' names the scheme '{scheme}' and then no \
+                                 authority: an '{scheme}' URI's host identifies the origin server, \
+                                 and a sender may not leave it empty (RFC 9110 §{section})",
+                                crate::helpers::shown::shown_in_finding(target)
+                            ),
+                        ));
+                    }
+                    return None;
                 };
 
                 // The MUST NOT names the two schemes it is about, and the scheme is
@@ -951,13 +977,46 @@ mod tests {
         assert!(message.contains("not a scheme name"), "{message}");
     }
 
+    /// The two scheme definitions forbid an empty host identifier, and the
+    /// message names whichever of the two governs the value read.
     #[rstest]
-    #[case("https:///p")]
-    #[case("https://")]
-    #[case("https://?q=1")]
-    fn an_absolute_target_with_no_authority_is_reported(#[case] target: &str) {
-        let message = judge_request("GET", target).expect("reported");
-        assert!(message.contains("then no authority"), "{target}: {message}");
+    #[case("https:///p", "4.2.2")]
+    #[case("https://", "4.2.2")]
+    #[case("https://?q=1", "4.2.2")]
+    #[case("http:///p", "4.2.1")]
+    #[case("HTTP:///p", "4.2.1")]
+    fn an_absolute_target_with_no_authority_is_reported(
+        #[case] target: &str,
+        #[case] section: &str,
+    ) {
+        let mut tx = h2();
+        tx.request.method = "GET".into();
+        tx.request.uri = target.into();
+        let v = crate::test_helpers::run_rule(
+            &Http2PseudoHeadersValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "http2_pseudo_headers_valid",
+            ]),
+        )
+        .expect("reported");
+        assert_eq!(v.violation, "uri_host_empty", "{target}");
+        assert!(v.message.contains("then no authority"), "{}", v.message);
+        assert!(v.message.contains(section), "{target}: {}", v.message);
+    }
+
+    /// **The scheme is the condition.** RFC 3986 admits an empty host —
+    /// `reg-name` is `*( … )` — and only the `http` and `https` definitions
+    /// forbid one, while `:scheme` is deliberately open. A `file:` reference
+    /// with three slashes is the everyday case, and it was reported here for as
+    /// long as the finding named no sentence.
+    #[rstest]
+    #[case("file:///etc/hosts")]
+    #[case("ftp:///pub")]
+    #[case("coap+ws:///r")]
+    fn another_schemes_empty_authority_is_outside_the_sentence(#[case] target: &str) {
+        assert_eq!(judge_request("GET", target), None, "{target}");
     }
 
     /// A `://` past the first component delimiter is ordinary query data. The
