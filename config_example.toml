@@ -1071,6 +1071,10 @@ severity = "warn"
 # Authentication scheme is not one the deployment recognises
 severity = "warn"
 
+[violations.authority_userinfo_forbidden]
+# An :authority carries the deprecated userinfo subcomponent
+severity = "error"
+
 [violations.base64_character_forbidden]
 # Value holds an octet outside the base64 alphabet
 severity = "warn"

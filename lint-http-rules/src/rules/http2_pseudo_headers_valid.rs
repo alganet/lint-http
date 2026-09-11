@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::authority::{AUTHORITY_USERINFO_FORBIDDEN, RFC_9113_8_3_1, RFC_9114_4_3_1};
 use crate::violations::request_target::{REQUEST_TARGET_ASTERISK_FORBIDDEN, RFC_9110_7_1};
 use crate::violations::uri::{
     host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
@@ -49,6 +50,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &REQUEST_TARGET_ASTERISK_FORBIDDEN,
+    &AUTHORITY_USERINFO_FORBIDDEN,
 ];
 
 /// One finding from the CONNECT reading, and the defect it reports as where
@@ -198,12 +200,6 @@ const RFC_9113_8_3: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3",
     note: "HTTP Control Data — what a pseudo-header field is, and that a request carrying an invalid one is malformed. Its two requirements about the field block itself (ordering before regular field lines, one occurrence per name) are not checked: a capture holds no pseudo-header fields and no field order.",
 };
-const RFC_9113_8_3_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9113",
-    section: Some("8.3.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.3.1",
-    note: "Request Pseudo-Header Fields — what each of `:method`, `:scheme`, `:authority` and `:path` conveys, the `'*'` value for asterisk-form OPTIONS, the `:path`-must-not-be-empty MUST, and the userinfo MUST NOT written for `http` and `https` targets",
-};
 const RFC_9113_8_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9113",
     section: Some("8.3.2"),
@@ -270,6 +266,12 @@ severity = "error"
         &[
             RFC_9113_8_3,
             RFC_9113_8_3_1,
+            // The other version's copy of the userinfo MUST NOT. This rule
+            // never reads an HTTP/3 message, and it declares the section
+            // because the entry it reports names both: an operator reading one
+            // finding should be able to find the requirement in whichever
+            // document governs the traffic in front of them.
+            RFC_9114_4_3_1,
             RFC_9113_8_3_2,
             RFC_9113_8_5,
             RFC_9110_9_1,
@@ -530,19 +532,24 @@ impl Rule for Http2PseudoHeadersValid {
                 // the left half of the value being read -- so a userinfo under some
                 // other scheme is outside it and is not reported.
                 //
-                // The password half is withheld from the finding: the elision is
-                // the shared helper's, with RFC 3986 § 3.2.1's sentence on it.
-                // cite(RFC 9113 § 8.3.1): "":authority" MUST NOT include the deprecated userinfo subcomponent for "http" or "https" schemed URIs."
+                // The entry names this section and RFC 9114 § 4.3.1, which states
+                // the same prohibition for the other version, so the message names
+                // the one that governs here. The password half is withheld from
+                // the finding: the elision is the shared helper's, with RFC 3986
+                // § 3.2.1's sentence on it.
                 if authority.contains('@')
                     && (scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"))
                 {
                     let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
                         .unwrap_or_else(|| authority.to_string());
-                    return Some(self.cited(&RFC_9113_8_3_1, ctx.severity, format!(
+                    return Some(ctx.report_with(
+                        &AUTHORITY_USERINFO_FORBIDDEN,
+                        format!(
                             "Authority '{}' of an '{scheme}' target carries the deprecated userinfo \
-                             subcomponent and its '@' delimiter",
+                             subcomponent and its '@' delimiter (RFC 9113 §8.3.1)",
                             crate::helpers::shown::shown_in_finding(&shown)
-                        )));
+                        ),
+                    ));
                 }
 
                 // `uri-host [ ":" port ]` is one question with one answer, and the
