@@ -1365,8 +1365,12 @@ severity = "warn"
         /// **`status_304_metadata_forbidden` took one more of the same shape**,
         /// and the site it left held two verdicts under one citation: the 304
         /// half still carries § 15.4.5 from its entry, and the 1xx/204 half now
-        /// carries nothing, which is what it always was.
-        const FLOOR: usize = 107;
+        /// carries nothing, which is what it always was. **`upgrade_426_missing`
+        /// took the last one of this session**, and its site had cited the
+        /// *trailer* sentence rather than the requirement it reports — the entry
+        /// names § 15.5.22 and the trailer nuance stays in the message, where it
+        /// was always the aside.
+        const FLOOR: usize = 106;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

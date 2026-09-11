@@ -8,7 +8,7 @@ use crate::violations::status::{
     RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5, STATUS_101_IGNORED, STATUS_101_PROTOCOL_FORBIDDEN,
     STATUS_101_UNSOLICITED,
 };
-use crate::violations::upgrade::{RFC_9110_15_2_2, UPGRADE_EMPTY, UPGRADE_MISSING};
+use crate::violations::upgrade::{RFC_9110_15_2_2, UPGRADE_101_EMPTY, UPGRADE_101_MISSING};
 use crate::violations::ViolationDef;
 
 /// Validate 101 Switching Protocols responses follow correct upgrade semantics.
@@ -37,8 +37,8 @@ pub struct Status101SwitchingProtocols;
 /// version entry holds among them, since one entry naming three documents is
 /// what a per-version const would otherwise have split.
 static DECLARED: &[&ViolationDef] = &[
-    &UPGRADE_MISSING,
-    &UPGRADE_EMPTY,
+    &UPGRADE_101_MISSING,
+    &UPGRADE_101_EMPTY,
     &STATUS_101_UNSOLICITED,
     &STATUS_101_PROTOCOL_FORBIDDEN,
     &STATUS_101_IGNORED,
@@ -219,7 +219,7 @@ impl Rule for Status101SwitchingProtocols {
             if resp_upgrade_combined.is_none() {
                 return Some(
                     ctx.report_with(
-                        &UPGRADE_MISSING,
+                        &UPGRADE_101_MISSING,
                         "101 Switching Protocols response missing required Upgrade header \
                      (RFC 9110 §15.2.2)"
                             .into(),
@@ -259,7 +259,7 @@ impl Rule for Status101SwitchingProtocols {
             if chosen_list.is_empty() {
                 return Some(
                     ctx.report_with(
-                        &UPGRADE_EMPTY,
+                        &UPGRADE_101_EMPTY,
                         "101 Switching Protocols response Upgrade header contains no protocol \
                      tokens (RFC 9110 §15.2.2)"
                             .into(),

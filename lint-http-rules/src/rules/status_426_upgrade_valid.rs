@@ -5,20 +5,28 @@
 use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::upgrade::{RFC_9110_15_5_22, UPGRADE_426_EMPTY, UPGRADE_426_MISSING};
+use crate::violations::ViolationDef;
 
 pub struct Status426UpgradeValid;
+
+/// The two halves of one MUST, and both are the *field's* defects rather than
+/// this status code's — the line [`upgrade`](crate::violations::upgrade) draws
+/// for the `101` pair beside them, on the same reasoning: the sentence is
+/// addressed to the field's presence, and the field is what an operator would
+/// look for in the message.
+///
+/// **The ids name the status code because the sentences do.** § 15.2.2 requires
+/// the field of a `101` and § 15.5.22 of a `426`, and a rule reporting either
+/// knows which it read — so each status code has its own pair, its own citation
+/// and its own rank. A `101` that omits the field has ended the conversation;
+/// this one has not, which is why these two are `warn` where those two are
+/// `error`.
+static DECLARED: &[&ViolationDef] = &[&UPGRADE_426_MISSING, &UPGRADE_426_EMPTY];
 
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_5_22: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.5.22"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.22",
-    note: "426 Upgrade Required — the MUST, its object clause (to indicate the \
-           required protocol(s)), and what the status itself says the server is \
-           asking the client to do",
-};
 const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.8"),
@@ -76,6 +84,10 @@ severity = "warn"
 
     fn description(&self) -> &'static str {
         "Reports a `426 (Upgrade Required)` response that carries no `Upgrade` header field, and one whose `Upgrade` names no protocol.\n\n**The requirement is stated twice, in the two sections that own the halves of it.** RFC 9110 §15.5.22: *The server MUST send an Upgrade header field in a 426 response to indicate the required protocol(s) (Section 7.8).* And §7.8, from the field's side: *A server that sends a 426 (Upgrade Required) response MUST send an Upgrade header field to indicate the acceptable protocols, in order of descending preference.* The status itself is what makes the field load-bearing — it says the server *refuses to perform the request using the current protocol but might be willing to do so after the client upgrades to a different protocol*, so a 426 with no `Upgrade` asks for a change it does not describe.\n\n**The second finding is the clause after \"to indicate\".** `Upgrade` is `#protocol`, so `Upgrade:` is a well-formed list of no protocols and no grammar rule reports it — `upgrade_header_syntax` says so explicitly. What this rule reports is not the grammar but the purpose: on a 426 the field is sent to name what to upgrade to, and a list of none names nothing. On every other response that same value draws nothing from anybody, which is what makes this the *status's* requirement rather than the field's. (Contrast `Allow` on a 405, where §10.2.1 gives the empty value a documented meaning — *the resource allows no methods* — and `status_405_allow_valid` therefore accepts it.)\n\n**Two versions are declined, and each has its own sentence.** Over HTTP/2 an endpoint MUST NOT generate a message containing connection-specific header fields (RFC 9113 §8.2.2), and over HTTP/3 the Upgrade mechanism does not exist at all (RFC 9114 §4.5) — so on those versions this MUST cannot be obeyed, and asking for the field would be advice a server must not follow. That is the defect `sec_websocket_headers_consistent` was once reported for: a rule demanding a field on versions that forbid it. A 426 that *does* carry `Upgrade` there is reported by `no_connection_specific_fields`, with the version's own sentence, so nothing is unreported by this decline. The **response's** version decides it, not the request's: a reverse proxy may have taken the request over one version and answered from an origin speaking another, and the field would have been written in the section this response carries. The test is *not one of the two that forbid it* rather than *is this HTTP/1.x*, so a version deriving from no `HTTP-version` production is still measured.\n\n**A trailer does not answer it.** The requirement names a header field, and §6.5.1 forbids a trailer field unless the field's own definition permits one, which §7.8 does not. A 426 carrying `Upgrade` only in its trailer section is reported here as carrying none, and the finding says the trailer was seen; that the placement is itself a defect is `trailer_fields_valid`'s finding, whose §6.5.1 table names this field.\n\n**Not reported: the order.** §7.8 asks for the protocols *in order of descending preference*, which is what a sender meant by the order it wrote — no field records a preference for the order to disagree with. Nor is any name checked against the Upgrade Token Registry: §16.7's policy is First Come First Served and §7.8's *ought to be registered* is not a requirement.\n\n**What the neighbours own.** Whether the value derives from `protocol = protocol-name [\"/\" protocol-version]` is `upgrade_header_syntax`'s. Whether the field is named by an `upgrade` connection option — which §7.8 asks of every sender of `Upgrade`, including this one — is `upgrade_and_connection_consistent`'s. The mirror requirement on a `101` response, and the rule that the chosen protocol was one the client offered, is `status_101_switching_protocols`'s.\n\nScope: this rule reads a response's header section, and its subject is *the server* — whatever answered, which for a capture taken at a proxy is the party that wrote this response. Where the field appears on several lines they are one value (§5.2), and the value is read as written rather than through a UTF-8 decode, so a field carrying `obs-text` counts as a field that is there."
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -199,17 +211,16 @@ impl Rule for Status426UpgradeValid {
                     .as_ref()
                     .is_some_and(|trailers| trailers.contains_key("upgrade"));
 
-                return Some(self.cited(&RFC_9110_6_5_1,
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &UPGRADE_426_MISSING,
                     format!(
                         "426 Upgrade Required with no Upgrade header field. The status says the server \
                          refuses the request under the current protocol but might comply after the \
                          client upgrades, and the field is what names the protocol to upgrade *to*; \
-                         without it the response asks for a change it does not describe (RFC 9110 \
-                         §15.5.22){}",
+                         without it the response asks for a change it does not describe{}",
                         if in_trailer_section {
                             ". This response's trailer section carries an Upgrade, and a trailer field \
-                             does not answer a requirement on the header section"
+                             does not answer a requirement on the header section (RFC 9110 §6.5.1)"
                         } else {
                             ""
                         }
@@ -232,12 +243,13 @@ impl Rule for Status426UpgradeValid {
             // cite(RFC 9110 § 15.5.22): "The 426 (Upgrade Required) status code indicates that the server refuses to perform the request using the current protocol but might be willing to do so after the client upgrades to a different protocol."
             // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace.  When a specific version of HTTP allows such whitespace to appear in a message, a field parsing implementation MUST exclude such whitespace prior to evaluating the field value."
             if trim_ows(&value).is_empty() {
-                return Some(self.violation(
-                    ctx.severity,
+                return Some(ctx.report_with(
+                    &UPGRADE_426_EMPTY,
                     "426 Upgrade Required whose Upgrade header field names no protocol. The field is \
                      `#protocol`, so an empty value is a well-formed list of none — but the requirement \
                      is to send the field *to indicate the required protocol(s)*, and a client reading \
-                     this response has nothing to upgrade to (RFC 9110 §15.5.22, §7.8)"
+                     this response has nothing to upgrade to (RFC 9110 §7.8 states the same MUST from \
+                     the field's side)"
                         .to_string(),
                 ));
             }

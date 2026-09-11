@@ -39,7 +39,7 @@
 //! the client never named is not a status code describing an exchange wrongly —
 //! it is a connection that has *left HTTP* for something the client cannot
 //! speak. There is no later message to repair it in, which is the argument
-//! `upgrade_missing` and `upgrade_empty` already make for `error`.
+//! `upgrade_101_missing` and `upgrade_101_empty` already make for `error`.
 //!
 //! **The sixth is read out of a third message**, and it is the widest this
 //! subject goes: a `101` announces that the connection has stopped speaking
@@ -249,7 +249,7 @@ defects! {
     /// everything after the response's empty line is spoken in the new protocol,
     /// so a client that never named it has nothing to say and nothing to wait
     /// for. That is the same argument
-    /// [`upgrade_missing`](crate::violations::upgrade::UPGRADE_MISSING) makes,
+    /// [`upgrade_101_missing`](crate::violations::upgrade::UPGRADE_101_MISSING) makes,
     /// and it is what separates this entry from the four `warn`s beside it,
     /// where the exchange survives the defect.
     ///

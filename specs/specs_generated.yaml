@@ -6775,7 +6775,7 @@ sources:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 134
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 184
+      line: 196
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 21
     - file: lint-http-rules/src/rules/te_header_valid.rs
@@ -7015,7 +7015,7 @@ sources:
     - file: lint-http-rules/src/rules/status_405_allow_valid.rs
       line: 240
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 196
+      line: 208
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
       line: 141
     - file: lint-http-rules/src/rules/trailer_fields_valid.rs
@@ -7341,7 +7341,7 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 289
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 233
+      line: 244
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 99
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
@@ -8885,19 +8885,23 @@ sources:
     snippet: The 426 (Upgrade Required) status code indicates that the server refuses to perform the request using the current protocol but might be willing to do so after the client upgrades to a different protocol.
     cited_by:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 232
+      line: 243
   - label: status_426_upgrade_valid (2)
     section: § 15.5.22
     snippet: The server MUST send an Upgrade header field in a 426 response to indicate the required protocol(s) (Section 7.8).
     cited_by:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 125
+      line: 137
+    - file: lint-http-rules/src/violations/upgrade.rs
+      line: 120
+    - file: lint-http-rules/src/violations/upgrade.rs
+      line: 140
   - label: status_426_upgrade_valid (3)
     section: § 7.8
     snippet: A server MAY send an Upgrade header field in any other response to advertise that it implements support for upgrading to the listed protocols, in order of descending preference, when appropriate for a future request.
     cited_by:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 145
+      line: 157
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 375
   - label: status_426_upgrade_valid (4)
@@ -8905,7 +8909,7 @@ sources:
     snippet: A server that sends a 426 (Upgrade Required) response MUST send an Upgrade header field to indicate the acceptable protocols, in order of descending preference.
     cited_by:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 231
+      line: 242
   - label: status_and_caching_semantics
     section: § 15.1
     snippet: Responses with status codes that are defined as heuristically cacheable (e.g., 200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, and 501 in this specification) can be reused by a cache with heuristic expiration unless otherwise indicated by the method definition or explicit cache controls
@@ -9161,9 +9165,9 @@ sources:
     snippet: The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response.
     cited_by:
     - file: lint-http-rules/src/violations/upgrade.rs
-      line: 47
+      line: 75
     - file: lint-http-rules/src/violations/upgrade.rs
-      line: 66
+      line: 94
   - label: upgrade_and_connection_consistent
     section: § 7.6.1
     snippet: In contrast, a connection-specific field received without a corresponding connection option usually indicates that the field has been improperly forwarded by an intermediary and ought to be ignored by the recipient.
@@ -10550,7 +10554,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 375
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 168
+      line: 180
     - file: lint-http-rules/src/rules/te_header_valid.rs
       line: 215
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
@@ -10799,7 +10803,7 @@ sources:
     - file: lint-http-rules/src/rules/http3_status_code_valid.rs
       line: 125
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
-      line: 169
+      line: 181
     - file: lint-http-rules/src/violations/status.rs
       line: 221
   - label: lint-http-core/src/http_version.rs
