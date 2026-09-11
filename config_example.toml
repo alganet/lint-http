@@ -1819,6 +1819,10 @@ severity = "warn"
 # Host opens an IP literal and never closes it
 severity = "warn"
 
+[violations.uri_host_empty]
+# An http or https reference names no host
+severity = "error"
+
 [violations.uri_host_ip_literal_malformed]
 # Host brackets something that is not an IP literal
 severity = "warn"

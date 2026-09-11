@@ -1198,7 +1198,7 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1235
     - file: lint-http-rules/src/violations/uri.rs
-      line: 206
+      line: 227
   - label: lint-http-rules/src/helpers/uri.rs
     section: § 2
     snippet: A URI is composed from a limited set of characters consisting of digits, letters, and a few graphic symbols.
@@ -1212,7 +1212,7 @@ sources:
     - file: lint-http-rules/src/rules/request_uri_percent_encoding_valid.rs
       line: 221
     - file: lint-http-rules/src/violations/uri.rs
-      line: 105
+      line: 126
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 2.1
     snippet: A percent-encoded octet is encoded as a character triplet, consisting of the percent character "%" followed by the two hexadecimal digits representing that octet's numeric value.
@@ -1254,9 +1254,9 @@ sources:
     - file: lint-http-rules/src/rules/well_known_uri_syntax.rs
       line: 49
     - file: lint-http-rules/src/violations/uri.rs
-      line: 118
+      line: 139
     - file: lint-http-rules/src/violations/uri.rs
-      line: 130
+      line: 151
   - label: lint-http-rules/src/helpers/uri.rs (7)
     section: § 2.2
     snippet: A component's ABNF syntax rule will not use the reserved or gen-delims rule names directly; instead, each syntax rule lists the characters allowed within that component (i.e., not delimiting it), and any of those characters that are also in the reserved set are "reserved" for use as subcomponent delimiters within the component.
@@ -1346,11 +1346,11 @@ sources:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 405
     - file: lint-http-rules/src/violations/uri.rs
-      line: 142
+      line: 163
     - file: lint-http-rules/src/violations/uri.rs
-      line: 154
+      line: 175
     - file: lint-http-rules/src/violations/uri.rs
-      line: 166
+      line: 187
   - label: lint-http-rules/src/helpers/uri.rs (17)
     section: § 3.2
     snippet: The authority component is preceded by a double slash ("//") and is terminated by the next slash ("/"), question mark ("?"), or number sign ("#") character, or by the end of the URI.
@@ -1392,9 +1392,9 @@ sources:
     - file: lint-http-rules/src/helpers/uri.rs
       line: 1113
     - file: lint-http-rules/src/violations/uri.rs
-      line: 178
+      line: 199
     - file: lint-http-rules/src/violations/uri.rs
-      line: 192
+      line: 213
   - label: lint-http-rules/src/helpers/uri.rs (22)
     section: § 3.2.2
     snippet: IPvFuture  = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
@@ -1426,7 +1426,7 @@ sources:
     - file: lint-http-rules/src/rules/warning_header_syntax.rs
       line: 599
     - file: lint-http-rules/src/violations/uri.rs
-      line: 221
+      line: 242
   - label: lint-http-rules/src/helpers/uri.rs (23)
     section: § 3.2.3
     snippet: The port subcomponent of authority is designated by an optional port number in decimal following the host and delimited from it by a single colon (":") character.
@@ -1444,7 +1444,7 @@ sources:
     - file: lint-http-rules/src/rules/via_header_syntax.rs
       line: 490
     - file: lint-http-rules/src/violations/uri.rs
-      line: 235
+      line: 294
   - label: lint-http-rules/src/helpers/uri.rs (24)
     section: § 3.2.3
     snippet: URI producers and normalizers should omit the port component and its ":" delimiter if port is empty or if its value would be the same as that of the scheme's default.
@@ -2445,7 +2445,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 336
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 195
+      line: 196
   - label: lint-http-rules/src/helpers/uri.rs (2)
     section: § 6
     snippet: TCP, UDP, UDP-Lite, SCTP, and DCCP use 16-bit namespaces for their port number registries.
@@ -2455,7 +2455,7 @@ sources:
     - file: lint-http-rules/src/rules/alt_svc_header_syntax.rs
       line: 335
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 194
+      line: 195
 - label: RFC 6454
   url: https://www.rfc-editor.org/rfc/rfc6454.html
   fragments:
@@ -4441,13 +4441,13 @@ sources:
     snippet: A new pseudo-header field :protocol MAY be included on request HEADERS indicating the desired protocol to be spoken on the tunnel created by CONNECT.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 434
+      line: 440
   - label: http2_pseudo_headers_valid (2)
     section: § 4
     snippet: On requests that contain the :protocol pseudo-header field, the :scheme and :path pseudo-header fields of the target URI (see Section 5) MUST also be included.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 435
+      line: 441
   - label: lint-http-rules/src/helpers/websocket.rs
     section: § 5
     snippet: Implementations using this extended CONNECT to bootstrap WebSockets do not do the processing of the Sec-WebSocket-Key and Sec-WebSocket-Accept header fields of [RFC6455] as that functionality has been superseded by the :protocol pseudo-header field.
@@ -5037,7 +5037,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 355
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 424
+      line: 430
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 259
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
@@ -5303,7 +5303,7 @@ sources:
     - file: lint-http-rules/src/rules/allow_header_method_tokens_valid.rs
       line: 126
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 401
+      line: 407
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 245
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
@@ -6239,13 +6239,13 @@ sources:
     snippet: A server MUST reject a CONNECT request that targets an empty or invalid port number, typically by responding with a 400 (Bad Request) status code.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 119
+      line: 120
   - label: http2_pseudo_headers_valid (2)
     section: § 9.3.6
     snippet: CONNECT uses a special form of request target, unique to this method, consisting of only the host and port number of the tunnel destination, separated by a colon.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 117
+      line: 118
     - file: lint-http-rules/src/violations/authority.rs
       line: 179
   - label: http2_pseudo_headers_valid (3)
@@ -6253,7 +6253,7 @@ sources:
     snippet: There is no default port; a client MUST send the port number even if the CONNECT request is based on a URI reference that contains an authority component with an elided port (Section 4.1).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 118
+      line: 119
   - label: if_match_etag_syntax
     section: § 13.1.1
     snippet: 'If-Match = "*" / #entity-tag'
@@ -7615,7 +7615,7 @@ sources:
     - file: lint-http-rules/src/rules/host_header.rs
       line: 52
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 452
+      line: 458
   - label: lint-http-rules/src/helpers/uri.rs (3)
     section: § 7.2
     snippet: The "Host" header field in a request provides the host and port information from the target URI, enabling the origin server to distinguish among resources while servicing requests for multiple host names.
@@ -8464,6 +8464,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 462
+    - file: lint-http-rules/src/violations/uri.rs
+      line: 279
   - label: referer_uri_valid (6)
     section: § 4.2.1
     snippet: The "http" URI scheme is hereby defined for minting identifiers within the hierarchical namespace governed by a potential HTTP origin server listening for TCP ([TCP]) connections on a given port.
@@ -8482,6 +8484,8 @@ sources:
     cited_by:
     - file: lint-http-rules/src/rules/referer_uri_valid.rs
       line: 463
+    - file: lint-http-rules/src/violations/uri.rs
+      line: 280
   - label: referer_uri_valid (9)
     section: § 4.2.2
     snippet: Resources made available via the "https" scheme have no shared identity with the "http" scheme.  They are distinct origins with separate namespaces.
@@ -9901,7 +9905,7 @@ sources:
     snippet: authority-form = uri-host ":" port
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 116
+      line: 117
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 78
   - label: http_version_syntax
@@ -10380,7 +10384,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 354
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 490
+      line: 496
     - file: lint-http-rules/src/rules/request_target_form_valid.rs
       line: 247
   - label: host_and_authority_consistent (2)
@@ -10410,7 +10414,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 337
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 530
+      line: 536
   - label: host_and_authority_consistent (6)
     section: § 8.3.1
     snippet: The values of fields need to be normalized to compare them (see Section 6.2 of [RFC3986]).
@@ -10422,25 +10426,25 @@ sources:
     snippet: A field value MUST NOT start or end with an ASCII whitespace character (ASCII SP or HTAB, 0x20 or 0x09).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 414
+      line: 420
   - label: http2_pseudo_headers_valid (2)
     section: § 8.3
     snippet: Endpoints MUST treat a request or response that contains undefined or invalid pseudo-header fields as malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 402
+      line: 408
   - label: http2_pseudo_headers_valid (3)
     section: § 8.3.1
     snippet: '":scheme" is not restricted to "http" and "https" schemed URIs.'
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 535
+      line: 541
   - label: http2_pseudo_headers_valid (4)
     section: § 8.3.1
     snippet: The ":method" pseudo-header field includes the HTTP method (Section 9 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 397
+      line: 403
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 320
   - label: http2_pseudo_headers_valid (5)
@@ -10448,25 +10452,25 @@ sources:
     snippet: The ":scheme" pseudo-header field includes the scheme portion of the request target.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 529
+      line: 535
   - label: http2_pseudo_headers_valid (6)
     section: § 8.3.2
     snippet: For HTTP/2 responses, a single ":status" pseudo-header field is defined that carries the HTTP status code field (see Section 15 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 625
+      line: 651
   - label: http2_pseudo_headers_valid (7)
     section: § 8.3.2
     snippet: This pseudo-header field MUST be included in all responses, including interim responses; otherwise, the response is malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 626
+      line: 652
   - label: http2_pseudo_headers_valid (8)
     section: § 8.5
     snippet: A CONNECT request that does not conform to these restrictions is malformed (Section 8.1.1).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 474
+      line: 480
     - file: lint-http-rules/src/violations/authority.rs
       line: 221
   - label: http2_pseudo_headers_valid (9)
@@ -10474,15 +10478,15 @@ sources:
     snippet: A proxy that supports CONNECT establishes a TCP connection [TCP] to the host and port identified in the ":authority" pseudo-header field.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 193
+      line: 194
   - label: http2_pseudo_headers_valid (10)
     section: § 8.5
     snippet: The ":authority" pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 3.2.3 of [HTTP/1.1]).
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 115
+      line: 116
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 473
+      line: 479
     - file: lint-http-rules/src/violations/authority.rs
       line: 220
   - label: http2_pseudo_headers_valid (11)
@@ -10490,7 +10494,7 @@ sources:
     snippet: The ":method" pseudo-header field is set to CONNECT.
     cited_by:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
-      line: 425
+      line: 431
   - label: lint-http-core/src/http_version.rs
     section: § 8.3.1
     snippet: All HTTP/2 requests implicitly have a protocol version of "2.0"

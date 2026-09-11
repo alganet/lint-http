@@ -64,6 +64,27 @@ pub const RFC_3986_3_2_3: SpecRef = SpecRef {
     note: "Port — `port = *DIGIT`, which has no lower bound, no upper bound, and admits the empty string",
 };
 
+/// The `http` scheme's definition, and the one requirement it puts on a host
+/// that the generic syntax does not: the identifier may not be empty. Shared
+/// with its `https` twin below, which states the same sentence for the other
+/// scheme HTTP mints identifiers in.
+pub const RFC_9110_4_2_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.2.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
+    note: "http URI Scheme — `http-URI = \"http\" \"://\" authority path-abempty [ \"?\" query ]`, the default port, and the MUST NOT on an empty host identifier with the recipient's MUST to reject one",
+};
+
+/// The `https` scheme's, differing from the above in the scheme name, the
+/// default port and the security requirement — and stating the empty-host MUST
+/// NOT in the same words.
+pub const RFC_9110_4_2_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("4.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
+    note: "https URI Scheme — the same shape as the http scheme with TLS and port 443, including the MUST NOT on an empty host identifier",
+};
+
 /// The alphabet, which is one set for the whole of a URI reference: a
 /// `Referer`, a `Location`, a `Content-Location`, a `Link` target and a request
 /// target all measure a character against it before any component rule sees
@@ -225,6 +246,44 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: &[RFC_3986_3_2_2],
+    }
+
+    /// An `http` or `https` reference whose host identifier is empty — a `://`
+    /// followed straight by the path, the query or the end of the value. It
+    /// names no origin server, so there is nothing to open a connection to and
+    /// nothing to decide who may answer authoritatively for the resource.
+    ///
+    /// **The generic syntax permits it and the scheme definitions do not**,
+    /// which is why this entry cites RFC 9110 where every other entry in this
+    /// subject cites RFC 3986. `reg-name` is `*( … )` and `authority` is
+    /// optional in a `hier-part`, so `file:///etc/hosts` derives and is a URI
+    /// in daily use; the two sentences here are written for the two schemes
+    /// HTTP mints identifiers in, and a value under any other scheme is outside
+    /// them. **The scheme is the condition, not the subject** — the same
+    /// reading `authority_userinfo_forbidden` makes of its own MUST NOT.
+    ///
+    /// **One entry for two sentences, and the axis is new.** The catalogue has
+    /// split entries by version and by method and refused to split by wording;
+    /// this pair differs only in the scheme name, and a sender that wrote
+    /// `http:///p` and one that wrote `https:///p` made the same mistake with
+    /// the same fix. So the entry names both sections and carries neither onto
+    /// a finding — a site knows which scheme it read and says so in its own
+    /// words. **A sentence written once per scheme is still one defect.**
+    ///
+    /// `error`, and the only one in this subject: the sentence beside the MUST
+    /// NOT tells a recipient to reject such a reference as invalid, so nothing
+    /// downstream treats this as a value it can work with. Its neighbours here
+    /// are `warn` because a malformed host is still a host somebody may route
+    /// on; an empty one is not.
+    ///
+    // cite(RFC 9110 § 4.2.1): "A sender MUST NOT generate an "http" URI with an empty host identifier."
+    // cite(RFC 9110 § 4.2.2): "A sender MUST NOT generate an "https" URI with an empty host identifier."
+    URI_HOST_EMPTY = {
+        id: "uri_host_empty",
+        title: "An http or https reference names no host",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_4_2_1, RFC_9110_4_2_2],
     }
 
     /// A character in the port that is not a digit. There is no companion
