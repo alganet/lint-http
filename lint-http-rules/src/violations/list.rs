@@ -75,7 +75,7 @@ defects! {
         title: "List holds an empty element",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_1_1),
+        spec: &[RFC_9110_5_6_1_1],
     }
 
     /// A list written with a floor under it and nothing above the floor: a
@@ -102,7 +102,7 @@ defects! {
         title: "List with a one-element floor holds no element",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_1_2),
+        spec: &[RFC_9110_5_6_1_2],
     }
 }
 

@@ -78,7 +78,7 @@ defects! {
         title: "Content-Length disagrees with the octets received",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9112_6_2),
+        spec: &[RFC_9112_6_2],
     }
 
     /// The field written at all, in a message a transfer coding is already
@@ -105,7 +105,7 @@ defects! {
         title: "Content-Length is sent in a message that is transfer-coded",
         message: "Both Content-Length and Transfer-Encoding present",
         default_severity: Severity::Error,
-        spec: Some(RFC_9112_6_2),
+        spec: &[RFC_9112_6_2],
     }
 
     /// A field line carrying no digit at all: an empty value, or one written as
@@ -119,7 +119,7 @@ defects! {
         title: "Content-Length declares no length",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_8_6),
+        spec: &[RFC_9110_8_6],
     }
 
     /// An octet in the value that `DIGIT` does not admit — the sign of `-1`,
@@ -136,7 +136,7 @@ defects! {
         title: "Content-Length value holds an octet DIGIT does not admit",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_8_6),
+        spec: &[RFC_9110_8_6],
     }
 
     /// A numeral that *is* `1*DIGIT` and is larger than a reader can hold. It
@@ -150,7 +150,7 @@ defects! {
         title: "Content-Length numeral is too large to represent",
         message: "",
         default_severity: Severity::Warn,
-        spec: None,
+        spec: &[],
     }
 
     /// Two lengths declared in one message that are not the same number.
@@ -165,7 +165,7 @@ defects! {
         title: "Content-Length is declared twice with different numbers",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9112_6_3),
+        spec: &[RFC_9112_6_3],
     }
 }
 
@@ -212,7 +212,7 @@ mod tests {
             CONTENT_LENGTH_NUMERAL_INVALID.default_severity,
             Severity::Warn
         );
-        assert!(CONTENT_LENGTH_NUMERAL_INVALID.spec.is_none());
+        assert!(CONTENT_LENGTH_NUMERAL_INVALID.spec.is_empty());
     }
 
     /// Four ways the field fails, four ids — the mapping is the catalogue's

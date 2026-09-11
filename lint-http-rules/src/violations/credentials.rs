@@ -55,7 +55,7 @@ defects! {
         title: "Credentials are empty",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_6_2),
+        spec: &[RFC_9110_11_6_2],
     }
 
     /// A scheme with nothing after it. § 11.4's grammar makes the second half
@@ -70,7 +70,7 @@ defects! {
         title: "Credentials are absent after the scheme",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_6_2),
+        spec: &[RFC_9110_11_6_2],
     }
 
     /// A control octet in the credentials. `error` by default, for the reason
@@ -85,7 +85,7 @@ defects! {
         title: "Credentials hold a control character",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_11_4),
+        spec: &[RFC_9110_11_4],
     }
 }
 

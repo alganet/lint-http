@@ -64,7 +64,7 @@ defects! {
         title: "Authentication challenge is empty",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_3),
+        spec: &[RFC_9110_11_3],
     }
 
     /// An empty member of the field's `#challenge` list — a doubled comma, or
@@ -78,7 +78,7 @@ defects! {
         title: "Authentication challenge list has an empty member",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_6_1),
+        spec: &[RFC_9110_11_6_1],
     }
 
     /// An `auth-param` where the list has not had an `auth-scheme` yet. The
@@ -91,7 +91,7 @@ defects! {
         title: "Authentication parameter arrives before any scheme",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_3),
+        spec: &[RFC_9110_11_3],
     }
 
     /// A single bare word after the scheme: `token68` by the grammar, and an
@@ -106,7 +106,7 @@ defects! {
         title: "Authentication token68 is indistinguishable from a parameter",
         message: "",
         default_severity: Severity::Info,
-        spec: None,
+        spec: &[],
     }
 
     /// An empty member of a challenge's `#auth-param` list.
@@ -117,7 +117,7 @@ defects! {
         title: "Authentication challenge has an empty parameter",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_3),
+        spec: &[RFC_9110_11_3],
     }
 
     /// A parameter whose name is empty — `=x`, which has a value and nothing
@@ -129,7 +129,7 @@ defects! {
         title: "Authentication parameter has an empty name",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 
     /// An `auth-param` with no value. The production writes the `"="` and both
@@ -142,7 +142,7 @@ defects! {
         title: "Authentication parameter has no value",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 
     /// A non-`tchar` octet in an `auth-param` name. The same complaint as
@@ -156,7 +156,7 @@ defects! {
         title: "Authentication parameter name holds a character outside token",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 
     /// A non-`tchar` octet in an unquoted `auth-param` value. The value has a
@@ -170,7 +170,7 @@ defects! {
         title: "Authentication parameter value holds a character outside token",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 }
 
@@ -261,7 +261,7 @@ mod tests {
     /// reporting all of them at one severity could never have said.
     #[test]
     fn the_heuristic_is_the_one_without_a_spec() {
-        assert!(CHALLENGE_TOKEN68_INVALID.spec.is_none());
+        assert!(CHALLENGE_TOKEN68_INVALID.spec.is_empty());
         assert_eq!(CHALLENGE_TOKEN68_INVALID.default_severity, Severity::Info);
         assert_eq!(CHALLENGE_EMPTY.default_severity, Severity::Warn);
     }

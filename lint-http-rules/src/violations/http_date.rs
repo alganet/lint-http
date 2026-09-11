@@ -57,7 +57,7 @@ defects! {
         title: "Timestamp derives from no HTTP-date format",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_7),
+        spec: &[RFC_9110_5_6_7],
     }
 
     /// A timestamp written in RFC 850's or asctime's format. Both parse, both
@@ -76,7 +76,7 @@ defects! {
         title: "Timestamp is written in an obsolete date format",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_9110_5_6_7),
+        spec: &[RFC_9110_5_6_7],
     }
 
     /// An IMF-fixdate with whitespace around it, inside the value. The
@@ -104,7 +104,7 @@ defects! {
         title: "Timestamp is padded with whitespace the grammar does not print",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_7),
+        spec: &[RFC_9110_5_6_7],
     }
 }
 

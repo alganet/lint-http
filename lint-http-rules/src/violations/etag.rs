@@ -50,7 +50,7 @@ defects! {
         title: "Weakness indicator is not written W/",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_8_3),
+        spec: &[RFC_9110_8_8_3],
     }
 
     /// No opening DQUOTE, or nothing closing it.
@@ -66,7 +66,7 @@ defects! {
         title: "Entity-tag is not quoted",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_8_3),
+        spec: &[RFC_9110_8_8_3],
     }
 
     /// A character `etagc` does not admit.
@@ -85,7 +85,7 @@ defects! {
         title: "Entity-tag holds a character etagc does not admit",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_8_8_3),
+        spec: &[RFC_9110_8_8_3],
     }
 }
 

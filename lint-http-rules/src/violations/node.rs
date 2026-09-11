@@ -56,7 +56,7 @@ defects! {
         title: "Node identifier holds an IPv6 address without its square brackets",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7239_6_1),
+        spec: &[RFC_7239_6_1],
     }
 
     /// A `[`-led nodename that never closes. Told apart from a literal whose
@@ -69,7 +69,7 @@ defects! {
         title: "Node identifier opens an IPv6 literal and never closes it",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7239_6),
+        spec: &[RFC_7239_6],
     }
 
     /// Brackets around something that is not an `IPv6address`. The brackets are
@@ -82,7 +82,7 @@ defects! {
         title: "Node identifier brackets something that is not an IPv6 address",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7239_6),
+        spec: &[RFC_7239_6],
     }
 
     /// Digits and dots that are not an `IPv4address` — `010.1.2.3`, `1.2.3`,
@@ -95,7 +95,7 @@ defects! {
         title: "Node identifier is digits and dots that are not an IPv4 address",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7239_6),
+        spec: &[RFC_7239_6],
     }
 
     /// A nodename no alternative of the production generates. The everyday
@@ -108,7 +108,7 @@ defects! {
         title: "Node identifier derives from no alternative of the production",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7239_6),
+        spec: &[RFC_7239_6],
     }
 
     /// A well-formed `IPv6address` written against §6.1's recommendation —
@@ -123,7 +123,7 @@ defects! {
         title: "Node identifier writes an IPv6 address outside the recommended representation",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_7239_6_1),
+        spec: &[RFC_7239_6_1],
     }
 
     /// Something after the `:` that is neither `1*5DIGIT` nor an `obfport`.
@@ -136,7 +136,7 @@ defects! {
         title: "Node identifier holds something that is not a node-port",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_7239_6),
+        spec: &[RFC_7239_6],
     }
 }
 

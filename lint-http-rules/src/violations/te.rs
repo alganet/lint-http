@@ -36,15 +36,11 @@
 //! connection option beside it, which is a requirement on the *message* rather
 //! than on any value in it. Neither is a production's defect — every
 //! production involved is intact — which is what keeps them here.
-//!
-//! The exception, in the two documents that write it:
-//
-// cite(RFC 9113 § 8.2.2, label: the TE exception): "The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers"."
-// cite(RFC 9114 § 4.2, label: the TE exception): "The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers"."
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
 use crate::violations::defects;
+use crate::violations::field::{RFC_9113_8_2_2, RFC_9114_4_2};
 
 /// The field's own section in RFC 9112: what it is for, the ranking `q` it
 /// admits, and the one coding name it may not carry.
@@ -84,21 +80,26 @@ defects! {
     /// documents put this sentence inside the paragraph whose MUST NOT makes
     /// such a message malformed.
     ///
-    /// **No `spec`, for the reason
+    /// **Both sentences, for the reason
     /// [`field_connection_specific_forbidden`](crate::violations::field::FIELD_CONNECTION_SPECIFIC_FORBIDDEN)
-    /// carries none**: the sentence is written once per version, by two
-    /// documents in force at the same time, and an entry holds one reference.
-    /// Both are quoted above the entry instead, where neither is being claimed
-    /// as *the* sentence, and the finding names the governing section itself.
-    /// The comparison against the keyword folds case because `t-codings` writes
-    /// it as an ABNF string, which is RFC 5234 § 2.3's sentence and the rule's
-    /// own reading rather than this defect's.
+    /// holds both**: the exception is written once per version, by two
+    /// documents in force at the same time, and neither is *the* one. They are
+    /// the same two sections that entry names — the exception is a clause of
+    /// the paragraph the prohibition is in — so the references are imported
+    /// from there rather than spelled a second time. No finding carries either;
+    /// each names the governing section in its own message. The comparison
+    /// against the keyword folds case because `t-codings` writes it as an ABNF
+    /// string, which is RFC 5234 § 2.3's sentence and the rule's own reading
+    /// rather than this defect's.
+    ///
+    // cite(RFC 9113 § 8.2.2, label: the TE exception): "The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers"."
+    // cite(RFC 9114 § 4.2, label: the TE exception): "The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers"."
     TE_MEMBER_FORBIDDEN = {
         id: "te_member_forbidden",
         title: "A request's TE holds a member other than trailers",
         message: "",
         default_severity: Severity::Error,
-        spec: None,
+        spec: &[RFC_9113_8_2_2, RFC_9114_4_2],
     }
 
     /// `chunked` named in a `TE`. The name is a real transfer coding and is
@@ -118,7 +119,7 @@ defects! {
         title: "TE names the chunked coding, which cannot be declined",
         message: "A client must not send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9112_7_4),
+        spec: &[RFC_9112_7_4],
     }
 
     /// A parameter or a weight written on the `trailers` keyword. The
@@ -143,7 +144,7 @@ defects! {
         title: "TE hangs a parameter or a weight off the trailers keyword",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_A),
+        spec: &[RFC_9110_A],
     }
 
     /// A request carrying `TE` and no `TE` connection option in `Connection`.
@@ -168,7 +169,7 @@ defects! {
         title: "TE is sent without a TE connection option beside it",
         message: "Request carries a TE header field without a 'TE' connection option in Connection; TE applies to the immediate connection only, and the option is what stops an intermediary from forwarding it",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_10_1_4),
+        spec: &[RFC_9110_10_1_4],
     }
 }
 
@@ -183,7 +184,7 @@ mod tests {
     fn one_entry_serves_both_versions_and_neither_names_it() {
         assert_eq!(TE_MEMBER_FORBIDDEN.id, "te_member_forbidden");
         assert!(!TE_MEMBER_FORBIDDEN.id.contains("http"));
-        assert_eq!(TE_MEMBER_FORBIDDEN.spec, None);
+        assert_eq!(TE_MEMBER_FORBIDDEN.spec, [RFC_9113_8_2_2, RFC_9114_4_2]);
         assert_eq!(TE_MEMBER_FORBIDDEN.default_severity, Severity::Error);
     }
 }

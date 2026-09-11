@@ -51,7 +51,7 @@ defects! {
         title: "Language tag is empty",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_5646_2_1),
+        spec: &[RFC_5646_2_1],
     }
 
     /// A control octet or whitespace inside the tag — neither of which any
@@ -66,7 +66,7 @@ defects! {
         title: "Language tag holds whitespace or a control character",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_5646_2_1),
+        spec: &[RFC_5646_2_1],
     }
 
     /// A visible octet outside the alphanumerics and `-`: the underscore of
@@ -79,7 +79,7 @@ defects! {
         title: "Language tag holds a character outside letters, digits and hyphen",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_5646_2_1),
+        spec: &[RFC_5646_2_1],
     }
 
     /// A leading or trailing `-`. The hyphen separates subtags, so one at
@@ -91,7 +91,7 @@ defects! {
         title: "Language tag starts or ends with a hyphen",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_5646_2_1),
+        spec: &[RFC_5646_2_1],
     }
 
     /// Two adjacent hyphens, which is the same missing subtag as the edge case
@@ -103,7 +103,7 @@ defects! {
         title: "Language tag has an empty subtag",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_5646_2_1),
+        spec: &[RFC_5646_2_1],
     }
 
     /// A first subtag opening on a digit. The one property RFC 5646's
@@ -117,7 +117,7 @@ defects! {
         title: "Language tag does not begin with a letter",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_5646_2_1),
+        spec: &[RFC_5646_2_1],
     }
 
     /// A subtag over eight characters. Every subtag alternative in the grammar
@@ -130,7 +130,7 @@ defects! {
         title: "Language subtag is longer than eight characters",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_5646_2_1),
+        spec: &[RFC_5646_2_1],
     }
 }
 

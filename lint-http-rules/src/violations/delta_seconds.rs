@@ -48,7 +48,7 @@ defects! {
         title: "A time in seconds is stated with no digits",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9111_1_2_2),
+        spec: &[RFC_9111_1_2_2],
     }
 
     /// An octet the production does not admit: the sign of `-1` or `+5`, the
@@ -68,7 +68,7 @@ defects! {
         title: "A time in seconds holds an octet DIGIT does not admit",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9111_1_2_2),
+        spec: &[RFC_9111_1_2_2],
     }
 }
 
@@ -85,7 +85,7 @@ mod tests {
         assert_ne!(DELTA_SECONDS_EMPTY.id, DELTA_SECONDS_CHARACTER_FORBIDDEN.id);
         for def in [&DELTA_SECONDS_EMPTY, &DELTA_SECONDS_CHARACTER_FORBIDDEN] {
             assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
-            assert_eq!(def.spec, Some(RFC_9111_1_2_2), "{}", def.id);
+            assert_eq!(def.spec, [RFC_9111_1_2_2], "{}", def.id);
         }
     }
 }

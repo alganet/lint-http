@@ -41,10 +41,11 @@
 //! where it landed. No sentence in either section forbids it — the split is how
 //! the document says what each field is *about*, not a prohibition — so both
 //! entries are `info`, and the word for them is neither `_forbidden` nor
-//! `_invalid`. They are two entries rather than one because the two sections
-//! are two sentences and a def carries one quote, and because the senders are
+//! `_invalid`. They are two entries rather than one because the senders are
 //! two: a client leaking a server's field and a server echoing a client's are
-//! different mistakes with different fixes.
+//! different mistakes with different fixes. **Being two sentences is no longer
+//! part of that argument** — the entry above them holds two — and what is left
+//! is the only reason that was ever load-bearing.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -68,6 +69,28 @@ pub const RFC_9110_5_3: SpecRef = SpecRef {
     note: "Field Order — a sender MUST NOT write multiple field lines of one name, in the \
            headers or the trailers, unless at least one alternative of the field's definition \
            allows the lines to be recombined as a comma-separated list",
+};
+
+/// HTTP/2's prohibition on connection-specific fields, and one half of the
+/// pair [`FIELD_CONNECTION_SPECIFIC_FORBIDDEN`] holds. It lives here rather
+/// than in the rule because the entry names it, and an entry's references are
+/// the catalogue's.
+pub const RFC_9113_8_2_2: SpecRef = SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
+    note: "Connection-Specific Header Fields — HTTP/2's prohibition, and the one \
+           sentence of the two that closes the list of names",
+};
+
+/// The other half, and the reason the pair exists: HTTP/3 states the same
+/// requirement in its own document, enumerating nothing.
+pub const RFC_9114_4_2: SpecRef = SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
+    note: "HTTP Fields — HTTP/3's prohibition, which enumerates nothing and defers \
+           to RFC 9110 §7.6.1",
 };
 
 /// The request context fields, and what the section says they are about. The
@@ -110,7 +133,7 @@ defects! {
         title: "A field is written on more lines than its definition allows",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_3),
+        spec: &[RFC_9110_5_3],
     }
 
     /// A field stating hop-by-hop control — `Connection` and the fields it
@@ -122,28 +145,31 @@ defects! {
     /// `error`, because malformed is the word the documents use and a recipient
     /// is entitled to reject the message rather than repair it.
     ///
-    /// **This is the first entry in the catalogue with no `spec`, whose
-    /// sentence exists.** The requirement is stated once per version — RFC 9113
-    /// § 8.2.2 for HTTP/2, RFC 9114 § 4.2 for HTTP/3 — and the two are not
-    /// copies of one another: HTTP/2 closes the list of names in the sentence
-    /// after its MUST NOT, HTTP/3 enumerates nothing and defers to RFC 9110
-    /// § 7.6.1, whose own list is open. A `ViolationDef` carries one `SpecRef`,
-    /// so naming either document here would put an HTTP/2 citation on an HTTP/3
-    /// finding half the time — the wrong-document trap, arrived at from the
-    /// other side. **The defect is one and the sentence is two**, so the
-    /// citation stays where the version is known: at the rule's sites, and in
-    /// the finding's own message, which names the governing section.
+    /// **This is the entry that made `spec` a slice.** The requirement is
+    /// stated once per version — RFC 9113 § 8.2.2 for HTTP/2, RFC 9114 § 4.2
+    /// for HTTP/3 — and the two are not copies of one another: HTTP/2 closes
+    /// the list of names in the sentence after its MUST NOT, HTTP/3 enumerates
+    /// nothing and defers to RFC 9110 § 7.6.1, whose own list is open. Naming
+    /// either one alone would put an HTTP/2 citation on an HTTP/3 finding half
+    /// the time — the wrong-document trap, arrived at from the other side.
+    /// **The defect is one and the sentence is two**, so the entry holds both
+    /// and no finding carries either: the version is known at the rule's sites,
+    /// and the message names the governing section there.
     ///
     /// Splitting the entry per version was the alternative and it is refused:
     /// an operator silencing this is silencing a defect, not a document, and
     /// two ids for one defect is the duplication this whole campaign exists to
     /// remove.
+    ///
+    // cite(RFC 9113 § 8.2.2): "An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields."
+    // cite(RFC 9113 § 8.2.2): "Any message containing connection-specific header fields MUST be treated as malformed (Section 8.1.1)."
+    // cite(RFC 9114 § 4.2): "An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed."
     FIELD_CONNECTION_SPECIFIC_FORBIDDEN = {
         id: "field_connection_specific_forbidden",
         title: "A connection-specific field is written on a version that has none",
         message: "",
         default_severity: Severity::Error,
-        spec: None,
+        spec: &[RFC_9113_8_2_2, RFC_9114_4_2],
     }
 
     /// A field name the deployment does not expect. The seventh registry entry
@@ -169,7 +195,7 @@ defects! {
         title: "Field name is not one the deployment expects",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_1),
+        spec: &[RFC_9110_5_1],
     }
 
     /// One of § 10.1's five request context fields — `Expect`, `From`,
@@ -192,18 +218,20 @@ defects! {
         title: "A request context field is written in a response",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_9110_10_1),
+        spec: &[RFC_9110_10_1],
     }
 
     /// The mirror: one of § 10.2's four response context fields — `Allow`,
     /// `Location`, `Retry-After`, `Server` — written into a request. Same
     /// reading, opposite sender, and the same absent modal.
     ///
-    /// A separate entry rather than a shared one, for two reasons that agree.
-    /// The sentence is § 10.2's and a def carries one quote, so a single entry
-    /// would cite the wrong section for half its findings; and the sender is
-    /// the other party, so an operator watching what its own clients emit is
-    /// watching this entry and not its sibling.
+    /// A separate entry rather than a shared one, and the reason is the
+    /// sender. An operator watching what its own clients emit is watching this
+    /// entry and not its sibling, and the fix for each is somewhere else. The
+    /// two sections *would* both fit on one entry now that `spec` is a slice —
+    /// which is exactly why the shape is worth stating: a pair of sentences is
+    /// a reason to hold two references, never on its own a reason to hold two
+    /// ids.
     ///
     // cite(RFC 9110 § 10.2): "The response header fields below provide additional information about the response, beyond what is implied by the status code, including information about the server, about the target resource, or about related resources."
     FIELD_RESPONSE_CONTEXT_MISDIRECTED = {
@@ -211,7 +239,7 @@ defects! {
         title: "A response context field is written in a request",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_9110_10_2),
+        spec: &[RFC_9110_10_2],
     }
 }
 
@@ -227,20 +255,23 @@ mod tests {
     fn the_subject_is_the_line_and_not_the_field_that_carried_it() {
         assert_eq!(FIELD_LINE_DUPLICATED.id, "field_line_duplicated");
         assert_eq!(FIELD_LINE_DUPLICATED.default_severity, Severity::Warn);
-        assert_eq!(FIELD_LINE_DUPLICATED.spec, Some(RFC_9110_5_3));
+        assert_eq!(FIELD_LINE_DUPLICATED.spec, [RFC_9110_5_3]);
     }
 
-    /// The entry with no sentence of its own, and the reason is that it has
-    /// two: one per version document. Pinned so that a later commit adding a
-    /// citation here has to answer which version's finding it would be wrong
-    /// for.
+    /// The entry with two sentences and no one of them governing. Pinned in
+    /// both directions: dropping either reference would leave the survivor
+    /// looking like *the* sentence, and a finding would then start carrying it
+    /// — which is wrong on every message the other document governs.
     #[test]
-    fn the_requirement_written_once_per_version_carries_no_single_spec() {
+    fn the_requirement_written_once_per_version_names_both_documents() {
         assert_eq!(
             FIELD_CONNECTION_SPECIFIC_FORBIDDEN.id,
             "field_connection_specific_forbidden"
         );
-        assert_eq!(FIELD_CONNECTION_SPECIFIC_FORBIDDEN.spec, None);
+        assert_eq!(
+            FIELD_CONNECTION_SPECIFIC_FORBIDDEN.spec,
+            [RFC_9113_8_2_2, RFC_9114_4_2]
+        );
         assert_eq!(
             FIELD_CONNECTION_SPECIFIC_FORBIDDEN.default_severity,
             Severity::Error

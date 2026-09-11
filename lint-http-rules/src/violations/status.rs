@@ -72,7 +72,7 @@ defects! {
         title: "206 Partial Content answers a request that asked for no range",
         message: "206 Partial Content response received but request did not include a Range header",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_15_3_7),
+        spec: &[RFC_9110_15_3_7],
     }
 
     /// A 416 answering a request that named no range. The status code is the
@@ -92,7 +92,7 @@ defects! {
         title: "416 Range Not Satisfiable answers a request that named no range",
         message: "416 Range Not Satisfiable response sent to a request with no Range header",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_15_5_17),
+        spec: &[RFC_9110_15_5_17],
     }
 
     /// A 206 in its multipart form, answering a request that asked for one
@@ -119,7 +119,7 @@ defects! {
         title: "A multipart 206 answers a request that asked for a single range",
         message: "multipart/byteranges 206 response sent to a request for a single range",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_15_3_7_2),
+        spec: &[RFC_9110_15_3_7_2],
     }
 }
 

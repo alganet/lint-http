@@ -46,7 +46,7 @@ defects! {
         title: "A 101 response carries no Upgrade field",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_15_2_2),
+        spec: &[RFC_9110_15_2_2],
     }
 
     /// The field written, and no protocol name on it: an empty value, or one
@@ -65,7 +65,7 @@ defects! {
         title: "A 101 response names no protocol on its Upgrade field",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_15_2_2),
+        spec: &[RFC_9110_15_2_2],
     }
 }
 

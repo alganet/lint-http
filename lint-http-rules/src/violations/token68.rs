@@ -48,7 +48,7 @@ defects! {
         title: "token68 holds whitespace or a control character",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 
     /// A visible octet outside the alphabet — the `%` of a value that was
@@ -61,7 +61,7 @@ defects! {
         title: "token68 holds a character outside its alphabet",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 
     /// Padding and nothing before it. The production is `1*(…)` and then its
@@ -74,7 +74,7 @@ defects! {
         title: "token68 is padding with no body",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 
     /// Something other than `=` at or after the first `=`. Padding is the only
@@ -88,7 +88,7 @@ defects! {
         title: "token68 padding holds something other than '='",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_11_2),
+        spec: &[RFC_9110_11_2],
     }
 }
 

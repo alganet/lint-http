@@ -87,7 +87,7 @@ defects! {
         title: "Content-Range is empty",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// A `range-unit` that is not a `token`. Not a unit this parser fails to
@@ -100,7 +100,7 @@ defects! {
         title: "Content-Range unit is not a token",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_1),
+        spec: &[RFC_9110_14_1],
     }
 
     /// A value that is a `range-unit` and then stops. The production is the
@@ -112,7 +112,7 @@ defects! {
         title: "Content-Range has no range after its unit",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// Whitespace inside the part after the space. The production holds exactly
@@ -124,7 +124,7 @@ defects! {
         title: "Content-Range holds whitespace after its single space",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// No `/`. Both forms the field can take have one.
@@ -135,7 +135,7 @@ defects! {
         title: "Content-Range has no '/'",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// Something before the `/` that opens with `*` and is not exactly `*`.
@@ -148,7 +148,7 @@ defects! {
         title: "Content-Range writes something other than '*' before its '/'",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// An `incl-range` that is not two positions around a `-`: the dash
@@ -161,7 +161,7 @@ defects! {
         title: "Content-Range range is not first-pos '-' last-pos",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// A numeral that is not `1*DIGIT` — whichever of the three it was, which
@@ -173,7 +173,7 @@ defects! {
         title: "Content-Range numeral is not 1*DIGIT",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// A numeral that *is* `1*DIGIT` and is larger than a reader can hold. It
@@ -189,7 +189,7 @@ defects! {
         title: "Content-Range numeral is too large to represent",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_1_2),
+        spec: &[RFC_9110_14_1_2],
     }
 
     /// `last-pos` below `first-pos`. The first of § 14.4's two invalidity
@@ -204,7 +204,7 @@ defects! {
         title: "Content-Range first-pos is greater than its last-pos",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// `complete-length` at or below `last-pos`. The second condition, and the
@@ -219,7 +219,7 @@ defects! {
         title: "Content-Range complete-length does not exceed its last-pos",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// A response that has a range to describe and no field describing it: a
@@ -246,7 +246,7 @@ defects! {
         title: "Content-Range is absent from a response whose range it would describe",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_15_3_7_1),
+        spec: &[RFC_9110_15_3_7_1],
     }
 
     /// The field written in the header section of a multipart 206, where each
@@ -261,7 +261,7 @@ defects! {
         title: "Content-Range is written in the header section of a multipart 206",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_15_3_7_2),
+        spec: &[RFC_9110_15_3_7_2],
     }
 
     /// The wrong one of the field's two forms for the status carrying it. A 206
@@ -282,7 +282,7 @@ defects! {
         title: "Content-Range uses the form belonging to the other status code",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_14_4),
+        spec: &[RFC_9110_14_4],
     }
 
     /// The range described and the length declared are not the same number of
@@ -308,7 +308,7 @@ defects! {
         title: "Content-Range describes a range that is not the declared Content-Length",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_15_3_7),
+        spec: &[RFC_9110_15_3_7],
     }
 }
 

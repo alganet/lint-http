@@ -176,13 +176,24 @@ impl<'a> RuleContext<'a> {
     /// The common half: everything but the message comes from the def and the
     /// context, so the two entry points differ only in where the message came
     /// from.
+    ///
+    /// A finding is cited when its def names exactly one sentence. A def
+    /// naming several names them because no one of them governs — the
+    /// requirement is written once per protocol version — and picking one here
+    /// would put an HTTP/2 reference on an HTTP/3 finding half the time. Such a
+    /// finding says which section governs it in its own message, which is what
+    /// it did while the entry carried no reference at all; the references are
+    /// on the def for the catalogue and the docs to read.
     fn finding(&self, def: &'static ViolationDef, message: String) -> Violation {
         Violation {
             rule: self.rule_id.into(),
             violation: def.id.into(),
             severity: self.severity_for(def),
             message,
-            cite: def.spec.as_ref().map(SpecRef::citation),
+            cite: match def.spec {
+                [only] => Some(only.citation()),
+                _ => None,
+            },
         }
     }
 
@@ -1860,12 +1871,12 @@ severity = "warn"
         title: "A defect with one wording",
         message: "the fixture is malformed",
         default_severity: crate::lint::Severity::Warn,
-        spec: Some(SpecRef {
+        spec: &[SpecRef {
             spec: "RFC 0000",
             section: Some("1"),
             url: "https://example.com/",
             note: "",
-        }),
+        }],
     };
 
     /// A defect whose wording names what caused it, so the message is formatted
@@ -1875,7 +1886,7 @@ severity = "warn"
         title: "A defect that names its value",
         message: "",
         default_severity: crate::lint::Severity::Error,
-        spec: None,
+        spec: &[],
     };
 
     /// What a rule's `violations()` returns: a named `static`, because an
@@ -1954,7 +1965,7 @@ severity = "warn"
             title: "A defect belonging to some other rule",
             message: "not this rule's to report",
             default_severity: crate::lint::Severity::Warn,
-            spec: None,
+            spec: &[],
         };
         let resolved = unit_resolved();
         let severities = [crate::lint::Severity::Warn, crate::lint::Severity::Warn];

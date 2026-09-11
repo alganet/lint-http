@@ -46,7 +46,7 @@ defects! {
         title: "Quoted-string is missing one of its DQUOTEs",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_4),
+        spec: &[RFC_9110_5_6_4],
     }
 
     /// A DQUOTE inside the interior that no backslash introduced. The interior
@@ -61,7 +61,7 @@ defects! {
         title: "Quoted-string holds an unescaped DQUOTE",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_9110_5_6_4),
+        spec: &[RFC_9110_5_6_4],
     }
 
     /// A control octet `qdtext` excludes — HTAB is not one of them, since it is
@@ -77,7 +77,7 @@ defects! {
         title: "Quoted-string holds a control character",
         message: "",
         default_severity: Severity::Error,
-        spec: Some(RFC_9110_5_6_4),
+        spec: &[RFC_9110_5_6_4],
     }
 }
 

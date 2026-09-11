@@ -5,7 +5,7 @@
 use crate::helpers::headers::combined_field_value_as_written;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::field::FIELD_CONNECTION_SPECIFIC_FORBIDDEN;
+use crate::violations::field::{FIELD_CONNECTION_SPECIFIC_FORBIDDEN, RFC_9113_8_2_2, RFC_9114_4_2};
 use crate::violations::te::TE_MEMBER_FORBIDDEN;
 use crate::violations::ViolationDef;
 
@@ -154,11 +154,8 @@ impl NoConnectionSpecificFields {
         // documents forbid is generating a message that *contains* the field.
         // Whether the value derives from the field's own production is the
         // question of the rule that owns that field, and it is a question about
-        // a message this one has already called malformed.
-        //
-        // cite(RFC 9113 § 8.2.2): "An endpoint MUST NOT generate an HTTP/2 message containing connection-specific header fields."
-        // cite(RFC 9113 § 8.2.2): "Any message containing connection-specific header fields MUST be treated as malformed (Section 8.1.1)."
-        // cite(RFC 9114 § 4.2): "An endpoint MUST NOT generate an HTTP/3 field section containing connection-specific fields; any message containing connection-specific fields MUST be treated as malformed."
+        // a message this one has already called malformed. Both prohibitions
+        // are quoted on the entry, which names both sections.
         for &name in CONNECTION_SPECIFIC_FIELDS {
             if headers.contains_key(name) {
                 return Some(ctx.report_with(
@@ -274,20 +271,10 @@ impl NoConnectionSpecificFields {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9113_8_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9113",
-    section: Some("8.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2",
-    note: "Connection-Specific Header Fields — HTTP/2's prohibition, and the one \
-           sentence of the two that closes the list of names",
-};
-const RFC_9114_4_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("4.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.2",
-    note: "HTTP Fields — HTTP/3's prohibition, which enumerates nothing and defers \
-           to RFC 9110 §7.6.1",
-};
+///
+/// The two version documents are not among them: both defects this rule
+/// reports name *both* of those sections, so the references live on the entries
+/// in `violations/field.rs` and are imported back here for `specifications()`.
 const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.6.1"),

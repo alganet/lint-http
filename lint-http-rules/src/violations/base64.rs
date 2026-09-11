@@ -74,7 +74,7 @@ defects! {
         title: "Value is not a base64 encoding",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_4648_3_3),
+        spec: &[RFC_4648_3_3],
     }
 
     /// An octet the sixty-four characters do not hold. The finer half of
@@ -89,7 +89,7 @@ defects! {
         title: "Value holds an octet outside the base64 alphabet",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_4648_3_3),
+        spec: &[RFC_4648_3_3],
     }
 
     /// Every character is one the alphabet holds, and the sequence of them is
@@ -106,7 +106,7 @@ defects! {
         title: "Value is not a whole number of base64 groups",
         message: "",
         default_severity: Severity::Warn,
-        spec: Some(RFC_4648_4),
+        spec: &[RFC_4648_4],
     }
 
     /// A final symbol carrying bits a conforming encoder sets to zero. The
@@ -133,7 +133,7 @@ defects! {
         title: "Final base64 symbol carries bits a conforming encoder zeroes",
         message: "",
         default_severity: Severity::Info,
-        spec: Some(RFC_4648_3_5),
+        spec: &[RFC_4648_3_5],
     }
 }
 
