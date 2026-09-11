@@ -26,7 +26,7 @@ Scope: this rule reads a response's header section, and its subject is *the serv
 
 ## Specifications
 
-- [RFC 9110 §15.5.22](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.22): 426 Upgrade Required — the MUST, its object clause (to indicate the required protocol(s)), and what the status itself says the server is asking the client to do
+- [RFC 9110 §15.5.22](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.22): 426 Upgrade Required — the server refuses the request under the current protocol, and MUST send an `Upgrade` field to indicate the required protocol(s). RFC 9110 §7.8 states the same MUST from the field's side.
 - [RFC 9110 §7.8](https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8): Upgrade — the same MUST from the field's side, worded with the ordering clause; also the MAY that licenses the field's absence on every other response
 - [RFC 9113 §8.2.2](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.2): Connection-Specific Header Fields — why an HTTP/2 response is not asked for a field it must not generate
 - [RFC 9114 §4.5](https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5): HTTP Upgrade — HTTP/3 does not have the mechanism this field belongs to, which is a stronger reason than the field being forbidden
