@@ -8,7 +8,9 @@ use crate::violations::authority::{
     AUTHORITY_TUNNEL_USERINFO_FORBIDDEN, AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6,
     RFC_9113_8_3_1, RFC_9114_4_3_1,
 };
-use crate::violations::request_target::{REQUEST_TARGET_ASTERISK_FORBIDDEN, RFC_9110_7_1};
+use crate::violations::request_target::{
+    REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_PATH_MISSING, RFC_9110_7_1,
+};
 use crate::violations::uri::{
     host_and_port, scheme_name, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3,
     URI_HOST_BRACKET_FORBIDDEN, URI_HOST_CHARACTER_FORBIDDEN, URI_HOST_CLOSING_BRACKET_MISSING,
@@ -53,6 +55,7 @@ static DECLARED: &[&ViolationDef] = &[
     &REQUEST_TARGET_ASTERISK_FORBIDDEN,
     &AUTHORITY_USERINFO_FORBIDDEN,
     &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
+    &REQUEST_TARGET_PATH_MISSING,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -327,16 +330,23 @@ impl Rule for Http3PseudoHeadersValid {
                         ));
                     }
                 } else {
-                    // cite(RFC 9114 § 4.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f)."
+                    // The entry names this section and RFC 9113 § 8.3.1 for the
+                    // other version, so the message names the one governing
+                    // here. An absent `:path` and a blank one reassemble into the
+                    // same target, which is the reading the entry carries.
                     let has_path =
                         crate::helpers::uri::extract_path_from_request_target(uri_trimmed)
                             .is_some();
                     if !has_path {
-                        return Some(self.cited(
-                            &RFC_9114_4_3_1,
-                            ctx.severity,
-                            "HTTP/3 request missing required ':path' pseudo-header".into(),
-                        ));
+                        return Some(
+                            ctx.report_with(
+                                &REQUEST_TARGET_PATH_MISSING,
+                                "HTTP/3 request names no ':path': every non-CONNECT request sends \
+                             exactly one, and an 'http' or 'https' URI with no path component \
+                             sends '/' (RFC 9114 §4.3.1)"
+                                    .into(),
+                            ),
+                        );
                     }
                 }
 

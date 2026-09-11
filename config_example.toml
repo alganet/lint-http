@@ -1659,6 +1659,10 @@ severity = "warn"
 # The asterisk target is sent with a method other than OPTIONS
 severity = "error"
 
+[violations.request_target_path_missing]
+# A request that owes a path names none
+severity = "error"
+
 [violations.status_101_ignored]
 # HTTP continues on a connection a 101 handed off
 severity = "warn"

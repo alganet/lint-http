@@ -1346,8 +1346,11 @@ severity = "warn"
         /// version's section instead. **`authority_tunnel_userinfo_forbidden`
         /// took one more** — the HTTP/3 CONNECT site, which had cited § 4.4; the
         /// HTTP/2 one reported the same defect unnamed, and the entry now cites
-        /// § 9.3.6 on both.
-        const FLOOR: usize = 113;
+        /// § 9.3.6 on both. **`request_target_path_missing` took two more**, one
+        /// per version rule, both cited and neither citable from the entry — the
+        /// requirement is written once per version and the entry names both
+        /// sections.
+        const FLOOR: usize = 111;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

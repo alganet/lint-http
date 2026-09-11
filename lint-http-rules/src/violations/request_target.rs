@@ -17,17 +17,26 @@
 //! the request-line's second token; over HTTP/2 and HTTP/3 the same information
 //! arrives as `:method`, `:scheme`, `:authority` and `:path`, and a capture
 //! records the URI the transport reassembled from them. So three rules read
-//! three spellings of one element, and the defect below is one defect in all
-//! three — the first entry in this catalogue declared by three rules at once.
+//! three spellings of one element, and the first entry below is one defect in
+//! all three — the first entry in this catalogue declared by three rules at
+//! once. The second is two of the three, because HTTP/1.1 answers the same
+//! question through the form a target derives from rather than through a
+//! requirement of its own.
+//!
+//! **Which is also why an entry here may cite a version document.** The element
+//! is one thing; the sentence requiring something of it is sometimes written
+//! once for every version (§ 7.1) and sometimes once per version, and where it
+//! is the latter the entry names them all and no finding carries one.
 //!
 //! What the *components* of a target are made of is not here: a scheme that is
 //! not a scheme name, an authority that is not a host and port, a percent
 //! triplet that does not derive are [`uri`](crate::violations::uri)'s, on every
-//! version, and the pseudo-header fields' own requirements are each version
-//! document's.
+//! version, and what a pseudo-header field may *carry* is
+//! [`authority`](crate::violations::authority)'s.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::authority::{RFC_9113_8_3_1, RFC_9114_4_3_1};
 use crate::violations::defects;
 
 /// Where the four forms are named, what each is for, and the one MUST NOT that
@@ -69,6 +78,39 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9110_7_1],
     }
+
+    /// A request whose target carries no path component, on a method that owes
+    /// one. Every non-CONNECT request names exactly one path, and where the URI
+    /// has no path of its own the sender writes `/` — so a target with none
+    /// names no resource for the request to be applied to, which is the same
+    /// thing being wrong as in the asterisk above and for a different reason.
+    ///
+    /// **`_missing` although a capture cannot tell it from `_empty`.** Over
+    /// HTTP/2 and HTTP/3 the path arrives as `:path` and a capture holds the URI
+    /// the transport reassembled from the pseudo-headers, so a field that was
+    /// never sent and one sent blank come back identical. The vocabulary
+    /// separates those two by what the *sender* wrote, and here nothing does; the
+    /// word is chosen from the recipient's side, which has no path either way.
+    /// **Where the evidence cannot distinguish two senders, name the defect the
+    /// recipient can see.**
+    ///
+    /// **Two documents, one per version, and neither governing the other.** Both
+    /// state it twice over — the exactly-one MUST for the three pseudo-headers,
+    /// and the MUST NOT on an empty value for `http` and `https` URIs — so each
+    /// rule's message names the section that governs the version it read.
+    ///
+    /// `error`, with the asterisk: a recipient cannot resolve a target resource
+    /// from this request, and no later message in the exchange repairs it.
+    ///
+    // cite(RFC 9113 § 8.3.1): "All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5)."
+    // cite(RFC 9114 § 4.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of / (ASCII 0x2f)."
+    REQUEST_TARGET_PATH_MISSING = {
+        id: "request_target_path_missing",
+        title: "A request that owes a path names none",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9113_8_3_1, RFC_9114_4_3_1],
+    }
 }
 
 #[cfg(test)]
@@ -103,5 +145,18 @@ mod tests {
     #[test]
     fn the_wording_belongs_to_the_site() {
         assert!(REQUEST_TARGET_ASTERISK_FORBIDDEN.message.is_empty());
+        assert!(REQUEST_TARGET_PATH_MISSING.message.is_empty());
+    }
+
+    /// The asterisk's sentence is version-independent and the path's is not,
+    /// which is the whole difference between the two entries' references: one
+    /// carries a citation onto its findings and the other cannot.
+    #[test]
+    fn one_entry_cites_one_document_and_the_other_two() {
+        assert_eq!(REQUEST_TARGET_ASTERISK_FORBIDDEN.spec.len(), 1);
+        assert_eq!(
+            REQUEST_TARGET_PATH_MISSING.spec,
+            [RFC_9113_8_3_1, RFC_9114_4_3_1]
+        );
     }
 }
