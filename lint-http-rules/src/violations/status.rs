@@ -8,26 +8,31 @@
 //! **The subject is the status code**, which is neither a field nor a
 //! production: it is the response's own control data, and a status code that
 //! contradicts its request is wrong in a way no field on either message is.
-//! Both entries below are read out of *two* messages — the status the server
-//! sent and the field the client did not — which is what separates them from
-//! every other subject in this catalogue, where the defect is visible inside
-//! one message.
+//! Every entry below is read out of *two* messages — what the server sent and
+//! what the client asked for — which is what separates this subject from every
+//! other one in this catalogue, where the defect is visible inside one message.
 //!
-//! **What the entries have in common is the word that names them.** A status
-//! code whose definition is written in terms of a request field says that
-//! field arrived; where it did not, nothing is malformed, nothing is
-//! prohibited, and nothing was done twice — the server answered a question
-//! nobody asked. `_unsolicited` is the ending for that, and
-//! `docs/development.md` carries the argument for it beside the rest of the
-//! closed vocabulary.
+//! **The first two share the word that names them.** A status code whose
+//! definition is written in terms of a request field says that field arrived;
+//! where it did not, nothing is malformed, nothing is prohibited, and nothing
+//! was done twice — the server answered a question nobody asked.
+//! `_unsolicited` is the ending for that, and `docs/development.md` carries the
+//! argument for it beside the rest of the closed vocabulary.
 //!
-//! Both default to `warn`, which is the severity the rule reporting them had
-//! already chosen for itself: a client that asked for no part of a
-//! representation and is handed one has to notice that on its own, and the
-//! documents describe the status codes rather than forbidding them here.
+//! **The third is the same subject and a different word**, which is what keeps
+//! the first two honest: a multipart 206 answering a single-range request is a
+//! MUST NOT written out, about a response the client did invite. Where a
+//! sentence prohibits the message, the entry is `_forbidden`; `_unsolicited` is
+//! for the ones no sentence prohibits and the exchange refutes.
+//!
+//! All three default to `warn`, which is the severity the rule reporting them
+//! had already chosen for itself: a client handed a response it did not ask
+//! for, or cannot parse, has to notice that on its own, and only one of the
+//! three documents a prohibition.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::content_range::RFC_9110_15_3_7_2;
 use crate::violations::defects;
 
 /// What a 206 says it is doing, and the field a single-part one has to carry
@@ -89,6 +94,33 @@ defects! {
         default_severity: Severity::Warn,
         spec: Some(RFC_9110_15_5_17),
     }
+
+    /// A 206 in its multipart form, answering a request that asked for one
+    /// range. The status is right and the request did ask for something — what
+    /// is prohibited is the *form*, and the sentence gives the reason with the
+    /// prohibition: a client that did not ask for multiple parts might have no
+    /// way to read them, so a response it cannot parse is what it gets for
+    /// asking correctly.
+    ///
+    /// `_forbidden` rather than `_unsolicited`, and the difference is worth
+    /// keeping straight beside its neighbours: those two entries are a status
+    /// code answering a request that named no range at all, with no sentence
+    /// prohibiting them; this one is a MUST NOT, written out, about a message
+    /// the client did invite.
+    ///
+    /// The section is `Content-Range`'s as well — § 15.3.7.2 states two
+    /// prohibitions, one about the field in the header section and one about
+    /// the response's form — and the [`SpecRef`] sits beside the entry that was
+    /// written first.
+    ///
+    // cite(RFC 9110 § 15.3.7.2): "A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses."
+    STATUS_206_MULTIPART_FORBIDDEN = {
+        id: "status_206_multipart_forbidden",
+        title: "A multipart 206 answers a request that asked for a single range",
+        message: "multipart/byteranges 206 response sent to a request for a single range",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_15_3_7_2),
+    }
 }
 
 #[cfg(test)]
@@ -101,19 +133,40 @@ mod tests {
     /// sent where nothing invited it — not anything about a range field.
     #[test]
     fn each_id_names_the_status_and_not_the_field_it_is_read_against() {
-        for def in [&STATUS_206_UNSOLICITED, &STATUS_416_UNSOLICITED] {
+        for def in [
+            &STATUS_206_UNSOLICITED,
+            &STATUS_416_UNSOLICITED,
+            &STATUS_206_MULTIPART_FORBIDDEN,
+        ] {
             assert!(def.id.starts_with("status_"), "{} is not a status", def.id);
             assert!(!def.id.contains("range"), "{} names a field", def.id);
         }
     }
 
-    /// Both entries carry their whole message, which is the shape of the defect
-    /// rather than a convenience: what is wrong is that a field is *absent*, so
-    /// there is no value the site could interpolate and no wording that varies
-    /// between one finding and the next.
+    /// The two words this subject uses are not interchangeable: a sentence
+    /// prohibiting the message makes the entry `_forbidden`, and `_unsolicited`
+    /// is for the ones no sentence prohibits — where what refutes the message is
+    /// the request it answers.
     #[test]
-    fn neither_entry_leaves_its_message_to_the_site() {
+    fn only_the_entry_a_sentence_prohibits_is_the_forbidden_one() {
+        assert!(STATUS_206_MULTIPART_FORBIDDEN.id.ends_with("_forbidden"));
         for def in [&STATUS_206_UNSOLICITED, &STATUS_416_UNSOLICITED] {
+            assert!(def.id.ends_with("_unsolicited"), "{}", def.id);
+        }
+    }
+
+    /// Every entry carries its whole message, which is the shape of the defect
+    /// rather than a convenience: what is wrong here is the pairing of two
+    /// messages and never a value one of them wrote, so there is nothing for a
+    /// site to interpolate and no wording that varies between one finding and
+    /// the next.
+    #[test]
+    fn no_entry_leaves_its_message_to_the_site() {
+        for def in [
+            &STATUS_206_UNSOLICITED,
+            &STATUS_416_UNSOLICITED,
+            &STATUS_206_MULTIPART_FORBIDDEN,
+        ] {
             assert!(!def.message.is_empty(), "{} holds no message", def.id);
         }
     }

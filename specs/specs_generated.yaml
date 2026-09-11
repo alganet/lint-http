@@ -5121,7 +5121,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_and_206_consistent.rs
       line: 118
     - file: lint-http-rules/src/violations/status.rs
-      line: 64
+      line: 69
   - label: accept_ranges_on_partial_content
     section: § 14.2
     snippet: A server MUST ignore a Range header field received with a request method that is unrecognized or for which range handling is not defined.
@@ -6527,7 +6527,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_ranges_values_valid.rs
       line: 371
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 107
+      line: 109
     - file: lint-http-rules/src/rules/range_header_syntax.rs
       line: 293
     - file: lint-http-rules/src/violations/content_range.rs
@@ -6579,7 +6579,7 @@ sources:
     - file: lint-http-rules/src/rules/forwarded_header_valid.rs
       line: 358
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 299
+      line: 300
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 16
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
@@ -7403,7 +7403,7 @@ sources:
     - file: lint-http-rules/src/rules/problem_details_structure_valid.rs
       line: 164
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 126
+      line: 128
   - label: lint-http-rules/src/helpers/media_type.rs (6)
     section: § 8.3.1
     snippet: The type/subtype MAY be followed by semicolon-delimited parameters (Section 5.6.6) in the form of name/value pairs.
@@ -8141,7 +8141,7 @@ sources:
     snippet: The Content-Range header field has no meaning for status codes that do not explicitly describe its semantic.  For this specification, only the 206 (Partial Content) and 416 (Range Not Satisfiable) status codes describe a meaning for Content-Range.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 236
+      line: 238
   - label: range_and_content_range_consistent (6)
     section: § 14.4
     snippet: The complete-length in a 416 response indicates the current length of the selected representation.
@@ -8156,23 +8156,17 @@ sources:
       line: 419
   - label: range_and_content_range_consistent (8)
     section: § 15.3.7.2
-    snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
-    cited_by:
-    - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 298
-  - label: range_and_content_range_consistent (9)
-    section: § 15.3.7.2
     snippet: If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
-      line: 285
-  - label: range_and_content_range_consistent (10)
+      line: 287
+  - label: range_and_content_range_consistent (9)
     section: § 15.3.7.2
     snippet: Within the header area of each body part in the multipart content, the server MUST generate a Content-Range header field corresponding to the range being enclosed in that body part.
     cited_by:
     - file: lint-http-rules/src/rules/range_and_content_range_consistent.rs
       line: 311
-  - label: range_and_content_range_consistent (11)
+  - label: range_and_content_range_consistent (10)
     section: § 15.5.17
     snippet: A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4).
     cited_by:
@@ -8715,11 +8709,17 @@ sources:
     - file: lint-http-rules/src/rules/singleton_fields_not_repeated.rs
       line: 43
   - label: status
+    section: § 15.3.7.2
+    snippet: A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses.
+    cited_by:
+    - file: lint-http-rules/src/violations/status.rs
+      line: 116
+  - label: status (2)
     section: § 15.5.17
     snippet: The 416 (Range Not Satisfiable) status code indicates that the set of ranges in the request's Range header field (Section 14.2) has been rejected either because none of the requested ranges are satisfiable or because the client has requested an excessive number of small or overlapping ranges (a potential denial of service attack).
     cited_by:
     - file: lint-http-rules/src/violations/status.rs
-      line: 84
+      line: 89
   - label: status_101_switching_protocols
     section: § 15.2.2
     snippet: The 101 (Switching Protocols) status code indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field (Section 7.8), for a change in the application protocol being used on this connection.

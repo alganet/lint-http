@@ -15,7 +15,8 @@ use crate::violations::content_range::{
     RFC_9110_15_3_7_1, RFC_9110_15_3_7_2,
 };
 use crate::violations::status::{
-    RFC_9110_15_3_7, RFC_9110_15_5_17, STATUS_206_UNSOLICITED, STATUS_416_UNSOLICITED,
+    RFC_9110_15_3_7, RFC_9110_15_5_17, STATUS_206_MULTIPART_FORBIDDEN, STATUS_206_UNSOLICITED,
+    STATUS_416_UNSOLICITED,
 };
 use crate::violations::ViolationDef;
 
@@ -33,16 +34,17 @@ pub struct RangeAndContentRangeConsistent;
 /// per status code that describes a semantic for it, so the status is the
 /// condition and the field stays the subject.
 ///
-/// The last two are not a field's at all. A 206 and a 416 are each defined in
-/// terms of the request's `Range`, so one sent where that field was never
-/// written describes an exchange that did not happen — the status code is the
-/// subject, and both fields it is read against are blameless.
-///
-/// What is left unconverted is one site: a multipart response to a request for
-/// a single range, which is a claim about neither field.
+/// The last three are not a field's at all, and the rule declares nothing
+/// outside these three groups. A 206 and a 416 are each defined in terms of the
+/// request's `Range`, so one sent where that field was never written describes
+/// an exchange that did not happen; a multipart 206 answering a request for one
+/// range is a response the client asked for and may be unable to read. All
+/// three are the status code's — every one of them is read out of the request
+/// and the response at once, and neither range field is at fault in any.
 static DECLARED: &[&ViolationDef] = &[
     &STATUS_206_UNSOLICITED,
     &STATUS_416_UNSOLICITED,
+    &STATUS_206_MULTIPART_FORBIDDEN,
     &CONTENT_RANGE_MISSING,
     &CONTENT_RANGE_FORBIDDEN,
     &CONTENT_RANGE_FORM_INVALID,
@@ -295,14 +297,12 @@ impl Rule for RangeAndContentRangeConsistent {
                     // the shared list splitter is the one that counts them -- and a
                     // `Range` this rule could not split into a specifier leaves
                     // `requested` empty, which reports nothing.
-                    // cite(RFC 9110 § 15.3.7.2): "A server MUST NOT generate a multipart response to a request for a single range, since a client that does not request multiple parts might not support multipart responses."
                     // cite(RFC 9110 § 5.6.1.2): "Empty elements do not contribute to the count of elements present."
                     let requested_ranges = requested
                         .as_ref()
                         .map(|(_, set)| crate::helpers::list::list_members(set).count());
                     if requested_ranges == Some(1) {
-                        return Some(self.violation(config.severity, "multipart/byteranges 206 response sent to a request for a single range"
-                                    .into()));
+                        return Some(ctx.report(&STATUS_206_MULTIPART_FORBIDDEN));
                     }
 
                     // Each part's own Content-Range is in the message content, which
