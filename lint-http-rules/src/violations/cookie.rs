@@ -2,8 +2,7 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! Cookie defects — the ways a `Set-Cookie` attribute is wrong, `Path` and
-//! `Domain` so far.
+//! Cookie defects — the ways a `Set-Cookie` attribute is wrong.
 //!
 //! The subject is the attribute, not the rule that reads it: `cookie_path_*`
 //! names what a server wrote, so a second rule that parses `Set-Cookie` reports
@@ -12,6 +11,15 @@
 //! every field that carries one, and those defects live in
 //! [`crate::violations::domain`] where a rule reading a `From` mailbox can
 //! report the same ones.
+//!
+//! **The `SameSite`, `Max-Age` and `Expires` entries are a third kind, and
+//! they are why this subject cannot be filed under "syntax".** Each of those
+//! attributes has a processing algorithm that *discards* what it cannot read: a
+//! `Max-Age` with a stray character is ignored and the cookie silently becomes
+//! a session cookie, an unknown `SameSite` falls back to the default policy,
+//! an `Expires` naming no instant expires nothing. The server asked for
+//! something and got something else, with no error anywhere in the exchange —
+//! which is the whole argument for reporting them at all.
 //!
 //! Three of the `Path` defects are not syntax errors at all. RFC 6265 § 5.2.4 has the user
 //! agent replace an empty or unrooted `Path` with the default-path, so the
@@ -39,7 +47,7 @@ pub const RFC_6265_4_1_1: SpecRef = SpecRef {
     spec: "RFC 6265",
     section: Some("4.1.1"),
     url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
-    note: "Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; `path-value` excludes control characters and `;`",
+    note: "Set-Cookie syntax — servers SHOULD NOT send a non-conforming Set-Cookie; the `cookie-av` list, where each attribute is written with or without a value, and the `path-value` that excludes control characters and `;`",
 };
 
 /// What a user agent does with a `Path` it cannot use — the sentence behind
@@ -219,7 +227,105 @@ defects! {
         default_severity: Severity::Warn,
         spec: Some(RFC_6265_5_1_3),
     }
+
+    /// `SameSite` written as a bare attribute. The attribute is the whole of
+    /// its policy — there is no default it selects by being present — so a
+    /// server that wrote it with no value asked for nothing and got the
+    /// behaviour it would have had without the attribute at all.
+    ///
+    // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1): "samesite-value = "Strict" / "Lax" / "None""
+    COOKIE_SAME_SITE_MISSING = {
+        id: "cookie_same_site_missing",
+        title: "Set-Cookie SameSite attribute carries no value",
+        message: "Set-Cookie attribute 'SameSite' requires a value",
+        default_severity: Severity::Warn,
+        spec: Some(DRAFT_IETF_HTTPBIS_RFC6265BIS),
+    }
+
+    /// A `SameSite` value that is none of the three the grammar lists. It is
+    /// `_invalid` rather than `_malformed` because the value is a perfectly
+    /// good token and what it is not is a *member of a closed list* — and the
+    /// consequence is the one that makes this worth reporting: an unknown value
+    /// does not fail loudly, it falls back to the user agent's default policy,
+    /// so a server asking for one thing quietly receives another.
+    ///
+    /// The comparison folds case, which is the grammar's doing: the three
+    /// alternatives are ABNF string literals.
+    ///
+    // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1): "samesite-value = "Strict" / "Lax" / "None""
+    COOKIE_SAME_SITE_INVALID = {
+        id: "cookie_same_site_invalid",
+        title: "Set-Cookie SameSite names no policy the grammar defines",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(DRAFT_IETF_HTTPBIS_RFC6265BIS),
+    }
+
+    /// `Max-Age` written as a bare attribute, with no number after it.
+    ///
+    // cite(RFC 6265 § 4.1.1, label: cookie-av alternatives): "max-age-av        = "Max-Age=" non-zero-digit *DIGIT"
+    COOKIE_MAX_AGE_MISSING = {
+        id: "cookie_max_age_missing",
+        title: "Set-Cookie Max-Age attribute carries no value",
+        message: "Set-Cookie attribute 'Max-Age' requires a numeric value",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_4_1_1),
+    }
+
+    /// A `Max-Age` a user agent will not read a number out of. § 5.2.2 states
+    /// the two gates — a first character that is a DIGIT or `-`, and a
+    /// remainder that is all DIGITs — and tells the user agent to ignore the
+    /// attribute when either fails, which is why this matters more than a
+    /// mistyped number usually would: the cookie does not get a bad lifetime,
+    /// it gets *no* lifetime and becomes a session cookie.
+    ///
+    /// A leading `-` is not this defect. The ABNF summary writes
+    /// `non-zero-digit *DIGIT` and the processing algorithm admits the sign,
+    /// and a negative `Max-Age` is how a cookie is deleted — the algorithm is
+    /// what a user agent runs, so it is what the entry measures.
+    ///
+    // cite(RFC 6265 § 5.2.2): "If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av."
+    COOKIE_MAX_AGE_MALFORMED = {
+        id: "cookie_max_age_malformed",
+        title: "Set-Cookie Max-Age is not a number a user agent will read",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_5_2_2),
+    }
+
+    /// `Expires` written as a bare attribute. The timestamp itself is
+    /// [`http_date`](crate::violations::http_date)'s — `sane-cookie-date` is
+    /// RFC 6265's name for the same production — so what is left here is the
+    /// attribute having no value for that production to read.
+    ///
+    // cite(RFC 6265 § 4.1.1, label: expires-av): "expires-av        = "Expires=" sane-cookie-date"
+    COOKIE_EXPIRES_MISSING = {
+        id: "cookie_expires_missing",
+        title: "Set-Cookie Expires attribute carries no value",
+        message: "Set-Cookie attribute 'Expires' requires a HTTP-date value",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_4_1_1),
+    }
 }
+
+/// The `Max-Age` processing algorithm: the two gates a value passes before a
+/// user agent reads a number out of it, and the instruction to drop the
+/// attribute when it does not.
+pub const RFC_6265_5_2_2: SpecRef = SpecRef {
+    spec: "RFC 6265",
+    section: Some("5.2.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2",
+    note: "The Max-Age attribute — ignored unless it is a `-`-or-DIGIT first character with an all-DIGIT remainder",
+};
+
+/// The `SameSite` attribute, in the draft that defines it. No section: a draft
+/// renumbers between revisions, and the value list has moved once already.
+pub const DRAFT_IETF_HTTPBIS_RFC6265BIS: SpecRef = SpecRef {
+    spec: "draft-ietf-httpbis-rfc6265bis",
+    section: None,
+    url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
+    note: "`SameSite` value grammar and the `SameSite=None` requires `Secure` rule. No section: a draft renumbers between revisions",
+};
 
 /// The defect a parsed [`CookiePathDefect`] reports as.
 ///

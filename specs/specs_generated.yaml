@@ -726,18 +726,20 @@ sources:
   url: https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis
   type: text/html
   fragments:
-  - label: cookie_attribute_consistent
+  - label: cookie
     section: § 4.1.1
     snippet: samesite-value = "Strict" / "Lax" / "None"
     cited_by:
-    - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 174
-  - label: cookie_attribute_consistent (2)
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 236
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 255
+  - label: cookie_attribute_consistent
     section: § 5.7
     snippet: If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 130
+      line: 119
   - label: cookie_same_site_enforced
     section: § 4.1.2.7
     snippet: If the "SameSite" attribute's value is "Strict", the cookie will only be sent along with "same-site" requests.
@@ -2144,70 +2146,78 @@ sources:
 - label: RFC 6265
   url: https://www.rfc-editor.org/rfc/rfc6265.html
   fragments:
+  - label: cookie-av alternatives
+    section: § 4.1.1
+    snippet: max-age-av        = "Max-Age=" non-zero-digit *DIGIT
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 266
   - label: cookie
     section: § 5.1.3
     snippet: The string is a host name (i.e., not an IP address).
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 201
+      line: 209
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 214
+      line: 222
   - label: cookie (2)
+    section: § 5.2.2
+    snippet: If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av.
+    cited_by:
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 287
+  - label: cookie (3)
     section: § 5.2.3
     snippet: If the attribute-value is empty, the behavior is undefined.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 157
-  - label: cookie (3)
+      line: 165
+  - label: cookie (4)
     section: § 5.2.3
     snippet: Let cookie-domain be the attribute-value without the leading %x2E (".") character.
     cited_by:
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 172
+      line: 180
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 187
+      line: 195
   - label: cookie_attribute_consistent
     section: § 4.1.1
     snippet: cookie-pair       = cookie-name "=" cookie-value cookie-name       = token
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 100
-  - label: cookie_attribute_consistent (2)
+      line: 89
+  - label: expires-av
     section: § 4.1.1
     snippet: expires-av        = "Expires=" sane-cookie-date
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 227
-  - label: cookie_attribute_consistent (3)
+      line: 204
+    - file: lint-http-rules/src/violations/cookie.rs
+      line: 301
+  - label: cookie_attribute_consistent (2)
     section: § 4.1.1
     snippet: extension-av      = <any CHAR except CTLs or ";">
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 144
-  - label: cookie_attribute_consistent (4)
+      line: 133
+  - label: cookie_attribute_consistent (3)
     section: § 4.1.1
     snippet: httponly-av       = "HttpOnly"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 154
-  - label: cookie_attribute_consistent (5)
+      line: 143
+  - label: cookie_attribute_consistent (4)
     section: § 4.1.1
     snippet: secure-av         = "Secure"
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 153
-  - label: cookie_attribute_consistent (6)
+      line: 142
+  - label: cookie_attribute_consistent (5)
     section: § 5.2.2
     snippet: If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av.
     cited_by:
     - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 201
-  - label: cookie_attribute_consistent (7)
-    section: § 5.2.2
-    snippet: If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av.
-    cited_by:
-    - file: lint-http-rules/src/rules/cookie_attribute_consistent.rs
-      line: 202
+      line: 183
   - label: cookie_domain_matching
     section: § 5.4
     snippet: 'Let cookie-list be the set of cookies from the cookie store that meets all of the following requirements:'
@@ -2271,9 +2281,9 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 99
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 118
+      line: 126
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 131
+      line: 139
   - label: lint-http-rules/src/helpers/cookie.rs (2)
     section: § 4.1.1
     snippet: cookie-av         = expires-av / max-age-av / domain-av / path-av / secure-av / httponly-av / extension-av
@@ -2335,11 +2345,11 @@ sources:
     - file: lint-http-rules/src/helpers/cookie.rs
       line: 348
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 82
+      line: 90
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 93
+      line: 101
     - file: lint-http-rules/src/violations/cookie.rs
-      line: 106
+      line: 114
   - label: lint-http-rules/src/helpers/cookie.rs (9)
     section: § 5.3
     snippet: Set the cookie's host-only-flag to true.
