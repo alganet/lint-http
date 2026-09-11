@@ -1362,7 +1362,11 @@ severity = "warn"
         /// **`authority_missing` took the last of that rule's**, and this one is
         /// the ordinary shape rather than a loss: the entry names § 4.3.1 alone,
         /// so the finding is still cited — by the def instead of by the site.
-        const FLOOR: usize = 108;
+        /// **`status_304_metadata_forbidden` took one more of the same shape**,
+        /// and the site it left held two verdicts under one citation: the 304
+        /// half still carries § 15.4.5 from its entry, and the 1xx/204 half now
+        /// carries nothing, which is what it always was.
+        const FLOOR: usize = 107;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;

@@ -1695,9 +1695,17 @@ severity = "warn"
 # 206 Partial Content answers a request that asked for no range
 severity = "warn"
 
+[violations.status_304_metadata_forbidden]
+# A 304 sends representation metadata beyond the fields it owes
+severity = "warn"
+
 [violations.status_416_unsolicited]
 # 416 Range Not Satisfiable answers a request that named no range
 severity = "warn"
+
+[violations.status_metadata_redundant]
+# A response that cannot carry content sends representation metadata
+severity = "info"
 
 [violations.strict_transport_security_directive_duplicated]
 # A directive is written more than once in one policy
