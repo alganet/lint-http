@@ -12,6 +12,16 @@
 //! [`crate::violations::domain`] where a rule reading a `From` mailbox can
 //! report the same ones.
 //!
+//! **Two entries are ranked above the rest, and one line separates them from
+//! it: whether the *cookie* is lost or an attribute is.** A `Set-Cookie` with
+//! no cookie-pair sets nothing, and a `SameSite=None` without `Secure` is
+//! thrown away entirely by the user agent — in both cases the server believes
+//! it stored state and did not. Everything else here costs an attribute: a
+//! discarded `Max-Age`, a `Path` replaced by the default-path, a `SameSite`
+//! that falls back. That is the difference between `error` and `warn` in this
+//! subject, and it is a property of the processing algorithm rather than a
+//! judgment about how much any of it matters.
+//!
 //! **The `SameSite`, `Max-Age` and `Expires` entries are a third kind, and
 //! they are why this subject cannot be filed under "syntax".** Each of those
 //! attributes has a processing algorithm that *discards* what it cannot read: a
@@ -291,6 +301,62 @@ defects! {
         message: "",
         default_severity: Severity::Warn,
         spec: Some(RFC_6265_5_2_2),
+    }
+
+    /// A `Set-Cookie` field line with no cookie-pair on it: nothing before the
+    /// first `;`, or a line that is attributes from the start. The line sets no
+    /// cookie — the pair is the cookie, and the attributes only describe one —
+    /// so a server that wrote this believes it stored state and stored none.
+    ///
+    /// `error`, with the pairing entry below and for the same reason: what is
+    /// lost is the whole cookie rather than one of its attributes.
+    ///
+    // cite(RFC 6265 § 4.1.1, label: set-cookie-string): "set-cookie-header = "Set-Cookie:" SP set-cookie-string set-cookie-string = cookie-pair *( ";" SP cookie-av )"
+    COOKIE_PAIR_MISSING = {
+        id: "cookie_pair_missing",
+        title: "Set-Cookie carries no cookie-pair",
+        message: "Set-Cookie header missing cookie-pair",
+        default_severity: Severity::Error,
+        spec: Some(RFC_6265_4_1_1),
+    }
+
+    /// A value written on `Secure` or `HttpOnly`. Both attributes are their own
+    /// presence — the grammar is the bare word, with no `=` in it — so
+    /// `Secure=true` and `Secure=false` are the same attribute, and a server
+    /// writing the second has switched nothing off.
+    ///
+    /// `warn`: a user agent reads the attribute by name and the cookie keeps
+    /// the protection either way, so what is wrong is the sender's belief about
+    /// what it wrote rather than the state it stored.
+    ///
+    // cite(RFC 6265 § 4.1.1, label: the flag attributes): "secure-av         = "Secure" httponly-av       = "HttpOnly""
+    COOKIE_FLAG_VALUE_FORBIDDEN = {
+        id: "cookie_flag_value_forbidden",
+        title: "Set-Cookie writes a value on a flag attribute",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_6265_4_1_1),
+    }
+
+    /// `SameSite=None` on a cookie that is not `Secure`. The two attributes are
+    /// each unremarkable and the pairing is what fails: a user agent asked to
+    /// send a cookie cross-site over an insecure connection ignores the cookie
+    /// entirely.
+    ///
+    /// **The id names the missing attribute rather than the pair**, because
+    /// that is what a server fixes: `Secure` is what is absent, and
+    /// `SameSite=None` is the condition that makes its absence fatal. An id
+    /// spelled for the pairing would have to be read backwards to act on.
+    ///
+    /// `error`, with the entry above: the cookie is discarded, not weakened.
+    ///
+    // cite(draft-ietf-httpbis-rfc6265bis § 5.7): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
+    COOKIE_SECURE_MISSING = {
+        id: "cookie_secure_missing",
+        title: "A SameSite=None cookie is not Secure",
+        message: "Set-Cookie with 'SameSite=None' must also set 'Secure'",
+        default_severity: Severity::Error,
+        spec: Some(DRAFT_IETF_HTTPBIS_RFC6265BIS),
     }
 
     /// `Expires` written as a bare attribute. The timestamp itself is

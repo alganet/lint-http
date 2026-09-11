@@ -1291,6 +1291,10 @@ severity = "warn"
 # Set-Cookie Expires attribute carries no value
 severity = "warn"
 
+[violations.cookie_flag_value_forbidden]
+# Set-Cookie writes a value on a flag attribute
+severity = "warn"
+
 [violations.cookie_max_age_malformed]
 # Set-Cookie Max-Age is not a number a user agent will read
 severity = "warn"
@@ -1298,6 +1302,10 @@ severity = "warn"
 [violations.cookie_max_age_missing]
 # Set-Cookie Max-Age attribute carries no value
 severity = "warn"
+
+[violations.cookie_pair_missing]
+# Set-Cookie carries no cookie-pair
+severity = "error"
 
 [violations.cookie_path_control_character_forbidden]
 # Set-Cookie Path attribute holds a control character
@@ -1330,6 +1338,10 @@ severity = "warn"
 [violations.cookie_same_site_missing]
 # Set-Cookie SameSite attribute carries no value
 severity = "warn"
+
+[violations.cookie_secure_missing]
+# A SameSite=None cookie is not Secure
+severity = "error"
 
 [violations.credentials_control_character_forbidden]
 # Credentials hold a control character
