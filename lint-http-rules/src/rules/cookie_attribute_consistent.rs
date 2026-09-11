@@ -4,9 +4,12 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::cookie::DRAFT_IETF_HTTPBIS_RFC6265BIS;
 use crate::violations::cookie::{
-    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING,
-    COOKIE_PATH_MISSING, RFC_6265_5_2_3, RFC_6265_5_2_4,
+    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_EXPIRES_MISSING, COOKIE_MAX_AGE_MALFORMED,
+    COOKIE_MAX_AGE_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
+    COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, RFC_6265_4_1_1, RFC_6265_5_2_2,
+    RFC_6265_5_2_3, RFC_6265_5_2_4,
 };
 use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
@@ -35,6 +38,11 @@ pub struct CookieAttributeConsistent;
 /// the pairing that makes a `SameSite=None` cookie disappear.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
+    &COOKIE_SAME_SITE_MISSING,
+    &COOKIE_SAME_SITE_INVALID,
+    &COOKIE_MAX_AGE_MISSING,
+    &COOKIE_MAX_AGE_MALFORMED,
+    &COOKIE_EXPIRES_MISSING,
     &TOKEN_EMPTY,
     &TOKEN_CHARACTER_FORBIDDEN,
     &TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -48,25 +56,6 @@ static DECLARED: &[&ViolationDef] = &[
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_6265_4_1_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6265",
-    section: Some("4.1.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-4.1.1",
-    note:
-        "Set-Cookie syntax — the cookie-name/`Secure`/`HttpOnly`/`Expires` grammar this rule checks",
-};
-const RFC_6265_5_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 6265",
-    section: Some("5.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc6265.html#section-5.2.2",
-    note: "The Max-Age attribute — ignored unless it is a `-`-or-DIGIT first character with an all-DIGIT remainder",
-};
-const DRAFT_IETF_HTTPBIS_RFC6265BIS: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "draft-ietf-httpbis-rfc6265bis",
-    section: None,
-    url: "https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis",
-    note: "`SameSite` value grammar and the `SameSite=None` requires `Secure` rule. No section: a draft renumbers between revisions",
-};
 const MDN_SET_COOKIE: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "MDN Set-Cookie",
     section: None,
@@ -166,18 +155,14 @@ impl CookieAttributeConsistent {
 
         if attribute.is("SameSite") {
             let Some(value) = attribute.value else {
-                return Some(self.violation(
-                    severity,
-                    "Set-Cookie attribute 'SameSite' requires a value".into(),
-                ));
+                return Some(ctx.report(&COOKIE_SAME_SITE_MISSING));
             };
-            // cite(draft-ietf-httpbis-rfc6265bis § 4.1.1): "samesite-value = "Strict" / "Lax" / "None""
             let known = ["strict", "lax", "none"]
                 .iter()
                 .any(|known| value.eq_ignore_ascii_case(known));
             return (!known).then(|| {
-                self.violation(
-                    severity,
+                ctx.report_with(
+                    &COOKIE_SAME_SITE_INVALID,
                     format!(
                         "Set-Cookie attribute 'SameSite' has invalid value: '{}'",
                         value
@@ -188,10 +173,7 @@ impl CookieAttributeConsistent {
 
         if attribute.is("Max-Age") {
             let Some(value) = attribute.value else {
-                return Some(self.violation(
-                    severity,
-                    "Set-Cookie attribute 'Max-Age' requires a numeric value".into(),
-                ));
+                return Some(ctx.report(&COOKIE_MAX_AGE_MISSING));
             };
             // A leading "-" is accepted on purpose: the ABNF says non-zero-digit
             // *DIGIT, but the parsing algorithm the ABNF is a summary of admits a
@@ -199,11 +181,9 @@ impl CookieAttributeConsistent {
             // `parse::<i64>` enforces both of §5.2.2's processing gates: a
             // valid first character *and* an all-DIGIT remainder.
             // cite(RFC 6265 § 5.2.2): "If the first character of the attribute-value is not a DIGIT or a "-" character, ignore the cookie-av."
-            // cite(RFC 6265 § 5.2.2): "If the remainder of attribute-value contains a non-DIGIT character, ignore the cookie-av."
             return value.parse::<i64>().is_err().then(|| {
-                self.cited(
-                    &RFC_6265_5_2_2,
-                    severity,
+                ctx.report_with(
+                    &COOKIE_MAX_AGE_MALFORMED,
                     format!(
                         "Set-Cookie attribute 'Max-Age' is not a valid integer: '{}'",
                         value
@@ -214,10 +194,7 @@ impl CookieAttributeConsistent {
 
         if attribute.is("Expires") {
             let Some(value) = attribute.value else {
-                return Some(self.violation(
-                    severity,
-                    "Set-Cookie attribute 'Expires' requires a HTTP-date value".into(),
-                ));
+                return Some(ctx.report(&COOKIE_EXPIRES_MISSING));
             };
             // `sane-cookie-date` is the timestamp § 5.6.7 writes, under RFC
             // 6265's name for it, so what is wrong with an unreadable `Expires`

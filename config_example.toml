@@ -1287,6 +1287,18 @@ severity = "info"
 # Set-Cookie Domain attribute carries no value
 severity = "warn"
 
+[violations.cookie_expires_missing]
+# Set-Cookie Expires attribute carries no value
+severity = "warn"
+
+[violations.cookie_max_age_malformed]
+# Set-Cookie Max-Age is not a number a user agent will read
+severity = "warn"
+
+[violations.cookie_max_age_missing]
+# Set-Cookie Max-Age attribute carries no value
+severity = "warn"
+
 [violations.cookie_path_control_character_forbidden]
 # Set-Cookie Path attribute holds a control character
 severity = "error"
@@ -1310,6 +1322,14 @@ severity = "warn"
 [violations.cookie_path_whitespace_invalid]
 # Set-Cookie Path attribute holds unencoded whitespace
 severity = "info"
+
+[violations.cookie_same_site_invalid]
+# Set-Cookie SameSite names no policy the grammar defines
+severity = "warn"
+
+[violations.cookie_same_site_missing]
+# Set-Cookie SameSite attribute carries no value
+severity = "warn"
 
 [violations.credentials_control_character_forbidden]
 # Credentials hold a control character
