@@ -6,8 +6,9 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
     scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2,
-    RFC_3986_2_1, RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN,
-    URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
+    RFC_3986_2_1, RFC_3986_3_1, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN,
+    URI_HOST_EMPTY, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
+    URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -22,6 +23,13 @@ pub struct ContentLocationAndUriConsistent;
 /// Only the percent triplet has a subject so far; the scheme's three ids are
 /// one wrapper away and the alphabet's is § 2's character set, which no subject
 /// holds.
+///
+/// **The empty host is the one entry here whose sentences are RFC 9110's.** An
+/// `http` or `https` reference identifies an origin server in its authority and
+/// may not leave that identifier empty, where the generic syntax generates one
+/// happily — so a `Content-Location` naming no host names no representation, and
+/// the id is the same one a `Location`, a `Referer` and an absolute-form request
+/// target answer with.
 static DECLARED: &[&ViolationDef] = &[
     &URI_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
@@ -29,6 +37,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_EMPTY,
     &URI_SCHEME_LEADING_LETTER_MISSING,
     &URI_SCHEME_CHARACTER_FORBIDDEN,
+    &URI_HOST_EMPTY,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -125,6 +134,8 @@ severity = "info"
             RFC_3986_2,
             RFC_3986_2_1,
             RFC_3986_3_1,
+            RFC_9110_4_2_1,
+            RFC_9110_4_2_2,
         ]
     }
 
@@ -309,6 +320,32 @@ impl Rule for ContentLocationAndUriConsistent {
                     ));
                 }
 
+                // A scheme that *is* one, naming no host after it. Not a grammar
+                // finding — `reg-name` is `*( ... )`, so the generic syntax
+                // generates `https:///p` — but each of the two schemes HTTP mints
+                // identifiers in says a sender may not, because the authority is
+                // what identifies the origin server this field claims a
+                // representation on. The reader carries the condition and the case
+                // fold; the entry names both sentences, so the message names the
+                // one that governs the value read.
+                if let Some(scheme) = crate::helpers::uri::empty_host_scheme(s) {
+                    let section = if scheme.eq_ignore_ascii_case("http") {
+                        "4.2.1"
+                    } else {
+                        "4.2.2"
+                    };
+                    return Some(ctx.report_with(
+                        &URI_HOST_EMPTY,
+                        format!(
+                            "Content-Location value '{}' names the scheme '{scheme}' and then an \
+                             empty host identifier, so it names no origin server: a sender MUST \
+                             NOT generate an \"{}\" URI with one (RFC 9110 §{section})",
+                            crate::helpers::shown::shown_in_finding(s),
+                            scheme.to_ascii_lowercase(),
+                        ),
+                    ));
+                }
+
                 // The value's production is not `URI-reference`, and the fragment
                 // is the whole difference: `URI` and `relative-ref` each end in an
                 // optional `[ "#" fragment ]` group, and § 8.7 hands this field the
@@ -470,6 +507,42 @@ mod tests {
             trailers: None,
         });
         tx
+    }
+
+    /// The field claims a representation at a URI, and a scheme with no host
+    /// after it names no origin server to claim it at. Only the two schemes
+    /// whose definitions say so are asked: `file:///x` is a URI in daily use.
+    #[rstest]
+    #[case("https:///page", true, "4.2.2")]
+    #[case("http:///page", true, "4.2.1")]
+    #[case("HTTP://?q=1", true, "4.2.1")]
+    #[case("file:///etc/hosts", false, "")]
+    #[case("/page", false, "")]
+    fn a_value_naming_no_host_is_reported_for_the_two_schemes_that_forbid_it(
+        #[case] value: &str,
+        #[case] reported: bool,
+        #[case] section: &str,
+    ) {
+        let tx = make_tx_with_req_uri("/foo", 200, &[("content-location", value)]);
+        let finding = crate::test_helpers::run_rule(
+            &ContentLocationAndUriConsistent,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[
+                "content_location_and_uri_consistent",
+            ]),
+        );
+        match reported {
+            true => {
+                let v = finding.unwrap_or_else(|| panic!("accepted {value}"));
+                assert_eq!(v.violation, "uri_host_empty", "{value}");
+                assert!(v.message.contains(section), "{}", v.message);
+            }
+            false => assert!(
+                finding.is_none_or(|v| v.violation != "uri_host_empty"),
+                "{value}"
+            ),
+        }
     }
 
     #[rstest]

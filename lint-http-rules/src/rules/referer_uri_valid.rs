@@ -6,8 +6,7 @@ use crate::helpers::headers::{combined_field_value_as_written, trim_ows};
 use crate::helpers::shown::{describe_char, shown_in_finding};
 use crate::helpers::uri::{
     authority_component, find_non_uri_char, percent_encoding_defect, scheme_authority_marker,
-    scheme_prefix, split_host_and_port, split_userinfo, validate_host_and_optional_port,
-    validate_scheme_name,
+    scheme_prefix, split_userinfo, validate_host_and_optional_port, validate_scheme_name,
 };
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
@@ -440,25 +439,17 @@ impl Rule for RefererUriValid {
                     ));
                 }
 
-                let (host, _) = split_host_and_port(host_and_port);
-
                 // The generic syntax admits an empty host — `reg-name` is `*( ... )`
                 // — so this is not a grammar finding, and it is stated once per
-                // scheme rather than once for URIs. Only the two schemes that state
-                // it are asked, and they are matched without regard to case because
-                // § 4.2.3 says a scheme is compared that way.
+                // scheme rather than once for URIs. The shared reader is where
+                // both of those facts live, and it answers with the scheme it
+                // matched because the message has to name the sentence that
+                // governs the value read.
                 //
                 // The defect is the *reference's* and not this field's: the same
-                // two sentences answer an absolute-form request target, and the
-                // entry that holds them names both sections, so the message names
-                // the one governing the value read.
-                //
-                // cite(RFC 9110 § 4.2.3): "The scheme and host are case-insensitive and normally provided in lowercase; all other components are compared in a case-sensitive manner."
-                let empty_host_scheme = scheme.filter(|s| {
-                    host.is_empty()
-                        && (s.eq_ignore_ascii_case("http") || s.eq_ignore_ascii_case("https"))
-                });
-                if let Some(scheme) = empty_host_scheme {
+                // two sentences answer an absolute-form request target and a
+                // `Location`, and the entry that holds them names both sections.
+                if let Some(scheme) = crate::helpers::uri::empty_host_scheme(value) {
                     return Some(ctx.report_with(&URI_HOST_EMPTY, format!(
                         "Referer value '{}' names the scheme '{}' and then an empty host identifier: a sender MUST NOT generate an \"{}\" URI with one (RFC 9110 §4.2.{})",
                         shown_referer(value),
