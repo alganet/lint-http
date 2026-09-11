@@ -6,10 +6,11 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::cookie::DRAFT_IETF_HTTPBIS_RFC6265BIS;
 use crate::violations::cookie::{
-    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_EXPIRES_MISSING, COOKIE_MAX_AGE_MALFORMED,
-    COOKIE_MAX_AGE_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
-    COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, RFC_6265_4_1_1, RFC_6265_5_2_2,
-    RFC_6265_5_2_3, RFC_6265_5_2_4,
+    COOKIE_DOMAIN_EMPTY, COOKIE_DOMAIN_MISSING, COOKIE_EXPIRES_MISSING,
+    COOKIE_FLAG_VALUE_FORBIDDEN, COOKIE_MAX_AGE_MALFORMED, COOKIE_MAX_AGE_MISSING,
+    COOKIE_PAIR_MISSING, COOKIE_PATH_LEADING_SLASH_MISSING, COOKIE_PATH_MISSING,
+    COOKIE_SAME_SITE_INVALID, COOKIE_SAME_SITE_MISSING, COOKIE_SECURE_MISSING, RFC_6265_4_1_1,
+    RFC_6265_5_2_2, RFC_6265_5_2_3, RFC_6265_5_2_4,
 };
 use crate::violations::domain::{DOMAIN_NAME_WHITESPACE_OR_CONTROL_FORBIDDEN, RFC_1035_2_3_1};
 use crate::violations::http_date::{HTTP_DATE_MALFORMED, RFC_9110_5_6_7};
@@ -38,6 +39,9 @@ pub struct CookieAttributeConsistent;
 /// the pairing that makes a `SameSite=None` cookie disappear.
 static DECLARED: &[&ViolationDef] = &[
     &HTTP_DATE_MALFORMED,
+    &COOKIE_PAIR_MISSING,
+    &COOKIE_FLAG_VALUE_FORBIDDEN,
+    &COOKIE_SECURE_MISSING,
     &COOKIE_SAME_SITE_MISSING,
     &COOKIE_SAME_SITE_INVALID,
     &COOKIE_MAX_AGE_MISSING,
@@ -75,12 +79,9 @@ impl CookieAttributeConsistent {
         line: &str,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        // The unconverted branches read the rule's own severity, exactly as
-        // they did before the context was threaded through.
-        let severity = ctx.severity;
         let (pair, attributes) = crate::helpers::cookie::split_set_cookie(line);
         if pair.is_empty() {
-            return Some(self.violation(severity, "Set-Cookie header missing cookie-pair".into()));
+            return Some(ctx.report(&COOKIE_PAIR_MISSING));
         }
 
         // The name is a `token` by import rather than by resemblance -- § 4.1.1
@@ -118,10 +119,7 @@ impl CookieAttributeConsistent {
         // a suggestion.
         // cite(draft-ietf-httpbis-rfc6265bis § 5.7): "If the cookie's "same-site-flag" is "None", abort this algorithm and ignore the cookie entirely unless the cookie's secure-only-flag is true."
         if same_site.as_deref() == Some("none") && !secure_present {
-            return Some(self.violation(
-                severity,
-                "Set-Cookie with 'SameSite=None' must also set 'Secure'".into(),
-            ));
+            return Some(ctx.report(&COOKIE_SECURE_MISSING));
         }
         None
     }
@@ -136,7 +134,6 @@ impl CookieAttributeConsistent {
         attribute: &crate::helpers::cookie::Attribute<'_>,
         ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
-        let severity = ctx.severity;
         // The two flag attributes: the grammar admits no "=", so the attribute
         // is its own presence and a value written after it is a defect.
         // cite(RFC 6265 § 4.1.1): "secure-av         = "Secure""
@@ -144,9 +141,8 @@ impl CookieAttributeConsistent {
         for flag in ["Secure", "HttpOnly"] {
             if attribute.is(flag) {
                 return attribute.has_value().then(|| {
-                    self.cited(
-                        &RFC_6265_4_1_1,
-                        severity,
+                    ctx.report_with(
+                        &COOKIE_FLAG_VALUE_FORBIDDEN,
                         format!("Set-Cookie attribute '{}' must not have a value", flag),
                     )
                 });
