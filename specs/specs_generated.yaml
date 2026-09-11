@@ -5039,9 +5039,9 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 424
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 255
+      line: 258
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 362
+      line: 365
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 192
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -5305,7 +5305,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 401
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 241
+      line: 244
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 319
   - label: alt_svc_header_syntax
@@ -6247,7 +6247,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 117
     - file: lint-http-rules/src/violations/authority.rs
-      line: 169
+      line: 179
   - label: http2_pseudo_headers_valid (3)
     section: § 9.3.6
     snippet: There is no default port; a client MUST send the port number even if the CONNECT request is based on a URI reference that contains an authority component with an elided port (Section 4.1).
@@ -10358,7 +10358,7 @@ sources:
     snippet: '":authority" MUST NOT include the deprecated userinfo subcomponent for "http" or "https" schemed URIs.'
     cited_by:
     - file: lint-http-rules/src/violations/authority.rs
-      line: 137
+      line: 147
   - label: field
     section: § 8.2.2
     snippet: Any message containing connection-specific header fields MUST be treated as malformed (Section 8.1.1).
@@ -10466,7 +10466,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 474
     - file: lint-http-rules/src/violations/authority.rs
-      line: 211
+      line: 221
   - label: http2_pseudo_headers_valid (9)
     section: § 8.5
     snippet: A proxy that supports CONNECT establishes a TCP connection [TCP] to the host and port identified in the ":authority" pseudo-header field.
@@ -10482,7 +10482,7 @@ sources:
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 473
     - file: lint-http-rules/src/violations/authority.rs
-      line: 210
+      line: 220
   - label: http2_pseudo_headers_valid (11)
     section: § 8.5
     snippet: The ":method" pseudo-header field is set to CONNECT.
@@ -10599,19 +10599,19 @@ sources:
     snippet: The authority MUST NOT include the deprecated userinfo subcomponent for URIs of scheme "http" or "https".
     cited_by:
     - file: lint-http-rules/src/violations/authority.rs
-      line: 138
+      line: 148
   - label: authority (2)
     section: § 4.4
     snippet: 'A CONNECT request MUST be constructed as follows:'
     cited_by:
     - file: lint-http-rules/src/violations/authority.rs
-      line: 212
+      line: 222
   - label: authority (3)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to (equivalent to the authority-form of the request-target of CONNECT requests; see Section 7.1 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/violations/authority.rs
-      line: 213
+      line: 223
   - label: extension_headers_registered
     section: § 4.2
     snippet: A request or response containing uppercase characters in field names MUST be treated as malformed
@@ -10642,8 +10642,8 @@ sources:
       line: 368
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 415
-    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 397
+    - file: lint-http-rules/src/violations/authority.rs
+      line: 266
   - label: host_and_authority_consistent (3)
     section: § 4.3.1
     snippet: If these fields are present, they MUST NOT be empty.
@@ -10693,47 +10693,47 @@ sources:
     snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 233
+      line: 236
   - label: http3_pseudo_headers_valid (2)
     section: § 4.3.1
     snippet: Contains the authority portion of the target URI (Section 3.2 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 460
+      line: 472
   - label: http3_pseudo_headers_valid (3)
     section: § 4.3.1
     snippet: Contains the scheme portion of the target URI (Section 3.1 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 429
+      line: 441
   - label: http3_pseudo_headers_valid (4)
     section: § 4.3.2
     snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 493
+      line: 505
   - label: http3_pseudo_headers_valid (5)
     section: § 4.3.2
     snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 494
+      line: 506
   - label: http3_pseudo_headers_valid (6)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 275
+      line: 278
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 308
+      line: 311
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 329
+      line: 332
   - label: http3_pseudo_headers_valid (7)
     section: § 4.4
     snippet: The :method pseudo-header field is set to "CONNECT"
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 256
+      line: 259
   - label: http3_settings_frame
     section: § 11.2.2
     snippet: The entries in Table 3 are registered by this document

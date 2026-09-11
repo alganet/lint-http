@@ -1359,7 +1359,10 @@ severity = "warn"
         /// `request_method_token_valid` makes on every version, so the site was
         /// deleted rather than converted — a count of *cited sites* falls
         /// whenever a duplicate is surrendered, and nothing is lost with it.
-        const FLOOR: usize = 109;
+        /// **`authority_missing` took the last of that rule's**, and this one is
+        /// the ordinary shape rather than a loss: the entry names § 4.3.1 alone,
+        /// so the finding is still cited — by the def instead of by the site.
+        const FLOOR: usize = 108;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
