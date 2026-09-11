@@ -1071,6 +1071,10 @@ severity = "warn"
 # Authentication scheme is not one the deployment recognises
 severity = "warn"
 
+[violations.authority_tunnel_userinfo_forbidden]
+# A CONNECT's :authority carries a userinfo subcomponent
+severity = "error"
+
 [violations.authority_userinfo_forbidden]
 # An :authority carries the deprecated userinfo subcomponent
 severity = "error"

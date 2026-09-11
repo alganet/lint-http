@@ -18,11 +18,21 @@
 //! the halves a CONNECT owes. Those are prose requirements about a field, which
 //! is what makes the field the subject.
 //!
-//! **The entry below is the shape the `spec` slice was made for.** RFC 9113
+//! **The first entry is the shape the `spec` slice was made for.** RFC 9113
 //! § 8.3.1 and RFC 9114 § 4.3.1 forbid the same subcomponent in the same field
 //! for the same two schemes, one document per version and both in force, so the
 //! entry names both and no finding carries either — each rule's message names
 //! the section that governs the version it read.
+//!
+//! **The second is the same octet and not the same defect**, which is the line
+//! worth keeping straight here: on a CONNECT the field is the *tunnel
+//! destination*, two components with no third, and the userinfo is out under
+//! every scheme rather than under two. That reading is stated once for all
+//! versions — RFC 9110 § 9.3.6, which both version documents point at instead
+//! of writing their own — so this entry names one sentence and its findings
+//! carry it. **Two entries for one octet, because the conditions differ and the
+//! rule knows which it is in**: an entry naming several sentences gives up its
+//! citation, and giving one up where a site could have named it is a loss.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -49,6 +59,17 @@ pub const RFC_9114_4_3_1: SpecRef = SpecRef {
            `:scheme` and `:path`, the `:authority`-or-Host requirement for schemes \
            with a mandatory authority component, and the MUST NOT on the deprecated \
            userinfo subcomponent for http and https URIs",
+};
+
+/// What a CONNECT's target is, stated once for every version: the two
+/// components, the port that has no default, and the server's MUST to reject an
+/// empty or invalid one. Both version documents describe `:authority` on a
+/// CONNECT by pointing here rather than by restating it.
+pub const RFC_9110_9_3_6: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.3.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
+    note: "CONNECT — the host and port number of the tunnel destination, the absence of a default port, and the server's MUST to reject an empty or invalid one. This is where the port requirements come from; the grammar states none.",
 };
 
 defects! {
@@ -88,6 +109,37 @@ defects! {
         default_severity: Severity::Error,
         spec: &[RFC_9113_8_3_1, RFC_9114_4_3_1],
     }
+
+    /// A CONNECT's `:authority` carrying a userinfo subcomponent and its `@`.
+    /// The field is the host and port of the tunnel destination and has no third
+    /// component to put anything else in, so the credential is out here whatever
+    /// scheme the request would have named — and a CONNECT names none.
+    ///
+    /// **Separate from
+    /// [`AUTHORITY_USERINFO_FORBIDDEN`] because the condition is different, not
+    /// because the octet is.** That entry is written for `http` and `https`
+    /// targets and says nothing about an authority under another scheme; this
+    /// one is about a field with two components, and it applies to every CONNECT
+    /// there is. The reading is also stated in one place for all versions, which
+    /// is what lets this entry name a single sentence and put it on its
+    /// findings — an entry naming several gives its citation up, and giving one
+    /// up where the site could have named it is a loss rather than a
+    /// simplification.
+    ///
+    /// **Worse than the same octet elsewhere**, which is why it ranks with its
+    /// sibling: a reader splitting `user:s3cret@example.com:443` on the first
+    /// colon opens a tunnel to the host `user`, and one splitting on the last
+    /// finds a port. The finding withholds everything after the first colon of
+    /// the subcomponent, at the shared helper carrying RFC 3986 § 3.2.1.
+    ///
+    // cite(RFC 9110 § 9.3.6): "CONNECT uses a special form of request target, unique to this method, consisting of only the host and port number of the tunnel destination, separated by a colon."
+    AUTHORITY_TUNNEL_USERINFO_FORBIDDEN = {
+        id: "authority_tunnel_userinfo_forbidden",
+        title: "A CONNECT's :authority carries a userinfo subcomponent",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_9_3_6],
+    }
 }
 
 #[cfg(test)]
@@ -118,5 +170,19 @@ mod tests {
     fn the_wording_belongs_to_the_site() {
         assert!(AUTHORITY_USERINFO_FORBIDDEN.message.is_empty());
         assert!(AUTHORITY_USERINFO_FORBIDDEN.spec.len() > 1);
+        assert!(AUTHORITY_TUNNEL_USERINFO_FORBIDDEN.message.is_empty());
+    }
+
+    /// The tunnel entry names one sentence and therefore cites it on every
+    /// finding. That is the whole reason it is not folded into its sibling: the
+    /// condition a CONNECT puts on the field is stated once for all versions,
+    /// and a site that can name its sentence should.
+    #[test]
+    fn the_tunnel_entry_names_one_sentence_for_every_version() {
+        assert_eq!(AUTHORITY_TUNNEL_USERINFO_FORBIDDEN.spec, [RFC_9110_9_3_6]);
+        assert_eq!(
+            AUTHORITY_TUNNEL_USERINFO_FORBIDDEN.default_severity,
+            AUTHORITY_USERINFO_FORBIDDEN.default_severity,
+        );
     }
 }

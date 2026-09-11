@@ -4,7 +4,10 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::authority::{AUTHORITY_USERINFO_FORBIDDEN, RFC_9113_8_3_1, RFC_9114_4_3_1};
+use crate::violations::authority::{
+    AUTHORITY_TUNNEL_USERINFO_FORBIDDEN, AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6,
+    RFC_9113_8_3_1, RFC_9114_4_3_1,
+};
 use crate::violations::request_target::{REQUEST_TARGET_ASTERISK_FORBIDDEN, RFC_9110_7_1};
 use crate::violations::uri::{
     host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
@@ -51,6 +54,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &REQUEST_TARGET_ASTERISK_FORBIDDEN,
     &AUTHORITY_USERINFO_FORBIDDEN,
+    &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
 ];
 
 /// One finding from the CONNECT reading, and the defect it reports as where
@@ -121,10 +125,13 @@ fn connect_authority_finding(authority: &str) -> Option<Defect> {
         let shown = crate::helpers::uri::userinfo_password_withheld(authority)
             .map(|redacted| crate::helpers::shown::shown_in_finding(&redacted))
             .unwrap_or(shown);
-        return Some(Defect::unnamed(format!(
-            "CONNECT ':authority' '{shown}' carries a userinfo subcomponent and its '@' \
-             delimiter: the field is only the host and port number of the tunnel destination"
-        )));
+        return Some(Defect::named(
+            &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
+            format!(
+                "CONNECT ':authority' '{shown}' carries a userinfo subcomponent and its '@' \
+                 delimiter: the field is only the host and port number of the tunnel destination"
+            ),
+        ));
     }
 
     let (host, port) = crate::helpers::uri::split_host_and_port(authority);
@@ -217,12 +224,6 @@ const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("9.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
     note: "Overview of methods — `method = token`, and the token is case-sensitive, which is why CONNECT and OPTIONS are matched exactly",
-};
-const RFC_9110_9_3_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("9.3.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6",
-    note: "CONNECT — the host and port number of the tunnel destination, the absence of a default port, and the server's MUST to reject an empty or invalid one. This is where the port requirements come from; the grammar states none.",
 };
 const RFC_9112_3_2_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9112",
