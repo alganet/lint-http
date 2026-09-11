@@ -29,6 +29,14 @@
 //! version. What is here is the value being *permitted and yet not `trailers`*,
 //! which no other rule asks.
 //!
+//! **Two later entries are the field's for a different reason: they are what
+//! RFC 9110 § 10.1.4 says about `TE` and about nothing else.** The keyword
+//! occupies the whole of its alternative, so a parameter or a weight hung off
+//! it derives from no `t-codings`; and a sender of the field owes a `TE`
+//! connection option beside it, which is a requirement on the *message* rather
+//! than on any value in it. Neither is a production's defect — every
+//! production involved is intact — which is what keeps them here.
+//!
 //! The exception, in the two documents that write it:
 //
 // cite(RFC 9113 § 8.2.2, label: the TE exception): "The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers"."
@@ -45,6 +53,24 @@ pub const RFC_9112_7_4: SpecRef = SpecRef {
     section: Some("7.4"),
     url: "https://www.rfc-editor.org/rfc/rfc9112.html#section-7.4",
     note: "TE — the codings a client will accept, the `q` pseudo-parameter that ranks them, and the MUST NOT on naming `chunked`",
+};
+
+/// The field's own definition in RFC 9110: what a member is, and the
+/// connection option a sender owes beside it.
+pub const RFC_9110_10_1_4: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("10.1.4"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
+    note: "TE — what a member states, the grammar of its parameters, and the `TE` connection option a sender of the field MUST also send",
+};
+
+/// The collected grammar, where `t-codings` is written out as the alternation
+/// the keyword occupies half of.
+pub const RFC_9110_A: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("A"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
+    note: "The collected grammar, where the list construct is expanded for a sender and `t-codings` is written out — the alternation that gives the `trailers` keyword neither a parameter nor a weight",
 };
 
 defects! {
@@ -93,6 +119,56 @@ defects! {
         message: "A client must not send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients",
         default_severity: Severity::Warn,
         spec: Some(RFC_9112_7_4),
+    }
+
+    /// A parameter or a weight written on the `trailers` keyword. The
+    /// alternation gives the keyword the whole of its first alternative, and
+    /// the alternative that admits either of those is the other one — so
+    /// `TE: trailers;q=0.5` derives from neither, however ordinary it looks.
+    ///
+    /// **The nearest thing to a real reading behind it**: a weight ranks
+    /// codings a client is willing to receive, and the keyword is not a coding.
+    /// There is nothing for a preference to be *between*, which is why the
+    /// grammar puts them in different alternatives rather than making the
+    /// weight optional everywhere.
+    ///
+    /// The entry is the field's because `t-codings` is: no other field writes
+    /// this alternation, and the coding half of it answers to
+    /// [`transfer_coding`](crate::violations::transfer_coding) as it does
+    /// everywhere else.
+    ///
+    // cite(RFC 9110 § A, label: t-codings): "t-codings = "trailers" / ( transfer-coding [ weight ] )"
+    TE_TRAILERS_PARAMETER_FORBIDDEN = {
+        id: "te_trailers_parameter_forbidden",
+        title: "TE hangs a parameter or a weight off the trailers keyword",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_A),
+    }
+
+    /// A request carrying `TE` and no `TE` connection option in `Connection`.
+    /// The field applies to one hop; the option is what tells an intermediary
+    /// not to forward it. Without the option a proxy that does not implement
+    /// the field passes it on, and a server two hops away reads a statement
+    /// about a connection it is not on.
+    ///
+    /// **Asked only of the versions that have a `Connection` field**, which is
+    /// the rule's reading and not this entry's: over HTTP/2 and HTTP/3 the
+    /// option cannot be sent at all, so an entry demanding it would ask a
+    /// sender to make its own message malformed.
+    ///
+    /// `warn` rather than `error` despite the MUST: nothing about this message
+    /// is unreadable, and the defect is a guard that was not set rather than a
+    /// statement that is wrong. What it risks is a *later* hop being misled,
+    /// which no recipient of this message can detect.
+    ///
+    // cite(RFC 9110 § 10.1.4): "A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field."
+    TE_CONNECTION_OPTION_MISSING = {
+        id: "te_connection_option_missing",
+        title: "TE is sent without a TE connection option beside it",
+        message: "Request carries a TE header field without a 'TE' connection option in Connection; TE applies to the immediate connection only, and the option is what stops an intermediary from forwarding it",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_10_1_4),
     }
 }
 

@@ -19,6 +19,9 @@ use crate::violations::quoted_string::{
     QUOTED_STRING_DELIMITER_MISSING, QUOTED_STRING_QUOTE_ESCAPE_MISSING, RFC_9110_5_6_4,
 };
 use crate::violations::qvalue::{QVALUE_MALFORMED, RFC_9110_12_4_2};
+use crate::violations::te::{
+    RFC_9110_10_1_4, RFC_9110_A, TE_CONNECTION_OPTION_MISSING, TE_TRAILERS_PARAMETER_FORBIDDEN,
+};
 use crate::violations::token::{
     token_character, RFC_9110_5_6_2, TOKEN_CHARACTER_FORBIDDEN, TOKEN_EMPTY,
     TOKEN_WHITESPACE_OR_CONTROL_FORBIDDEN,
@@ -44,6 +47,8 @@ use crate::violations::ViolationDef;
 /// of their own.
 static DECLARED: &[&ViolationDef] = &[
     &BWS_FORBIDDEN,
+    &TE_TRAILERS_PARAMETER_FORBIDDEN,
+    &TE_CONNECTION_OPTION_MISSING,
     &FIELD_REQUEST_CONTEXT_MISDIRECTED,
     &QVALUE_MALFORMED,
     &LIST_MEMBER_EMPTY,
@@ -147,11 +152,11 @@ impl TeHeaderValid {
             // cite(RFC 9110 § A): "t-codings = "trailers" / ( transfer-coding [ weight ] )"
             if primary.eq_ignore_ascii_case("trailers") {
                 if let Some(extra) = segments.get(1) {
-                    return violation(format!(
+                    return Some(ctx.report_with(&TE_TRAILERS_PARAMETER_FORBIDDEN, format!(
                         "TE member '{}' hangs '{}' off the 'trailers' keyword; the t-codings alternative that admits a parameter or a weight is the transfer-coding one",
                         member.escape_debug(),
                         extra.escape_debug()
-                    ));
+                    )));
                 }
                 continue;
             }
@@ -208,7 +213,7 @@ impl TeHeaderValid {
     fn check_connection_option(
         &self,
         tx: &crate::http_transaction::HttpTransaction,
-        severity: crate::lint::Severity,
+        ctx: &crate::rules::RuleContext<'_>,
     ) -> Option<Violation> {
         // The major digit decides whether this version has a `Connection` field
         // to carry the option; `http_version` owns the production that reads it.
@@ -231,14 +236,7 @@ impl TeHeaderValid {
             return None;
         }
 
-        Some(self.violation(
-            severity,
-
-                "Request carries a TE header field without a 'TE' connection option in Connection; \
-                 TE applies to the immediate connection only, and the option is what stops an \
-                 intermediary from forwarding it"
-                    .into(),
-        ))
+        Some(ctx.report(&TE_CONNECTION_OPTION_MISSING))
     }
 
     /// One `transfer-parameter` of one member — or the `weight`, which is not one.
@@ -402,18 +400,6 @@ impl TeHeaderValid {
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.1.4"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
-    note: "The field: what a member is, the grammar of its parameters, and the connection option a sender of TE must send beside it",
-};
-const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("A"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#appendix-A",
-    note: "The collected grammar, where the list construct is expanded for a sender — the form that shows both that the whole value may be empty and that a member may not",
-};
 const RFC_9110_7_6_1: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.6.1"),
@@ -606,7 +592,7 @@ impl Rule for TeHeaderValid {
                 return Some(v);
             }
 
-            self.check_connection_option(tx, ctx.severity)
+            self.check_connection_option(tx, ctx)
         };
         Vec::from_iter(finding())
     }
