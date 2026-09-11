@@ -4,7 +4,10 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
-use crate::violations::authority::{AUTHORITY_USERINFO_FORBIDDEN, RFC_9113_8_3_1, RFC_9114_4_3_1};
+use crate::violations::authority::{
+    AUTHORITY_TUNNEL_USERINFO_FORBIDDEN, AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6,
+    RFC_9113_8_3_1, RFC_9114_4_3_1,
+};
 use crate::violations::request_target::{REQUEST_TARGET_ASTERISK_FORBIDDEN, RFC_9110_7_1};
 use crate::violations::uri::{
     host_and_port, scheme_name, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3,
@@ -49,6 +52,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &REQUEST_TARGET_ASTERISK_FORBIDDEN,
     &AUTHORITY_USERINFO_FORBIDDEN,
+    &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -109,6 +113,10 @@ severity = "error"
             // report names both sections, because neither document governs the
             // other's version.
             RFC_9113_8_3_1,
+            // Where a CONNECT's target is defined for every version, which is
+            // what both version documents describe `:authority` by pointing at.
+            // The tunnel entry names it and its findings carry it.
+            RFC_9110_9_3_6,
             RFC_3986_3_2_1,
             RFC_9114_4_3_2,
             RFC_9114_4_4,
@@ -240,13 +248,17 @@ impl Rule for Http3PseudoHeadersValid {
                                 .into()));
                 }
 
-                // § 4.4 gives a CONNECT's `:authority` two components and no
-                // third: the host and port to connect to. This is not the scheme
-                // question the non-CONNECT branch asks — the field here is a
-                // tunnel destination, not an http(s) URI's authority — so the
-                // sentence is § 4.4's own and the '@' is reported whatever came
-                // before it. The password half is withheld from the finding
-                // (RFC 3986 § 3.2.1, at the shared helper).
+                // A CONNECT's `:authority` has two components and no third: the
+                // host and port to connect to. This is not the scheme question
+                // the non-CONNECT branch asks — the field here is a tunnel
+                // destination, not an http(s) URI's authority — so the '@' is
+                // reported whatever came before it, under its own entry rather
+                // than the sibling one written for `http` and `https`. The
+                // sentence that entry carries is RFC 9110 § 9.3.6's, which
+                // states the two-component form once for every version and is
+                // what § 4.4 describes this field by. The password half is
+                // withheld from the finding (RFC 3986 § 3.2.1, at the shared
+                // helper).
                 //
                 // Only an authority-form target is judged. An absolute-form
                 // CONNECT target is a conforming extended CONNECT and a malformed
@@ -260,10 +272,13 @@ impl Rule for Http3PseudoHeadersValid {
                 {
                     let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
                         .unwrap_or(authority);
-                    return Some(self.cited(&RFC_9114_4_4, ctx.severity, format!(
+                    return Some(ctx.report_with(
+                        &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
+                        format!(
                             "HTTP/3 CONNECT ':authority' '{}' carries a userinfo subcomponent and its '@' delimiter: the field is only the host and port to connect to",
                             crate::helpers::shown::shown_in_finding(&shown)
-                        )));
+                        ),
+                    ));
                 }
 
                 // `uri-host [ ":" port ]` is one question with one answer, and

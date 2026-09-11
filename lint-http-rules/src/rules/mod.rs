@@ -1343,8 +1343,11 @@ severity = "warn"
         /// `authority_userinfo_forbidden`**, one per version rule, and both had
         /// cited — the entry names RFC 9113 § 8.3.1 and RFC 9114 § 4.3.1 and
         /// carries neither onto a finding, so each message names its own
-        /// version's section instead.
-        const FLOOR: usize = 114;
+        /// version's section instead. **`authority_tunnel_userinfo_forbidden`
+        /// took one more** — the HTTP/3 CONNECT site, which had cited § 4.4; the
+        /// HTTP/2 one reported the same defect unnamed, and the entry now cites
+        /// § 9.3.6 on both.
+        const FLOOR: usize = 113;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
