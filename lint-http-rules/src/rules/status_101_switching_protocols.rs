@@ -4,6 +4,8 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::upgrade::{RFC_9110_15_2_2, UPGRADE_EMPTY, UPGRADE_MISSING};
+use crate::violations::ViolationDef;
 
 /// Validate 101 Switching Protocols responses follow correct upgrade semantics.
 ///
@@ -23,12 +25,12 @@ pub struct Status101SwitchingProtocols;
 /// The specification references this rule declares, each named so a finding
 /// site can cite the one it enforces. `specifications()` below is built from
 /// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.2.2",
-    note: "101 Switching Protocols",
-};
+/// The `Upgrade` field a 101 owes, and the two ways it is not there. The rest
+/// of what this rule says is about the status code itself — a version that has
+/// no upgrade mechanism, a protocol nobody offered, traffic after the switch —
+/// and each of those is a reading of its own.
+static DECLARED: &[&ViolationDef] = &[&UPGRADE_MISSING, &UPGRADE_EMPTY];
+
 const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("7.8"),
@@ -65,6 +67,10 @@ severity = "warn"
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[RFC_9110_15_2_2, RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5]
+    }
+
+    fn violations(&self) -> &'static [&'static ViolationDef] {
+        DECLARED
     }
 
     fn examples(&self) -> &'static [crate::rules::Example] {
@@ -217,16 +223,14 @@ impl Rule for Status101SwitchingProtocols {
             let req_upgrade_val = req_upgrade_combined.unwrap();
 
             // ── Check: 101 response missing Upgrade header ──
-            // cite(RFC 9110 § 15.2.2): "The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response."
             let resp_upgrade_combined =
                 crate::helpers::headers::get_all_header_values(&resp.headers, "upgrade");
             if resp_upgrade_combined.is_none() {
                 return Some(
-                    self.cited(
-                        &RFC_9110_15_2_2,
-                        ctx.severity,
+                    ctx.report_with(
+                        &UPGRADE_MISSING,
                         "101 Switching Protocols response missing required Upgrade header \
-                         (RFC 9110 §15.2.2)"
+                     (RFC 9110 §15.2.2)"
                             .into(),
                     ),
                 );
@@ -261,15 +265,14 @@ impl Rule for Status101SwitchingProtocols {
             }
 
             // An empty chosen list is a response Upgrade that indicates no protocol —
-            // the same MUST-generate obligation as the missing-header check above.
-            // cite(RFC 9110 § 15.2.2): "The server MUST generate an Upgrade header field in the response that indicates which protocol(s) will be in effect after this response."
+            // the same MUST-generate obligation as the missing-header check above, and
+            // the entry beside it.
             if chosen_list.is_empty() {
                 return Some(
-                    self.cited(
-                        &RFC_9110_15_2_2,
-                        ctx.severity,
+                    ctx.report_with(
+                        &UPGRADE_EMPTY,
                         "101 Switching Protocols response Upgrade header contains no protocol \
-                         tokens (RFC 9110 §15.2.2)"
+                     tokens (RFC 9110 §15.2.2)"
                             .into(),
                     ),
                 );
