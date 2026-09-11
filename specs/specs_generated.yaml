@@ -5038,6 +5038,10 @@ sources:
       line: 355
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 424
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 255
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 362
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 192
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -5300,6 +5304,8 @@ sources:
       line: 126
     - file: lint-http-rules/src/rules/http2_pseudo_headers_valid.rs
       line: 401
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 241
     - file: lint-http-rules/src/rules/request_method_token_valid.rs
       line: 319
   - label: alt_svc_header_syntax
@@ -10637,7 +10643,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 415
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 368
+      line: 397
   - label: host_and_authority_consistent (3)
     section: § 4.3.1
     snippet: If these fields are present, they MUST NOT be empty.
@@ -10687,41 +10693,47 @@ sources:
     snippet: All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4.
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 226
+      line: 233
   - label: http3_pseudo_headers_valid (2)
     section: § 4.3.1
     snippet: Contains the authority portion of the target URI (Section 3.2 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 431
+      line: 460
   - label: http3_pseudo_headers_valid (3)
     section: § 4.3.1
     snippet: Contains the scheme portion of the target URI (Section 3.1 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 400
+      line: 429
   - label: http3_pseudo_headers_valid (4)
     section: § 4.3.2
     snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 464
+      line: 493
   - label: http3_pseudo_headers_valid (5)
     section: § 4.3.2
     snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 465
+      line: 494
   - label: http3_pseudo_headers_valid (6)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 250
+      line: 275
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 283
+      line: 308
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 304
+      line: 329
+  - label: http3_pseudo_headers_valid (7)
+    section: § 4.4
+    snippet: The :method pseudo-header field is set to "CONNECT"
+    cited_by:
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 256
   - label: http3_settings_frame
     section: § 11.2.2
     snippet: The entries in Table 3 are registered by this document
