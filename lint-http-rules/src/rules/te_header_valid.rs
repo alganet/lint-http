@@ -9,6 +9,7 @@ use crate::helpers::qvalue::valid_qvalue;
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::bws::{BWS_FORBIDDEN, RFC_9110_5_6_3};
+use crate::violations::field::{FIELD_REQUEST_CONTEXT_MISDIRECTED, RFC_9110_10_1};
 use crate::violations::list::{LIST_MEMBER_EMPTY, RFC_9110_5_6_1_1};
 use crate::violations::parameter::{
     PARAMETER_EQUALS_MISSING, PARAMETER_VALUE_EMPTY, RFC_9110_5_6_6,
@@ -43,6 +44,7 @@ use crate::violations::ViolationDef;
 /// of their own.
 static DECLARED: &[&ViolationDef] = &[
     &BWS_FORBIDDEN,
+    &FIELD_REQUEST_CONTEXT_MISDIRECTED,
     &QVALUE_MALFORMED,
     &LIST_MEMBER_EMPTY,
     &PARAMETER_EQUALS_MISSING,
@@ -406,12 +408,6 @@ const RFC_9110_10_1_4: crate::rules::SpecRef = crate::rules::SpecRef {
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1.4",
     note: "The field: what a member is, the grammar of its parameters, and the connection option a sender of TE must send beside it",
 };
-const RFC_9110_10_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("10.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-10.1",
-    note: "The section the field is defined in — request context fields. It is the whole of the ground for reporting a TE in a response, and it carries no modal",
-};
 const RFC_9110_A: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
     section: Some("A"),
@@ -583,7 +579,11 @@ impl Rule for TeHeaderValid {
                 // findings for one field, and the weaker of the two would be the one
                 // saying RFC 9110 merely gives it no meaning.
                 //
-                // cite(RFC 9110 § 10.1): "The request header fields below provide additional information about the request context, including information about the user, user agent, and resource behind the request."
+                // The finding is the field line's and not this field's: nine fields
+                // are sorted into a direction by § 10 and `context_fields_direction`
+                // reports the same defect for all of them, `TE` included. Two rules,
+                // one id -- which is the whole point of the id.
+                //
                 // cite(RFC 9110 § 10.1.4): "The "TE" header field describes capabilities of the client with regard to transfer codings and trailer sections."
                 // The gate is a condition on this branch and not an early return:
                 // the request-side checks below are this rule's main body, and a
@@ -593,7 +593,7 @@ impl Rule for TeHeaderValid {
                 {
                     let value =
                         combined_field_value_as_written(&resp.headers, "te").unwrap_or_default();
-                    return Some(self.violation(ctx.severity, format!(
+                    return Some(ctx.report_with(&FIELD_REQUEST_CONTEXT_MISDIRECTED, format!(
                             "Response carries a TE header field: '{}'; TE is a request context field describing the client's capabilities, and RFC 9110 gives it no meaning in a response",
                             value.escape_debug()
                         )));
