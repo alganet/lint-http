@@ -50,8 +50,8 @@ pub struct Http3PseudoHeadersValid;
 /// the sender attempted and not what a recipient is missing.
 ///
 /// Everything else here is about *which* pseudo-header a message carries and
-/// where — a missing `:method`, a non-CONNECT request with no authority. None of
-/// that is a defect of a production, and the documents that require it write no
+/// where — a non-CONNECT request with no authority and no `Host`. None of that
+/// is a defect of a production, and the documents that require it write no
 /// grammar to name it after.
 static DECLARED: &[&ViolationDef] = &[
     &URI_HOST_CLOSING_BRACKET_MISSING,
@@ -108,7 +108,7 @@ severity = "error"
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/3 requests encode control data as pseudo-header fields. This rule validates that every request includes exactly one `:method` pseudo-header field and that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. **A CONNECT is asked the same question once**: §4.4 puts the host and port of the tunnel destination in `:authority`, a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field — and a request carrying neither names nothing to open a tunnel to. That is one finding whether the target arrived empty, as a path or as an asterisk, since the shape says what the sender attempted rather than what a recipient is missing; it used to be three, answered differently from how the HTTP/2 twin answered them. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `http2_pseudo_headers_valid`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
+        "HTTP/3 requests encode control data as pseudo-header fields. This rule reads what each of them conveyed, and the first thing it checks is that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\n**A request naming no method at all is not reported here.** §4.3.1 requires exactly one `:method`, and over this version an absent one and an empty one reassemble into the same capture: a method of no characters, which is `method = token`'s one-character floor. `request_method_token_valid` reports that on every version, so the finding is left there rather than given a second name; what a value naming no method does here is stop the rule, since neither the CONNECT restrictions nor the asterisk's one method have anything to turn on. `http2_pseudo_headers_valid` surrendered the same question earlier and for the same reason.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. **A CONNECT is asked the same question once**: §4.4 puts the host and port of the tunnel destination in `:authority`, a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field — and a request carrying neither names nothing to open a tunnel to. That is one finding whether the target arrived empty, as a path or as an asterisk, since the shape says what the sender attempted rather than what a recipient is missing; it used to be three, answered differently from how the HTTP/2 twin answered them. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `http2_pseudo_headers_valid`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -174,17 +174,7 @@ severity = "error"
             Example {
                 compliance: Compliance::NonCompliant,
                 label: None,
-                snippet: " HTTP/3\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
                 snippet: "GET * HTTP/3\nHost: example.com",
-            },
-            Example {
-                compliance: Compliance::NonCompliant,
-                label: None,
-                snippet: "HTTP/3 0",
             },
             Example {
                 compliance: Compliance::NonCompliant,
@@ -218,17 +208,25 @@ impl Rule for Http3PseudoHeadersValid {
                 return None;
             }
 
-            // :method is required. (The :scheme half of the same sentence is not
-            // checked — the canonical model does not retain scheme for origin-form
+            // A request naming no method at all stops this rule rather than
+            // being reported by it. § 4.3.1 does require exactly one `:method`,
+            // and over this version an absent one and an empty one reassemble
+            // into the same capture — but that capture is a method of no
+            // characters, which is `method = token`'s one-character floor and is
+            // reported by `request_method_token_valid` on every version. Two ids
+            // for one absence is what this catalogue exists to remove, and the
+            // HTTP/2 twin had already surrendered the same question for the same
+            // reason. What is left here is that a value naming no method names
+            // nothing for the branches below to turn on: neither the CONNECT
+            // restrictions nor the asterisk's one method.
+            //
+            // (The `:scheme` half of the same sentence is not checked either —
+            // the canonical model does not retain a scheme for origin-form
             // requests, as the description says.)
             // cite(RFC 9114 § 4.3.1): "All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4."
             let method = tx.request.method.trim();
             if method.is_empty() {
-                return Some(self.cited(
-                    &RFC_9114_4_3_1,
-                    ctx.severity,
-                    "HTTP/3 request missing required ':method' pseudo-header".into(),
-                ));
+                return None;
             }
 
             let is_connect = method.eq_ignore_ascii_case("CONNECT");
@@ -544,38 +542,61 @@ mod tests {
         assert_eq!(v.violation, "uri_port_character_forbidden", "{}", v.message);
     }
 
-    // --- :method pseudo-header required ---
+    // --- A method that names nothing ---
 
-    #[test]
-    fn empty_method_is_violation() {
+    /// § 4.3.1 asks for exactly one `:method`, and over this version a request
+    /// that sent none and one that sent an empty value arrive as the same
+    /// capture: a method of no characters, which is `method = token`'s
+    /// one-character floor. The rule that owns the production reports it on
+    /// every version, so this one stops rather than giving the absence a second
+    /// name — the handover the HTTP/2 twin made first.
+    #[rstest]
+    #[case("")]
+    #[case("   ")]
+    fn a_value_that_is_no_method_stops_the_rule(#[case] method: &str) {
         let rule = Http3PseudoHeadersValid;
         let mut tx = make_h3_transaction();
-        tx.request.method = "".into();
+        tx.request.method = method.into();
+        tx.request.uri = "/resource".into();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        assert!(
+            crate::test_helpers::run_rule(
+                &rule,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+            )
+            .is_none(),
+            "{method:?}"
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains(":method"));
-    }
 
-    #[test]
-    fn whitespace_only_method_is_violation() {
-        let rule = Http3PseudoHeadersValid;
-        let mut tx = make_h3_transaction();
-        tx.request.method = "   ".into();
-
-        let v = crate::test_helpers::run_rule(
-            &rule,
-            &tx,
-            &crate::transaction_history::TransactionHistory::empty(),
-            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        // That rule reads a required `registered_methods` array, and an absent
+        // one stops the whole rule rather than only its case finding — so the
+        // handover has to be exercised with a configuration a deployment would
+        // actually have.
+        let owner = crate::rules::request_method_token_valid::RequestMethodTokenValid;
+        let mut cfg = crate::test_helpers::make_test_config_with_enabled_rules(&[owner.id()]);
+        let mut table = toml::map::Map::new();
+        table.insert("enabled".to_string(), toml::Value::Boolean(true));
+        table.insert("severity".to_string(), toml::Value::String("warn".into()));
+        table.insert(
+            "registered_methods".to_string(),
+            toml::Value::Array(vec![toml::Value::String("GET".into())]),
         );
-        assert!(v.is_some());
-        assert!(v.unwrap().message.contains(":method"));
+        cfg.rules
+            .insert(owner.id().to_string(), toml::Value::Table(table));
+        assert!(
+            crate::test_helpers::run_rule(
+                &owner,
+                &tx,
+                &crate::transaction_history::TransactionHistory::empty(),
+                &cfg,
+            )
+            .is_some(),
+            "{method:?}"
+        );
     }
 
     // --- the deprecated userinfo subcomponent ---

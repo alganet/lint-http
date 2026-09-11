@@ -1353,8 +1353,13 @@ severity = "warn"
         /// with it**: the HTTP/3 rule had asked three times whether a CONNECT
         /// names a destination and cited § 4.4 at one of them, the HTTP/2 rule
         /// twice and cited at neither, and one entry naming both versions'
-        /// sections answers for all five.
-        const FLOOR: usize = 110;
+        /// sections answers for all five. **One more left without an entry at
+        /// all**: the HTTP/3 rule's cited report of a request naming no
+        /// `:method` was a second name for `token_empty`, which
+        /// `request_method_token_valid` makes on every version, so the site was
+        /// deleted rather than converted — a count of *cited sites* falls
+        /// whenever a duplicate is surrendered, and nothing is lost with it.
+        const FLOOR: usize = 109;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
