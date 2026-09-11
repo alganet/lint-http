@@ -1655,9 +1655,17 @@ severity = "warn"
 # TE names the chunked coding, which cannot be declined
 severity = "warn"
 
+[violations.te_connection_option_missing]
+# TE is sent without a TE connection option beside it
+severity = "warn"
+
 [violations.te_member_forbidden]
 # A request's TE holds a member other than trailers
 severity = "error"
+
+[violations.te_trailers_parameter_forbidden]
+# TE hangs a parameter or a weight off the trailers keyword
+severity = "warn"
 
 [violations.token68_body_empty]
 # token68 is padding with no body

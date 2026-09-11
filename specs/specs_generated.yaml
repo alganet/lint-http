@@ -4785,9 +4785,9 @@ sources:
     - file: lint-http-rules/src/rules/language_tag_syntax.rs
       line: 238
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 130
+      line: 135
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 321
+      line: 319
   - label: accept_encoding_parameter_valid (3)
     section: § 12.5.3
     snippet: 'Accept-Encoding  = #( codings [ weight ] ) codings          = content-coding / "identity" / "*"'
@@ -4887,7 +4887,7 @@ sources:
     - file: lint-http-rules/src/rules/accept_header_media_type_syntax.rs
       line: 413
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 332
+      line: 330
   - label: accept_header_media_type_syntax (2)
     section: § 12.5.1
     snippet: Each media-range might be followed by optional applicable media type parameters (e.g., charset), followed by an optional "q" parameter for indicating a relative weight (Section 12.4.2).
@@ -5845,9 +5845,9 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 205
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 548
+      line: 534
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 587
+      line: 573
   - label: context_fields_direction (6)
     section: § 10.1.5
     snippet: The "User-Agent" header field contains information about the user agent originating the request
@@ -6759,7 +6759,7 @@ sources:
     - file: lint-http-rules/src/rules/status_code_semantics.rs
       line: 21
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 73
+      line: 78
   - label: lint-http-rules/src/helpers/cache_control.rs (2)
     section: § 5.6.1
     snippet: '#element => [ element ] *( OWS "," OWS [ element ] )'
@@ -7317,7 +7317,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 233
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 92
+      line: 97
     - file: lint-http-rules/src/rules/upgrade_header_syntax.rs
       line: 218
   - label: lint-http-rules/src/helpers/media_type.rs (2)
@@ -7943,7 +7943,9 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 253
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 147
+      line: 152
+    - file: lint-http-rules/src/violations/te.rs
+      line: 140
   - label: no_connection_specific_fields (2)
     section: § A
     snippet: transfer-parameter = token BWS "=" BWS ( token / quoted-string )
@@ -7951,9 +7953,9 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 254
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 108
+      line: 113
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 246
+      line: 244
   - label: options_method_capabilities
     section: § 10.2.1
     snippet: An origin server MUST generate an Allow header field in a 405 (Method Not Allowed) response and MAY do so in any other response.
@@ -8105,7 +8107,7 @@ sources:
     - file: lint-http-rules/src/rules/proxy_connection_discouraged.rs
       line: 120
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 204
+      line: 209
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 60
   - label: range_and_content_range_consistent
@@ -9003,13 +9005,15 @@ sources:
     snippet: A sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1) to inform intermediaries not to forward this field.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 226
+      line: 231
+    - file: lint-http-rules/src/violations/te.rs
+      line: 165
   - label: te_header_valid (2)
     section: § 10.1.4
     snippet: The TE field value is a list of members, with each member (aside from "trailers") consisting of a transfer coding name token with an optional weight indicating the client's relative preference for that transfer coding (Section 12.4.2) and optional parameters for that transfer coding.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 74
+      line: 79
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 459
   - label: te_header_valid (3)
@@ -9017,21 +9021,21 @@ sources:
     snippet: The BWS rule is used where the grammar allows optional whitespace only for historical reasons.  A sender MUST NOT generate BWS in messages.  A recipient MUST parse for such bad whitespace and remove it before interpreting the protocol element.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 278
+      line: 276
   - label: te_header_valid (4)
     section: § A
     snippet: TE = [ t-codings *( OWS "," OWS t-codings ) ]
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 90
+      line: 95
   - label: te_header_valid (5)
     section: § A
     snippet: transfer-coding = token *( OWS ";" OWS transfer-parameter )
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 129
+      line: 134
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 170
+      line: 175
   - label: timing_allow_origin_valid
     section: § 5.6.1.2
     snippet: 'A recipient MUST parse and ignore a reasonable number of empty list elements: enough to handle common mistakes by senders that merge values, but not so much that they could be used as a denial-of-service mechanism'
@@ -10213,19 +10217,19 @@ sources:
     snippet: A client MUST NOT send the chunked transfer coding name in TE; chunked is always acceptable for HTTP/1.1 recipients.
     cited_by:
     - file: lint-http-rules/src/violations/te.rs
-      line: 89
+      line: 115
   - label: te_header_valid
     section: § 7.3
     snippet: The TE header field (Section 10.1.4 of [HTTP]) uses a pseudo-parameter named "q" as the rank value when multiple transfer codings are acceptable.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 312
+      line: 310
   - label: te_header_valid (2)
     section: § 7.4
     snippet: If the TE field value is empty or if no TE field is present, the only acceptable transfer coding is chunked.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 91
+      line: 96
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 458
   - label: te_header_valid (3)
@@ -10233,13 +10237,13 @@ sources:
     snippet: Since the TE header field only applies to the immediate connection, a sender of TE MUST also send a "TE" connection option within the Connection header field (Section 7.6.1 of [HTTP]) in order to prevent the TE header field from being forwarded by intermediaries that do not support its semantics.
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 227
+      line: 232
   - label: te_header_valid (4)
     section: § 7.4
     snippet: When multiple transfer codings are acceptable, the client MAY rank the codings by preference using a case-insensitive "q" parameter (similar to the qvalues used in content negotiation fields; see Section 12.4.2 of [HTTP]).
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 313
+      line: 311
     - file: lint-http-rules/src/rules/transfer_coding_registered.rs
       line: 351
   - label: transfer_coding
@@ -10508,7 +10512,7 @@ sources:
     - file: lint-http-rules/src/rules/status_426_upgrade_valid.rs
       line: 168
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 205
+      line: 210
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 62
   - label: no_connection_specific_fields
@@ -10554,9 +10558,9 @@ sources:
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/2 request; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 206
+      line: 211
     - file: lint-http-rules/src/violations/te.rs
-      line: 34
+      line: 42
 - label: RFC 9114
   url: https://www.rfc-editor.org/rfc/rfc9114.html
   fragments:
@@ -10821,7 +10825,7 @@ sources:
     - file: lint-http-rules/src/rules/no_connection_specific_fields.rs
       line: 161
     - file: lint-http-rules/src/rules/te_header_valid.rs
-      line: 207
+      line: 212
     - file: lint-http-rules/src/rules/upgrade_and_connection_consistent.rs
       line: 64
   - label: no_connection_specific_fields (2)
@@ -10881,7 +10885,7 @@ sources:
     snippet: The only exception to this is the TE header field, which MAY be present in an HTTP/3 request header; when it is, it MUST NOT contain any value other than "trailers".
     cited_by:
     - file: lint-http-rules/src/violations/te.rs
-      line: 35
+      line: 43
 - label: RFC 9218
   url: https://www.rfc-editor.org/rfc/rfc9218.html
   fragments:
