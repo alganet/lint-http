@@ -1647,6 +1647,10 @@ severity = "warn"
 # Weight is not a qvalue
 severity = "warn"
 
+[violations.request_target_asterisk_forbidden]
+# The asterisk target is sent with a method other than OPTIONS
+severity = "error"
+
 [violations.status_101_ignored]
 # HTTP continues on a connection a 101 handed off
 severity = "warn"
