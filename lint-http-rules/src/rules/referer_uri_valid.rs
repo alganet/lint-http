@@ -13,8 +13,8 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::uri::{
     PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED, RFC_3986_2, RFC_3986_2_1,
-    RFC_3986_3_1, URI_CHARACTER_FORBIDDEN, URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY,
-    URI_SCHEME_LEADING_LETTER_MISSING,
+    RFC_3986_3_1, RFC_9110_4_2_1, RFC_9110_4_2_2, URI_CHARACTER_FORBIDDEN, URI_HOST_EMPTY,
+    URI_SCHEME_CHARACTER_FORBIDDEN, URI_SCHEME_EMPTY, URI_SCHEME_LEADING_LETTER_MISSING,
 };
 use crate::violations::ViolationDef;
 
@@ -37,6 +37,7 @@ static DECLARED: &[&ViolationDef] = &[
     &URI_SCHEME_CHARACTER_FORBIDDEN,
     &PERCENT_ENCODING_DIGITS_MISSING,
     &PERCENT_ENCODING_MALFORMED,
+    &URI_HOST_EMPTY,
 ];
 
 /// The value as a finding may print it: escaped, and with the password half of a
@@ -79,18 +80,6 @@ const RFC_9110_4_1: crate::rules::SpecRef = crate::rules::SpecRef {
     section: Some("4.1"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.1",
     note: "URI References — `partial-URI` is the rule for elements that carry a relative URI but no fragment, and an element's ABNF is what says which forms it allows",
-};
-const RFC_9110_4_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("4.2.1"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1",
-    note: "http URI Scheme — a TCP connection and no more, and the MUST NOT against an empty host identifier",
-};
-const RFC_9110_4_2_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("4.2.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2",
-    note: "https URI Scheme — what \"secured\" means for a resource named by one, and the MUST NOT against an empty host identifier",
 };
 const RFC_9110_5_3: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9110",
@@ -459,15 +448,18 @@ impl Rule for RefererUriValid {
                 // it are asked, and they are matched without regard to case because
                 // § 4.2.3 says a scheme is compared that way.
                 //
-                // cite(RFC 9110 § 4.2.1): "A sender MUST NOT generate an "http" URI with an empty host identifier."
-                // cite(RFC 9110 § 4.2.2): "A sender MUST NOT generate an "https" URI with an empty host identifier."
+                // The defect is the *reference's* and not this field's: the same
+                // two sentences answer an absolute-form request target, and the
+                // entry that holds them names both sections, so the message names
+                // the one governing the value read.
+                //
                 // cite(RFC 9110 § 4.2.3): "The scheme and host are case-insensitive and normally provided in lowercase; all other components are compared in a case-sensitive manner."
                 let empty_host_scheme = scheme.filter(|s| {
                     host.is_empty()
                         && (s.eq_ignore_ascii_case("http") || s.eq_ignore_ascii_case("https"))
                 });
                 if let Some(scheme) = empty_host_scheme {
-                    return violation(format!(
+                    return Some(ctx.report_with(&URI_HOST_EMPTY, format!(
                         "Referer value '{}' names the scheme '{}' and then an empty host identifier: a sender MUST NOT generate an \"{}\" URI with one (RFC 9110 §4.2.{})",
                         shown_referer(value),
                         shown_in_finding(scheme),
@@ -477,7 +469,7 @@ impl Rule for RefererUriValid {
                         } else {
                             "2"
                         }
-                    ));
+                    )));
                 }
 
                 // `uri-host [ ":" port ]` is one question with one answer, and the
@@ -792,6 +784,10 @@ mod tests {
         assert!(m.contains("no `path-noscheme` either"), "{m}");
     }
 
+    /// The same two sentences answer this value and an absolute-form request
+    /// target, so the finding answers to the reference's id rather than to a
+    /// name built from this field — which is the whole reason the entry is the
+    /// URI subject's and not `Referer`'s.
     #[rstest]
     #[case("http:///page", "http", "1")]
     #[case("https:///page", "https", "2")]
@@ -809,6 +805,18 @@ mod tests {
                 scheme.to_ascii_lowercase()
             )
         );
+
+        let mut tx = crate::test_helpers::make_test_transaction();
+        tx.request.uri = "/".to_string();
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("referer", referer)]);
+        let v = crate::test_helpers::run_rule(
+            &RefererUriValid,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_severity("referer_uri_valid", "warn"),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "uri_host_empty", "{referer}");
     }
 
     #[rstest]
