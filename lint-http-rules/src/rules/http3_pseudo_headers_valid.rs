@@ -5,9 +5,9 @@
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::authority::{
-    AUTHORITY_MISSING, AUTHORITY_TUNNEL_MISSING, AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
-    AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6, RFC_9113_8_3_1, RFC_9113_8_5, RFC_9114_4_3_1,
-    RFC_9114_4_4,
+    AUTHORITY_EMPTY, AUTHORITY_MISSING, AUTHORITY_TUNNEL_MISSING,
+    AUTHORITY_TUNNEL_USERINFO_FORBIDDEN, AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6,
+    RFC_9113_8_3_1, RFC_9113_8_5, RFC_9114_4_3_1, RFC_9114_4_4,
 };
 use crate::violations::request_target::{
     REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_PATH_MISSING, RFC_9110_7_1,
@@ -70,6 +70,7 @@ static DECLARED: &[&ViolationDef] = &[
     &REQUEST_TARGET_PATH_MISSING,
     &AUTHORITY_TUNNEL_MISSING,
     &AUTHORITY_MISSING,
+    &AUTHORITY_EMPTY,
 ];
 
 /// The specification references this rule declares, each named so a finding
@@ -408,17 +409,53 @@ impl Rule for Http3PseudoHeadersValid {
                 // authority to convey, which is the opposite requirement.
                 let authority =
                     crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri);
-                let has_host = tx.request.headers.contains_key("host");
-                if authority.is_none() && !has_host {
-                    return Some(ctx.report_with(
-                        &AUTHORITY_MISSING,
-                        format!(
-                            "Request target '{}' names no authority, and no 'Host' field names one \
-                             either: an 'http' or 'https' request carries the host in ':authority' \
-                             or in a 'Host' field",
-                            crate::helpers::shown::shown_in_finding(uri_trimmed)
-                        ),
-                    ));
+                if authority.is_none() {
+                    // The same clause asks two things of a request whose target
+                    // names no authority: that one of the two fields be there,
+                    // and that a field which is there not be empty. A sender who
+                    // wrote `Host:` and stopped answered the first and broke the
+                    // second, which is a different mistake from writing no field
+                    // at all and a different one to fix — and both are in the
+                    // capture, so both are said.
+                    //
+                    // Read as written, and trimmed of `OWS` alone: on a value
+                    // read one `char` per octet, `str::trim` would take a %xA0
+                    // the sender put inside the field and call the result empty.
+                    // cite(RFC 9114 § 4.3.1): "If these fields are present, they MUST NOT be empty."
+                    // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
+                    // Line by line, because `Host` is not a list field and two
+                    // lines of it are not one value — that count is
+                    // `host_header`'s finding, and what matters here is whether
+                    // any line of it names an authority.
+                    let host_lines = crate::helpers::headers::field_lines_as_written(
+                        &tx.request.headers,
+                        "host",
+                    );
+                    if host_lines.is_empty() {
+                        return Some(ctx.report_with(
+                            &AUTHORITY_MISSING,
+                            format!(
+                                "Request target '{}' names no authority, and the request carries \
+                                 no 'Host' field either: an 'http' or 'https' request carries the \
+                                 host in ':authority' or in a 'Host' field",
+                                crate::helpers::shown::shown_in_finding(uri_trimmed)
+                            ),
+                        ));
+                    }
+                    if host_lines
+                        .iter()
+                        .all(|line| crate::helpers::headers::trim_ows(line).is_empty())
+                    {
+                        return Some(ctx.report_with(
+                            &AUTHORITY_EMPTY,
+                            format!(
+                                "Request target '{}' names no authority and the 'Host' field \
+                                 beside it is empty: whichever of the two an 'http' or 'https' \
+                                 request carries the host in, that field is not empty",
+                                crate::helpers::shown::shown_in_finding(uri_trimmed)
+                            ),
+                        ));
+                    }
                 }
 
                 // § 4.3.1's userinfo MUST NOT, readable exactly where the
@@ -1245,15 +1282,44 @@ mod tests {
         assert!(v.is_none());
     }
 
-    #[test]
-    fn host_present_but_empty_counts_as_present() {
-        // An empty Host header still counts as "present" for the authority
-        // presence check. Value validation is handled by other rules.
+    /// A `Host` written and left blank answers the either-or's first half and
+    /// breaks its second, and it had been silent here: this test asserted that
+    /// an empty value "counts as present" and left the value to other rules,
+    /// which over this version read none of it — `host_header` declines an empty
+    /// `Host` on RFC 9112 § 3.2's reading, where an empty value is what a
+    /// missing authority *requires*.
+    #[rstest]
+    #[case("")]
+    #[case(" ")]
+    #[case("\t")]
+    fn a_host_written_and_left_blank_names_no_authority(#[case] value: &str) {
         let rule = Http3PseudoHeadersValid;
         let mut tx = make_h3_transaction();
         tx.request.method = "GET".into();
         tx.request.uri = "/resource".into();
-        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("host", "")]);
+        tx.request.headers = crate::test_helpers::make_headers_from_pairs(&[("host", value)]);
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, "authority_empty", "{:?}: {}", value, v.message);
+        assert!(v.cite.is_some(), "{}", v.message);
+    }
+
+    /// The same field with an authority on it is not this defect, and neither
+    /// rule says anything.
+    #[test]
+    fn a_host_that_names_an_authority_is_accepted() {
+        let rule = Http3PseudoHeadersValid;
+        let mut tx = make_h3_transaction();
+        tx.request.method = "GET".into();
+        tx.request.uri = "/resource".into();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
         let v = crate::test_helpers::run_rule(
             &rule,

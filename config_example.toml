@@ -1071,6 +1071,10 @@ severity = "warn"
 # Authentication scheme is not one the deployment recognises
 severity = "warn"
 
+[violations.authority_empty]
+# A request's authority field is present and empty
+severity = "error"
+
 [violations.authority_missing]
 # A request that owes an authority names none
 severity = "error"
