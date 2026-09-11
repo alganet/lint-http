@@ -4,6 +4,7 @@
 
 use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
+use crate::violations::status::{RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5, STATUS_101_UNSOLICITED};
 use crate::violations::upgrade::{RFC_9110_15_2_2, UPGRADE_EMPTY, UPGRADE_MISSING};
 use crate::violations::ViolationDef;
 
@@ -22,33 +23,17 @@ use crate::violations::ViolationDef;
 ///   should appear (the connection has been handed off to the upgraded protocol).
 pub struct Status101SwitchingProtocols;
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-/// The `Upgrade` field a 101 owes, and the two ways it is not there. The rest
-/// of what this rule says is about the status code itself — a version that has
-/// no upgrade mechanism, a protocol nobody offered, traffic after the switch —
-/// and each of those is a reading of its own.
-static DECLARED: &[&ViolationDef] = &[&UPGRADE_MISSING, &UPGRADE_EMPTY];
-
-const RFC_9110_7_8: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("7.8"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
-    note: "Upgrade",
-};
-const RFC_9113_8_6: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9113",
-    section: Some("8.6"),
-    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6",
-    note: "The Upgrade Header Field (HTTP/2 forbids 101)",
-};
-const RFC_9114_4_5: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9114",
-    section: Some("4.5"),
-    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
-    note: "HTTP Upgrade — the only place RFC 9114 mentions 101; forbids it alongside the Upgrade mechanism",
-};
+/// The `Upgrade` field a 101 owes, the two ways it is not there, and the status
+/// code sent on a version that has no upgrade mechanism to answer.
+///
+/// **This rule declares no `SpecRef` of its own any more.** Every sentence it
+/// names is on one of the entries above, in `violations/upgrade.rs` and
+/// `violations/status.rs`, and `specifications()` is assembled from those — the
+/// three sections the version entry holds among them, since one entry naming
+/// three documents is what a per-version const would otherwise have split.
+/// What is left unconverted is a protocol nobody offered and traffic after the
+/// switch, each a reading of its own.
+static DECLARED: &[&ViolationDef] = &[&UPGRADE_MISSING, &UPGRADE_EMPTY, &STATUS_101_UNSOLICITED];
 
 impl RuleMeta for Status101SwitchingProtocols {
     fn id(&self) -> &'static str {
@@ -151,51 +136,48 @@ impl Rule for Status101SwitchingProtocols {
                 return None;
             }
 
-            // ── Check: 101 on HTTP/1.0 ──
-            // A 101 is the server acting on the client's Upgrade request; in HTTP/1.0 it
-            // must ignore Upgrade, so it can never legitimately send a 101. This branch
-            // fires on any 101 over HTTP/1.0; the cited sentence literally covers the
-            // Upgrade-present case (the RFC's only "HTTP/1.0 doesn't do Upgrade" statement),
-            // and a bare 101 with no Upgrade at all is illegitimate a fortiori — a 101
-            // presupposes an Upgrade exchange HTTP/1.0 cannot have had.
-            // cite(RFC 9110 § 7.8): "A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field."
-            // Both digits, not the string: this is the one gate here that needs the
-            // minor version too, since HTTP/1.1 is the version that does support
-            // Upgrade. Reading the digits is the same move as the two gates below,
-            // which would otherwise be arguing with this line.
+            // ── Check: 101 on a version with no upgrade mechanism ──
+            // One entry for all three versions, and the message is where the
+            // governing section goes: the entry names three sections, so a
+            // finding of it carries no citation and the version is what decides
+            // which sentence it broke. The quotes are on the entry.
+            //
+            // HTTP/1.0 needs both digits, and it is the only one here that does:
+            // HTTP/1.1 is the version that *does* support Upgrade, so the minor
+            // digit is the whole difference. A 101 over HTTP/1.0 is reported
+            // whether or not the request carried an `Upgrade` — the sentence
+            // covers the field being present, and a 101 with no request field at
+            // all is illegitimate a fortiori, since a 101 presupposes an
+            // exchange HTTP/1.0 cannot have had.
+            //
+            // The other two read the major digit only. Two spellings of HTTP/2
+            // were once listed here because the value is one a writer chose —
+            // this version carries no version field of its own — and neither
+            // enumerating them nor guessing which arrives is the question.
+            //
+            // RFC 9114 § 4.5 is the only place that document mentions 101 at
+            // all, and `http3_status_code_valid` reports the same message from
+            // the status code's own side.
             if matches!(
                 crate::http_version::parse(&tx.request.version),
                 Ok(crate::http_version::HttpVersion { major: 1, minor: 0 })
             ) {
-                return Some(self.cited(&RFC_9110_7_8, ctx.severity, "101 Switching Protocols must not be sent in response to an HTTP/1.0 request; \
-                         Upgrade is not supported in HTTP/1.0 (RFC 9110 §7.8)"
-                            .into()));
+                let message = "101 Switching Protocols must not be sent in response to an \
+                     HTTP/1.0 request; a server that receives an Upgrade field in an HTTP/1.0 \
+                     request must ignore it (RFC 9110 §7.8)";
+                return Some(ctx.report_with(&STATUS_101_UNSOLICITED, message.into()));
             }
 
-            // ── Check: 101 on HTTP/2 ──
-            // cite(RFC 9113 § 8.6): "HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
-            // Two spellings were listed here because the value is one a writer chose
-            // — this version carries no version field — and neither listing them nor
-            // guessing which one arrives is the question. The major digit is.
             if crate::http_version::is_major(&tx.request.version, 2) {
-                return Some(self.cited(
-                    &RFC_9113_8_6,
-                    ctx.severity,
-                    "101 Switching Protocols must not be sent over HTTP/2 (RFC 9113 §8.6)".into(),
-                ));
+                let message = "101 Switching Protocols must not be sent over HTTP/2, which \
+                     does not support the status code (RFC 9113 §8.6)";
+                return Some(ctx.report_with(&STATUS_101_UNSOLICITED, message.into()));
             }
 
-            // ── Check: 101 on HTTP/3 ──
-            // §4.5 is the only place RFC 9114 mentions 101 at all (the message said §4.1,
-            // whose subject is HTTP Message Framing). Also enforced by
-            // `http3_status_code_valid`; checked here for completeness.
-            // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
             if crate::http_version::is_major(&tx.request.version, 3) {
-                return Some(self.cited(
-                    &RFC_9114_4_5,
-                    ctx.severity,
-                    "101 Switching Protocols must not be sent over HTTP/3 (RFC 9114 §4.5)".into(),
-                ));
+                let message = "101 Switching Protocols must not be sent over HTTP/3, which \
+                     does not support the status code or the upgrade mechanism (RFC 9114 §4.5)";
+                return Some(ctx.report_with(&STATUS_101_UNSOLICITED, message.into()));
             }
 
             // ── Check: unsolicited 101 (no Upgrade in request) ──

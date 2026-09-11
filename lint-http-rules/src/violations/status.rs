@@ -25,10 +25,19 @@
 //! sentence prohibits the message, the entry is `_forbidden`; `_unsolicited` is
 //! for the ones no sentence prohibits and the exchange refutes.
 //!
-//! All three default to `warn`, which is the severity the rule reporting them
-//! had already chosen for itself: a client handed a response it did not ask
-//! for, or cannot parse, has to notice that on its own, and only one of the
-//! three documents a prohibition.
+//! **The fourth widens what "the other message" can be evidence of.** A `101`
+//! is read against the request's *version*, not against a field on it: three
+//! documents each say their version has no place for the code, and none of them
+//! prohibits it in so many words. So the word is `_unsolicited` for the same
+//! reason the first two carry it — what refutes the response is the exchange —
+//! and the piece of the exchange doing the refuting is control data on the
+//! request line rather than a header field. **A version that withholds the
+//! mechanism a client would ask with is a client that could not have asked.**
+//!
+//! All four default to `warn`, which is the severity the rules reporting them
+//! had already chosen for themselves: a client handed a response it did not ask
+//! for, or cannot parse, has to notice that on its own, and only one of the four
+//! documents a prohibition.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -51,6 +60,32 @@ pub const RFC_9110_15_5_17: SpecRef = SpecRef {
     section: Some("15.5.17"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.5.17",
     note: "416 Range Not Satisfiable: the status code is the rejection of the ranges in the request's `Range` field; a server answering a *byte*-range request SHOULD include `Content-Range: bytes */<complete-length>`",
+};
+
+/// The `Upgrade` mechanism, and the one sentence in it about HTTP/1.0: the
+/// version that has the field and may not act on it.
+pub const RFC_9110_7_8: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("7.8"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-7.8",
+    note: "Upgrade — the mechanism a 101 answers, the MUST NOT on switching to a protocol the client did not indicate, and the MUST that a server ignore an `Upgrade` received in an HTTP/1.0 request",
+};
+
+/// HTTP/2's account of the field and the status code: neither is part of the
+/// version.
+pub const RFC_9113_8_6: SpecRef = SpecRef {
+    spec: "RFC 9113",
+    section: Some("8.6"),
+    url: "https://www.rfc-editor.org/rfc/rfc9113.html#section-8.6",
+    note: "The Upgrade Header Field — HTTP/2 does not support the 101 status code, and says why: its semantics are not applicable to a multiplexed protocol",
+};
+
+/// HTTP/3's, which withholds the mechanism and the code in one sentence.
+pub const RFC_9114_4_5: SpecRef = SpecRef {
+    spec: "RFC 9114",
+    section: Some("4.5"),
+    url: "https://www.rfc-editor.org/rfc/rfc9114.html#section-4.5",
+    note: "HTTP Upgrade — the only place RFC 9114 mentions 101, withholding the upgrade mechanism and the status code together",
 };
 
 defects! {
@@ -121,6 +156,48 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9110_15_3_7_2],
     }
+
+    /// A `101` carried by a version that has no upgrade mechanism to answer.
+    /// The status code announces a connection changing protocol *via the
+    /// `Upgrade` field*, and each of the three versions below takes one of the
+    /// two halves away: HTTP/1.0 has the field and requires a server to ignore
+    /// it, HTTP/2 keeps the mechanism out and says the code's semantics do not
+    /// apply to a multiplexed protocol, HTTP/3 withholds both in one sentence.
+    /// Whatever such a request wrote, it could not have invited this answer.
+    ///
+    /// **Three documents, one defect, and this is the entry that argued for
+    /// `spec` being a slice.** All three sections are named and no finding
+    /// carries any of them: the version is known at the site, which names its
+    /// own governing section in the message. Splitting the entry per version
+    /// would give one defect three ids for an operator to silence separately,
+    /// which is the duplication this catalogue exists to remove — and the ids
+    /// would name the versions rather than the defect.
+    ///
+    /// **`_unsolicited` rather than `_forbidden`, and the sentences are the
+    /// reason.** Only the HTTP/1.0 one carries a keyword at all, and its MUST is
+    /// addressed to what a server does with a *field* rather than to the status
+    /// code; the other two state that a version does not support the code, which
+    /// is a definition withheld and not a prohibition. That is the test
+    /// `status_206_unsolicited` was written against and
+    /// `status_206_multipart_forbidden` fails: where a sentence prohibits the
+    /// message the entry is `_forbidden`, and here none does.
+    ///
+    /// `warn`, with the rest of the subject. A `101` is an interim response, and
+    /// a recipient of a 1xx it does not expect is entitled to read past it and
+    /// wait for the final one — so an exchange carrying this defect is confused
+    /// rather than stuck, which is the line the `upgrade_*` entries sit on the
+    /// other side of.
+    ///
+    // cite(RFC 9110 § 7.8): "A server that receives an Upgrade header field in an HTTP/1.0 request MUST ignore that Upgrade field."
+    // cite(RFC 9113 § 8.6): "HTTP/2 does not support the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
+    // cite(RFC 9114 § 4.5): "HTTP/3 does not support the HTTP Upgrade mechanism (Section 7.8 of [HTTP]) or the 101 (Switching Protocols) informational status code (Section 15.2.2 of [HTTP])."
+    STATUS_101_UNSOLICITED = {
+        id: "status_101_unsolicited",
+        title: "101 Switching Protocols is sent on a version with no upgrade mechanism",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: &[RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5],
+    }
 }
 
 #[cfg(test)]
@@ -137,9 +214,28 @@ mod tests {
             &STATUS_206_UNSOLICITED,
             &STATUS_416_UNSOLICITED,
             &STATUS_206_MULTIPART_FORBIDDEN,
+            &STATUS_101_UNSOLICITED,
         ] {
             assert!(def.id.starts_with("status_"), "{} is not a status", def.id);
             assert!(!def.id.contains("range"), "{} names a field", def.id);
+        }
+    }
+
+    /// One defect stated by three documents: the id names none of the versions,
+    /// because the same server sending the same response over any of them has
+    /// made one mistake and an operator silencing it silences one thing.
+    #[test]
+    fn the_version_entry_names_three_sections_and_no_version() {
+        assert_eq!(
+            STATUS_101_UNSOLICITED.spec,
+            [RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5]
+        );
+        for word in ["http", "1_0", "2", "3"] {
+            assert!(
+                !STATUS_101_UNSOLICITED.id.contains(word),
+                "{} names a version",
+                STATUS_101_UNSOLICITED.id,
+            );
         }
     }
 
@@ -150,24 +246,36 @@ mod tests {
     #[test]
     fn only_the_entry_a_sentence_prohibits_is_the_forbidden_one() {
         assert!(STATUS_206_MULTIPART_FORBIDDEN.id.ends_with("_forbidden"));
-        for def in [&STATUS_206_UNSOLICITED, &STATUS_416_UNSOLICITED] {
+        for def in [
+            &STATUS_206_UNSOLICITED,
+            &STATUS_416_UNSOLICITED,
+            &STATUS_101_UNSOLICITED,
+        ] {
             assert!(def.id.ends_with("_unsolicited"), "{}", def.id);
         }
     }
 
-    /// Every entry carries its whole message, which is the shape of the defect
-    /// rather than a convenience: what is wrong here is the pairing of two
-    /// messages and never a value one of them wrote, so there is nothing for a
-    /// site to interpolate and no wording that varies between one finding and
-    /// the next.
+    /// The range entries carry their whole message, which is the shape of the
+    /// defect rather than a convenience: what is wrong there is the pairing of
+    /// two messages and never a value one of them wrote, so there is nothing for
+    /// a site to interpolate and no wording that varies between findings.
+    ///
+    /// **The 101 entry is the exception and its reason is the slice.** It names
+    /// three sections, so its findings carry no citation and the message has to
+    /// say which version's sentence governs — a value the request line did
+    /// write. An entry naming one sentence has nothing to interpolate; an entry
+    /// naming several always does.
     #[test]
-    fn no_entry_leaves_its_message_to_the_site() {
+    fn only_the_entry_with_several_sentences_leaves_its_message_to_the_site() {
         for def in [
             &STATUS_206_UNSOLICITED,
             &STATUS_416_UNSOLICITED,
             &STATUS_206_MULTIPART_FORBIDDEN,
         ] {
+            assert_eq!(def.spec.len(), 1, "{}", def.id);
             assert!(!def.message.is_empty(), "{} holds no message", def.id);
         }
+        assert!(STATUS_101_UNSOLICITED.spec.len() > 1);
+        assert!(STATUS_101_UNSOLICITED.message.is_empty());
     }
 }
