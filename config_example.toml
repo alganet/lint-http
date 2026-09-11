@@ -1071,6 +1071,10 @@ severity = "warn"
 # Authentication scheme is not one the deployment recognises
 severity = "warn"
 
+[violations.authority_tunnel_missing]
+# A CONNECT names no host and port to open a tunnel to
+severity = "error"
+
 [violations.authority_tunnel_userinfo_forbidden]
 # A CONNECT's :authority carries a userinfo subcomponent
 severity = "error"

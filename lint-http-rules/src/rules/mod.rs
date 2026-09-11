@@ -1349,8 +1349,12 @@ severity = "warn"
         /// § 9.3.6 on both. **`request_target_path_missing` took two more**, one
         /// per version rule, both cited and neither citable from the entry — the
         /// requirement is written once per version and the entry names both
-        /// sections.
-        const FLOOR: usize = 111;
+        /// sections. **`authority_tunnel_missing` took one more and three sites
+        /// with it**: the HTTP/3 rule had asked three times whether a CONNECT
+        /// names a destination and cited § 4.4 at one of them, the HTTP/2 rule
+        /// twice and cited at neither, and one entry naming both versions'
+        /// sections answers for all five.
+        const FLOOR: usize = 110;
 
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/rules");
         let mut cited = 0;
