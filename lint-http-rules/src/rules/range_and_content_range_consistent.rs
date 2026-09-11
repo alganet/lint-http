@@ -6,11 +6,13 @@ use crate::lint::Violation;
 use crate::rules::{Rule, RuleMeta};
 use crate::violations::content_range::{
     content_range_defect, CONTENT_RANGE_COMPLETE_LENGTH_CONFLICTING, CONTENT_RANGE_EMPTY,
-    CONTENT_RANGE_INCL_RANGE_MALFORMED, CONTENT_RANGE_NUMERAL_INVALID,
+    CONTENT_RANGE_FORBIDDEN, CONTENT_RANGE_FORM_INVALID, CONTENT_RANGE_INCL_RANGE_MALFORMED,
+    CONTENT_RANGE_LENGTH_CONFLICTING, CONTENT_RANGE_MISSING, CONTENT_RANGE_NUMERAL_INVALID,
     CONTENT_RANGE_NUMERAL_MALFORMED, CONTENT_RANGE_POSITIONS_CONFLICTING,
     CONTENT_RANGE_SLASH_MISSING, CONTENT_RANGE_SPEC_MISSING,
     CONTENT_RANGE_SPEC_WHITESPACE_FORBIDDEN, CONTENT_RANGE_UNIT_MALFORMED,
     CONTENT_RANGE_UNSATISFIED_RANGE_MALFORMED, RFC_9110_14_1, RFC_9110_14_1_2, RFC_9110_14_4,
+    RFC_9110_15_3_7_1, RFC_9110_15_3_7_2,
 };
 use crate::violations::status::{
     RFC_9110_15_3_7, RFC_9110_15_5_17, STATUS_206_UNSOLICITED, STATUS_416_UNSOLICITED,
@@ -19,22 +21,32 @@ use crate::violations::ViolationDef;
 
 pub struct RangeAndContentRangeConsistent;
 
-/// The defects this rule reports so far. Eleven of them are one field's: the
-/// ways `Content-Range = range-unit SP ( range-resp / unsatisfied-range )` is
-/// not that. They are the *field's* rather than this rule's — five other rules
-/// parse the same value, and the four that only ask whether it parsed will
-/// report these same ids when they say why.
+/// The defects this rule reports so far. Eleven of them are the ways
+/// `Content-Range = range-unit SP ( range-resp / unsatisfied-range )` is not
+/// that, read out of the value. They are the *field's* rather than this rule's
+/// — five other rules parse the same value, and the four that only ask whether
+/// it parsed will report these same ids when they say why.
+///
+/// Four more are the same field's without being read out of it: whether it is
+/// due, prohibited, written in the form the other status code uses, or counting
+/// octets its neighbour counts differently. § 14.4 gives the field one meaning
+/// per status code that describes a semantic for it, so the status is the
+/// condition and the field stays the subject.
 ///
 /// The last two are not a field's at all. A 206 and a 416 are each defined in
 /// terms of the request's `Range`, so one sent where that field was never
 /// written describes an exchange that did not happen — the status code is the
 /// subject, and both fields it is read against are blameless.
 ///
-/// The rest of what this rule says is about two fields *agreeing*, which is a
-/// different subject and converts with the reading that owns the pair.
+/// What is left unconverted is one site: a multipart response to a request for
+/// a single range, which is a claim about neither field.
 static DECLARED: &[&ViolationDef] = &[
     &STATUS_206_UNSOLICITED,
     &STATUS_416_UNSOLICITED,
+    &CONTENT_RANGE_MISSING,
+    &CONTENT_RANGE_FORBIDDEN,
+    &CONTENT_RANGE_FORM_INVALID,
+    &CONTENT_RANGE_LENGTH_CONFLICTING,
     &CONTENT_RANGE_EMPTY,
     &CONTENT_RANGE_UNIT_MALFORMED,
     &CONTENT_RANGE_SPEC_MISSING,
@@ -125,16 +137,6 @@ fn response_is_multipart_byteranges(headers: &hyper::HeaderMap) -> bool {
     }
 }
 
-/// The specification references this rule declares, each named so a finding
-/// site can cite the one it enforces. `specifications()` below is built from
-/// exactly these, so the docs and the citations cannot name different text.
-const RFC_9110_15_3_7_2: crate::rules::SpecRef = crate::rules::SpecRef {
-    spec: "RFC 9110",
-    section: Some("15.3.7.2"),
-    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.2",
-    note: "206 Partial Content, multiple parts: the parts carry the `Content-Range` fields and the header section MUST NOT carry one; a request for a single range MUST NOT be answered with a multipart response",
-};
-
 impl RuleMeta for RangeAndContentRangeConsistent {
     fn id(&self) -> &'static str {
         "range_and_content_range_consistent"
@@ -173,6 +175,7 @@ units = ["bytes"]
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
         &[
             RFC_9110_15_3_7,
+            RFC_9110_15_3_7_1,
             RFC_9110_15_3_7_2,
             RFC_9110_14_4,
             RFC_9110_14_1,
@@ -265,8 +268,10 @@ impl Rule for RangeAndContentRangeConsistent {
                 return Some(ctx.report(&STATUS_206_UNSOLICITED));
             }
 
-            // 206 Partial Content rules
-            // cite(RFC 9110 § 14.4): "The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation."
+            // 206 Partial Content rules. What the field means in this status --
+            // and in the 416 below, which is the only other one that gives it a
+            // meaning -- is § 14.4's opening sentence, and it is quoted on
+            // `content_range_form_invalid`, the entry that enforces it.
             if status == 206 {
                 let cr = crate::helpers::headers::get_header_str(&resp.headers, "content-range");
 
@@ -279,9 +284,8 @@ impl Rule for RangeAndContentRangeConsistent {
                 // written; the code never had the condition.
                 // cite(RFC 9110 § 15.3.7.2): "If multiple parts are being transferred, the server generating the 206 response MUST generate "multipart/byteranges" content, as defined in Section 14.6, and a Content-Type header field containing the "multipart/byteranges" media type and its required boundary parameter."
                 if response_is_multipart_byteranges(&resp.headers) {
-                    // cite(RFC 9110 § 15.3.7.2): "To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead)."
                     if cr.is_some() {
-                        return Some(self.cited(&RFC_9110_15_3_7_2, config.severity, "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into()));
+                        return Some(ctx.report_with(&CONTENT_RANGE_FORBIDDEN, "multipart/byteranges 206 response must not carry a Content-Range header field in its header section (each body part carries its own)".into()));
                     }
 
                     // One requested range may not be answered with a multipart
@@ -308,14 +312,15 @@ impl Rule for RangeAndContentRangeConsistent {
                     return None;
                 }
 
-                // Single part: the field is required, and this is the sentence the
-                // rule has been reporting all along -- with its opening condition gone.
-                // cite(RFC 9110 § 15.3.7.1): "If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range."
+                // Single part: the field is required, and this is the finding the
+                // rule has been reporting all along -- with its opening condition
+                // gone. The sentence asking for it is on the id, which the 416 half
+                // below reports too.
                 let cr = match cr {
                     Some(v) => v,
                     None => {
-                        return Some(self.violation(
-                            config.severity,
+                        return Some(ctx.report_with(
+                            &CONTENT_RANGE_MISSING,
                             "206 Partial Content response missing Content-Range header".into(),
                         ))
                     }
@@ -347,13 +352,13 @@ impl Rule for RangeAndContentRangeConsistent {
                             return None;
                         }
 
-                        // What makes the comparison mean anything: in a 206 the
-                        // Content-Length counts the octets of *this* message's content,
-                        // which for a single part is the enclosed range. A content
-                        // coding does not put the two numbers on different scales --
-                        // byte ranges are calculated over the encoded octets, which are
-                        // the ones being counted here.
-                        // cite(RFC 9110 § 15.3.7): "A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation."
+                        // What makes the comparison mean anything is on the id: in a
+                        // 206 the Content-Length counts the octets of *this* message's
+                        // content, which for a single part is the enclosed range. What
+                        // is quoted here is the half of that the entry does not carry
+                        // -- a content coding does not put the two numbers on different
+                        // scales, because byte ranges are calculated over the encoded
+                        // octets, which are the ones being counted.
                         // cite(RFC 9110 § 14.1.2): "If the representation data has a content coding applied, each byte range is calculated with respect to the encoded sequence of bytes, not the sequence of underlying bytes that would be obtained after decoding."
                         //
                         // The value is read through the field's owner rather than
@@ -369,7 +374,7 @@ impl Rule for RangeAndContentRangeConsistent {
                             Ok(Some(cl_v)) => {
                                 let expected = (last - first) + 1;
                                 if cl_v != expected {
-                                    return Some(self.violation(config.severity, format!("Content-Length ({}) does not match Content-Range length ({})", cl_v, expected)));
+                                    return Some(ctx.report_with(&CONTENT_RANGE_LENGTH_CONFLICTING, format!("Content-Length ({}) does not match Content-Range length ({})", cl_v, expected)));
                                 }
                             }
                             Ok(None) => {}
@@ -380,10 +385,11 @@ impl Rule for RangeAndContentRangeConsistent {
                         // In a 206 the field says which part of the representation is
                         // enclosed; the unsatisfied-range form says only how long the
                         // whole thing is, which is what a 416 has to say and a 206
-                        // never does. The message used to call this form
+                        // never does -- the 416 site below is the same defect written
+                        // from the other end. The message used to call this form
                         // `byte-range-resp-spec`, RFC 7233's name for a production
                         // RFC 9110 splits into `range-resp` and `unsatisfied-range`.
-                        return Some(self.violation(config.severity, "206 response uses the unsatisfied-range form ('*/complete-length'), which describes no enclosed range (that form belongs in a 416)".into()));
+                        return Some(ctx.report_with(&CONTENT_RANGE_FORM_INVALID, "206 response uses the unsatisfied-range form ('*/complete-length'), which describes no enclosed range (that form belongs in a 416)".into()));
                     }
                     Err(e) => {
                         return Some(ctx.report_with(
@@ -428,7 +434,7 @@ impl Rule for RangeAndContentRangeConsistent {
                     // cite(RFC 9110 § 15.5.17): "A server that generates a 416 response to a byte-range request SHOULD generate a Content-Range header field specifying the current length of the selected representation (Section 14.4)."
                     // cite(RFC 9110 § 14.4): "A server generating a 416 (Range Not Satisfiable) response to a byte-range request SHOULD send a Content-Range header field with an unsatisfied-range value, as in the following example:"
                     if requested.as_ref().is_some_and(|(unit, _)| unit == "bytes") {
-                        return Some(self.violation(config.severity, "416 Range Not Satisfiable response to a byte-range request should include a Content-Range header (bytes */<complete-length>)".into()));
+                        return Some(ctx.report_with(&CONTENT_RANGE_MISSING, "416 Range Not Satisfiable response to a byte-range request should include a Content-Range header (bytes */<complete-length>)".into()));
                     }
                     return None;
                 }
@@ -441,11 +447,12 @@ impl Rule for RangeAndContentRangeConsistent {
                         // A 416 encloses no part of the representation, so the only
                         // thing its Content-Range has to say is how long the
                         // representation currently is -- which is the unsatisfied-range
-                        // form and nothing else. This is checked whatever the unit,
-                        // because it is about a field the server chose to send rather
-                        // than about one the spec asked it for.
+                        // form and nothing else -- the 206 site above is this same
+                        // defect with the two forms exchanged. This is checked whatever
+                        // the unit, because it is about a field the server chose to
+                        // send rather than about one the spec asked it for.
                         // cite(RFC 9110 § 14.4): "The complete-length in a 416 response indicates the current length of the selected representation."
-                        return Some(self.cited(&RFC_9110_14_4, config.severity, "416 response should use the '*/complete-length' form in Content-Range"
+                        return Some(ctx.report_with(&CONTENT_RANGE_FORM_INVALID, "416 response should use the '*/complete-length' form in Content-Range"
                                     .into()));
                     }
                     Err(e) => {

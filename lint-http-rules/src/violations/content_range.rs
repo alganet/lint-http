@@ -2,25 +2,35 @@
 //
 // SPDX-License-Identifier: ISC
 
-//! `Content-Range` defects — the eleven ways a server's account of what it sent
-//! is not one.
+//! `Content-Range` defects — the ways a server's account of what it sent is not
+//! one.
 //!
 //! `Content-Range = range-unit SP ( range-resp / unsatisfied-range )`, and the
-//! entries below follow the value left to right the way the parser does: the
-//! field, the unit, the single space, the `/`, the `-`, the numerals, and then
-//! the two conditions that are not grammar at all.
+//! first eleven entries below follow the value left to right the way the parser
+//! does: the field, the unit, the single space, the `/`, the `-`, the numerals,
+//! and then the two conditions that are not grammar at all.
 //!
-//! **Those last two are why this subject has two severities.** § 14.4 writes one
+//! **Those two are why this subject has two severities.** § 14.4 writes one
 //! sentence declaring a value *invalid* when its `last-pos` precedes its
 //! `first-pos`, or when its `complete-length` does not exceed its `last-pos`.
 //! Such a value is well formed by the ABNF; what is wrong with it is that no
 //! representation has the shape it describes, and a cache that recombines on it
-//! writes octets nobody sent. Everything else here is a value a recipient
+//! writes octets nobody sent. Everything else there is a value a recipient
 //! cannot parse — bad, and bad in a way that stops at the parse.
+//!
+//! **The four after them are not read out of the value at all**, and they are
+//! the field's rather than the response's for one reason: § 14.4 gives the
+//! field two meanings, one per status code that describes a semantic for it, so
+//! whether the field is due, prohibited, or written in the wrong one of its two
+//! forms is settled by *this* field's own section. The status code is the
+//! condition; the field is the subject. Where a defect is the status code's
+//! instead — a 206 answering a request that named no range — the entry is in
+//! `violations/status.rs` and the reason is written there.
 
 use crate::helpers::content_range::ContentRangeDefect;
 use crate::lint::Severity;
 use crate::rules::SpecRef;
+use crate::violations::status::RFC_9110_15_3_7;
 use crate::violations::{defects, ViolationDef};
 
 /// The field: its grammar, and the sentence that says which well-formed values
@@ -30,6 +40,24 @@ pub const RFC_9110_14_4: SpecRef = SpecRef {
     section: Some("14.4"),
     url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-14.4",
     note: "Content-Range: syntax of `Content-Range` and the semantics for satisfied and unsatisfiable ranges",
+};
+
+/// The MUST that asks a single-part 206 for the field. Its sibling below is the
+/// MUST NOT that refuses the same field to a multipart one: two subsections of
+/// one status code, wanting opposite things of the same header section.
+pub const RFC_9110_15_3_7_1: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.7.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.1",
+    note: "206 Partial Content, single part: the response MUST carry a `Content-Range` describing the enclosed range",
+};
+
+/// The other half: where the parts carry the field, the header section may not.
+pub const RFC_9110_15_3_7_2: SpecRef = SpecRef {
+    spec: "RFC 9110",
+    section: Some("15.3.7.2"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-15.3.7.2",
+    note: "206 Partial Content, multiple parts: the parts carry the `Content-Range` fields and the header section MUST NOT carry one; a request for a single range MUST NOT be answered with a multipart response",
 };
 
 /// Range units: what the name at the front of the value has to be.
@@ -193,6 +221,95 @@ defects! {
         default_severity: Severity::Error,
         spec: Some(RFC_9110_14_4),
     }
+
+    /// A response that has a range to describe and no field describing it: a
+    /// single-part 206, or a 416 answering a byte-range request. The client is
+    /// told to read this field to learn what it was sent, and there is nothing
+    /// to read.
+    ///
+    /// **One entry for a MUST and a SHOULD**, which is a decision. § 15.3.7.1
+    /// requires the field of a single-part 206 and § 15.5.17 recommends it of a
+    /// 416 to a byte-range request; the sender's fix differs only in which of
+    /// the field's two forms to write, and an operator silencing "the field
+    /// that describes the range is absent" means both. What follows is that the
+    /// entry **defaults to the weaker of the two sentences**: raising it would
+    /// raise the SHOULD half with the MUST half, and a recommendation is not an
+    /// error because it shares an id with a requirement.
+    ///
+    /// The 416 half is reported for byte ranges only — both sentences asking
+    /// for the field there say so — which is a condition at the site rather
+    /// than a second defect.
+    ///
+    // cite(RFC 9110 § 15.3.7.1): "If a single part is being transferred, the server generating the 206 response MUST generate a Content-Range header field, describing what range of the selected representation is enclosed, and a content consisting of the range."
+    CONTENT_RANGE_MISSING = {
+        id: "content_range_missing",
+        title: "Content-Range is absent from a response whose range it would describe",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_15_3_7_1),
+    }
+
+    /// The field written in the header section of a multipart 206, where each
+    /// body part carries its own. Nothing is wrong with the value; what is
+    /// wrong is that it is there, and § 15.3.7.2 says why in the sentence
+    /// itself — a client reading it would take the response for a single part
+    /// and the first range for the whole of what was sent.
+    ///
+    // cite(RFC 9110 § 15.3.7.2): "To avoid confusion with single-part responses, a server MUST NOT generate a Content-Range header field in the HTTP header section of a multiple part response (this field will be sent in each part instead)."
+    CONTENT_RANGE_FORBIDDEN = {
+        id: "content_range_forbidden",
+        title: "Content-Range is written in the header section of a multipart 206",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_15_3_7_2),
+    }
+
+    /// The wrong one of the field's two forms for the status carrying it. A 206
+    /// encloses a part and says which one, so `*/complete-length` — which
+    /// describes no enclosed range — says nothing a 206 has to say; a 416
+    /// encloses nothing, so `first-pos-last-pos/complete-length` describes a
+    /// part that is not there.
+    ///
+    /// `_invalid` rather than `_malformed`: both values are well formed, and
+    /// both are the *other* status code's form. One entry for the two
+    /// directions, because the quoted sentence states both meanings at once and
+    /// the defect is the same one read from either end — the form and the
+    /// status do not describe the same message.
+    ///
+    // cite(RFC 9110 § 14.4): "The "Content-Range" header field is sent in a single part 206 (Partial Content) response to indicate the partial range of the selected representation enclosed as the message content, sent in each part of a multipart 206 response to indicate the range enclosed within each body part (Section 14.6), and sent in 416 (Range Not Satisfiable) responses to provide information about the selected representation."
+    CONTENT_RANGE_FORM_INVALID = {
+        id: "content_range_form_invalid",
+        title: "Content-Range uses the form belonging to the other status code",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_14_4),
+    }
+
+    /// The range described and the length declared are not the same number of
+    /// octets. In a 206 the `Content-Length` counts the content of *this*
+    /// message, which for a single part is exactly the enclosed range, so
+    /// `last-pos - first-pos + 1` and the declared length are two statements of
+    /// one count.
+    ///
+    /// **Which of the two is wrong is not knowable here**, and that is what
+    /// keeps this entry at `warn` while `content_length_conflicting` — the same
+    /// disagreement measured against the octets that actually arrived — is an
+    /// `error`. That one knows what came; this one has two claims and no
+    /// evidence between them.
+    ///
+    /// Only for units whose positions count octets, which is `bytes` and
+    /// whatever else the reading rule's operator has asserted the same of. For
+    /// any other unit there is no equation to write down, so there is no defect
+    /// to name.
+    ///
+    // cite(RFC 9110 § 15.3.7): "A Content-Length header field present in a 206 response indicates the number of octets in the content of this message, which is usually not the complete length of the selected representation."
+    CONTENT_RANGE_LENGTH_CONFLICTING = {
+        id: "content_range_length_conflicting",
+        title: "Content-Range describes a range that is not the declared Content-Length",
+        message: "",
+        default_severity: Severity::Warn,
+        spec: Some(RFC_9110_15_3_7),
+    }
 }
 
 /// The defect a parsed [`ContentRangeDefect`] reports as.
@@ -284,6 +401,30 @@ mod tests {
         ] {
             assert_eq!(content_range_defect(defect).id, id);
         }
+    }
+
+    /// Two fields disagreeing ranks below one field disagreeing with the octets
+    /// that arrived. `content_length_conflicting` is measured against the body
+    /// and knows which claim is wrong; this one holds two claims and nothing to
+    /// decide between them, so it advises where the other one condemns.
+    #[test]
+    fn a_disagreement_with_no_evidence_ranks_below_one_with_some() {
+        assert_eq!(
+            CONTENT_RANGE_LENGTH_CONFLICTING.default_severity,
+            Severity::Warn
+        );
+        assert_eq!(
+            crate::violations::content_length::CONTENT_LENGTH_CONFLICTING.default_severity,
+            Severity::Error,
+        );
+    }
+
+    /// An id shared by a MUST site and a SHOULD site defaults to the weaker of
+    /// the two: the 206 half of `content_range_missing` is required and the 416
+    /// half recommended, and an operator raising the entry would raise both.
+    #[test]
+    fn the_entry_two_sentences_share_defaults_to_the_weaker_one() {
+        assert_eq!(CONTENT_RANGE_MISSING.default_severity, Severity::Warn);
     }
 
     /// The two conditions § 14.4 calls *invalid* rank above the ones a parser

@@ -1215,8 +1215,24 @@ severity = "error"
 # Content-Range is empty
 severity = "warn"
 
+[violations.content_range_forbidden]
+# Content-Range is written in the header section of a multipart 206
+severity = "warn"
+
+[violations.content_range_form_invalid]
+# Content-Range uses the form belonging to the other status code
+severity = "warn"
+
 [violations.content_range_incl_range_malformed]
 # Content-Range range is not first-pos '-' last-pos
+severity = "warn"
+
+[violations.content_range_length_conflicting]
+# Content-Range describes a range that is not the declared Content-Length
+severity = "warn"
+
+[violations.content_range_missing]
+# Content-Range is absent from a response whose range it would describe
 severity = "warn"
 
 [violations.content_range_numeral_invalid]
