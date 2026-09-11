@@ -34,10 +34,20 @@
 //! request line rather than a header field. **A version that withholds the
 //! mechanism a client would ask with is a client that could not have asked.**
 //!
-//! All four default to `warn`, which is the severity the rules reporting them
-//! had already chosen for themselves: a client handed a response it did not ask
-//! for, or cannot parse, has to notice that on its own, and only one of the four
-//! documents a prohibition.
+//! **The fifth is the first entry here that ranks above the rule reporting it**,
+//! and the line it draws is worth having: a `101` that switches to a protocol
+//! the client never named is not a status code describing an exchange wrongly —
+//! it is a connection that has *left HTTP* for something the client cannot
+//! speak. There is no later message to repair it in, which is the argument
+//! `upgrade_missing` and `upgrade_empty` already make for `error`.
+//!
+//! So four of the five default to `warn`, which is the severity the rules
+//! reporting them had already chosen for themselves: a client handed a response
+//! it did not ask for, or cannot parse, has to notice that on its own, and the
+//! exchange carries on around it. **The question that separates the levels is
+//! not how strong the sentence is but whether the exchange can continue** — two
+//! of the five quote a prohibition, and only one of those two ends the
+//! conversation.
 
 use crate::lint::Severity;
 use crate::rules::SpecRef;
@@ -198,6 +208,41 @@ defects! {
         default_severity: Severity::Warn,
         spec: &[RFC_9110_7_8, RFC_9113_8_6, RFC_9114_4_5],
     }
+
+    /// A `101` switching to a protocol the client did not name. The version has
+    /// the mechanism and the exchange used it; what is wrong is *which* protocol
+    /// the connection now speaks.
+    ///
+    /// **One entry for three faces of one sentence**, which is how the rule
+    /// reporting it already described them: the request carried no `Upgrade`
+    /// field at all, or carried one with no protocol on it, or named protocols
+    /// and the response chose a different one. In all three the response's
+    /// protocol is one the request did not indicate, which is the whole of the
+    /// MUST NOT — and an operator silencing this is silencing a server that
+    /// switches to protocols of its own choosing, not three separate policies.
+    ///
+    /// `_forbidden`, because § 7.8 states it as a MUST NOT addressed to the
+    /// server. That is the line
+    /// [`STATUS_101_UNSOLICITED`] sits on the other side of: there, three
+    /// documents withhold a definition and none prohibits the message.
+    ///
+    /// **`error`, one level above the rule that reports it**, and the reason is
+    /// not the strength of the sentence. A `101` hands the connection over:
+    /// everything after the response's empty line is spoken in the new protocol,
+    /// so a client that never named it has nothing to say and nothing to wait
+    /// for. That is the same argument
+    /// [`upgrade_missing`](crate::violations::upgrade::UPGRADE_MISSING) makes,
+    /// and it is what separates this entry from the four `warn`s beside it,
+    /// where the exchange survives the defect.
+    ///
+    // cite(RFC 9110 § 7.8): "A server MUST NOT switch to a protocol that was not indicated by the client in the corresponding request's Upgrade header field."
+    STATUS_101_PROTOCOL_FORBIDDEN = {
+        id: "status_101_protocol_forbidden",
+        title: "A 101 switches to a protocol the client did not indicate",
+        message: "",
+        default_severity: Severity::Error,
+        spec: &[RFC_9110_7_8],
+    }
 }
 
 #[cfg(test)]
@@ -215,9 +260,11 @@ mod tests {
             &STATUS_416_UNSOLICITED,
             &STATUS_206_MULTIPART_FORBIDDEN,
             &STATUS_101_UNSOLICITED,
+            &STATUS_101_PROTOCOL_FORBIDDEN,
         ] {
             assert!(def.id.starts_with("status_"), "{} is not a status", def.id);
             assert!(!def.id.contains("range"), "{} names a field", def.id);
+            assert!(!def.id.contains("upgrade"), "{} names a field", def.id);
         }
     }
 
@@ -246,6 +293,7 @@ mod tests {
     #[test]
     fn only_the_entry_a_sentence_prohibits_is_the_forbidden_one() {
         assert!(STATUS_206_MULTIPART_FORBIDDEN.id.ends_with("_forbidden"));
+        assert!(STATUS_101_PROTOCOL_FORBIDDEN.id.ends_with("_forbidden"));
         for def in [
             &STATUS_206_UNSOLICITED,
             &STATUS_416_UNSOLICITED,
@@ -277,5 +325,25 @@ mod tests {
         }
         assert!(STATUS_101_UNSOLICITED.spec.len() > 1);
         assert!(STATUS_101_UNSOLICITED.message.is_empty());
+    }
+
+    /// The level is decided by whether the exchange can continue, and not by
+    /// which entries quote a prohibition. Two of the five do; one of those two
+    /// hands the connection to a protocol the client cannot speak, and it is the
+    /// only `error` here.
+    #[test]
+    fn the_entry_that_ends_the_conversation_is_the_only_error() {
+        assert_eq!(
+            STATUS_101_PROTOCOL_FORBIDDEN.default_severity,
+            Severity::Error
+        );
+        for def in [
+            &STATUS_206_UNSOLICITED,
+            &STATUS_416_UNSOLICITED,
+            &STATUS_206_MULTIPART_FORBIDDEN,
+            &STATUS_101_UNSOLICITED,
+        ] {
+            assert_eq!(def.default_severity, Severity::Warn, "{}", def.id);
+        }
     }
 }
