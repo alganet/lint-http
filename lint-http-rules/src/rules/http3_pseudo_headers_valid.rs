@@ -118,7 +118,7 @@ severity = "error"
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/3 requests encode control data as pseudo-header fields. This rule reads what each of them conveyed, and the first thing it checks is that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\n**A request naming no method at all is not reported here.** §4.3.1 requires exactly one `:method`, and over this version an absent one and an empty one reassemble into the same capture: a method of no characters, which is `method = token`'s one-character floor. `request_method_token_valid` reports that on every version, so the finding is left there rather than given a second name; what a value naming no method does here is stop the rule, since neither the CONNECT restrictions nor the asterisk's one method have anything to turn on. The same goes for a method carrying an octet outside `tchar`, and for one written with whitespace around it: the value is read as written, because trimming it would hide the space from this rule and from nowhere else. `http2_pseudo_headers_valid` surrendered the same question earlier and for the same reason.\n\n**The method is compared as written.** It is case-sensitive (RFC 9110 §9.1: \"The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names\"), so `connect` is a method these documents do not define and owns none of CONNECT's restrictions, and `options` is not the method the asterisk-form is left to. The fold this replaced *suppressed* findings: a lowercase `connect` took the tunnel branch and skipped the `:path` requirement, and a lowercase `options` was handed the asterisk.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. **`http2_pseudo_headers_valid` makes no such report**, because RFC 9113 §8.3.1 writes the opposite for that version: a client uses `:authority` \"unless there is no authority information to convey (in which case it MUST NOT generate ':authority')\". The scheme the clause gates on is not in a capture of an origin-form request — which is the shape this finding arrives in — and what stands in for it is the transport: HTTP/3 runs over QUIC with TLS, so the request is `http` or `https`. **A CONNECT is asked the same question once**: §4.4 puts the host and port of the tunnel destination in `:authority`, a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field — and a request carrying neither names nothing to open a tunnel to. That is one finding whether the target arrived empty, as a path or as an asterisk, since the shape says what the sender attempted rather than what a recipient is missing; it used to be three, answered differently from how the HTTP/2 twin answered them. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `http2_pseudo_headers_valid`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
+        "HTTP/3 requests encode control data as pseudo-header fields. This rule reads what each of them conveyed, and the first thing it checks is that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\n**A request naming no method at all is not reported here.** §4.3.1 requires exactly one `:method`, and over this version an absent one and an empty one reassemble into the same capture: a method of no characters, which is `method = token`'s one-character floor. `request_method_token_valid` reports that on every version, so the finding is left there rather than given a second name; what a value naming no method does here is stop the rule, since neither the CONNECT restrictions nor the asterisk's one method have anything to turn on. The same goes for a method carrying an octet outside `tchar`, and for one written with whitespace around it: the value is read as written, because trimming it would hide the space from this rule and from nowhere else. `http2_pseudo_headers_valid` surrendered the same question earlier and for the same reason.\n\n**The target is read as written too.** A `:path` or `:authority` with whitespace around it derives from no field value (RFC 9110 §5.5), and the character inside one is `request_uri_percent_encoding_valid`'s finding on every version — so the trim that used to run here took the space out of the value before any reading saw it, hiding it from this rule and from nowhere else.\n\n**The method is compared as written.** It is case-sensitive (RFC 9110 §9.1: \"The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names\"), so `connect` is a method these documents do not define and owns none of CONNECT's restrictions, and `options` is not the method the asterisk-form is left to. The fold this replaced *suppressed* findings: a lowercase `connect` took the tunnel branch and skipped the `:path` requirement, and a lowercase `options` was handed the asterisk.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. **`http2_pseudo_headers_valid` makes no such report**, because RFC 9113 §8.3.1 writes the opposite for that version: a client uses `:authority` \"unless there is no authority information to convey (in which case it MUST NOT generate ':authority')\". The scheme the clause gates on is not in a capture of an origin-form request — which is the shape this finding arrives in — and what stands in for it is the transport: HTTP/3 runs over QUIC with TLS, so the request is `http` or `https`. **A CONNECT is asked the same question once**: §4.4 puts the host and port of the tunnel destination in `:authority`, a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field — and a request carrying neither names nothing to open a tunnel to. That is one finding whether the target arrived empty, as a path or as an asterisk, since the shape says what the sender attempted rather than what a recipient is missing; it used to be three, answered differently from how the HTTP/2 twin answered them. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `http2_pseudo_headers_valid`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -277,9 +277,17 @@ impl Rule for Http3PseudoHeadersValid {
                 // names § 4.4 and RFC 9113 § 8.5, and leaves the message to name
                 // the section governing the version this rule reads.
                 // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
-                let uri_trimmed = tx.request.uri.trim();
-                let authority =
-                    crate::helpers::uri::extract_authority_from_request_target(uri_trimmed);
+                //
+                // The target as the transport reassembled it, read as written:
+                // a `:path` or `:authority` with whitespace around it derives
+                // from no field value, and the character inside one is
+                // `request_uri_percent_encoding_valid`'s finding on every
+                // version. The trim this replaces took the space out of the
+                // value *before* the reading, which hid it from this rule and
+                // from nobody else — the twin's judgment, made here late.
+                // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
+                let target = tx.request.uri.as_str();
+                let authority = crate::helpers::uri::extract_authority_from_request_target(target);
                 if authority.is_none() && !tx.request.headers.contains_key("host") {
                     return Some(ctx.report_with(
                         &AUTHORITY_TUNNEL_MISSING,
@@ -287,7 +295,7 @@ impl Rule for Http3PseudoHeadersValid {
                             "HTTP/3 CONNECT request target '{}' names no host and port, and no \
                              'Host' field names one either: a CONNECT's ':authority' is the host \
                              and port to connect to (RFC 9114 §4.4)",
-                            crate::helpers::shown::shown_in_finding(uri_trimmed)
+                            crate::helpers::shown::shown_in_finding(target)
                         ),
                     ));
                 }
@@ -310,12 +318,16 @@ impl Rule for Http3PseudoHeadersValid {
                 // the same decline the HTTP/2 twin publishes — and § 4.4's
                 // sentence describes the basic form only.
                 // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
-                if let Some(authority) = authority
-                    .filter(|a| a.contains('@'))
-                    .filter(|_| crate::helpers::uri::scheme_authority_marker(uri_trimmed).is_none())
-                {
-                    let shown = crate::helpers::uri::userinfo_password_withheld(&authority)
-                        .unwrap_or(authority);
+                //
+                // The value judged is the target as written, not the authority
+                // the extractor cut out of it: for an authority-form target the
+                // two differ only in the whitespace, and the whitespace is a
+                // finding rather than something to strip before one.
+                let authority_form = authority.is_some()
+                    && crate::helpers::uri::scheme_authority_marker(target).is_none();
+                if authority_form && target.contains('@') {
+                    let shown = crate::helpers::uri::userinfo_password_withheld(target)
+                        .unwrap_or_else(|| target.to_string());
                     return Some(ctx.report_with(
                         &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
                         format!(
@@ -331,19 +343,15 @@ impl Rule for Http3PseudoHeadersValid {
                 // and writes neither, so the bracket, the address inside it and
                 // the port's digits answer to RFC 3986.
                 // cite(RFC 9114 § 4.4): "The :authority pseudo-header field contains the host and port to connect to"
-                if let Some(authority) = crate::helpers::uri::extract_authority_from_request_target(
-                    uri_trimmed,
-                )
-                .filter(|_| crate::helpers::uri::scheme_authority_marker(uri_trimmed).is_none())
-                {
+                if authority_form {
                     if let Err(defect) =
-                        crate::helpers::uri::validate_host_and_optional_port(&authority)
+                        crate::helpers::uri::validate_host_and_optional_port(target)
                     {
                         return Some(ctx.report_with(
                             host_and_port(defect),
                             format!(
                                 "HTTP/3 CONNECT ':authority' '{}' is not a host and port: {}",
-                                crate::helpers::shown::shown_in_finding(&authority),
+                                crate::helpers::shown::shown_in_finding(target),
                                 defect.message()
                             ),
                         ));
@@ -358,8 +366,13 @@ impl Rule for Http3PseudoHeadersValid {
                 // and the HTTP/1.x rule declare too: the asterisk is one defect
                 // over three spellings of one element, and § 7.1 is written in
                 // the version-independent document for that reason.
-                let uri_trimmed = tx.request.uri.trim();
-                if uri_trimmed == "*" {
+                //
+                // Read as written, for the reason the CONNECT branch reads it
+                // that way: whitespace around a reassembled target derives from
+                // no field value.
+                // cite(RFC 9110 § 5.5): "A field value does not include leading or trailing whitespace."
+                let target = tx.request.uri.as_str();
+                if target == "*" {
                     // Read as written for the reason above: `options` is not the
                     // method § 7.1 leaves the asterisk to, and folding here
                     // handed it the form.
@@ -380,8 +393,7 @@ impl Rule for Http3PseudoHeadersValid {
                     // here. An absent `:path` and a blank one reassemble into the
                     // same target, which is the reading the entry carries.
                     let has_path =
-                        crate::helpers::uri::extract_path_from_request_target(uri_trimmed)
-                            .is_some();
+                        crate::helpers::uri::extract_path_from_request_target(target).is_some();
                     if !has_path {
                         return Some(
                             ctx.report_with(
@@ -407,8 +419,7 @@ impl Rule for Http3PseudoHeadersValid {
                 // cited from it. The HTTP/2 twin declares no such entry: § 8.3.1
                 // tells a client to omit `:authority` where there is no
                 // authority to convey, which is the opposite requirement.
-                let authority =
-                    crate::helpers::uri::extract_authority_from_request_target(&tx.request.uri);
+                let authority = crate::helpers::uri::extract_authority_from_request_target(target);
                 if authority.is_none() {
                     // The same clause asks two things of a request whose target
                     // names no authority: that one of the two fields be there,
@@ -438,7 +449,7 @@ impl Rule for Http3PseudoHeadersValid {
                                 "Request target '{}' names no authority, and the request carries \
                                  no 'Host' field either: an 'http' or 'https' request carries the \
                                  host in ':authority' or in a 'Host' field",
-                                crate::helpers::shown::shown_in_finding(uri_trimmed)
+                                crate::helpers::shown::shown_in_finding(target)
                             ),
                         ));
                     }
@@ -452,7 +463,7 @@ impl Rule for Http3PseudoHeadersValid {
                                 "Request target '{}' names no authority and the 'Host' field \
                                  beside it is empty: whichever of the two an 'http' or 'https' \
                                  request carries the host in, that field is not empty",
-                                crate::helpers::shown::shown_in_finding(uri_trimmed)
+                                crate::helpers::shown::shown_in_finding(target)
                             ),
                         ));
                     }
@@ -469,14 +480,14 @@ impl Rule for Http3PseudoHeadersValid {
                 // neither governs the other's version, so the message names the
                 // section that governs this one. The password half is withheld
                 // from the finding (RFC 3986 § 3.2.1, at the shared helper).
-                if let Some(marker) = crate::helpers::uri::scheme_authority_marker(uri_trimmed) {
+                if let Some(marker) = crate::helpers::uri::scheme_authority_marker(target) {
                     // The scheme is the characters before the marker, and the
                     // helper carries the production. Nothing here asks whether it
                     // is one anybody serves — this pseudo-header is not
                     // restricted to http and https — only whether it is a scheme
                     // name at all, which is the reading the twin already makes.
                     // cite(RFC 9114 § 4.3.1): "Contains the scheme portion of the target URI (Section 3.1 of [URI])."
-                    if let Some(defect) = crate::helpers::uri::scheme_if_present(uri_trimmed) {
+                    if let Some(defect) = crate::helpers::uri::scheme_if_present(target) {
                         return Some(ctx.report_with(
                             scheme_name(defect),
                             format!(
@@ -486,7 +497,7 @@ impl Rule for Http3PseudoHeadersValid {
                         ));
                     }
 
-                    let scheme = &uri_trimmed[..marker];
+                    let scheme = &target[..marker];
 
                     if let Some(authority) = authority.as_ref().filter(|a| a.contains('@')) {
                         if scheme.eq_ignore_ascii_case("http")
@@ -599,6 +610,32 @@ mod tests {
         )
         .expect("a finding");
         assert_eq!(v.violation, expected, "{}", v.message);
+    }
+
+    /// The target is read as written, so whitespace a sender put around a
+    /// reassembled `:authority` reaches the reading instead of being taken out
+    /// before it. Which id it draws is the authority production's question; that
+    /// the value is measured at all is this rule's.
+    #[rstest]
+    #[case(" example.com:443", "uri_host_character_forbidden")]
+    #[case("example.com:443 ", "uri_port_character_forbidden")]
+    fn whitespace_around_a_connect_authority_reaches_the_reading(
+        #[case] target: &str,
+        #[case] expected: &str,
+    ) {
+        let rule = Http3PseudoHeadersValid;
+        let mut tx = make_h3_transaction();
+        tx.request.method = "CONNECT".into();
+        tx.request.uri = target.into();
+
+        let v = crate::test_helpers::run_rule(
+            &rule,
+            &tx,
+            &crate::transaction_history::TransactionHistory::empty(),
+            &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
+        )
+        .expect("a finding");
+        assert_eq!(v.violation, expected, "{target:?}: {}", v.message);
     }
 
     /// A CONNECT's authority is measured too, and its port is where the twin

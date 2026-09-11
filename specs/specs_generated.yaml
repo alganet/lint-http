@@ -5041,7 +5041,7 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 259
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 366
+      line: 379
     - file: lint-http-rules/src/rules/options_method_capabilities.rs
       line: 192
     - file: lint-http-rules/src/rules/patch_method_content_type_match.rs
@@ -6947,7 +6947,11 @@ sources:
     - file: lint-http-rules/src/rules/host_header.rs
       line: 229
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 425
+      line: 288
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 373
+    - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
+      line: 436
     - file: lint-http-rules/src/rules/keep_alive_header_valid.rs
       line: 538
     - file: lint-http-rules/src/rules/link_header_valid.rs
@@ -10653,7 +10657,7 @@ sources:
     - file: lint-http-rules/src/rules/host_and_authority_consistent.rs
       line: 416
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 424
+      line: 435
     - file: lint-http-rules/src/violations/authority.rs
       line: 304
   - label: http3_goaway_semantics
@@ -10705,25 +10709,25 @@ sources:
     snippet: Contains the authority portion of the target URI (Section 3.2 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 509
+      line: 520
   - label: http3_pseudo_headers_valid (3)
     section: § 4.3.1
     snippet: Contains the scheme portion of the target URI (Section 3.1 of [URI]).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 478
+      line: 489
   - label: http3_pseudo_headers_valid (4)
     section: § 4.3.2
     snippet: For responses, a single ":status" pseudo-header field is defined that carries the HTTP status code; see Section 15 of [HTTP].
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 542
+      line: 553
   - label: http3_pseudo_headers_valid (5)
     section: § 4.3.2
     snippet: This pseudo-header field MUST be included in all responses; otherwise, the response is malformed (see Section 4.1.2).
     cited_by:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 543
+      line: 554
   - label: http3_pseudo_headers_valid (6)
     section: § 4.4
     snippet: The :authority pseudo-header field contains the host and port to connect to
@@ -10731,9 +10735,9 @@ sources:
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
       line: 279
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 312
+      line: 320
     - file: lint-http-rules/src/rules/http3_pseudo_headers_valid.rs
-      line: 333
+      line: 345
   - label: http3_pseudo_headers_valid (7)
     section: § 4.4
     snippet: The :method pseudo-header field is set to "CONNECT"
