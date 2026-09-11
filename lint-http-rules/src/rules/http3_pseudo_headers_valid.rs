@@ -86,6 +86,12 @@ const RFC_3986_3_2_1: crate::rules::SpecRef = crate::rules::SpecRef {
            follows the first colon of a userinfo, which is why both findings here \
            withhold the password half",
 };
+const RFC_9110_9_1: crate::rules::SpecRef = crate::rules::SpecRef {
+    spec: "RFC 9110",
+    section: Some("9.1"),
+    url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.1",
+    note: "Overview of methods — `method = token`, and the token is case-sensitive, which is why CONNECT and OPTIONS are matched exactly here as they are over HTTP/2",
+};
 const RFC_9114_4_3_2: crate::rules::SpecRef = crate::rules::SpecRef {
     spec: "RFC 9114",
     section: Some("4.3.2"),
@@ -108,7 +114,7 @@ severity = "error"
     }
 
     fn description(&self) -> &'static str {
-        "HTTP/3 requests encode control data as pseudo-header fields. This rule reads what each of them conveyed, and the first thing it checks is that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\n**A request naming no method at all is not reported here.** §4.3.1 requires exactly one `:method`, and over this version an absent one and an empty one reassemble into the same capture: a method of no characters, which is `method = token`'s one-character floor. `request_method_token_valid` reports that on every version, so the finding is left there rather than given a second name; what a value naming no method does here is stop the rule, since neither the CONNECT restrictions nor the asterisk's one method have anything to turn on. `http2_pseudo_headers_valid` surrendered the same question earlier and for the same reason.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. **A CONNECT is asked the same question once**: §4.4 puts the host and port of the tunnel destination in `:authority`, a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field — and a request carrying neither names nothing to open a tunnel to. That is one finding whether the target arrived empty, as a path or as an asterisk, since the shape says what the sender attempted rather than what a recipient is missing; it used to be three, answered differently from how the HTTP/2 twin answered them. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `http2_pseudo_headers_valid`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
+        "HTTP/3 requests encode control data as pseudo-header fields. This rule reads what each of them conveyed, and the first thing it checks is that every non-CONNECT request includes a non-empty `:path` pseudo-header field.\n\n**A request naming no method at all is not reported here.** §4.3.1 requires exactly one `:method`, and over this version an absent one and an empty one reassemble into the same capture: a method of no characters, which is `method = token`'s one-character floor. `request_method_token_valid` reports that on every version, so the finding is left there rather than given a second name; what a value naming no method does here is stop the rule, since neither the CONNECT restrictions nor the asterisk's one method have anything to turn on. The same goes for a method carrying an octet outside `tchar`, and for one written with whitespace around it: the value is read as written, because trimming it would hide the space from this rule and from nowhere else. `http2_pseudo_headers_valid` surrendered the same question earlier and for the same reason.\n\n**The method is compared as written.** It is case-sensitive (RFC 9110 §9.1: \"The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names\"), so `connect` is a method these documents do not define and owns none of CONNECT's restrictions, and `options` is not the method the asterisk-form is left to. The fold this replaced *suppressed* findings: a lowercase `connect` took the tunnel branch and skipped the `:path` requirement, and a lowercase `options` was handed the asterisk.\n\nFor schemes with a mandatory authority component (including `http` and `https`), the HTTP/3 specification requires that the request contain either an `:authority` pseudo-header field or a `Host` header field. This rule enforces that requirement by checking that at least one of `:authority` or `Host` is present. **A CONNECT is asked the same question once**: §4.4 puts the host and port of the tunnel destination in `:authority`, a capture shows that field reassembled into the target — or, where a library moved it, as a `Host` field — and a request carrying neither names nothing to open a tunnel to. That is one finding whether the target arrived empty, as a path or as an asterisk, since the shape says what the sender attempted rather than what a recipient is missing; it used to be three, answered differently from how the HTTP/2 twin answered them. It does not validate the `:scheme` pseudo-header, because the canonical transaction model used by lint-http does not retain scheme information for origin-form requests.\n\n**The deprecated userinfo subcomponent is reported where it can be seen.** RFC 9114 §4.3.1 forbids `:authority` from including it for URIs of scheme `http` or `https`, and the capture shows `:authority` only where the transport reassembled it into an absolute-form target — which is also the one place the scheme the sentence gates on is on the wire, so the gate and the evidence arrive together or not at all. A CONNECT's `:authority` is §4.4's host-and-port tunnel destination, with no scheme to gate on and no third component, so a userinfo in an authority-form target is reported outright — while an absolute-form CONNECT target is a conforming extended CONNECT and a malformed basic one with nothing in a capture to choose between them, and is declined here as the HTTP/2 twin declines it. Both findings withhold the password half (RFC 3986 §3.2.1). The twin sentence for HTTP/2 (RFC 9113 §8.3.1) is `http2_pseudo_headers_valid`'s.\n\n**This rule reads requests only.** RFC 9114 §4.3.2 requires a response to carry exactly one `:status` pseudo-header field, which the canonical transaction model always supplies as a `u16`, so its absence has no representation here. The range that value must fall in is RFC 9110 §15's and is the same for every HTTP version — §4.3.2 states none of its own — so an out-of-range status is reported by `status_code_valid_range`, whatever version carried it. This rule used to report it too, but only when both ends spoke HTTP/3."
     }
 
     fn specifications(&self) -> &'static [crate::rules::SpecRef] {
@@ -125,6 +131,7 @@ severity = "error"
             // The tunnel entry names it and its findings carry it.
             RFC_9110_9_3_6,
             RFC_3986_3_2_1,
+            RFC_9110_9_1,
             RFC_9114_4_3_2,
             RFC_9114_4_4,
             // The other version's account of a CONNECT's construction, declared
@@ -224,12 +231,30 @@ impl Rule for Http3PseudoHeadersValid {
             // the canonical model does not retain a scheme for origin-form
             // requests, as the description says.)
             // cite(RFC 9114 § 4.3.1): "All HTTP/3 requests MUST include exactly one value for the :method, :scheme, and :path pseudo-header fields, unless the request is a CONNECT request; see Section 4.4."
-            let method = tx.request.method.trim();
-            if method.is_empty() {
+            //
+            // Read as written. `method = token` is `1*tchar`, which admits no
+            // whitespace for a trim to find and no empty string, so a value
+            // failing it derives from no `method` — and trimming it here hid a
+            // leading space from *this* rule without hiding it from the rule
+            // that reports it, which is what the twin found when it stopped
+            // trimming.
+            // cite(RFC 9110 § A): "method = token minute = 2DIGIT"
+            let method = tx.request.method.as_str();
+            if method.is_empty() || crate::helpers::token::find_invalid_token_char(method).is_some()
+            {
                 return None;
             }
 
-            let is_connect = method.eq_ignore_ascii_case("CONNECT");
+            // Compared as written, because the method token is case-sensitive:
+            // `connect` is a method these documents do not define and owns none
+            // of CONNECT's restrictions. The fold this replaces *suppressed*
+            // findings — a lowercase `connect` took the tunnel branch and
+            // skipped the `:path` requirement, a lowercase `options` was handed
+            // the asterisk — and the twin had already settled the same question
+            // the same way.
+            // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+            // cite(RFC 9114 § 4.4): "The :method pseudo-header field is set to "CONNECT""
+            let is_connect = method == "CONNECT";
 
             if is_connect {
                 // Whether this request names a tunnel destination at all. It had
@@ -331,7 +356,11 @@ impl Rule for Http3PseudoHeadersValid {
                 // the version-independent document for that reason.
                 let uri_trimmed = tx.request.uri.trim();
                 if uri_trimmed == "*" {
-                    if !method.eq_ignore_ascii_case("OPTIONS") {
+                    // Read as written for the reason above: `options` is not the
+                    // method § 7.1 leaves the asterisk to, and folding here
+                    // handed it the form.
+                    // cite(RFC 9110 § 9.1): "The method token is case-sensitive because it might be used as a gateway to object-based systems with case-sensitive method names."
+                    if method != "OPTIONS" {
                         return Some(ctx.report_with(
                             &REQUEST_TARGET_ASTERISK_FORBIDDEN,
                             format!(
@@ -549,10 +578,17 @@ mod tests {
     /// capture: a method of no characters, which is `method = token`'s
     /// one-character floor. The rule that owns the production reports it on
     /// every version, so this one stops rather than giving the absence a second
-    /// name — the handover the HTTP/2 twin made first.
+    /// name — the handover the HTTP/2 twin made first. The whitespace cases are
+    /// the same handover from the other side: `1*tchar` admits none of it, and
+    /// the trim that used to run here hid a leading space from this rule and
+    /// from nobody else.
     #[rstest]
     #[case("")]
     #[case("   ")]
+    #[case(" GET")]
+    #[case("GET ")]
+    #[case("GE T")]
+    #[case("GE\u{20AC}T")]
     fn a_value_that_is_no_method_stops_the_rule(#[case] method: &str) {
         let rule = Http3PseudoHeadersValid;
         let mut tx = make_h3_transaction();
@@ -1266,21 +1302,37 @@ mod tests {
         assert!(v.is_none());
     }
 
+    /// The method token is case-sensitive, and the fold this replaced
+    /// *suppressed* both findings: a lowercase `connect` took the tunnel branch
+    /// and skipped the `:path` requirement, and a lowercase `options` was handed
+    /// the asterisk. The twin had settled it the same way one conversion
+    /// earlier.
     #[test]
-    fn connect_case_insensitive() {
-        // Method comparison is case-insensitive.
+    fn a_lowercase_connect_is_not_connect() {
+        let message = judge("connect", "example.com:443").expect("reported");
+        assert!(message.contains(":path"), "{message}");
+    }
+
+    #[rstest]
+    #[case("options")]
+    #[case("Options")]
+    fn the_asterisk_belongs_to_options_written_that_way(#[case] method: &str) {
         let rule = Http3PseudoHeadersValid;
         let mut tx = make_h3_transaction();
-        tx.request.method = "connect".into();
-        tx.request.uri = "example.com:443".into();
+        tx.request.method = method.into();
+        tx.request.uri = "*".into();
+        tx.request.headers =
+            crate::test_helpers::make_headers_from_pairs(&[("host", "example.com")]);
 
         let v = crate::test_helpers::run_rule(
             &rule,
             &tx,
             &crate::transaction_history::TransactionHistory::empty(),
             &crate::test_helpers::make_test_config_with_enabled_rules(&[rule.id()]),
-        );
-        assert!(v.is_none());
+        )
+        .expect("reported");
+        assert!(v.message.contains("Asterisk"), "{}", v.message);
+        assert!(v.message.contains(method), "{}", v.message);
     }
 
     #[test]
