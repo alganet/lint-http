@@ -8,7 +8,9 @@ use crate::violations::authority::{
     AUTHORITY_TUNNEL_USERINFO_FORBIDDEN, AUTHORITY_USERINFO_FORBIDDEN, RFC_9110_9_3_6,
     RFC_9113_8_3_1, RFC_9114_4_3_1,
 };
-use crate::violations::request_target::{REQUEST_TARGET_ASTERISK_FORBIDDEN, RFC_9110_7_1};
+use crate::violations::request_target::{
+    REQUEST_TARGET_ASTERISK_FORBIDDEN, REQUEST_TARGET_PATH_MISSING, RFC_9110_7_1,
+};
 use crate::violations::uri::{
     host_and_port, scheme_name, PERCENT_ENCODING_DIGITS_MISSING, PERCENT_ENCODING_MALFORMED,
     RFC_3986_2_1, RFC_3986_3_1, RFC_3986_3_2_2, RFC_3986_3_2_3, URI_HOST_BRACKET_FORBIDDEN,
@@ -55,6 +57,7 @@ static DECLARED: &[&ViolationDef] = &[
     &REQUEST_TARGET_ASTERISK_FORBIDDEN,
     &AUTHORITY_USERINFO_FORBIDDEN,
     &AUTHORITY_TUNNEL_USERINFO_FORBIDDEN,
+    &REQUEST_TARGET_PATH_MISSING,
 ];
 
 /// One finding from the CONNECT reading, and the defect it reports as where
@@ -472,15 +475,21 @@ impl Rule for Http2PseudoHeadersValid {
                         ));
                     }
                 } else {
-                    // cite(RFC 9113 § 8.3.1): "This pseudo-header field MUST NOT be empty for "http" or "https" URIs; "http" or "https" URIs that do not contain a path component MUST include a value of '/'."
-                    // cite(RFC 9113 § 8.3.1): "All HTTP/2 requests MUST include exactly one valid value for the ":method", ":scheme", and ":path" pseudo-header fields, unless they are CONNECT requests (Section 8.5)."
+                    // The entry names this section and RFC 9114 § 4.3.1, which
+                    // states the same requirement for the other version, so the
+                    // message names the one governing here. Both quotes are on
+                    // the entry; the reading that an absent `:path` and a blank
+                    // one arrive identically is there too.
                     if crate::helpers::uri::extract_path_from_request_target(target).is_none() {
-                        return Some(self.cited(&RFC_9113_8_3_1, ctx.severity, format!(
+                        return Some(ctx.report_with(
+                            &REQUEST_TARGET_PATH_MISSING,
+                            format!(
                                 "Request target '{}' carries no path, and every non-CONNECT request \
                                  sends exactly one ':path': an 'http' or 'https' URI with no path \
-                                 component sends '/'",
+                                 component sends '/' (RFC 9113 §8.3.1)",
                                 crate::helpers::shown::shown_in_finding(target)
-                            )));
+                            ),
+                        ));
                     }
                 }
             }
